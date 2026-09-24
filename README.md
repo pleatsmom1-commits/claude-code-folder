@@ -36,9 +36,9 @@
 - `Enable Email provider`: 켜기
 - `Confirm email`: 아래 3번의 메일 발송 설정을 했다면 **켜기(권장)**, 아직 안 했다면 **끄기**
 
-**Authentication → URL Configuration**
-- `Site URL`: 실제 서비스 주소 (예: `https://pleatsmom1-commits.github.io/claude-code-folder/`)
-- `Redirect URLs`: 같은 주소 추가 (가입 인증·비밀번호 재설정 메일 링크가 이 주소로 돌아옵니다)
+**Authentication → URL Configuration** (안 하면 인증 메일 링크가 `localhost`로 가서 "사이트에 연결할 수 없음"이 뜹니다)
+- `Site URL`: `https://bamnatconnect.netlify.app`
+- `Redirect URLs`: `https://bamnatconnect.netlify.app/**` 추가 (가입 인증·비밀번호 재설정 메일 링크가 이 주소로 돌아옵니다)
 
 ### 3. 메일 발송(SMTP) 설정 — 실제 운영 전 필수
 Supabase 기본 메일 서버는 **프로젝트 팀원 이메일로만, 시간당 몇 통만** 보냅니다. 셀러에게 가입 인증·비밀번호 재설정 메일이 가려면
