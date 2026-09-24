@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>밤낮딜리버리 풀필먼트 주문접수 시스템</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS + 셀 스타일링 지원 통합 라이브러리 -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- 다음 우편번호 검색 API -->
+    <script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
+
+    <script>
+        // =========================================================================
+        // 📌 Supabase 클라우드 DB 자동 연동 설정
+        // =========================================================================
+        const SUPABASE_URL = "https://doierphwtctcomrujgem.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_5XM4HoFx4U_0kL-8ET_x-Q_WfvGwFXL";
+        // =========================================================================
+    </script>
+
+    <style>
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        body { font-family: 'Pretendard', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Top Time Simulator Bar -->
+    <header class="bg-slate-900 text-white px-4 py-2 text-xs flex flex-wrap items-center justify-between gap-2 shadow-md">
+        <div class="flex items-center gap-2">
+            <i data-lucide="clock" class="w-4 h-4 text-amber-400"></i>
+            <span class="font-bold text-amber-400">[테스트용 시간 시뮬레이터]</span>
+            <span>현재 설정 시간:</span>
+            <span id="simulated-time-display" class="font-mono text-sm font-bold bg-slate-800 px-2 py-0.5 rounded border border-slate-700 text-amber-300"></span>
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="text-slate-400">시간 변경:</span>
+            <button onclick="setSimulatedTime(5)" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200">05:00 (정상접수/수정 가능)</button>
+            <button onclick="setSimulatedTime(8)" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200">08:00 (지연/신규 10시마감)</button>
+            <button onclick="setSimulatedTime(11)" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200">11:00 (접수 불가시간)</button>
+            <button onclick="setSimulatedTime(16)" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200">16:00 (이튿날 접수시간)</button>
+        </div>
+    </header>
+
+    <!-- Operational Status Banner -->
+    <div id="status-banner" class="px-6 py-2.5 text-sm font-medium flex justify-between items-center transition-colors">
+        <div class="flex items-center gap-2">
+            <i id="status-icon" data-lucide="info" class="w-4 h-4"></i>
+            <span id="status-text">상태 로딩 중...</span>
+        </div>
+        <span id="status-subtext" class="text-xs opacity-90"></span>
+    </div>
+
+    <!-- Navigation Header -->
+    <nav class="bg-white border-b border-slate-200 px-6 py-3 flex justify-between items-center shadow-sm">
+        <div class="flex items-center gap-3">
+            <div class="bg-indigo-600 text-white p-2 rounded-lg font-black tracking-wider text-sm">밤낮</div>
+            <div>
+                <h1 class="font-bold text-lg leading-tight text-slate-900">밤낮딜리버리 풀필먼트</h1>
+                <p class="text-xs text-slate-500">통합 주문접수 및 관리 시스템</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <div id="db-status-badge" class="px-2.5 py-1 bg-slate-100 text-slate-500 text-xs font-bold rounded-full flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-slate-400"></span> DB 연결 확인 중...
+            </div>
+            <button onclick="showSqlGuideModal()" class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg flex items-center gap-1">
+                <i data-lucide="database" class="w-3.5 h-3.5"></i> SQL 테이블 가이드
+            </button>
+            <div class="h-4 w-px bg-slate-200 my-auto"></div>
+            <div id="nav-user-area" class="flex items-center gap-2"></div>
+        </div>
+    </nav>
+
+    <!-- MAIN CONTAINER -->
+    <main class="flex-1 p-6 max-w-7xl w-full mx-auto">
+
+        <!-- 1. AUTH SCREEN -->
+        <div id="auth-screen" class="max-w-md mx-auto my-12 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
+            <div class="flex border-b border-slate-200 bg-slate-50">
+                <button id="tab-btn-seller" onclick="switchAuthTab('seller')" class="flex-1 py-3 text-sm font-bold text-indigo-600 border-b-2 border-indigo-600 bg-white">
+                    셀러 전용
+                </button>
+                <button id="tab-btn-admin" onclick="switchAuthTab('admin')" class="flex-1 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-700">
+                    밤낮딜리버리 관리자
+                </button>
+            </div>
+
+            <div class="p-8">
+                <!-- Seller Login Form -->
+                <form id="seller-login-form" onsubmit="handleSellerLogin(event)" class="space-y-4">
+                    <div class="text-center mb-6">
+                        <h2 class="text-xl font-bold text-slate-900">셀러 로그인</h2>
+                        <p class="text-xs text-slate-500 mt-1">등록된 계정으로 로그인해주세요.</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">아이디</label>
+                        <input type="text" id="login-seller-id" placeholder="아이디 입력" required class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">비밀번호</label>
+                        <input type="password" id="login-seller-pw" placeholder="비밀번호 입력" required class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                    <button type="submit" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-sm transition">
+                        로그인
+                    </button>
+                    <div class="pt-3 text-center border-t border-slate-100 mt-4">
+                        <span class="text-xs text-slate-500">아직 계정이 없으신가요?</span>
+                        <button type="button" onclick="showSignupModal()" class="text-xs text-indigo-600 font-bold hover:underline ml-1">
+                            회원가입하기
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Admin Login Form -->
+                <form id="admin-login-form" onsubmit="handleAdminLogin(event)" class="space-y-4 hidden">
+                    <div class="text-center mb-6">
+                        <h2 class="text-xl font-bold text-slate-900">관리자 로그인</h2>
+                        <p class="text-xs text-slate-500 mt-1">밤낮딜리버리 관리자 전용 페이지입니다.</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">관리자 암호</label>
+                        <input type="password" id="admin-password" placeholder="admin1234" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                        <p class="text-[11px] text-slate-400 mt-1">* 기본 비밀번호: admin1234</p>
+                    </div>
+                    <button type="submit" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-lg text-sm transition">
+                        관리자 접속
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- 2. SELLER DASHBOARD -->
+        <div id="seller-dashboard" class="hidden space-y-6">
+            <div class="flex justify-between items-center flex-wrap gap-3">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-900">고객 배송 주문 접수</h2>
+                    <p class="text-xs text-slate-500">송화인명 `밤낮딜리버리(상호)` 기재 및 상품명 `(합)`/`(킵)` 확인 후 업로드해 주세요.</p>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="downloadSampleExcel()" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 shadow transition">
+                        <i data-lucide="download" class="w-4 h-4"></i> 2026 원본 색상 엑셀 양식 다운로드
+                    </button>
+                </div>
+            </div>
+
+            <!-- Single & Batch Registration Tabs -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="flex border-b border-slate-200 bg-slate-50/50">
+                    <button id="reg-tab-single" onclick="switchRegTab('single')" class="px-6 py-3 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 bg-white">
+                        단건 주문 등록
+                    </button>
+                    <button id="reg-tab-batch" onclick="switchRegTab('batch')" class="px-6 py-3 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700">
+                        엑셀 일괄 등록 (2번 시트 양식)
+                    </button>
+                </div>
+
+                <div class="p-6">
+                    <!-- Single Order Form -->
+                    <form id="single-order-form" onsubmit="handleSingleOrderSubmit(event)" class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">송화인명 (보내는사람)</label>
+                                <input type="text" id="so-sender-name" readonly class="w-full px-3 py-2 bg-slate-100 border text-slate-600 font-bold rounded-lg text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">대표님 C/S 연락처 *</label>
+                                <input type="text" id="so-cs-phone" required placeholder="010-1234-5678" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">수화인명 (받는사람) *</label>
+                                <input type="text" id="so-recipient" required placeholder="홍길동" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">받는사람 연락처 *</label>
+                                <input type="text" id="so-phone" required class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500" placeholder="010-0000-0000">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">
+                                    쇼핑몰 상품명 (상품명 / 컬러 / 사이즈 / 수량"개") *
+                                    <span class="text-[10px] text-indigo-600 font-normal">※ 합배송은 (합), 킵건은 (킵) 기재</span>
+                                </label>
+                                <input type="text" id="so-product" required class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500" placeholder="예: (합)고랭 울 팬츠 / 화이트 / 1개">
+                            </div>
+                        </div>
+
+                        <!-- Wholesale Details -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">도매거래처명</label>
+                                <input type="text" id="so-wholesale-company" placeholder="예: 센스" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">도매 상품명</label>
+                                <input type="text" id="so-wholesale-product" placeholder="예: 울PT" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                            </div>
+                        </div>
+
+                        <!-- Address Section with Daum Postcode -->
+                        <div class="space-y-2 border-t border-slate-100 pt-3">
+                            <label class="block text-xs font-bold text-slate-700">배송지 주소 (받는사람) *</label>
+                            <div class="flex gap-2 max-w-md">
+                                <input type="text" id="so-zipcode" placeholder="우편번호" readonly class="w-28 px-3 py-2 bg-slate-50 border rounded-lg text-sm text-slate-600">
+                                <button type="button" onclick="execDaumPostcode()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg transition flex items-center gap-1.5">
+                                    <i data-lucide="search" class="w-3.5 h-3.5"></i> 주소 검색
+                                </button>
+                            </div>
+                            <input type="text" id="so-address" placeholder="기본주소 (주소 검색 시 자동입력)" readonly required class="w-full px-3 py-2 bg-slate-50 border rounded-lg text-sm text-slate-600">
+                            <input type="text" id="so-detail-address" placeholder="상세주소 입력 (동, 호수 등)" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">배송메세지</label>
+                                <input type="text" id="so-memo" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500" placeholder="예: 집 앞 배송부탁드려요">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">밤낮딜리버리 전달메세지</label>
+                                <input type="text" id="so-bamnat-memo" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500" placeholder="예: 택, 사은품 같이 보내주세요 / 반품자:OOO건 출고">
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end pt-2">
+                            <button type="submit" id="btn-submit-order" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-sm shadow transition">
+                                주문 등록하기
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Batch Excel Form -->
+                    <div id="batch-order-form" class="hidden space-y-4">
+                        <div class="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center bg-slate-50 hover:bg-slate-100/50 transition">
+                            <i data-lucide="file-spreadsheet" class="w-10 h-10 text-emerald-600 mx-auto mb-2"></i>
+                            <p class="text-sm font-bold text-slate-700">밤낮딜리버리 표준 엑셀 파일(.xlsx, .xls) 선택</p>
+                            <p class="text-xs text-slate-500 mt-1 mb-4">다운로드 받으신 파일의 <b>2번 시트 ('풀필먼트 엑셀양식')</b>에 작성 후 업로드하세요.</p>
+                            <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" class="hidden" onchange="handleFileUpload(event)">
+                            <button onclick="document.getElementById('excel-file-input').click()" class="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow">
+                                엑셀 파일 업로드
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Orders Table -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
+                <div class="flex justify-between items-center flex-wrap gap-2">
+                    <div>
+                        <h3 class="font-bold text-slate-900">내 접수 주문목록</h3>
+                        <span id="seller-order-count" class="text-xs font-semibold text-slate-500">총 0건</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="deleteSelectedOrders()" class="px-3 py-1.5 bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-100 text-xs font-bold rounded-lg transition flex items-center gap-1 shadow-sm">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> 선택 항목 일괄 삭제
+                        </button>
+                        <button onclick="deleteExcelOrdersOnly()" class="px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 text-xs font-bold rounded-lg transition flex items-center gap-1 shadow-sm">
+                            <i data-lucide="file-x" class="w-3.5 h-3.5"></i> 엑셀 등록건 전체 삭제
+                        </button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-100 text-slate-600 font-bold border-b border-slate-200">
+                            <tr>
+                                <th class="p-3 text-center w-10">
+                                    <input type="checkbox" id="chk-all-seller" onchange="toggleAllSellerCheckboxes(this)" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                                </th>
+                                <th class="p-3">접수번호</th>
+                                <th class="p-3">수화인(받는사람)</th>
+                                <th class="p-3">연락처</th>
+                                <th class="p-3">주소</th>
+                                <th class="p-3">쇼핑몰 상품명</th>
+                                <th class="p-3">도매처 / 도매상품</th>
+                                <th class="p-3">밤낮 전달메세지</th>
+                                <th class="p-3">접수일시</th>
+                                <th class="p-3">상태</th>
+                                <th class="p-3 text-center">관리</th>
+                            </tr>
+                        </thead>
+                        <tbody id="seller-order-list" class="divide-y divide-slate-100 text-slate-700"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. ADMIN DASHBOARD -->
+        <div id="admin-dashboard" class="hidden space-y-6">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-900">밤낮딜리버리 관리자 마스터 센터</h2>
+                    <p class="text-xs text-slate-500">모든 거래처(셀러)가 수집/등록한 주문정보를 취합하여 마감 및 다운로드합니다.</p>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="confirmAdminBatch()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow transition flex items-center gap-1.5">
+                        <i data-lucide="check-circle" class="w-4 h-4"></i> 주문접수완료 (마감 처리)
+                    </button>
+                    <button onclick="downloadMasterExcel()" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow transition flex items-center gap-1.5">
+                        <i data-lucide="file-down" class="w-4 h-4"></i> 통합 마스터 엑셀 다운로드
+                    </button>
+                </div>
+            </div>
+
+            <!-- Master Table -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
+                <div class="flex justify-between items-center flex-wrap gap-2">
+                    <div class="flex gap-2 items-center">
+                        <span class="text-xs font-bold text-slate-600">거래처 필터:</span>
+                        <select id="admin-seller-filter" onchange="renderAdminTable()" class="px-3 py-1.5 border rounded-lg text-xs font-medium focus:outline-none">
+                            <option value="ALL">전체 거래처 보기</option>
+                        </select>
+                    </div>
+                    <span id="admin-order-count" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full">총 0건</span>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-800 text-slate-200 font-bold">
+                            <tr>
+                                <th class="p-3">송화인(거래처)</th>
+                                <th class="p-3">접수번호</th>
+                                <th class="p-3">수화인(받는사람)</th>
+                                <th class="p-3">연락처</th>
+                                <th class="p-3">배송지 주소</th>
+                                <th class="p-3">쇼핑몰 상품명</th>
+                                <th class="p-3">도매처/상품</th>
+                                <th class="p-3">밤낮 전달메세지</th>
+                                <th class="p-3">접수시간</th>
+                                <th class="p-3">상태</th>
+                                <th class="p-3 text-center">관리</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-order-list" class="divide-y divide-slate-100 text-slate-700"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- MODAL: ORDER EDIT -->
+    <div id="edit-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 space-y-4 border border-slate-100 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div>
+                    <h3 class="font-bold text-slate-900 text-base">주문 내역 수정</h3>
+                    <p class="text-xs text-slate-400" id="edit-modal-order-id"></p>
+                </div>
+                <button onclick="closeEditModal()" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <form onsubmit="handleEditOrderSubmit(event)" class="space-y-4">
+                <input type="hidden" id="edit-order-id">
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">송화인명 (보내는사람) *</label>
+                        <input type="text" id="eo-sender-name" required class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">대표님 C/S 연락처 *</label>
+                        <input type="text" id="eo-cs-phone" required class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">수화인명 (받는사람) *</label>
+                        <input type="text" id="eo-recipient" required class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">받는사람 연락처 *</label>
+                        <input type="text" id="eo-phone" required class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">
+                        쇼핑몰 상품명 *
+                        <span class="text-[10px] text-indigo-600 font-normal">※ 합배송은 (합), 킵건은 (킵) 기재</span>
+                    </label>
+                    <input type="text" id="eo-product" required class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">도매거래처명</label>
+                        <input type="text" id="eo-wholesale-company" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">도매 상품명</label>
+                        <input type="text" id="eo-wholesale-product" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                </div>
+
+                <div class="space-y-2 border-t border-slate-100 pt-3">
+                    <label class="block text-xs font-bold text-slate-700">배송지 주소 (받는사람) *</label>
+                    <div class="flex gap-2 max-w-md">
+                        <input type="text" id="eo-zipcode" placeholder="우편번호" readonly class="w-28 px-3 py-2 bg-slate-50 border rounded-lg text-sm text-slate-600">
+                        <button type="button" onclick="execDaumPostcodeForEdit()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg transition flex items-center gap-1.5">
+                            <i data-lucide="search" class="w-3.5 h-3.5"></i> 주소 검색
+                        </button>
+                    </div>
+                    <input type="text" id="eo-address" placeholder="기본주소" readonly required class="w-full px-3 py-2 bg-slate-50 border rounded-lg text-sm text-slate-600">
+                    <input type="text" id="eo-detail-address" placeholder="상세주소 입력" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">배송메세지</label>
+                        <input type="text" id="eo-memo" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">밤낮딜리버리 전달메세지</label>
+                        <input type="text" id="eo-bamnat-memo" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                </div>
+
+                <div class="pt-3 flex gap-2">
+                    <button type="button" onclick="closeEditModal()" class="flex-1 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-lg text-xs hover:bg-slate-200">
+                        취소
+                    </button>
+                    <button type="submit" class="flex-1 py-2.5 bg-indigo-600 text-white font-bold rounded-lg text-xs hover:bg-indigo-700">
+                        수정 저장하기
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: SIGNUP -->
+    <div id="signup-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-slate-100">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 class="font-bold text-slate-900 text-base">셀러 회원가입</h3>
+                <button onclick="closeSignupModal()" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <form onsubmit="handleSignupSubmit(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">상호명 (거래처명) *</label>
+                    <input type="text" id="signup-company" required placeholder="예: 이레앤컴퍼니" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">로그인 아이디 *</label>
+                    <input type="text" id="signup-id" required placeholder="아이디 입력" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">비밀번호 *</label>
+                    <input type="password" id="signup-pw" required placeholder="비밀번호 입력" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">대표자명</label>
+                        <input type="text" id="signup-name" placeholder="이현재" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">연락처</label>
+                        <input type="text" id="signup-phone" placeholder="010-0000-0000" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                </div>
+                <div class="pt-3 flex gap-2">
+                    <button type="button" onclick="closeSignupModal()" class="flex-1 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-lg text-xs hover:bg-slate-200">
+                        취소
+                    </button>
+                    <button type="submit" class="flex-1 py-2.5 bg-indigo-600 text-white font-bold rounded-lg text-xs hover:bg-indigo-700">
+                        회원가입 완료
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: SQL GUIDE -->
+    <div id="sql-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 border border-slate-100">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 class="font-bold text-slate-900 text-base">Supabase 최신 테이블 SQL</h3>
+                <button onclick="closeSqlGuideModal()" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <p class="text-xs text-slate-500">Supabase 대시보드 ➔ <b>SQL Editor</b> 메뉴에 실행하여 테이블 컬럼을 확장하세요.</p>
+            <pre class="bg-slate-900 text-amber-300 p-4 rounded-lg text-[11px] overflow-x-auto select-all font-mono leading-relaxed" id="sql-code-block"></pre>
+            <button onclick="copySqlCode()" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1.5">
+                <i data-lucide="copy" class="w-3.5 h-3.5"></i> SQL 명령어 복사하기
+            </button>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT -->
+    <script>
+        let currentSimulatedHour = 5;
+        let currentRole = null;
+        let currentSellerAccount = null;
+
+        let supabaseClient = null;
+        let ordersMaster = [];
+        let registeredSellers = [
+            { id: 'seller1', pw: '1234', company: '이레앤컴퍼니', name: '이현재', phone: '010-1234-5678' }
+        ];
+
+        const SQL_SCRIPT = `-- 1. 셀러 테이블 생성
+CREATE TABLE IF NOT EXISTS sellers (
+    id TEXT PRIMARY KEY,
+    pw TEXT NOT NULL,
+    company TEXT NOT NULL,
+    name TEXT,
+    phone TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW())
+);
+
+-- 2. 2026 풀필먼트 표준 주문(orders) 테이블 생성
+CREATE TABLE IF NOT EXISTS orders (
+    id TEXT PRIMARY KEY,
+    seller_company TEXT NOT NULL,
+    sender_name TEXT,
+    cs_phone TEXT,
+    recipient TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    zipcode TEXT,
+    address TEXT NOT NULL,
+    detail_address TEXT,
+    product TEXT NOT NULL,
+    wholesale_company TEXT,
+    wholesale_product TEXT,
+    memo TEXT,
+    bamnat_memo TEXT,
+    qty INTEGER DEFAULT 1,
+    status TEXT DEFAULT '접수대기',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW())
+);
+
+-- 3. RLS 보안 정책 설정
+ALTER TABLE sellers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all access to sellers" ON sellers FOR ALL USING (true);
+CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
+
+        window.onload = function() {
+            lucide.createIcons();
+            setSimulatedTime(5);
+            initSupabaseAuto();
+            updateNavUserArea();
+            document.getElementById('sql-code-block').innerText = SQL_SCRIPT;
+        };
+
+        function initSupabaseAuto() {
+            const badge = document.getElementById('db-status-badge');
+
+            if (SUPABASE_URL && SUPABASE_KEY && window.supabase) {
+                try {
+                    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+                    badge.className = "px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full flex items-center gap-1.5 border border-emerald-200";
+                    badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> DB 연동 완료`;
+
+                    fetchOrdersFromDB();
+                    fetchSellersFromDB();
+                } catch(e) {
+                    badge.className = "px-2.5 py-1 bg-rose-50 text-rose-700 text-xs font-bold rounded-full flex items-center gap-1.5";
+                    badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-500"></span> DB 키 오류`;
+                }
+            }
+        }
+
+        async function fetchOrdersFromDB() {
+            if (!supabaseClient) return;
+            const { data, error } = await supabaseClient.from('orders').select('*').order('created_at', { ascending: false });
+            if (!error && data) {
+                ordersMaster = data;
+                if (currentRole === 'seller') renderSellerTable();
+                if (currentRole === 'admin') renderAdminTable();
+            }
+        }
+
+        async function fetchSellersFromDB() {
+            if (!supabaseClient) return;
+            const { data, error } = await supabaseClient.from('sellers').select('*');
+            if (!error && data && data.length > 0) {
+                registeredSellers = data;
+            }
+        }
+
+        function showSqlGuideModal() {
+            document.getElementById('sql-modal').classList.remove('hidden');
+            document.getElementById('sql-modal').classList.add('flex');
+        }
+        function closeSqlGuideModal() {
+            document.getElementById('sql-modal').classList.add('hidden');
+            document.getElementById('sql-modal').classList.remove('flex');
+        }
+        function copySqlCode() {
+            navigator.clipboard.writeText(SQL_SCRIPT);
+            alert('SQL 명령어 복사 완료! Supabase SQL Editor에서 실행하세요.');
+        }
+
+        function setSimulatedTime(hour) {
+            currentSimulatedHour = hour;
+            document.getElementById('simulated-time-display').innerText = `${String(hour).padStart(2, '0')}:00`;
+
+            const banner = document.getElementById('status-banner');
+            const text = document.getElementById('status-text');
+            const subtext = document.getElementById('status-subtext');
+            const submitBtn = document.getElementById('btn-submit-order');
+
+            if (hour >= 15 || hour < 7) {
+                banner.className = "bg-emerald-500 text-white px-6 py-2.5 text-sm font-medium flex justify-between items-center shadow-inner";
+                text.innerText = "현재 정상 주문 접수 및 수정 가능 시간입니다 (15:00 ~ 익일 07:00)";
+                subtext.innerText = "오전 7시 이전까지 자유롭게 수정/삭제가 가능합니다.";
+                if(submitBtn) submitBtn.disabled = false;
+            } else if (hour >= 7 && hour < 10) {
+                banner.className = "bg-amber-500 text-white px-6 py-2.5 text-sm font-medium flex justify-between items-center shadow-inner";
+                text.innerText = "지연/신규 주문 접수 시간 (07:00 ~ 10:00) - 기존 접수건 수정 불가";
+                subtext.innerText = "오전 7시 이전 주문은 마감 처리 진행 중이며, 신규 주문 추가만 가능합니다.";
+                if(submitBtn) submitBtn.disabled = false;
+            } else {
+                banner.className = "bg-rose-600 text-white px-6 py-2.5 text-sm font-medium flex justify-between items-center shadow-inner";
+                text.innerText = "주문 접수 및 수정 마감 시간 (10:00 ~ 15:00)";
+                subtext.innerText = "출고 작업 진행 시간입니다. 오후 3시 이후 다시 접수가 시작됩니다.";
+                if(submitBtn) submitBtn.disabled = true;
+            }
+
+            if (currentRole === 'seller') renderSellerTable();
+            if (currentRole === 'admin') renderAdminTable();
+        }
+
+        function switchAuthTab(type) {
+            const btnSeller = document.getElementById('tab-btn-seller');
+            const btnAdmin = document.getElementById('tab-btn-admin');
+            const formSeller = document.getElementById('seller-login-form');
+            const formAdmin = document.getElementById('admin-login-form');
+
+            if (type === 'seller') {
+                btnSeller.className = "flex-1 py-3 text-sm font-bold text-indigo-600 border-b-2 border-indigo-600 bg-white";
+                btnAdmin.className = "flex-1 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-700";
+                formSeller.classList.remove('hidden');
+                formAdmin.classList.add('hidden');
+            } else {
+                btnAdmin.className = "flex-1 py-3 text-sm font-bold text-slate-900 border-b-2 border-slate-900 bg-white";
+                btnSeller.className = "flex-1 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-700";
+                formAdmin.classList.remove('hidden');
+                formSeller.classList.add('hidden');
+            }
+        }
+
+        function showSignupModal() {
+            document.getElementById('signup-modal').classList.remove('hidden');
+            document.getElementById('signup-modal').classList.add('flex');
+        }
+        function closeSignupModal() {
+            document.getElementById('signup-modal').classList.add('hidden');
+            document.getElementById('signup-modal').classList.remove('flex');
+        }
+
+        async function handleSignupSubmit(e) {
+            e.preventDefault();
+            const company = document.getElementById('signup-company').value.trim();
+            const id = document.getElementById('signup-id').value.trim();
+            const pw = document.getElementById('signup-pw').value.trim();
+            const name = document.getElementById('signup-name').value.trim();
+            const phone = document.getElementById('signup-phone').value.trim();
+
+            const newSeller = { id, pw, company, name, phone };
+
+            if (supabaseClient) {
+                const { data: existing } = await supabaseClient.from('sellers').select('id').eq('id', id);
+                if (existing && existing.length > 0) {
+                    alert('이미 존재하는 아이디입니다.');
+                    return;
+                }
+
+                const { error } = await supabaseClient.from('sellers').insert([newSeller]);
+                if (error) {
+                    alert('회원가입 오류: ' + error.message);
+                    return;
+                }
+            }
+
+            registeredSellers.push(newSeller);
+            alert(`회원가입 완료!\n상호명: ${company}\n아이디: ${id} 로 로그인 해주세요.`);
+            closeSignupModal();
+            document.getElementById('login-seller-id').value = id;
+            document.getElementById('login-seller-pw').value = pw;
+        }
+
+        async function handleSellerLogin(e) {
+            e.preventDefault();
+            const id = document.getElementById('login-seller-id').value.trim();
+            const pw = document.getElementById('login-seller-pw').value.trim();
+
+            if (supabaseClient) {
+                const { data, error } = await supabaseClient.from('sellers').select('*').eq('id', id).eq('pw', pw);
+                if (!error && data && data.length > 0) {
+                    currentRole = 'seller';
+                    currentSellerAccount = data[0];
+                    setupSellerUI();
+                    return;
+                }
+            }
+
+            const account = registeredSellers.find(s => s.id === id && s.pw === pw);
+            if (account) {
+                currentRole = 'seller';
+                currentSellerAccount = account;
+                setupSellerUI();
+                return;
+            }
+
+            alert('아이디 또는 비밀번호가 올바르지 않습니다.');
+        }
+
+        function setupSellerUI() {
+            document.getElementById('auth-screen').classList.add('hidden');
+            document.getElementById('seller-dashboard').classList.remove('hidden');
+
+            document.getElementById('so-sender-name').value = `밤낮딜리버리(${currentSellerAccount.company})`;
+            if (currentSellerAccount.phone) {
+                document.getElementById('so-cs-phone').value = currentSellerAccount.phone;
+            }
+
+            updateNavUserArea();
+            fetchOrdersFromDB();
+            renderSellerTable();
+        }
+
+        function handleAdminLogin(e) {
+            e.preventDefault();
+            const pw = document.getElementById('admin-password').value;
+            if (pw !== 'admin1234') {
+                alert('관리자 비밀번호가 틀렸습니다.');
+                return;
+            }
+
+            currentRole = 'admin';
+            currentSellerAccount = null;
+            document.getElementById('auth-screen').classList.add('hidden');
+            document.getElementById('admin-dashboard').classList.remove('hidden');
+            updateNavUserArea();
+            populateAdminFilter();
+            renderAdminTable();
+        }
+
+        function logout() {
+            currentRole = null;
+            currentSellerAccount = null;
+            document.getElementById('auth-screen').classList.remove('hidden');
+            document.getElementById('seller-dashboard').classList.add('hidden');
+            document.getElementById('admin-dashboard').classList.add('hidden');
+            updateNavUserArea();
+        }
+
+        function updateNavUserArea() {
+            const area = document.getElementById('nav-user-area');
+            if (!currentRole) {
+                area.innerHTML = `<span class="text-xs text-slate-400">로그인 필요</span>`;
+            } else if (currentRole === 'seller') {
+                area.innerHTML = `
+                    <div class="text-right">
+                        <span class="text-xs font-bold text-slate-900 block">${currentSellerAccount.company}님</span>
+                        <span class="text-[10px] text-slate-400">셀러 회원</span>
+                    </div>
+                    <button onclick="logout()" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-bold">로그아웃</button>
+                `;
+            } else {
+                area.innerHTML = `
+                    <div class="text-right">
+                        <span class="text-xs font-bold text-indigo-600 block">밤낮딜리버리 관리자</span>
+                        <span class="text-[10px] text-slate-400">최고 권한</span>
+                    </div>
+                    <button onclick="logout()" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-bold">로그아웃</button>
+                `;
+            }
+        }
+
+        function execDaumPostcode() {
+            if (typeof daum === 'undefined' || !daum.Postcode) {
+                alert("주소 검색 서비스 로딩 중입니다. 잠시 후 다시 시도해주세요.");
+                return;
+            }
+
+            new daum.Postcode({
+                oncomplete: function(data) {
+                    let addr = data.userSelectedType === 'R' ? data.roadAddress : data.jibunAddress;
+                    document.getElementById('so-zipcode').value = data.zonecode;
+                    document.getElementById('so-address').value = addr;
+                    document.getElementById('so-detail-address').focus();
+                }
+            }).open();
+        }
+
+        function switchRegTab(tab) {
+            const btnSingle = document.getElementById('reg-tab-single');
+            const btnBatch = document.getElementById('reg-tab-batch');
+            const formSingle = document.getElementById('single-order-form');
+            const formBatch = document.getElementById('batch-order-form');
+
+            if (tab === 'single') {
+                btnSingle.className = "px-6 py-3 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 bg-white";
+                btnBatch.className = "px-6 py-3 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700";
+                formSingle.classList.remove('hidden');
+                formBatch.classList.add('hidden');
+            } else {
+                btnBatch.className = "px-6 py-3 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 bg-white";
+                btnSingle.className = "px-6 py-3 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700";
+                formBatch.classList.remove('hidden');
+                formSingle.classList.add('hidden');
+            }
+        }
+
+        async function handleSingleOrderSubmit(e) {
+            e.preventDefault();
+
+            if (currentSimulatedHour >= 10 && currentSimulatedHour < 15) {
+                alert('현재 마감 시간(10:00 ~ 15:00)으로 신규 주문을 등록할 수 없습니다.');
+                return;
+            }
+
+            const newOrder = {
+                id: `ORD-20260923-${String(ordersMaster.length + 1).padStart(3, '0')}`,
+                seller_company: currentSellerAccount.company,
+                sender_name: document.getElementById('so-sender-name').value,
+                cs_phone: document.getElementById('so-cs-phone').value,
+                recipient: document.getElementById('so-recipient').value,
+                phone: document.getElementById('so-phone').value,
+                zipcode: document.getElementById('so-zipcode').value,
+                address: document.getElementById('so-address').value,
+                detail_address: document.getElementById('so-detail-address').value,
+                product: document.getElementById('so-product').value,
+                wholesale_company: document.getElementById('so-wholesale-company').value,
+                wholesale_product: document.getElementById('so-wholesale-product').value,
+                memo: document.getElementById('so-memo').value,
+                bamnat_memo: document.getElementById('so-bamnat-memo').value,
+                qty: 1,
+                created_at: `2026-09-23 ${String(currentSimulatedHour).padStart(2,'0')}:15`,
+                status: '접수대기'
+            };
+
+            ordersMaster.unshift(newOrder);
+
+            if (supabaseClient) {
+                await supabaseClient.from('orders').insert([newOrder]);
+            }
+
+            alert('주문이 성공적으로 등록되었습니다.');
+            e.target.reset();
+            document.getElementById('so-sender-name').value = `밤낮딜리버리(${currentSellerAccount.company})`;
+            renderSellerTable();
+        }
+
+        function handleFileUpload(e) {
+            if (currentSimulatedHour >= 10 && currentSimulatedHour < 15) {
+                alert('현재 마감 시간(10:00 ~ 15:00)으로 신규 주문을 등록할 수 없습니다.');
+                e.target.value = '';
+                return;
+            }
+
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async function(evt) {
+                try {
+                    const data = new Uint8Array(evt.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+
+                    let targetSheetName = workbook.SheetNames.find(s => s.includes('엑셀양식') || s.includes('풀필먼트')) || workbook.SheetNames[1] || workbook.SheetNames[0];
+                    const targetSheet = workbook.Sheets[targetSheetName];
+
+                    const rows = XLSX.utils.sheet_to_json(targetSheet, { header: 1 });
+
+                    let headerIdx = -1;
+                    for (let i = 0; i < rows.length; i++) {
+                        const rowStr = (rows[i] || []).join(' ');
+                        if (rowStr.includes('수화인') || rowStr.includes('송화인') || rowStr.includes('받는사람')) {
+                            headerIdx = i;
+                            break;
+                        }
+                    }
+
+                    if (headerIdx === -1) headerIdx = 1;
+
+                    const batchOrders = [];
+                    const invalidSenderRows = [];
+                    const senderRegex = /^밤낮딜리버리\([^\(\)]+\)$/;
+
+                    for (let i = headerIdx + 1; i < rows.length; i++) {
+                        const r = rows[i];
+                        if (!r || r.length === 0 || (!r[2] && !r[3] && !r[4])) continue;
+
+                        const rawSender = r[0] ? String(r[0]).trim() : '';
+                        const excelRowNo = i + 1;
+
+                        if (!rawSender || !senderRegex.test(rawSender)) {
+                            invalidSenderRows.push({
+                                row: excelRowNo,
+                                val: rawSender || '(빈 값)'
+                            });
+                        }
+
+                        batchOrders.push({
+                            id: `ORD-EXCEL-${Date.now()}-${i}`,
+                            seller_company: currentSellerAccount.company,
+                            sender_name: rawSender || `밤낮딜리버리(${currentSellerAccount.company})`,
+                            cs_phone: r[1] || currentSellerAccount.phone || '',
+                            recipient: r[2] || '미기재',
+                            address: r[3] || '미기재',
+                            product: r[4] || '미기재',
+                            wholesale_company: r[5] || '',
+                            wholesale_product: r[6] || '',
+                            phone: r[7] || '미기재',
+                            memo: r[8] || '',
+                            bamnat_memo: r[9] || '',
+                            qty: parseInt(r[10]) || 1,
+                            created_at: `2026-09-23 ${String(currentSimulatedHour).padStart(2,'0')}:20`,
+                            status: '접수대기'
+                        });
+                    }
+
+                    if (invalidSenderRows.length > 0) {
+                        const errorDetails = invalidSenderRows.slice(0, 5).map(item => `  • ${item.row}행: "${item.val}"`).join('\n');
+                        const moreMsg = invalidSenderRows.length > 5 ? `\n  ...외 ${invalidSenderRows.length - 5}건` : '';
+
+                        alert(`❌ [송화인명 입력 오류로 업로드 차단]\n\nA열(송화인명)은 반드시 '밤낮딜리버리(본인업체상호)' 형식으로 작성해 주셔야 합니다.\n\n[오류 발생 행 목록]\n${errorDetails}${moreMsg}\n\n올바른 작성 예시: 밤낮딜리버리(${currentSellerAccount.company})\n\n엑셀 파일 수정 후 다시 업로드해 주세요!`);
+                        e.target.value = '';
+                        return;
+                    }
+
+                    if (batchOrders.length === 0) {
+                        alert('엑셀 파일에서 읽어올 수 있는 주문 데이터가 없습니다.');
+                        e.target.value = '';
+                        return;
+                    }
+
+                    const confirmMsg = `📌 [업로드 전 최종 확인]\n\n상품명에 합배송건 '(합)', 재고출고건 '(킵)' 표기를 모두 정확히 기재하셨습니까?\n\n- (합): 2개 이상 묶음배송이 필요한 주문건\n- (킵): 사무실/창고 반품재고 재출고건\n\n[확인] 버튼을 누르시면 총 ${batchOrders.length}건의 주문이 접수됩니다.`;
+
+                    if (!confirm(confirmMsg)) {
+                        alert('주문 업로드가 취소되었습니다.');
+                        e.target.value = '';
+                        return;
+                    }
+
+                    ordersMaster.unshift(...batchOrders);
+
+                    if (supabaseClient) {
+                        await supabaseClient.from('orders').insert(batchOrders);
+                    }
+
+                    alert(`총 ${batchOrders.length}건의 주문이 성공적으로 접수되었습니다!`);
+                    e.target.value = '';
+                    renderSellerTable();
+                } catch (err) {
+                    console.error(err);
+                    alert('엑셀 파일 읽기 중 오류가 발생했습니다.');
+                    e.target.value = '';
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function openEditModal(orderId) {
+            const order = ordersMaster.find(o => o.id === orderId);
+            if (!order) return;
+
+            if (currentRole === 'seller') {
+                if (currentSimulatedHour >= 7 && currentSimulatedHour < 15) {
+                    alert('마감 시간(07:00 ~ 15:00) 중에는 주문을 수정할 수 없습니다.');
+                    return;
+                }
+                if (order.status !== '접수대기') {
+                    alert('접수완료된 주문은 수정할 수 없습니다.');
+                    return;
+                }
+            }
+
+            document.getElementById('edit-order-id').value = order.id;
+            document.getElementById('edit-modal-order-id').innerText = `접수번호: ${order.id}`;
+            document.getElementById('eo-sender-name').value = order.sender_name || `밤낮딜리버리(${order.seller_company})`;
+            document.getElementById('eo-cs-phone').value = order.cs_phone || '';
+            document.getElementById('eo-recipient').value = order.recipient || '';
+            document.getElementById('eo-phone').value = order.phone || '';
+            document.getElementById('eo-zipcode').value = order.zipcode || '';
+            document.getElementById('eo-address').value = order.address || '';
+            document.getElementById('eo-detail-address').value = order.detail_address || '';
+            document.getElementById('eo-product').value = order.product || '';
+            document.getElementById('eo-wholesale-company').value = order.wholesale_company || '';
+            document.getElementById('eo-wholesale-product').value = order.wholesale_product || '';
+            document.getElementById('eo-memo').value = order.memo || '';
+            document.getElementById('eo-bamnat-memo').value = order.bamnat_memo || '';
+
+            document.getElementById('edit-modal').classList.remove('hidden');
+            document.getElementById('edit-modal').classList.add('flex');
+            lucide.createIcons();
+        }
+
+        function closeEditModal() {
+            document.getElementById('edit-modal').classList.add('hidden');
+            document.getElementById('edit-modal').classList.remove('flex');
+        }
+
+        function execDaumPostcodeForEdit() {
+            if (typeof daum === 'undefined' || !daum.Postcode) {
+                alert("주소 검색 서비스 로딩 중입니다. 잠시 후 다시 시도해주세요.");
+                return;
+            }
+
+            new daum.Postcode({
+                oncomplete: function(data) {
+                    let addr = data.userSelectedType === 'R' ? data.roadAddress : data.jibunAddress;
+                    document.getElementById('eo-zipcode').value = data.zonecode;
+                    document.getElementById('eo-address').value = addr;
+                    document.getElementById('eo-detail-address').focus();
+                }
+            }).open();
+        }
+
+        async function handleEditOrderSubmit(e) {
+            e.preventDefault();
+
+            const orderId = document.getElementById('edit-order-id').value;
+            const orderIndex = ordersMaster.findIndex(o => o.id === orderId);
+
+            if (orderIndex === -1) {
+                alert('수정할 주문 정보를 찾을 수 없습니다.');
+                return;
+            }
+
+            const senderName = document.getElementById('eo-sender-name').value.trim();
+            const senderRegex = /^밤낮딜리버리\([^\(\)]+\)$/;
+            if (!senderRegex.test(senderName)) {
+                alert("송화인명은 반드시 '밤낮딜리버리(본인업체상호)' 형식이어야 합니다.");
+                return;
+            }
+
+            const updatedData = {
+                sender_name: senderName,
+                cs_phone: document.getElementById('eo-cs-phone').value.trim(),
+                recipient: document.getElementById('eo-recipient').value.trim(),
+                phone: document.getElementById('eo-phone').value.trim(),
+                zipcode: document.getElementById('eo-zipcode').value.trim(),
+                address: document.getElementById('eo-address').value.trim(),
+                detail_address: document.getElementById('eo-detail-address').value.trim(),
+                product: document.getElementById('eo-product').value.trim(),
+                wholesale_company: document.getElementById('eo-wholesale-company').value.trim(),
+                wholesale_product: document.getElementById('eo-wholesale-product').value.trim(),
+                memo: document.getElementById('eo-memo').value.trim(),
+                bamnat_memo: document.getElementById('eo-bamnat-memo').value.trim()
+            };
+
+            Object.assign(ordersMaster[orderIndex], updatedData);
+
+            if (supabaseClient) {
+                const { error } = await supabaseClient.from('orders').update(updatedData).eq('id', orderId);
+                if (error) {
+                    alert('DB 저장 중 오류가 발생했습니다: ' + error.message);
+                    return;
+                }
+            }
+
+            alert('주문 내역이 성공적으로 수정되었습니다.');
+            closeEditModal();
+
+            if (currentRole === 'seller') renderSellerTable();
+            if (currentRole === 'admin') renderAdminTable();
+        }
+
+        function toggleAllSellerCheckboxes(master) {
+            const checkboxes = document.querySelectorAll('.seller-chk-item');
+            checkboxes.forEach(chk => {
+                if (!chk.disabled) chk.checked = master.checked;
+            });
+        }
+
+        function renderSellerTable() {
+            const tbody = document.getElementById('seller-order-list');
+            const myOrders = ordersMaster.filter(o => o.seller_company === currentSellerAccount.company);
+            document.getElementById('seller-order-count').innerText = `총 ${myOrders.length}건`;
+
+            if (myOrders.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="11" class="text-center py-6 text-slate-400">접수된 주문이 없습니다.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = myOrders.map(o => {
+                const canEdit = (currentSimulatedHour < 7 || currentSimulatedHour >= 15) && o.status === '접수대기';
+                const isExcel = o.id.startsWith('ORD-EXCEL-');
+
+                return `
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="p-3 text-center">
+                            <input type="checkbox" value="${o.id}" ${canEdit ? '' : 'disabled'} class="seller-chk-item rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-40">
+                        </td>
+                        <td class="p-3 font-mono font-bold text-slate-900">
+                            ${o.id}
+                            ${isExcel ? '<span class="ml-1 text-[9px] bg-amber-100 text-amber-800 font-bold px-1 rounded">엑셀</span>' : ''}
+                        </td>
+                        <td class="p-3 font-semibold text-slate-900">${o.recipient}</td>
+                        <td class="p-3">${o.phone}</td>
+                        <td class="p-3 max-w-xs truncate" title="${o.address}">${o.address} ${o.detail_address || ''}</td>
+                        <td class="p-3 font-medium text-indigo-600 max-w-xs truncate" title="${o.product}">${o.product}</td>
+                        <td class="p-3 text-slate-600">
+                            ${o.wholesale_company ? `<span class="font-bold">${o.wholesale_company}</span>` : '-'}/
+                            ${o.wholesale_product || '-'}
+                        </td>
+                        <td class="p-3 max-w-xs truncate text-amber-700 font-medium">${o.bamnat_memo || '-'}</td>
+                        <td class="p-3 text-slate-400">${o.created_at}</td>
+                        <td class="p-3">
+                            <span class="px-2 py-1 rounded text-[10px] font-bold ${o.status === '접수대기' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}">
+                                ${o.status}
+                            </span>
+                        </td>
+                        <td class="p-3 text-center">
+                            ${canEdit ? `
+                                <div class="flex items-center justify-center gap-1">
+                                    <button onclick="openEditModal('${o.id}')" class="px-2 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold rounded text-[11px]">
+                                        수정
+                                    </button>
+                                    <button onclick="deleteOrder('${o.id}')" class="px-2 py-1 bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold rounded text-[11px]">
+                                        삭제
+                                    </button>
+                                </div>
+                            ` : `
+                                <span class="text-[10px] text-slate-400 italic">수정불가</span>
+                            `}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function deleteOrder(id) {
+            if (currentSimulatedHour >= 7 && currentSimulatedHour < 15) {
+                alert('마감 시간 중에는 주문을 삭제할 수 없습니다.');
+                return;
+            }
+
+            if (confirm('해당 주문을 삭제하시겠습니까?')) {
+                ordersMaster = ordersMaster.filter(o => o.id !== id);
+                if (supabaseClient) {
+                    await supabaseClient.from('orders').delete().eq('id', id);
+                }
+                renderSellerTable();
+            }
+        }
+
+        async function deleteSelectedOrders() {
+            if (currentSimulatedHour >= 7 && currentSimulatedHour < 15) {
+                alert('마감 시간 중에는 주문을 삭제할 수 없습니다.');
+                return;
+            }
+
+            const checkedBoxes = document.querySelectorAll('.seller-chk-item:checked');
+            if (checkedBoxes.length === 0) {
+                alert('삭제할 주문을 체크박스로 선택해주세요.');
+                return;
+            }
+
+            const selectedIds = Array.from(checkedBoxes).map(chk => chk.value);
+
+            if (confirm(`선택한 ${selectedIds.length}건의 주문을 삭제하시겠습니까?`)) {
+                ordersMaster = ordersMaster.filter(o => !selectedIds.includes(o.id));
+
+                if (supabaseClient) {
+                    await supabaseClient.from('orders').delete().in('id', selectedIds);
+                }
+
+                alert(`총 ${selectedIds.length}건의 주문이 성공적으로 삭제되었습니다.`);
+                document.getElementById('chk-all-seller').checked = false;
+                renderSellerTable();
+            }
+        }
+
+        async function deleteExcelOrdersOnly() {
+            if (currentSimulatedHour >= 7 && currentSimulatedHour < 15) {
+                alert('마감 시간 중에는 주문을 삭제할 수 없습니다.');
+                return;
+            }
+
+            const excelOrders = ordersMaster.filter(o =>
+                o.seller_company === currentSellerAccount.company &&
+                o.id.startsWith('ORD-EXCEL-') &&
+                o.status === '접수대기'
+            );
+
+            if (excelOrders.length === 0) {
+                alert('삭제할 수 있는 엑셀 등록 주문건이 없습니다.');
+                return;
+            }
+
+            if (confirm(`엑셀로 등록한 주문 총 ${excelOrders.length}건을 일괄 삭제하시겠습니까?`)) {
+                const excelIds = excelOrders.map(o => o.id);
+                ordersMaster = ordersMaster.filter(o => !excelIds.includes(o.id));
+
+                if (supabaseClient) {
+                    await supabaseClient.from('orders').delete().in('id', excelIds);
+                }
+
+                alert(`총 ${excelOrders.length}건의 엑셀 주문이 삭제되었습니다.`);
+                renderSellerTable();
+            }
+        }
+
+        function populateAdminFilter() {
+            const select = document.getElementById('admin-seller-filter');
+            const companies = [...new Set(ordersMaster.map(o => o.seller_company))];
+            select.innerHTML = `<option value="ALL">전체 거래처 보기 (${ordersMaster.length}건)</option>` +
+                companies.map(c => `<option value="${c}">${c}</option>`).join('');
+        }
+
+        function renderAdminTable() {
+            const filterValue = document.getElementById('admin-seller-filter').value;
+            const tbody = document.getElementById('admin-order-list');
+
+            let filtered = ordersMaster;
+            if (filterValue !== 'ALL') {
+                filtered = ordersMaster.filter(o => o.seller_company === filterValue);
+            }
+
+            document.getElementById('admin-order-count').innerText = `총 ${filtered.length}건`;
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="11" class="text-center py-6 text-slate-400">등록된 주문 내역이 없습니다.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(o => `
+                <tr class="hover:bg-slate-50 transition">
+                    <td class="p-3 font-bold text-slate-900">${o.sender_name || `밤낮딜리버리(${o.seller_company})`}</td>
+                    <td class="p-3 font-mono text-slate-500">${o.id}</td>
+                    <td class="p-3 font-semibold">${o.recipient}</td>
+                    <td class="p-3">${o.phone}</td>
+                    <td class="p-3 max-w-xs truncate">${o.address} ${o.detail_address || ''}</td>
+                    <td class="p-3 text-indigo-600 font-medium">${o.product}</td>
+                    <td class="p-3 text-slate-600">${o.wholesale_company || '-'}/${o.wholesale_product || '-'}</td>
+                    <td class="p-3 text-amber-700 font-medium">${o.bamnat_memo || '-'}</td>
+                    <td class="p-3 text-slate-400">${o.created_at}</td>
+                    <td class="p-3">
+                        <span class="px-2 py-1 rounded text-[10px] font-bold ${o.status === '접수대기' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}">
+                            ${o.status}
+                        </span>
+                    </td>
+                    <td class="p-3 text-center">
+                        <button onclick="openEditModal('${o.id}')" class="px-2.5 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold rounded text-[11px]">
+                            수정
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function confirmAdminBatch() {
+            let updatedIds = [];
+            ordersMaster.forEach(o => {
+                if (o.status === '접수대기') {
+                    o.status = '접수완료';
+                    updatedIds.push(o.id);
+                }
+            });
+
+            if (supabaseClient && updatedIds.length > 0) {
+                await supabaseClient.from('orders').update({ status: '접수완료' }).in('id', updatedIds);
+            }
+
+            alert(`총 ${updatedIds.length}건의 주문이 [접수완료] 상태로 변경되었습니다.`);
+            renderAdminTable();
+        }
+
+        // 📌 자바스크립트 실시간 2-시트 원본 색상 엑셀 자동 동적 생성 함수 (네트워크 오류 방지)
+        function downloadSampleExcel() {
+            try {
+                const wb = XLSX.utils.book_new();
+
+                // 1번 시트: 풀필먼트 작성안내
+                const sheet1Data = [
+                    ["< 밤낮딜리버리 풀필먼트 2026년 신규양식 >"],
+                    [""],
+                    ["초록색 자리는 모두 고정값 자리입니다"],
+                    [""],
+                    ["송화인명 (중요!!)"],
+                    ["송화인명에는 밤낮딜리버리(대표님상호)"],
+                    ["대표님 상호에 지역이 들어갈경우엔 지역명을 제외하고 적어주시면 되십니다 EX)울산애플 --> 밤낮딜리버리(애플)"],
+                    ["영어 상호일경우엔 대문자로 적어주시면 감사드립니다 --> 밤낮딜리버리(ABC)"],
+                    [""],
+                    ["상품명 (중요!!)"],
+                    ["1. 상품명에는 반드시 쇼핑몰상품명 / 컬러 / 사이즈 / 수량(개) 순서로 작성 부탁드립니다"],
+                    ["( 정확한 양식은 아니어도 되십니다. 단 배송팀에서 알아볼때에 필요한 정보들이 모두 기재되어 있어야 합니다 )"],
+                    ['( 반드시 상품명,컬러,사이즈,수량등이 구분되어 보이게 [ "뛰어쓰기"와 "/" 를 활용해서 작성 해 주세요 ]'],
+                    [""],
+                    ["2. 엑셀 작업할 값이 많은 경우 아래 예시처럼 상품명을 상품명/컬러/사이즈/수량 값을 하나로 만들때 쓰는함수가 있습니다. =CONCAT(A1,B1,C1…) / 아주 유용합니다 !"],
+                    [""],
+                    ["3. 사무실 킵(재고)건이 출고되는경우 쇼핑몰 상품명 앞에 \"(킵)\" 이라고 표시해 주셔야 합니다. 예) (킵)셔링티셔츠"],
+                    ["( 사무실 반품재고를 재출고 할 경우 반품자 성함을 알려주셔야 확인이 가능합니다 )"],
+                    [""],
+                    ["4. 한 고객의 2개 이상의 출고건, 합배송이 필요한 경우엔 쇼핑몰 상품명 앞에 \"(합)\" 이라고 반드시 표시해 주시기 바랍니다. "],
+                    ["  주문건 중 출고상품이 2개 이상인 경우에만 해당되며, 2개 이상의 상품 모두 \"(합)\" 이라고 표시 해주셔야 합니다."],
+                    ["  상품명 앞에 \"(합)\" 이라고 표시되어 있지 않은 주문건에 대해선 자동부분출고 진행됩니다. 예) (합)고랭 울 팬츠 / 화이트 / 1개"],
+                    [""],
+                    ["밤낮전달메세지 (중요!!)"],
+                    ["저희에게 전달할 내용이 있는 사항에 대해선 밤낮딜리버리 전달사항칸에 내용을 메모해주시면 감사합니다. "],
+                    ["예시) 사은품 같이나가주세요, 홍길동 고객반품건으로 출고해주세요, 쇼핑몰색상 \"브라운\"이 도매색상 \"모카\"입니다."],
+                    [""],
+                    ["작업예시) 익숙해지시기 전까진 가능한 지우지 마세요 ^^ 어려우시면 꼭 문의주세요 !"],
+                    ["송화인명(보내는사람)", "송화인전번", "수화인명(받는사람)", "주소(받는사람)", "쇼핑몰 상품명(상품명 / 컬러 / 사이즈 / 수량개수)", "도매거래처명", "도매 상품명", "전화번호,휴대폰(받는사람)", "배송메세지", "밤낮 전달메세지", "수량", "보내는사람주소", "보내는사람 우편번호"],
+                    ["밤낮딜리버리(애플샵)", "010-5425-9060", "홍길동", "대전광역시 유성구 유성대로783번길 38, 201호", "(합)고랭 울 팬츠 / 화이트 / 1개", "센스", "울PT", "010-2144-8887", "집 앞 배송부탁드려요", "택, 사은품 같이 보내주세요", 1, "서울특별시 광진구 강변역로 2 C동 3층 물류센터 한국물류8 밤낮딜리버리", "05048"],
+                    ["밤낮딜리버리(애플샵)", "010-5425-9060", "홍길동", "대전광역시 유성구 유성대로783번길 38, 201호", "(합)고랭 울 팬츠 / 블랙 / 1개", "센스", "울PT", "010-2144-8887", "집 앞 배송부탁드려요", "택, 사은품 같이 보내주세요", 1, "서울특별시 광진구 강변역로 2 C동 3층 물류센터 한국물류8 밤낮딜리버리", "05048"],
+                    ["밤낮딜리버리(애플샵)", "010-5425-9060", "김태희", "부산광역시 연제구 거제천로146번길 34 일마레 1001호", "겨울엔 골덴 조거/ 블랙 / L / 1개", "센스", "골덴조거", "010-6634-7776", "", "반품자:이미자 고객건으로 출고해주세요", 1, "서울특별시 광진구 강변역로 2 C동 3층 물류센터 한국물류8 밤낮딜리버리", "05048"],
+                    ["밤낮딜리버리(애플샵)", "010-5425-9060", "최불암", "제주도 서귀포시 중앙로 11번길 22, 1층", "(킵)(합)아로나민 니트 / 블랙 / 1개", "아톰", "울니트", "010-1134-4274", "꼼꼼한 검품 부탁드려요", "", 1, "서울특별시 광진구 강변역로 2 C동 3층 물류센터 한국물류8 밤낮딜리버리", "05048"]
+                ];
+                const ws1 = XLSX.utils.aoa_to_sheet(sheet1Data);
+
+                // 2번 시트: 풀필먼트 엑셀양식
+                const sheet2Data = [
+                    ["[고객 풀필먼트 요청서] 노란색바탕 아래행을 작성해 주시면 됩니다", "", "초록색은 \"고정값\" 입니다", "", "대납금 입금계좌는 [ 신한은행 110 359 193710 이현재 ] 입니다", "", "", "", "", "", "", "", ""],
+                    ["송화인명(보내는사람) -> \n밤낮딜리버리(대표님 업체상호)로 적어주세요\nEX) 밤낮딜리버리(스타일난다)", "대표님C/S\n가능한연락처", "수화인명(받는사람)", "주소(받는사람)", "쇼핑몰 상품명(상품명 / 컬러 / 사이즈 / 수량\"개\")\nex) 라운드티 / 그레이 / M / 1개\n도매명과 쇼핑몰명이 동일한경우, \n동일하게 도매명으로 적어주셔도 됩니다", "도매거래처명", "도매 상품명", "전화번호,휴대폰(받는사람)", "배송메세지", "밤낮딜리버리 전달메세지", "수량(고정값)", "보내는사람주소(고정값,변경금지!)", "보내는사람 우편번호\n(고정값,변경금지!)"],
+                    ["밤낮딜리버리(애플샵)", "010-1234-5678", "", "", "", "", "", "", "", "", 1, "서울특별시 광진구 강변역로 2 C동 3층 물류센터 한국물류8 밤낮딜리버리", "05048"],
+                    ["밤낮딜리버리(애플샵)", "010-1234-5678", "", "", "", "", "", "", "", "", 1, "서울특별시 광진구 강변역로 2 C동 3층 물류센터 한국물류8 밤낮딜리버리", "05048"],
+                    ["밤낮딜리버리(애플샵)", "010-1234-5678", "", "", "", "", "", "", "", "", 1, "서울특별시 광진구 강변역로 2 C동 3층 물류센터 한국물류8 밤낮딜리버리", "05048"]
+                ];
+
+                for (let r = 6; r <= 30; r++) {
+                    sheet2Data.push(["", "", "", "", "", "", "", "", "", "", 1, "서울특별시 광진구 강변역로 2 C동 3층 물류센터 한국물류8 밤낮딜리버리", "05048"]);
+                }
+
+                const ws2 = XLSX.utils.aoa_to_sheet(sheet2Data);
+
+                // 컬럼 너비 지정
+                ws2['!cols'] = [
+                    { wch: 35 }, { wch: 18 }, { wch: 18 }, { wch: 35 }, { wch: 45 },
+                    { wch: 16 }, { wch: 16 }, { wch: 22 }, { wch: 20 }, { wch: 30 },
+                    { wch: 12 }, { wch: 55 }, { wch: 18 }
+                ];
+
+                // 헤더 행 높이 지정
+                ws2['!rows'] = [{ hpt: 24 }, { hpt: 65 }];
+
+                // 바탕색 배경 스타일 지정 (A1: 주황, C1: 초록)
+                if (ws2['A1']) ws2['A1'].s = { fill: { fgColor: { rgb: "FFC000" } }, font: { bold: true, sz: 10 } };
+                if (ws2['C1']) ws2['C1'].s = { fill: { fgColor: { rgb: "92D050" } }, font: { bold: true, sz: 10 } };
+
+                // Row 2 헤더 바탕색 설정 (A~I: 노란색, J: 주황색, K~M: 초록색)
+                const cols = ['A','B','C','D','E','F','G','H','I','J','K','L','M'];
+                cols.forEach((col, idx) => {
+                    const cellRef = col + '2';
+                    if (!ws2[cellRef]) return;
+
+                    let bgColor = "FFFF00"; // 노란색 (A ~ I)
+                    if (idx === 9) bgColor = "FFC000"; // 주황색 (J)
+                    else if (idx >= 10) bgColor = "92D050"; // 초록색 (K ~ M)
+
+                    ws2[cellRef].s = {
+                        fill: { fgColor: { rgb: bgColor } },
+                        font: { name: "Pretendard", sz: 10, bold: true },
+                        alignment: { wrapText: true, vertical: "center", horizontal: "center" },
+                        border: {
+                            top: { style: "thin", color: { rgb: "CCCCCC" } },
+                            bottom: { style: "thin", color: { rgb: "CCCCCC" } },
+                            left: { style: "thin", color: { rgb: "CCCCCC" } },
+                            right: { style: "thin", color: { rgb: "CCCCCC" } }
+                        }
+                    };
+                });
+
+                // Row 3 ~ 30 고정값 셀 (K, L, M) 연한 초록색 바탕
+                for (let r = 3; r <= 30; r++) {
+                    ['K', 'L', 'M'].forEach(col => {
+                        const cellRef = col + r;
+                        if (ws2[cellRef]) {
+                            ws2[cellRef].s = {
+                                fill: { fgColor: { rgb: "E2EFDA" } },
+                                font: { sz: 9 },
+                                alignment: { vertical: "center" }
+                            };
+                        }
+                    });
+                }
+
+                XLSX.utils.book_append_sheet(wb, ws1, "풀필먼트 작성안내");
+                XLSX.utils.book_append_sheet(wb, ws2, "풀필먼트 엑셀양식");
+
+                XLSX.writeFile(wb, "밤낮딜리버리_풀필먼트_엑셀양식_2026.xlsx");
+            } catch (err) {
+                console.error("엑셀 다운로드 오류:", err);
+                alert("엑셀 다운로드 중 오류가 발생했습니다: " + err.message);
+            }
+        }
+
+        function downloadMasterExcel() {
+            const exportData = ordersMaster.map(o => ({
+                '송화인명(보내는사람)': o.sender_name || `밤낮딜리버리(${o.seller_company})`,
+                '대표님C/S 가능한연락처': o.cs_phone || '',
+                '수화인명(받는사람)': o.recipient,
+                '주소(받는사람)': `${o.address} ${o.detail_address || ''}`,
+                '쇼핑몰 상품명': o.product,
+                '도매거래처명': o.wholesale_company || '',
+                '도매 상품명': o.wholesale_product || '',
+                '전화번호,휴대폰(받는사람)': o.phone,
+                '배송메세지': o.memo || '',
+                '밤낮딜리버리 전달메세지': o.bamnat_memo || '',
+                '수량(고정값)': o.qty || 1,
+                '보내는사람주소': '서울특별시 광진구 강변역로 2 C동 3층 물류센터 한국물류8 밤낮딜리버리',
+                '보내는사람 우편번호': '05048',
+                '접수일시': o.created_at,
+                '처리상태': o.status
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "통합주문마스터");
+            XLSX.writeFile(wb, `밤낮딜리버리_통합주문_마스터_${new Date().toISOString().slice(0,10)}.xlsx`);
+        }
+    </script>
+</body>
+</html>
