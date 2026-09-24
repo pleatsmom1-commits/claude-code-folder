@@ -39,7 +39,8 @@
 ### 2. 로그인(Auth) 설정
 **Authentication → Sign In / Providers → Email**
 - `Enable Email provider`: 켜기
-- `Confirm email`: 아래 3번의 메일 발송 설정을 했다면 **켜기(권장)**, 아직 안 했다면 **끄기**
+- `Confirm email`: **끄기 권장** — 관리자 승인 제도가 있어 이메일 인증 없이도 승인 전에는 주문할 수 없습니다.
+  켜 두면 Supabase 기본 메일 서버의 발송 한도(시간당 약 2통) 때문에 가입 시 "발송 한도 초과" 오류가 납니다. 켜려면 3번 SMTP 연결이 먼저 필요합니다.
 
 **Authentication → URL Configuration** (안 하면 인증 메일 링크가 `localhost`로 가서 "사이트에 연결할 수 없음"이 뜹니다)
 - `Site URL`: `https://bamnatconnect.netlify.app`
