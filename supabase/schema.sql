@@ -37,6 +37,20 @@ end;
 $$;
 update public.profiles p set email = u.email from auth.users u where u.id = p.id and p.email is null;
 
+-- 이 스키마를 실행하기 전에 가입한 계정은 프로필이 없어 로그인 후
+-- "계정 정보를 불러오지 못했습니다" 오류가 납니다. 빠진 프로필을 채워 넣습니다.
+-- (승인대기 상태로 만들어지므로, 셀러는 관리자 화면에서 승인하면 됩니다)
+insert into public.profiles (id, email, company, name, phone, status)
+select
+    u.id,
+    u.email,
+    coalesce(nullif(trim(u.raw_user_meta_data->>'company'), ''), '미등록'),
+    nullif(trim(u.raw_user_meta_data->>'name'), ''),
+    nullif(trim(u.raw_user_meta_data->>'phone'), ''),
+    'pending'
+from auth.users u
+where not exists (select 1 from public.profiles p where p.id = u.id);
+
 -- 회원가입 시 프로필 자동 생성 (role 은 항상 seller, 상태는 승인 대기로 시작)
 create or replace function public.handle_new_user()
 returns trigger

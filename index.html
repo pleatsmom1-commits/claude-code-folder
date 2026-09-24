@@ -778,7 +778,15 @@
             const { data: profile, error } = await supabaseClient.from('profiles').select('*').eq('id', user.id).maybeSingle();
             if (error || !profile) {
                 console.error('프로필 조회 오류:', error);
-                alert('계정 정보를 불러오지 못했습니다. 잠시 후 다시 시도하거나 관리자에게 문의해주세요.');
+                let reason;
+                if (error && (['PGRST205', '42P01', 'PGRST204', '42703'].includes(error.code) || /profiles|does not exist|schema cache/i.test(error.message || ''))) {
+                    reason = 'DB 설정이 아직 적용되지 않았습니다.\n(관리자: Supabase SQL Editor에서 최신 supabase/schema.sql 을 실행해주세요)';
+                } else if (!error) {
+                    reason = '이 계정의 프로필 정보가 없습니다.\n(관리자: Supabase SQL Editor에서 최신 supabase/schema.sql 을 다시 실행하면 자동으로 채워집니다)';
+                } else {
+                    reason = '잠시 후 다시 시도하거나 관리자에게 문의해주세요.';
+                }
+                alert(`계정 정보를 불러오지 못했습니다.\n\n${reason}` + (error ? `\n\n[오류 코드: ${error.code || '-'}] ${error.message || ''}` : ''));
                 await supabaseClient.auth.signOut();
                 return;
             }
