@@ -33,15 +33,17 @@
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
 
     <!-- Top Time Simulator Bar -->
-    <header class="bg-slate-900 text-white px-4 py-2 text-xs flex flex-wrap items-center justify-between gap-2 shadow-md">
+    <!-- 주소 뒤에 ?test 를 붙였을 때만 표시됩니다 (예: index.html?test) -->
+    <header id="time-simulator-bar" class="hidden bg-slate-900 text-white px-4 py-2 text-xs flex-wrap items-center justify-between gap-2 shadow-md">
         <div class="flex items-center gap-2">
             <i data-lucide="clock" class="w-4 h-4 text-amber-400"></i>
             <span class="font-bold text-amber-400">[테스트용 시간 시뮬레이터]</span>
-            <span>현재 설정 시간:</span>
+            <span>화면 기준 시간:</span>
             <span id="simulated-time-display" class="font-mono text-sm font-bold bg-slate-800 px-2 py-0.5 rounded border border-slate-700 text-amber-300"></span>
         </div>
         <div class="flex items-center gap-2">
             <span class="text-slate-400">시간 변경:</span>
+            <button onclick="setSimulatedTime(null)" class="px-2 py-1 bg-amber-500 hover:bg-amber-400 rounded text-slate-900 font-bold">실제 시간</button>
             <button onclick="setSimulatedTime(5)" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200">05:00 (정상접수/수정 가능)</button>
             <button onclick="setSimulatedTime(8)" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200">08:00 (지연/신규 10시마감)</button>
             <button onclick="setSimulatedTime(11)" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200">11:00 (접수 불가시간)</button>
@@ -502,7 +504,11 @@
 
     <!-- JAVASCRIPT -->
     <script>
-        let currentSimulatedHour = 5;
+        // 테스트 모드(?test)에서만 시뮬레이터 시간을 쓰고, 평소에는 실제 한국 시간을 씁니다.
+        // ※ 시뮬레이터는 화면 표시만 바꿉니다. 실제 저장 가능 여부는 DB가 실제 시간으로 판단합니다.
+        const TEST_MODE = new URLSearchParams(location.search).has('test');
+        let currentSimulatedHour = null;
+        let lastTimePhase = null;
         let currentRole = null;
         let currentSellerAccount = null;
 
@@ -511,6 +517,41 @@
         let registeredSellers = [
             { id: 'seller1', pw: '1234', company: '이레앤컴퍼니', name: '이현재', phone: '010-1234-5678' }
         ];
+
+        // 한국 시간(Asia/Seoul) 기준 현재 날짜/시간 조각 (PC 시간대 설정과 무관)
+        function getKstParts(date = new Date()) {
+            const parts = new Intl.DateTimeFormat('en-CA', {
+                timeZone: 'Asia/Seoul', hourCycle: 'h23',
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit'
+            }).formatToParts(date);
+            const get = type => parts.find(p => p.type === type).value;
+            return { y: get('year'), m: get('month'), d: get('day'), hh: get('hour'), mm: get('minute'), ss: get('second') };
+        }
+
+        function getCurrentHour() {
+            if (currentSimulatedHour !== null) return currentSimulatedHour;
+            return parseInt(getKstParts().hh, 10);
+        }
+
+        // 'open': 15:00~익일 07:00 접수/수정 가능, 'late': 07:00~10:00 신규만, 'closed': 10:00~15:00 마감
+        function getTimePhase() {
+            const hour = getCurrentHour();
+            if (hour >= 15 || hour < 7) return 'open';
+            if (hour < 10) return 'late';
+            return 'closed';
+        }
+        const canAddOrders = () => getTimePhase() !== 'closed';
+        const canModifyOrders = () => getTimePhase() === 'open';
+
+        // DB의 접수시간(UTC)을 한국 시간 'YYYY-MM-DD HH:mm' 으로 표시
+        function formatKstDateTime(value) {
+            if (!value) return '';
+            const date = new Date(value);
+            if (isNaN(date.getTime())) return String(value);
+            const p = getKstParts(date);
+            return `${p.y}-${p.m}-${p.d} ${p.hh}:${p.mm}`;
+        }
 
         // 화면에 출력하는 모든 사용자 입력값은 이 함수로 감싸서 HTML 태그가 실행되지 않게 합니다.
         function escapeHtml(value) {
@@ -524,9 +565,8 @@
 
         // 중복되지 않는 접수번호 생성 (예: ORD-20260924-153012-A7K2)
         function generateOrderId(prefix = 'ORD') {
-            const d = new Date();
-            const pad = n => String(n).padStart(2, '0');
-            const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+            const p = getKstParts();
+            const stamp = `${p.y}${p.m}${p.d}-${p.hh}${p.mm}${p.ss}`;
             const rand = Math.random().toString(36).slice(2, 6).toUpperCase().padEnd(4, '0');
             return `${prefix}-${stamp}-${rand}`;
         }
@@ -603,7 +643,13 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
 
         window.onload = function() {
             lucide.createIcons();
-            setSimulatedTime(5);
+            if (TEST_MODE) {
+                const bar = document.getElementById('time-simulator-bar');
+                bar.classList.remove('hidden');
+                bar.classList.add('flex');
+            }
+            refreshTimeStatus();
+            setInterval(refreshTimeStatus, 30 * 1000); // 30초마다 시간/접수상태 갱신
             initSupabaseAuto();
             updateNavUserArea();
             document.getElementById('sql-code-block').innerText = SQL_SCRIPT;
@@ -665,19 +711,31 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
 
         function setSimulatedTime(hour) {
             currentSimulatedHour = hour;
-            document.getElementById('simulated-time-display').innerText = `${String(hour).padStart(2, '0')}:00`;
+            lastTimePhase = null; // 표시를 강제로 새로고침
+            refreshTimeStatus();
+        }
+
+        function refreshTimeStatus() {
+            const p = getKstParts();
+            document.getElementById('simulated-time-display').innerText = currentSimulatedHour !== null
+                ? `${String(currentSimulatedHour).padStart(2, '0')}:00 (시뮬레이션)`
+                : `${p.hh}:${p.mm} (실제 한국시간)`;
+
+            const phase = getTimePhase();
+            if (phase === lastTimePhase) return; // 구간이 바뀔 때만 화면을 다시 그립니다
+            lastTimePhase = phase;
 
             const banner = document.getElementById('status-banner');
             const text = document.getElementById('status-text');
             const subtext = document.getElementById('status-subtext');
             const submitBtn = document.getElementById('btn-submit-order');
 
-            if (hour >= 15 || hour < 7) {
+            if (phase === 'open') {
                 banner.className = "bg-emerald-500 text-white px-6 py-2.5 text-sm font-medium flex justify-between items-center shadow-inner";
                 text.innerText = "현재 정상 주문 접수 및 수정 가능 시간입니다 (15:00 ~ 익일 07:00)";
                 subtext.innerText = "오전 7시 이전까지 자유롭게 수정/삭제가 가능합니다.";
                 if(submitBtn) submitBtn.disabled = false;
-            } else if (hour >= 7 && hour < 10) {
+            } else if (phase === 'late') {
                 banner.className = "bg-amber-500 text-white px-6 py-2.5 text-sm font-medium flex justify-between items-center shadow-inner";
                 text.innerText = "지연/신규 주문 접수 시간 (07:00 ~ 10:00) - 기존 접수건 수정 불가";
                 subtext.innerText = "오전 7시 이전 주문은 마감 처리 진행 중이며, 신규 주문 추가만 가능합니다.";
@@ -879,7 +937,7 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
         async function handleSingleOrderSubmit(e) {
             e.preventDefault();
 
-            if (currentSimulatedHour >= 10 && currentSimulatedHour < 15) {
+            if (!canAddOrders()) {
                 alert('현재 마감 시간(10:00 ~ 15:00)으로 신규 주문을 등록할 수 없습니다.');
                 return;
             }
@@ -906,19 +964,21 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
                 memo: document.getElementById('so-memo').value,
                 bamnat_memo: document.getElementById('so-bamnat-memo').value,
                 qty: 1,
-                created_at: `2026-09-23 ${String(currentSimulatedHour).padStart(2,'0')}:15`,
                 status: '접수대기'
             };
 
+            // 접수시간(created_at)은 PC 시계가 아닌 DB 서버 시간으로 기록됩니다.
+            let savedOrder = { ...newOrder, created_at: new Date().toISOString() };
             if (supabaseClient) {
-                const { error } = await supabaseClient.from('orders').insert([newOrder]);
+                const { data, error } = await supabaseClient.from('orders').insert([newOrder]).select();
                 if (error) {
                     alert('주문 저장 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.\n\n' + error.message);
                     return;
                 }
+                if (data && data[0]) savedOrder = data[0];
             }
 
-            ordersMaster.unshift(newOrder);
+            ordersMaster.unshift(savedOrder);
             alert('주문이 성공적으로 등록되었습니다.');
             e.target.reset();
             document.getElementById('so-sender-name').value = `밤낮딜리버리(${currentSellerAccount.company})`;
@@ -926,7 +986,7 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
         }
 
         function handleFileUpload(e) {
-            if (currentSimulatedHour >= 10 && currentSimulatedHour < 15) {
+            if (!canAddOrders()) {
                 alert('현재 마감 시간(10:00 ~ 15:00)으로 신규 주문을 등록할 수 없습니다.');
                 e.target.value = '';
                 return;
@@ -999,7 +1059,6 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
                             memo: cell(r[8]),
                             bamnat_memo: cell(r[9]),
                             qty: parseInt(r[10]) || 1,
-                            created_at: `2026-09-23 ${String(currentSimulatedHour).padStart(2,'0')}:20`,
                             status: '접수대기'
                         });
                     }
@@ -1035,17 +1094,19 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
                         return;
                     }
 
+                    let savedOrders = batchOrders.map(o => ({ ...o, created_at: new Date().toISOString() }));
                     if (supabaseClient) {
                         // 한 번에 저장되므로 오류 시 일부만 들어가는 일 없이 전체가 취소됩니다.
-                        const { error } = await supabaseClient.from('orders').insert(batchOrders);
+                        const { data, error } = await supabaseClient.from('orders').insert(batchOrders).select();
                         if (error) {
                             alert('주문 저장 중 오류가 발생하여 업로드가 취소되었습니다. 잠시 후 다시 시도해주세요.\n\n' + error.message);
                             e.target.value = '';
                             return;
                         }
+                        if (data && data.length) savedOrders = data;
                     }
 
-                    ordersMaster.unshift(...batchOrders);
+                    ordersMaster.unshift(...savedOrders);
                     alert(`총 ${batchOrders.length}건의 주문이 성공적으로 접수되었습니다!`);
                     e.target.value = '';
                     renderSellerTable();
@@ -1063,7 +1124,7 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
             if (!order) return;
 
             if (currentRole === 'seller') {
-                if (currentSimulatedHour >= 7 && currentSimulatedHour < 15) {
+                if (!canModifyOrders()) {
                     alert('마감 시간(07:00 ~ 15:00) 중에는 주문을 수정할 수 없습니다.');
                     return;
                 }
@@ -1192,7 +1253,7 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
             }
 
             tbody.innerHTML = myOrders.map(o => {
-                const canEdit = (currentSimulatedHour < 7 || currentSimulatedHour >= 15) && o.status === '접수대기';
+                const canEdit = canModifyOrders() && o.status === '접수대기';
                 const isExcel = String(o.id).startsWith('ORD-EXCEL-');
                 const id = escapeHtml(o.id);
                 const fullAddress = escapeHtml(`${o.address || ''} ${o.detail_address || ''}`.trim());
@@ -1215,7 +1276,7 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
                             ${escapeHtml(o.wholesale_product || '-')}
                         </td>
                         <td class="p-3 max-w-xs truncate text-amber-700 font-medium">${escapeHtml(o.bamnat_memo || '-')}</td>
-                        <td class="p-3 text-slate-400">${escapeHtml(o.created_at)}</td>
+                        <td class="p-3 text-slate-400 whitespace-nowrap">${escapeHtml(formatKstDateTime(o.created_at))}</td>
                         <td class="p-3">${statusBadgeHtml(o.status)}</td>
                         <td class="p-3 text-center">
                             ${canEdit ? `
@@ -1259,7 +1320,7 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
         }
 
         async function deleteOrder(id) {
-            if (currentSimulatedHour >= 7 && currentSimulatedHour < 15) {
+            if (!canModifyOrders()) {
                 alert('마감 시간 중에는 주문을 삭제할 수 없습니다.');
                 return;
             }
@@ -1270,7 +1331,7 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
         }
 
         async function deleteSelectedOrders() {
-            if (currentSimulatedHour >= 7 && currentSimulatedHour < 15) {
+            if (!canModifyOrders()) {
                 alert('마감 시간 중에는 주문을 삭제할 수 없습니다.');
                 return;
             }
@@ -1291,7 +1352,7 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
         }
 
         async function deleteExcelOrdersOnly() {
-            if (currentSimulatedHour >= 7 && currentSimulatedHour < 15) {
+            if (!canModifyOrders()) {
                 alert('마감 시간 중에는 주문을 삭제할 수 없습니다.');
                 return;
             }
@@ -1353,7 +1414,7 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
                     <td class="p-3 text-indigo-600 font-medium">${escapeHtml(o.product)}</td>
                     <td class="p-3 text-slate-600">${escapeHtml(o.wholesale_company || '-')}/${escapeHtml(o.wholesale_product || '-')}</td>
                     <td class="p-3 text-amber-700 font-medium">${escapeHtml(o.bamnat_memo || '-')}</td>
-                    <td class="p-3 text-slate-400">${escapeHtml(o.created_at)}</td>
+                    <td class="p-3 text-slate-400 whitespace-nowrap">${escapeHtml(formatKstDateTime(o.created_at))}</td>
                     <td class="p-3">${statusBadgeHtml(o.status)}</td>
                     <td class="p-3 text-center">
                         <button data-id="${id}" onclick="openEditModal(this.dataset.id)" class="px-2.5 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold rounded text-[11px]">
@@ -1524,14 +1585,15 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
                 '수량(고정값)': o.qty || 1,
                 '보내는사람주소': '서울특별시 광진구 강변역로 2 C동 3층 물류센터 한국물류8 밤낮딜리버리',
                 '보내는사람 우편번호': '05048',
-                '접수일시': o.created_at,
+                '접수일시': formatKstDateTime(o.created_at),
                 '처리상태': o.status
             }));
 
             const ws = XLSX.utils.json_to_sheet(exportData);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "통합주문마스터");
-            XLSX.writeFile(wb, `밤낮딜리버리_통합주문_마스터_${new Date().toISOString().slice(0,10)}.xlsx`);
+            const p = getKstParts();
+            XLSX.writeFile(wb, `밤낮딜리버리_통합주문_마스터_${p.y}-${p.m}-${p.d}.xlsx`);
         }
     </script>
 </body>
