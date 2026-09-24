@@ -57,7 +57,10 @@
             <i id="status-icon" data-lucide="info" class="w-4 h-4"></i>
             <span id="status-text">상태 로딩 중...</span>
         </div>
-        <span id="status-subtext" class="text-xs opacity-90"></span>
+        <div class="flex items-center gap-3">
+            <span id="status-subtext" class="text-xs opacity-90"></span>
+            <span id="status-clock" class="font-mono text-xs font-bold bg-black/20 px-2 py-0.5 rounded whitespace-nowrap"></span>
+        </div>
     </div>
 
     <!-- Navigation Header -->
@@ -609,7 +612,7 @@
                 bar.classList.add('flex');
             }
             refreshTimeStatus();
-            setInterval(refreshTimeStatus, 30 * 1000); // 30초마다 시간/접수상태 갱신
+            setInterval(refreshTimeStatus, 15 * 1000); // 15초마다 시계/접수상태 갱신
             initSupabaseAuto();
             updateNavUserArea();
         };
@@ -713,6 +716,9 @@
             document.getElementById('simulated-time-display').innerText = currentSimulatedHour !== null
                 ? `${String(currentSimulatedHour).padStart(2, '0')}:00 (시뮬레이션)`
                 : `${p.hh}:${p.mm} (실제 한국시간)`;
+            document.getElementById('status-clock').innerText = currentSimulatedHour !== null
+                ? `시뮬레이션 ${String(currentSimulatedHour).padStart(2, '0')}:00`
+                : `현재 한국시간 ${p.m}/${p.d} ${p.hh}:${p.mm}`;
 
             const phase = getTimePhase();
             if (phase === lastTimePhase) return; // 구간이 바뀔 때만 화면을 다시 그립니다
