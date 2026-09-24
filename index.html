@@ -223,8 +223,9 @@
                             </div>
                         </div>
 
-                        <div class="flex justify-end pt-2">
-                            <button type="submit" id="btn-submit-order" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-sm shadow transition">
+                        <div class="flex justify-end items-center gap-3 pt-2 flex-wrap">
+                            <span class="order-block-reason hidden text-xs font-bold text-rose-600"></span>
+                            <button type="submit" id="btn-submit-order" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none disabled:cursor-not-allowed text-white font-bold rounded-lg text-sm shadow transition">
                                 주문 등록하기
                             </button>
                         </div>
@@ -237,9 +238,10 @@
                             <p class="text-sm font-bold text-slate-700">밤낮딜리버리 표준 엑셀 파일(.xlsx, .xls) 선택</p>
                             <p class="text-xs text-slate-500 mt-1 mb-4">다운로드 받으신 파일의 <b>2번 시트 ('풀필먼트 엑셀양식')</b>에 작성 후 업로드하세요.</p>
                             <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" class="hidden" onchange="handleFileUpload(event)">
-                            <button onclick="document.getElementById('excel-file-input').click()" class="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow">
+                            <button id="btn-excel-upload" onclick="document.getElementById('excel-file-input').click()" class="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold text-xs rounded-lg shadow">
                                 엑셀 파일 업로드
                             </button>
+                            <p class="order-block-reason hidden mt-3 text-xs font-bold text-rose-600"></p>
                         </div>
                     </div>
                 </div>
@@ -875,27 +877,43 @@
             const banner = document.getElementById('status-banner');
             const text = document.getElementById('status-text');
             const subtext = document.getElementById('status-subtext');
-            const submitBtn = document.getElementById('btn-submit-order');
 
             if (phase === 'open') {
                 banner.className = "bg-emerald-500 text-white px-6 py-2.5 text-sm font-medium flex justify-between items-center shadow-inner";
                 text.innerText = "현재 정상 주문 접수 및 수정 가능 시간입니다 (15:00 ~ 익일 07:00)";
                 subtext.innerText = "오전 7시 이전까지 자유롭게 수정/삭제가 가능합니다.";
-                if(submitBtn) submitBtn.disabled = !canAddOrders();
             } else if (phase === 'late') {
                 banner.className = "bg-amber-500 text-white px-6 py-2.5 text-sm font-medium flex justify-between items-center shadow-inner";
                 text.innerText = "지연/신규 주문 접수 시간 (07:00 ~ 10:00) - 기존 접수건 수정 불가";
                 subtext.innerText = "오전 7시 이전 주문은 마감 처리 진행 중이며, 신규 주문 추가만 가능합니다.";
-                if(submitBtn) submitBtn.disabled = !canAddOrders();
             } else {
                 banner.className = "bg-rose-600 text-white px-6 py-2.5 text-sm font-medium flex justify-between items-center shadow-inner";
                 text.innerText = "주문 접수 및 수정 마감 시간 (10:00 ~ 15:00)";
                 subtext.innerText = "출고 작업 진행 시간입니다. 오후 3시 이후 다시 접수가 시작됩니다.";
-                if(submitBtn) submitBtn.disabled = true;
             }
 
+            updateOrderAvailability();
             if (currentRole === 'seller') renderSellerTable();
             if (currentRole === 'admin') renderAdminTable();
+        }
+
+        // 주문 등록 버튼을 잠글 때는 회색으로 바꾸고, 왜 안 되는지 옆에 적어줍니다.
+        function updateOrderAvailability() {
+            const allowed = canAddOrders();
+            let reason = '';
+            if (!allowed) {
+                reason = (currentRole === 'seller' && !isSellerApproved())
+                    ? '관리자 승인 후 주문을 등록할 수 있습니다.'
+                    : '⏰ 지금은 마감 시간(10:00~15:00)입니다. 오후 3시부터 다시 등록할 수 있습니다.';
+            }
+            ['btn-submit-order', 'btn-excel-upload'].forEach(id => {
+                const btn = document.getElementById(id);
+                if (btn) btn.disabled = !allowed;
+            });
+            document.querySelectorAll('.order-block-reason').forEach(el => {
+                el.innerText = reason;
+                el.classList.toggle('hidden', allowed);
+            });
         }
 
         function showSignupModal() {
