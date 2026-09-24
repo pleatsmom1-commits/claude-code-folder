@@ -394,6 +394,11 @@ begin
     new.created_at := old.created_at;
     if current_user in ('authenticated', 'anon') then
         new.role := old.role;
+        -- 셀러 본인(내정보)은 대표자명/연락처만 바꿀 수 있습니다. 상호명·상태는 관리자만.
+        if not public.is_admin() then
+            new.company := old.company;
+            new.status := old.status;
+        end if;
     end if;
     if new.role = 'admin' then
         new.status := 'approved';
@@ -409,6 +414,7 @@ create trigger profiles_protect
 
 drop policy if exists profiles_select on public.profiles;
 drop policy if exists profiles_admin_update on public.profiles;
+drop policy if exists profiles_self_update on public.profiles;
 
 -- 프로필: 본인 것만 조회, 관리자는 전체 조회/수정 (셀러는 role 을 바꿀 수 없음)
 create policy profiles_select on public.profiles
@@ -419,6 +425,35 @@ create policy profiles_admin_update on public.profiles
     for update to authenticated
     using (public.is_admin())
     with check (public.is_admin());
+
+-- 내정보: 셀러 본인이 대표자명/연락처 수정 (상호명·상태·권한은 위 트리거가 막음)
+create policy profiles_self_update on public.profiles
+    for update to authenticated
+    using (id = auth.uid())
+    with check (id = auth.uid());
+
+-- ---------------------------------------------------------------------
+-- 4-1. 자주 쓰는 주소록 (셀러별)
+-- ---------------------------------------------------------------------
+create table if not exists public.address_book (
+    id              uuid primary key default gen_random_uuid(),
+    seller_id       uuid not null default auth.uid() references auth.users(id) on delete cascade,
+    label           text,
+    recipient       text,
+    phone           text,
+    zipcode         text,
+    address         text not null,
+    detail_address  text,
+    created_at      timestamptz not null default now()
+);
+create index if not exists address_book_seller_idx on public.address_book (seller_id, created_at desc);
+alter table public.address_book enable row level security;
+
+drop policy if exists address_book_own on public.address_book;
+create policy address_book_own on public.address_book
+    for all to authenticated
+    using (seller_id = auth.uid())
+    with check (seller_id = auth.uid());
 
 -- ---------------------------------------------------------------------
 -- 5. 예전 sellers 테이블 (비밀번호가 평문으로 저장되어 있었음)

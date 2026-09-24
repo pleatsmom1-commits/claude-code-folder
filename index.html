@@ -9,6 +9,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- SheetJS + 셀 스타일링 지원 통합 라이브러리 -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+    <!-- JSZip: 원본 엑셀 양식을 서식 그대로 채워서 내려받기 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <!-- Supabase JS Client -->
@@ -160,8 +162,16 @@
                     <form id="single-order-form" onsubmit="handleSingleOrderSubmit(event)" class="space-y-4">
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1">송화인명 (보내는사람)</label>
-                                <input type="text" id="so-sender-name" readonly class="w-full px-3 py-2 bg-slate-100 border text-slate-600 font-bold rounded-lg text-sm">
+                                <label class="block text-xs font-bold text-slate-700 mb-1">
+                                    송화인명 (보내는사람)
+                                    <button type="button" onclick="resetSenderCompany()" class="ml-1 text-[10px] font-normal text-indigo-600 hover:underline">내 상호로 되돌리기</button>
+                                </label>
+                                <div class="flex items-center w-full border rounded-lg bg-white focus-within:outline focus-within:outline-2 focus-within:outline-indigo-500 overflow-hidden">
+                                    <span class="pl-3 pr-0.5 py-2 text-sm font-bold text-slate-500 whitespace-nowrap">밤낮딜리버리(</span>
+                                    <input type="text" id="so-sender-company" required placeholder="상호" class="flex-1 min-w-0 py-2 text-sm font-bold text-slate-900 outline-none">
+                                    <span class="pr-3 pl-0.5 py-2 text-sm font-bold text-slate-500">)</span>
+                                </div>
+                                <p class="text-[10px] text-slate-400 mt-1">괄호 안 상호는 필요할 때 바꿔서 접수할 수 있습니다.</p>
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-slate-700 mb-1">대표님 C/S 연락처 *</label>
@@ -207,9 +217,18 @@
                                 <button type="button" onclick="execDaumPostcode()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg transition flex items-center gap-1.5">
                                     <i data-lucide="search" class="w-3.5 h-3.5"></i> 주소 검색
                                 </button>
+                                <button type="button" onclick="openAddressBookModal()" class="px-4 py-2 bg-amber-50 border border-amber-200 hover:bg-amber-100 text-amber-800 font-bold text-xs rounded-lg transition flex items-center gap-1.5 whitespace-nowrap">
+                                    <i data-lucide="book-open" class="w-3.5 h-3.5"></i> 주소록
+                                </button>
                             </div>
                             <input type="text" id="so-address" placeholder="기본주소 (주소 검색 시 자동입력)" readonly required class="w-full px-3 py-2 bg-slate-50 border rounded-lg text-sm text-slate-600">
                             <input type="text" id="so-detail-address" placeholder="상세주소 입력 (동, 호수 등)" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                            <!-- 자주 쓰는 주소: 누르면 받는사람/연락처/주소가 한 번에 채워집니다 -->
+                            <div class="flex items-start gap-2 flex-wrap pt-1">
+                                <span class="text-[11px] font-bold text-slate-500 pt-1 whitespace-nowrap">📒 자주 쓰는 주소</span>
+                                <div id="address-chips" class="flex flex-wrap gap-1.5 flex-1"></div>
+                                <button type="button" onclick="saveCurrentAddress()" class="px-2.5 py-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-[11px] rounded-lg whitespace-nowrap">+ 지금 입력한 주소 저장</button>
+                            </div>
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -264,25 +283,61 @@
                     </div>
                 </div>
 
+                <!-- 지난 주문 조회: 기간 버튼 / 날짜 지정 / 검색 -->
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-xs font-bold text-slate-600 w-12">기간</span>
+                        <div id="history-presets" class="flex flex-wrap gap-1">
+                            <button type="button" data-preset="today" onclick="setHistoryPreset('today')" class="history-preset px-3 py-1.5 rounded-lg text-xs font-bold border">오늘</button>
+                            <button type="button" data-preset="yesterday" onclick="setHistoryPreset('yesterday')" class="history-preset px-3 py-1.5 rounded-lg text-xs font-bold border">어제</button>
+                            <button type="button" data-preset="week" onclick="setHistoryPreset('week')" class="history-preset px-3 py-1.5 rounded-lg text-xs font-bold border">1주일</button>
+                            <button type="button" data-preset="month" onclick="setHistoryPreset('month')" class="history-preset px-3 py-1.5 rounded-lg text-xs font-bold border">1개월</button>
+                            <button type="button" data-preset="year" onclick="setHistoryPreset('year')" class="history-preset px-3 py-1.5 rounded-lg text-xs font-bold border">1년</button>
+                            <button type="button" data-preset="all" onclick="setHistoryPreset('all')" class="history-preset px-3 py-1.5 rounded-lg text-xs font-bold border">전체</button>
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <input type="date" id="history-from" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
+                            <span class="text-xs text-slate-400">~</span>
+                            <input type="date" id="history-to" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
+                            <button type="button" onclick="applyHistoryDates()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold">기간 조회</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-xs font-bold text-slate-600 w-12">검색</span>
+                        <select id="history-field" onchange="renderSellerTable()" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
+                            <option value="all">전체</option>
+                            <option value="recipient">수취인</option>
+                            <option value="phone">연락처</option>
+                            <option value="address">주소</option>
+                            <option value="product">상품명</option>
+                        </select>
+                        <input type="text" id="history-keyword" oninput="renderSellerTable()" placeholder="수취인 · 연락처 · 주소 · 상품명 검색" class="px-3 py-1.5 border rounded-lg text-xs bg-white w-64">
+                        <button type="button" onclick="resetHistorySearch()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-bold">초기화</button>
+                        <button type="button" onclick="downloadSellerHistoryExcel()" class="ml-auto px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1">
+                            <i data-lucide="file-down" class="w-3.5 h-3.5"></i> 조회결과 엑셀
+                        </button>
+                    </div>
+                </div>
+
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-xs">
                         <thead class="bg-slate-100 text-slate-600 font-bold border-b border-slate-200">
                             <tr>
-                                <th class="p-3 text-center w-10">
+                                <th class="p-3 whitespace-nowrap text-center w-10">
                                     <input type="checkbox" id="chk-all-seller" onchange="toggleAllSellerCheckboxes(this)" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
                                 </th>
-                                <th class="p-3">NO.</th>
-                                <th class="p-3">접수번호</th>
-                                <th class="p-3">수화인(받는사람)</th>
-                                <th class="p-3">연락처</th>
-                                <th class="p-3">주소</th>
-                                <th class="p-3">쇼핑몰 상품명</th>
-                                <th class="p-3">도매처 / 도매상품</th>
-                                <th class="p-3">밤낮 전달메세지</th>
-                                <th class="p-3">접수일시</th>
-                                <th class="p-3">상태</th>
-                                <th class="p-3">출고</th>
-                                <th class="p-3 text-center">관리</th>
+                                <th class="p-3 whitespace-nowrap">NO.</th>
+                                <th class="p-3 whitespace-nowrap">접수번호</th>
+                                <th class="p-3 whitespace-nowrap">수화인(받는사람)</th>
+                                <th class="p-3 whitespace-nowrap">연락처</th>
+                                <th class="p-3 whitespace-nowrap">주소</th>
+                                <th class="p-3 whitespace-nowrap">쇼핑몰 상품명</th>
+                                <th class="p-3 whitespace-nowrap">도매처 / 도매상품</th>
+                                <th class="p-3 whitespace-nowrap">밤낮 전달메세지</th>
+                                <th class="p-3 whitespace-nowrap">접수일시</th>
+                                <th class="p-3 whitespace-nowrap">상태</th>
+                                <th class="p-3 whitespace-nowrap">출고</th>
+                                <th class="p-3 whitespace-nowrap text-center">관리</th>
                             </tr>
                         </thead>
                         <tbody id="seller-order-list" class="divide-y divide-slate-100 text-slate-700"></tbody>
@@ -351,21 +406,21 @@
                         <table class="w-full text-left text-xs">
                             <thead class="bg-slate-800 text-slate-200 font-bold">
                                 <tr>
-                                    <th class="p-3 text-center w-10">
+                                    <th class="p-3 whitespace-nowrap text-center w-10">
                                         <input type="checkbox" id="chk-all-admin" onchange="document.querySelectorAll('.admin-chk-item').forEach(c => c.checked = this.checked)" class="rounded border-slate-300">
                                     </th>
-                                    <th class="p-3">NO.</th>
-                                    <th class="p-3">송화인(거래처)</th>
-                                    <th class="p-3">수화인(받는사람)</th>
-                                    <th class="p-3">연락처</th>
-                                    <th class="p-3">배송지 주소</th>
-                                    <th class="p-3">쇼핑몰 상품명</th>
-                                    <th class="p-3">도매처/상품</th>
-                                    <th class="p-3">밤낮 전달메세지</th>
-                                    <th class="p-3">접수시간</th>
-                                    <th class="p-3">상태</th>
-                                    <th class="p-3">출고</th>
-                                    <th class="p-3 text-center">관리</th>
+                                    <th class="p-3 whitespace-nowrap">NO.</th>
+                                    <th class="p-3 whitespace-nowrap">송화인(거래처)</th>
+                                    <th class="p-3 whitespace-nowrap">수화인(받는사람)</th>
+                                    <th class="p-3 whitespace-nowrap">연락처</th>
+                                    <th class="p-3 whitespace-nowrap">배송지 주소</th>
+                                    <th class="p-3 whitespace-nowrap">쇼핑몰 상품명</th>
+                                    <th class="p-3 whitespace-nowrap">도매처/상품</th>
+                                    <th class="p-3 whitespace-nowrap">밤낮 전달메세지</th>
+                                    <th class="p-3 whitespace-nowrap">접수시간</th>
+                                    <th class="p-3 whitespace-nowrap">상태</th>
+                                    <th class="p-3 whitespace-nowrap">출고</th>
+                                    <th class="p-3 whitespace-nowrap text-center">관리</th>
                                 </tr>
                             </thead>
                             <tbody id="admin-order-list" class="divide-y divide-slate-100 text-slate-700"></tbody>
@@ -563,6 +618,75 @@
         </div>
     </div>
 
+    <!-- MODAL: MY PAGE (셀러 내정보) -->
+    <div id="mypage-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-5 border border-slate-100 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 class="font-bold text-slate-900 text-base">내 정보</h3>
+                <button onclick="closeMyPage()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+
+            <div>
+                <h4 class="text-xs font-bold text-slate-500 mb-2">계정 정보</h4>
+                <dl id="mypage-account" class="grid grid-cols-3 gap-y-2 text-sm bg-slate-50 border border-slate-200 rounded-xl p-4"></dl>
+                <p class="text-[10px] text-slate-400 mt-1">상호명 변경은 밤낮딜리버리 관리자에게 요청해주세요.</p>
+            </div>
+
+            <form onsubmit="handleMyInfoSubmit(event)" class="space-y-3">
+                <h4 class="text-xs font-bold text-slate-500">연락처 정보 수정</h4>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">대표자명</label>
+                        <input type="text" id="mypage-name" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">연락처 (기본 C/S 연락처)</label>
+                        <input type="text" id="mypage-phone" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                </div>
+                <button type="submit" class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs">정보 저장</button>
+            </form>
+
+            <form onsubmit="handleChangePasswordSubmit(event)" class="space-y-3 border-t border-slate-100 pt-4">
+                <h4 class="text-xs font-bold text-slate-500">비밀번호 변경</h4>
+                <input type="password" id="mypage-current-pw" required autocomplete="current-password" placeholder="현재 비밀번호" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                <div class="grid grid-cols-2 gap-2">
+                    <input type="password" id="mypage-new-pw" required minlength="8" autocomplete="new-password" placeholder="새 비밀번호 (8자 이상)" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    <input type="password" id="mypage-new-pw-confirm" required minlength="8" autocomplete="new-password" placeholder="새 비밀번호 확인" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                </div>
+                <button type="submit" class="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-lg text-xs">비밀번호 변경</button>
+            </form>
+
+            <div class="border-t border-slate-100 pt-4 flex items-center justify-between">
+                <span id="mypage-address-count" class="text-xs text-slate-500"></span>
+                <button onclick="closeMyPage(); openAddressBookModal();" class="px-3 py-1.5 bg-amber-50 border border-amber-200 hover:bg-amber-100 text-amber-800 font-bold text-xs rounded-lg">주소록 관리</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: ADDRESS BOOK (자주 쓰는 주소) -->
+    <div id="address-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 space-y-4 border border-slate-100 max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div>
+                    <h3 class="font-bold text-slate-900 text-base">📒 자주 쓰는 주소록</h3>
+                    <p class="text-xs text-slate-400">[선택]을 누르면 받는사람·연락처·주소가 주문서에 바로 입력됩니다.</p>
+                </div>
+                <button onclick="closeAddressBookModal()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <input type="text" id="address-search" oninput="renderAddressBook()" placeholder="이름·연락처·주소·별칭 검색" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+            <div class="overflow-y-auto flex-1 border border-slate-200 rounded-xl">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-slate-100 text-slate-600 font-bold sticky top-0">
+                        <tr><th class="p-2.5">별칭</th><th class="p-2.5">받는사람</th><th class="p-2.5">연락처</th><th class="p-2.5">주소</th><th class="p-2.5 text-center">관리</th></tr>
+                    </thead>
+                    <tbody id="address-list" class="divide-y divide-slate-100"></tbody>
+                </table>
+            </div>
+            <p class="text-[11px] text-slate-400">주문서에서 주소를 입력한 뒤 <b>[+ 지금 입력한 주소 저장]</b>을 누르면 주소록에 추가됩니다.</p>
+        </div>
+    </div>
+
     <!-- MODAL: SELLER EDIT (관리자) -->
     <div id="seller-edit-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
         <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-slate-100">
@@ -649,6 +773,9 @@
         let loginMode = 'seller';        // 로그인 화면에서 선택한 탭 ('seller' | 'admin')
         let pendingLoginMode = null;     // 방금 로그인 버튼을 누른 탭 (자동 로그인과 구분)
         let sellerProfiles = [];         // 관리자: 전체 셀러 목록
+        let addressBook = [];            // 셀러: 자주 쓰는 주소록
+        let historyFrom = null;          // 셀러: 주문 조회 시작일 (YYYY-MM-DD, 한국시간) / null = 제한 없음
+        let historyTo = null;
 
         const SELLER_STATUS_LABEL = { pending: '승인대기', approved: '승인', suspended: '정지' };
         const SELLER_STATUS_CLASS = {
@@ -841,6 +968,8 @@
                 fetchSellersFromDB();
             } else {
                 setupSellerUI();
+                setHistoryPreset('week', false);
+                loadAddressBook();
             }
             lastTimePhase = null;
             refreshTimeStatus();
@@ -854,6 +983,7 @@
             currentUserId = null;
             ordersMaster = [];
             sellerProfiles = [];
+            addressBook = [];
             document.getElementById('auth-screen').classList.remove('hidden');
             document.getElementById('seller-dashboard').classList.add('hidden');
             document.getElementById('admin-dashboard').classList.add('hidden');
@@ -1095,7 +1225,7 @@
 
         function setupSellerUI() {
             document.getElementById('seller-dashboard').classList.remove('hidden');
-            document.getElementById('so-sender-name').value = `밤낮딜리버리(${currentSellerAccount.company})`;
+            resetSenderCompany();
             document.getElementById('so-cs-phone').value = currentSellerAccount.phone || '';
 
             const notice = document.getElementById('seller-status-notice');
@@ -1113,6 +1243,15 @@
             }
         }
 
+        // 송화인명 = 밤낮딜리버리(상호). 괄호 안 상호는 기본이 내 상호이고, 주문마다 바꿀 수 있습니다.
+        function resetSenderCompany() {
+            document.getElementById('so-sender-company').value = currentSellerAccount ? currentSellerAccount.company : '';
+        }
+        function getSenderName() {
+            const company = document.getElementById('so-sender-company').value.trim() || (currentSellerAccount && currentSellerAccount.company) || '';
+            return `밤낮딜리버리(${company})`;
+        }
+
         async function logout() {
             if (supabaseClient) await supabaseClient.auth.signOut();
             showLoginScreen();
@@ -1128,6 +1267,7 @@
                         <span class="text-xs font-bold text-slate-900 block">${escapeHtml(currentSellerAccount.company)}님</span>
                         <span class="text-[10px] text-slate-400">${escapeHtml(currentSellerAccount.email || '셀러 회원')}</span>
                     </div>
+                    <button onclick="openMyPage()" class="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs rounded-lg font-bold">내정보</button>
                     <button onclick="logout()" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-bold">로그아웃</button>
                 `;
             } else {
@@ -1184,6 +1324,11 @@
                 return;
             }
 
+            if (/[()]/.test(document.getElementById('so-sender-company').value)) {
+                alert('송화인 상호에는 괄호를 넣을 수 없습니다. 괄호 안에 들어갈 상호만 입력해주세요.');
+                return;
+            }
+
             // readonly 입력칸은 브라우저의 required 검사를 건너뛰므로 직접 확인합니다.
             if (!document.getElementById('so-address').value.trim()) {
                 alert('배송지 주소를 [주소 검색] 버튼으로 입력해주세요.');
@@ -1193,7 +1338,7 @@
             const newOrder = {
                 id: generateOrderId('ORD'),
                 seller_company: currentSellerAccount.company,
-                sender_name: document.getElementById('so-sender-name').value,
+                sender_name: getSenderName(),
                 cs_phone: document.getElementById('so-cs-phone').value,
                 recipient: document.getElementById('so-recipient').value,
                 phone: document.getElementById('so-phone').value,
@@ -1247,7 +1392,9 @@
 
                     // '풀필먼트 작성안내'(1번 시트)의 예시 주문이 잘못 접수되지 않도록 '엑셀양식' 시트를 우선 찾습니다.
                     const names = workbook.SheetNames;
-                    let targetSheetName = names.find(n => n.includes('엑셀양식'))
+                    // (새 양식은 1번 시트 이름이 '풀필먼트 엑셀양식 작성안내' 라서 '안내'가 들어간 시트는 제외)
+                    let targetSheetName = names.find(n => n.replace(/\s/g, '') === '풀필먼트엑셀양식')
+                        || names.find(n => n.includes('엑셀양식') && !n.includes('안내'))
                         || names.find(n => n.includes('풀필먼트') && !n.includes('안내'))
                         || names[1] || names[0];
                     const targetSheet = workbook.Sheets[targetSheetName];
@@ -1257,7 +1404,7 @@
                     let headerIdx = -1;
                     for (let i = 0; i < rows.length; i++) {
                         const rowStr = (rows[i] || []).join(' ');
-                        if (rowStr.includes('수화인') || rowStr.includes('송화인') || rowStr.includes('받는사람')) {
+                        if (rowStr.includes('수화인') && rowStr.includes('송화인')) {
                             headerIdx = i;
                             break;
                         }
@@ -1338,6 +1485,19 @@
                         alert('엑셀 파일에서 읽어올 수 있는 주문 데이터가 없습니다.');
                         e.target.value = '';
                         return;
+                    }
+
+                    // 송화인 상호가 내 상호와 다르면 한 번 더 확인 (예: 양식 예시 '애플샵'을 그대로 둔 경우)
+                    const myCompany = currentSellerAccount.company;
+                    const otherSender = batchOrders
+                        .map((o, idx) => ({ o, idx }))
+                        .filter(({ o }) => o.sender_name !== `밤낮딜리버리(${myCompany})`);
+                    if (otherSender.length > 0) {
+                        const list = [...new Set(otherSender.map(({ o }) => o.sender_name))].slice(0, 5).join(', ');
+                        if (!confirm(`⚠️ 송화인 상호가 내 상호(${myCompany})와 다른 주문이 ${otherSender.length}건 있습니다.\n\n${list}\n\n이대로 접수할까요? (취소를 누르면 업로드를 멈춥니다)`)) {
+                            e.target.value = '';
+                            return;
+                        }
                     }
 
                     const confirmMsg = `📌 [업로드 전 최종 확인]\n\n상품명에 합배송건 '(합)', 재고출고건 '(킵)' 표기를 모두 정확히 기재하셨습니까?\n\n- (합): 2개 이상 묶음배송이 필요한 주문건\n- (킵): 사무실/창고 반품재고 재출고건\n\n[확인] 버튼을 누르시면 총 ${batchOrders.length}건의 주문이 접수됩니다.`;
@@ -1496,7 +1656,7 @@
 
         function statusBadgeHtml(status) {
             const cls = status === '접수대기' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700';
-            return `<span class="px-2 py-1 rounded text-[10px] font-bold ${cls}">${escapeHtml(status)}</span>`;
+            return `<span class="px-2 py-1 rounded text-[10px] font-bold whitespace-nowrap ${cls}">${escapeHtml(status)}</span>`;
         }
 
         // ---------------- 주문 번호 / 출고 상태 ----------------
@@ -1548,12 +1708,13 @@
 
         function renderSellerTable() {
             const tbody = document.getElementById('seller-order-list');
-            const myOrders = ordersMaster.filter(o => o.seller_id === currentUserId);
-            document.getElementById('seller-order-count').innerText = `총 ${myOrders.length}건`;
+            const allMine = ordersMaster.filter(o => o.seller_id === currentUserId);
+            const myOrders = getSellerHistoryOrders();
+            document.getElementById('seller-order-count').innerText = `조회 ${myOrders.length}건 / 전체 ${allMine.length}건`;
             document.getElementById('chk-all-seller').checked = false;
 
             if (myOrders.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="13" class="text-center py-6 text-slate-400">접수된 주문이 없습니다.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="13" class="text-center py-6 text-slate-400">${allMine.length ? '조회 조건에 맞는 주문이 없습니다.' : '접수된 주문이 없습니다.'}</td></tr>`;
                 return;
             }
 
@@ -1570,25 +1731,25 @@
                             <input type="checkbox" value="${id}" ${canEdit ? '' : 'disabled'} class="seller-chk-item rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-40">
                         </td>
                         <td class="p-3 font-mono font-black text-indigo-700 whitespace-nowrap">${escapeHtml(orderNoLabel(o, groups))}</td>
-                        <td class="p-3 font-mono text-[10px] text-slate-500">
+                        <td class="p-3 font-mono text-[10px] text-slate-500 min-w-[150px] break-all">
                             ${id}
                             ${isExcel ? '<span class="ml-1 text-[9px] bg-amber-100 text-amber-800 font-bold px-1 rounded">엑셀</span>' : ''}
                         </td>
-                        <td class="p-3 font-semibold text-slate-900">${escapeHtml(o.recipient)}</td>
-                        <td class="p-3">${escapeHtml(o.phone)}</td>
+                        <td class="p-3 font-semibold text-slate-900 whitespace-nowrap">${escapeHtml(o.recipient)}</td>
+                        <td class="p-3 whitespace-nowrap">${escapeHtml(o.phone)}</td>
                         <td class="p-3 max-w-xs truncate" title="${fullAddress}">${fullAddress}</td>
                         <td class="p-3 font-medium text-indigo-600 max-w-xs truncate" title="${escapeHtml(o.product)}">${escapeHtml(o.product)}</td>
-                        <td class="p-3 text-slate-600">
-                            ${o.wholesale_company ? `<span class="font-bold">${escapeHtml(o.wholesale_company)}</span>` : '-'}/
+                        <td class="p-3 text-slate-600 whitespace-nowrap">
+                            ${o.wholesale_company ? `<span class="font-bold">${escapeHtml(o.wholesale_company)}</span>` : '-'} /
                             ${escapeHtml(o.wholesale_product || '-')}
                         </td>
-                        <td class="p-3 max-w-xs truncate text-amber-700 font-medium">${escapeHtml(o.bamnat_memo || '-')}</td>
+                        <td class="p-3 min-w-[120px] max-w-xs truncate text-amber-700 font-medium">${escapeHtml(o.bamnat_memo || '-')}</td>
                         <td class="p-3 text-slate-400 whitespace-nowrap">${escapeHtml(formatKstDateTime(o.created_at))}</td>
                         <td class="p-3">${statusBadgeHtml(o.status)}</td>
                         <td class="p-3 whitespace-nowrap">${shipBadgeHtml(o, groups)}</td>
                         <td class="p-3 text-center">
                             ${canEdit ? `
-                                <div class="flex items-center justify-center gap-1">
+                                <div class="flex items-center justify-center gap-1 whitespace-nowrap">
                                     <button data-id="${id}" onclick="openEditModal(this.dataset.id)" class="px-2 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold rounded text-[11px]">
                                         수정
                                     </button>
@@ -1597,12 +1758,294 @@
                                     </button>
                                 </div>
                             ` : `
-                                <span class="text-[10px] text-slate-400 italic">수정불가</span>
+                                <span class="text-[10px] text-slate-400 italic whitespace-nowrap">수정불가</span>
                             `}
                         </td>
                     </tr>
                 `;
             }).join('');
+        }
+
+        // =====================================================================
+        // 셀러: 지난 주문 조회 (기간 / 검색)
+        // =====================================================================
+        // 한국시간 기준 날짜 문자열(YYYY-MM-DD) 계산
+        function kstDateString(date = new Date()) {
+            const p = getKstParts(date);
+            return `${p.y}-${p.m}-${p.d}`;
+        }
+        function shiftDate(ymd, { days = 0, months = 0, years = 0 }) {
+            const [y, m, d] = ymd.split('-').map(Number);
+            const dt = new Date(Date.UTC(y + years, m - 1 + months, d + days));
+            return dt.toISOString().slice(0, 10);
+        }
+
+        function setHistoryPreset(preset, rerender = true) {
+            const today = kstDateString();
+            const ranges = {
+                today: [today, today],
+                yesterday: [shiftDate(today, { days: -1 }), shiftDate(today, { days: -1 })],
+                week: [shiftDate(today, { days: -6 }), today],
+                month: [shiftDate(today, { months: -1 }), today],
+                year: [shiftDate(today, { years: -1 }), today],
+                all: [null, null]
+            };
+            [historyFrom, historyTo] = ranges[preset];
+            document.getElementById('history-from').value = historyFrom || '';
+            document.getElementById('history-to').value = historyTo || '';
+            markHistoryPreset(preset);
+            if (rerender) renderSellerTable();
+        }
+
+        function markHistoryPreset(preset) {
+            document.querySelectorAll('.history-preset').forEach(btn => {
+                const on = btn.dataset.preset === preset;
+                btn.className = 'history-preset px-3 py-1.5 rounded-lg text-xs font-bold border '
+                    + (on ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100');
+            });
+        }
+
+        function applyHistoryDates() {
+            const from = document.getElementById('history-from').value || null;
+            const to = document.getElementById('history-to').value || null;
+            if (from && to && from > to) {
+                alert('시작일이 종료일보다 늦습니다. 날짜를 확인해주세요.');
+                return;
+            }
+            historyFrom = from;
+            historyTo = to;
+            markHistoryPreset(null);
+            renderSellerTable();
+        }
+
+        function resetHistorySearch() {
+            document.getElementById('history-keyword').value = '';
+            document.getElementById('history-field').value = 'all';
+            setHistoryPreset('week');
+        }
+
+        // 셀러 주문 목록에 기간 + 검색어 적용
+        function getSellerHistoryOrders() {
+            const keyword = (document.getElementById('history-keyword').value || '').trim().toLowerCase();
+            const field = document.getElementById('history-field').value;
+            const kwDigits = keyword.replace(/\D/g, '');
+            return ordersMaster.filter(o => {
+                if (o.seller_id !== currentUserId) return false;
+                const day = o.created_at ? kstDateString(new Date(o.created_at)) : '';
+                if (historyFrom && day < historyFrom) return false;
+                if (historyTo && day > historyTo) return false;
+                if (!keyword) return true;
+                const text = {
+                    recipient: String(o.recipient || '').toLowerCase(),
+                    phone: String(o.phone || '').toLowerCase(),
+                    address: `${o.address || ''} ${o.detail_address || ''}`.toLowerCase(),
+                    product: String(o.product || '').toLowerCase()
+                };
+                const phoneHit = kwDigits.length >= 3 && String(o.phone || '').replace(/\D/g, '').includes(kwDigits);
+                if (field === 'phone') return text.phone.includes(keyword) || phoneHit;
+                if (field !== 'all') return text[field].includes(keyword);
+                return Object.values(text).some(v => v.includes(keyword)) || phoneHit;
+            });
+        }
+
+        // =====================================================================
+        // 셀러: 내 정보 (계정 정보 / 연락처 수정 / 비밀번호 변경)
+        // =====================================================================
+        function openMyPage() {
+            const a = currentSellerAccount;
+            const statusLabel = { pending: '승인대기', approved: '승인', suspended: '정지' }[a.status || 'approved'] || a.status;
+            const myCount = ordersMaster.filter(o => o.seller_id === currentUserId).length;
+            const rows = [
+                ['이메일(아이디)', a.email || '-'],
+                ['상호명', a.company || '-'],
+                ['기본 송화인명', `밤낮딜리버리(${a.company || ''})`],
+                ['계정 상태', statusLabel],
+                ['가입일', formatKstDateTime(a.created_at) || '-'],
+                ['접수 주문', `${myCount}건`]
+            ];
+            document.getElementById('mypage-account').innerHTML = rows.map(([k, v]) =>
+                `<dt class="text-xs text-slate-500 font-bold">${escapeHtml(k)}</dt><dd class="col-span-2 font-semibold text-slate-900 break-all">${escapeHtml(v)}</dd>`).join('');
+            document.getElementById('mypage-name').value = a.name || '';
+            document.getElementById('mypage-phone').value = a.phone || '';
+            document.getElementById('mypage-address-count').innerText = `저장된 주소 ${addressBook.length}개`;
+            document.getElementById('mypage-modal').classList.remove('hidden');
+            document.getElementById('mypage-modal').classList.add('flex');
+            lucide.createIcons();
+        }
+
+        function closeMyPage() {
+            document.getElementById('mypage-modal').classList.add('hidden');
+            document.getElementById('mypage-modal').classList.remove('flex');
+        }
+
+        async function handleMyInfoSubmit(e) {
+            e.preventDefault();
+            const name = document.getElementById('mypage-name').value.trim() || null;
+            const phone = document.getElementById('mypage-phone').value.trim() || null;
+            const { data, error } = await supabaseClient.from('profiles').update({ name, phone }).eq('id', currentUserId).select();
+            if (error || !data || data.length === 0) {
+                alert('정보 저장에 실패했습니다.\n\n' + (error ? dbErrorMessage(error) : '권한이 없습니다. (관리자: 최신 schema.sql 실행 필요)'));
+                return;
+            }
+            const oldPhone = currentSellerAccount.phone || '';
+            currentSellerAccount = { ...currentSellerAccount, ...data[0] };
+            // 주문서의 C/S 연락처가 예전 기본값 그대로면 새 연락처로 바꿔줍니다.
+            const csInput = document.getElementById('so-cs-phone');
+            if (!csInput.value || csInput.value === oldPhone) csInput.value = currentSellerAccount.phone || '';
+            updateNavUserArea();
+            alert('내 정보가 저장되었습니다.');
+            openMyPage();
+        }
+
+        async function handleChangePasswordSubmit(e) {
+            e.preventDefault();
+            const current = document.getElementById('mypage-current-pw').value;
+            const next = document.getElementById('mypage-new-pw').value;
+            if (next !== document.getElementById('mypage-new-pw-confirm').value) {
+                alert('새 비밀번호와 확인이 서로 다릅니다.');
+                return;
+            }
+            if (next === current) {
+                alert('새 비밀번호가 현재 비밀번호와 같습니다.');
+                return;
+            }
+            // 현재 비밀번호가 맞는지 먼저 확인합니다.
+            const { error: authError } = await supabaseClient.auth.signInWithPassword({ email: currentSellerAccount.email, password: current });
+            if (authError) {
+                alert('현재 비밀번호가 올바르지 않습니다.');
+                return;
+            }
+            const { error } = await supabaseClient.auth.updateUser({ password: next });
+            if (error) {
+                alert('비밀번호 변경 오류: ' + authErrorMessage(error));
+                return;
+            }
+            e.target.reset();
+            alert('비밀번호가 변경되었습니다. 다음 로그인부터 새 비밀번호를 사용해주세요.');
+        }
+
+        // =====================================================================
+        // 셀러: 자주 쓰는 주소록
+        // =====================================================================
+        async function loadAddressBook() {
+            if (!supabaseClient || currentRole !== 'seller') return;
+            const { data, error } = await supabaseClient.from('address_book').select('*').order('created_at', { ascending: false });
+            if (error) {
+                console.error('주소록 오류:', error);
+                document.getElementById('address-chips').innerHTML =
+                    '<span class="text-[11px] text-rose-500">주소록을 불러오지 못했습니다. (관리자: 최신 schema.sql 실행 필요)</span>';
+                return;
+            }
+            addressBook = data || [];
+            renderAddressBook();
+        }
+
+        const addressTitle = a => a.label || a.recipient || '주소';
+
+        function renderAddressBook() {
+            // 주문서 아래 빠른 선택 버튼 (최근 12개)
+            const chips = document.getElementById('address-chips');
+            chips.innerHTML = addressBook.length === 0
+                ? '<span class="text-[11px] text-slate-400 pt-1">저장된 주소가 없습니다.</span>'
+                : addressBook.slice(0, 12).map(a => `
+                    <button type="button" data-id="${escapeHtml(a.id)}" onclick="selectAddress(this.dataset.id)"
+                        title="${escapeHtml(`${a.recipient || ''} ${a.phone || ''} / ${a.address || ''} ${a.detail_address || ''}`)}"
+                        class="address-chip px-2.5 py-1 bg-amber-50 border border-amber-200 hover:bg-amber-100 text-amber-900 rounded-full text-[11px] font-bold max-w-[220px] truncate">
+                        📍 ${escapeHtml(addressTitle(a))}${a.label && a.recipient ? ` <span class="font-normal text-amber-700">· ${escapeHtml(a.recipient)}</span>` : ''}
+                    </button>`).join('')
+                  + (addressBook.length > 12 ? `<button type="button" onclick="openAddressBookModal()" class="px-2.5 py-1 text-[11px] text-indigo-600 font-bold">+${addressBook.length - 12}개 더보기</button>` : '');
+
+            // 주소록 창 목록
+            const tbody = document.getElementById('address-list');
+            const q = (document.getElementById('address-search').value || '').trim().toLowerCase();
+            const list = addressBook.filter(a => !q ||
+                [a.label, a.recipient, a.phone, a.address, a.detail_address].some(v => String(v || '').toLowerCase().includes(q)));
+            tbody.innerHTML = list.length === 0
+                ? `<tr><td colspan="5" class="text-center py-6 text-slate-400">${addressBook.length ? '검색 결과가 없습니다.' : '저장된 주소가 없습니다.'}</td></tr>`
+                : list.map(a => {
+                    const id = escapeHtml(a.id);
+                    return `
+                    <tr class="hover:bg-amber-50/50">
+                        <td class="p-2.5 font-bold text-slate-900">${escapeHtml(a.label || '-')}</td>
+                        <td class="p-2.5">${escapeHtml(a.recipient || '-')}</td>
+                        <td class="p-2.5 whitespace-nowrap">${escapeHtml(a.phone || '-')}</td>
+                        <td class="p-2.5 text-slate-600">${escapeHtml(`${a.zipcode ? `(${a.zipcode}) ` : ''}${a.address || ''} ${a.detail_address || ''}`)}</td>
+                        <td class="p-2.5 text-center whitespace-nowrap">
+                            <button data-id="${id}" onclick="selectAddress(this.dataset.id)" class="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded text-[11px]">선택</button>
+                            <button data-id="${id}" onclick="deleteAddress(this.dataset.id)" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold rounded text-[11px]">삭제</button>
+                        </td>
+                    </tr>`;
+                }).join('');
+        }
+
+        function openAddressBookModal() {
+            renderAddressBook();
+            document.getElementById('address-modal').classList.remove('hidden');
+            document.getElementById('address-modal').classList.add('flex');
+            lucide.createIcons();
+        }
+        function closeAddressBookModal() {
+            document.getElementById('address-modal').classList.add('hidden');
+            document.getElementById('address-modal').classList.remove('flex');
+        }
+
+        // 주소록 한 건을 주문서에 채워 넣기
+        function selectAddress(id) {
+            const a = addressBook.find(x => x.id === id);
+            if (!a) return;
+            switchRegTab('single');
+            document.getElementById('so-recipient').value = a.recipient || '';
+            document.getElementById('so-phone').value = a.phone || '';
+            document.getElementById('so-zipcode').value = a.zipcode || '';
+            document.getElementById('so-address').value = a.address || '';
+            document.getElementById('so-detail-address').value = a.detail_address || '';
+            closeAddressBookModal();
+            document.getElementById('so-product').focus();
+        }
+
+        async function saveCurrentAddress() {
+            const entry = {
+                recipient: document.getElementById('so-recipient').value.trim() || null,
+                phone: document.getElementById('so-phone').value.trim() || null,
+                zipcode: document.getElementById('so-zipcode').value.trim() || null,
+                address: document.getElementById('so-address').value.trim(),
+                detail_address: document.getElementById('so-detail-address').value.trim() || null
+            };
+            if (!entry.address) {
+                alert('먼저 [주소 검색]으로 배송지 주소를 입력한 뒤 저장해주세요.');
+                return;
+            }
+            const same = addressBook.find(a =>
+                (a.recipient || '') === (entry.recipient || '') &&
+                String(a.phone || '').replace(/\D/g, '') === String(entry.phone || '').replace(/\D/g, '') &&
+                `${a.address}${a.detail_address || ''}`.replace(/\s/g, '') === `${entry.address}${entry.detail_address || ''}`.replace(/\s/g, ''));
+            if (same) {
+                alert(`이미 주소록에 저장된 주소입니다. (${addressTitle(same)})`);
+                return;
+            }
+            const label = prompt('주소록에 저장할 이름(별칭)을 입력해주세요. 예) 단골 김고객, 매장', entry.recipient || '');
+            if (label === null) return;
+            entry.label = label.trim() || null;
+            const { data, error } = await supabaseClient.from('address_book').insert([entry]).select();
+            if (error) {
+                alert('주소 저장에 실패했습니다.\n\n' + dbErrorMessage(error));
+                return;
+            }
+            addressBook.unshift(...(data || []));
+            renderAddressBook();
+            alert('주소록에 저장되었습니다.');
+        }
+
+        async function deleteAddress(id) {
+            const a = addressBook.find(x => x.id === id);
+            if (!a || !confirm(`[${addressTitle(a)}] 주소를 주소록에서 삭제할까요?`)) return;
+            const { error } = await supabaseClient.from('address_book').delete().eq('id', id);
+            if (error) {
+                alert('삭제에 실패했습니다.\n\n' + dbErrorMessage(error));
+                return;
+            }
+            addressBook = addressBook.filter(x => x.id !== id);
+            renderAddressBook();
         }
 
         // DB에서 먼저 삭제하고, 성공했을 때만 화면 목록에서 지웁니다.
@@ -1750,13 +2193,13 @@
                 <tr class="hover:bg-slate-100/60 transition ${rowBg} ${newGroup ? 'border-t-2 border-slate-200' : ''}">
                     <td class="p-3 text-center"><input type="checkbox" value="${id}" class="admin-chk-item rounded border-slate-300"></td>
                     <td class="p-3 font-mono font-black text-indigo-700 whitespace-nowrap">${escapeHtml(orderNoLabel(o, groups))}</td>
-                    <td class="p-3 font-bold text-slate-900">${escapeHtml(o.sender_name || `밤낮딜리버리(${o.seller_company})`)}</td>
-                    <td class="p-3 font-semibold">${escapeHtml(o.recipient)}</td>
-                    <td class="p-3">${escapeHtml(o.phone)}</td>
+                    <td class="p-3 font-bold text-slate-900 whitespace-nowrap">${escapeHtml(o.sender_name || `밤낮딜리버리(${o.seller_company})`)}</td>
+                    <td class="p-3 font-semibold whitespace-nowrap">${escapeHtml(o.recipient)}</td>
+                    <td class="p-3 whitespace-nowrap">${escapeHtml(o.phone)}</td>
                     <td class="p-3 max-w-xs truncate">${escapeHtml(`${o.address || ''} ${o.detail_address || ''}`.trim())}</td>
-                    <td class="p-3 text-indigo-600 font-medium">${escapeHtml(o.product)}</td>
-                    <td class="p-3 text-slate-600">${escapeHtml(o.wholesale_company || '-')}/${escapeHtml(o.wholesale_product || '-')}</td>
-                    <td class="p-3 text-amber-700 font-medium">${escapeHtml(o.bamnat_memo || '-')}</td>
+                    <td class="p-3 text-indigo-600 font-medium min-w-[160px]">${escapeHtml(o.product)}</td>
+                    <td class="p-3 text-slate-600 whitespace-nowrap">${escapeHtml(o.wholesale_company || '-')} / ${escapeHtml(o.wholesale_product || '-')}</td>
+                    <td class="p-3 text-amber-700 font-medium min-w-[120px]">${escapeHtml(o.bamnat_memo || '-')}</td>
                     <td class="p-3 text-slate-400 whitespace-nowrap">${escapeHtml(formatKstDateTime(o.created_at))}</td>
                     <td class="p-3">${statusBadgeHtml(o.status)}</td>
                     <td class="p-3 whitespace-nowrap">${shipBadgeHtml(o, groups)}</td>
@@ -2020,195 +2463,178 @@
         }
 
         // 📌 자바스크립트 실시간 2-시트 원본 색상 엑셀 자동 동적 생성 함수 (네트워크 오류 방지)
-        function downloadSampleExcel() {
-            try {
-                const wb = XLSX.utils.book_new();
-
-                // 1번 시트: 풀필먼트 작성안내
-                const sheet1Data = [
-                    ["< 밤낮딜리버리 풀필먼트 2026년 신규양식 >"],
-                    [""],
-                    ["초록색 자리는 모두 고정값 자리입니다"],
-                    [""],
-                    ["송화인명 (중요!!)"],
-                    ["송화인명에는 밤낮딜리버리(대표님상호)"],
-                    ["대표님 상호에 지역이 들어갈경우엔 지역명을 제외하고 적어주시면 되십니다 EX)울산애플 --> 밤낮딜리버리(애플)"],
-                    ["영어 상호일경우엔 대문자로 적어주시면 감사드립니다 --> 밤낮딜리버리(ABC)"],
-                    [""],
-                    ["상품명 (중요!!)"],
-                    ["1. 상품명에는 반드시 쇼핑몰상품명 / 컬러 / 사이즈 / 수량(개) 순서로 작성 부탁드립니다"],
-                    ["( 정확한 양식은 아니어도 되십니다. 단 배송팀에서 알아볼때에 필요한 정보들이 모두 기재되어 있어야 합니다 )"],
-                    ['( 반드시 상품명,컬러,사이즈,수량등이 구분되어 보이게 [ "뛰어쓰기"와 "/" 를 활용해서 작성 해 주세요 ]'],
-                    [""],
-                    ["2. 엑셀 작업할 값이 많은 경우 아래 예시처럼 상품명을 상품명/컬러/사이즈/수량 값을 하나로 만들때 쓰는함수가 있습니다. =CONCAT(A1,B1,C1…) / 아주 유용합니다 !"],
-                    [""],
-                    ["3. 사무실 킵(재고)건이 출고되는경우 쇼핑몰 상품명 앞에 \"(킵)\" 이라고 표시해 주셔야 합니다. 예) (킵)셔링티셔츠"],
-                    ["( 사무실 반품재고를 재출고 할 경우 반품자 성함을 알려주셔야 확인이 가능합니다 )"],
-                    [""],
-                    ["4. 한 고객의 2개 이상의 출고건, 합배송이 필요한 경우엔 쇼핑몰 상품명 앞에 \"(합)\" 이라고 반드시 표시해 주시기 바랍니다. "],
-                    ["  주문건 중 출고상품이 2개 이상인 경우에만 해당되며, 2개 이상의 상품 모두 \"(합)\" 이라고 표시 해주셔야 합니다."],
-                    ["  상품명 앞에 \"(합)\" 이라고 표시되어 있지 않은 주문건에 대해선 자동부분출고 진행됩니다. 예) (합)고랭 울 팬츠 / 화이트 / 1개"],
-                    [""],
-                    ["밤낮전달메세지 (중요!!)"],
-                    ["저희에게 전달할 내용이 있는 사항에 대해선 밤낮딜리버리 전달사항칸에 내용을 메모해주시면 감사합니다. "],
-                    ["예시) 사은품 같이나가주세요, 홍길동 고객반품건으로 출고해주세요, 쇼핑몰색상 \"브라운\"이 도매색상 \"모카\"입니다."],
-                    [""],
-                    ["작업예시) 익숙해지시기 전까진 가능한 지우지 마세요 ^^ 어려우시면 꼭 문의주세요 !"],
-                    ["송화인명(보내는사람)", "송화인전번", "수화인명(받는사람)", "주소(받는사람)", "쇼핑몰 상품명(상품명 / 컬러 / 사이즈 / 수량개수)", "도매거래처명", "도매 상품명", "전화번호,휴대폰(받는사람)", "배송메세지", "밤낮 전달메세지", "수량", "보내는사람주소", "보내는사람 우편번호"],
-                    ["밤낮딜리버리(애플샵)", "010-5425-9060", "홍길동", "대전광역시 유성구 유성대로783번길 38, 201호", "(합)고랭 울 팬츠 / 화이트 / 1개", "센스", "울PT", "010-2144-8887", "집 앞 배송부탁드려요", "택, 사은품 같이 보내주세요", 1, "서울특별시 광진구 강변역로 2 C동 3층 물류센터 한국물류8 밤낮딜리버리", "05048"],
-                    ["밤낮딜리버리(애플샵)", "010-5425-9060", "홍길동", "대전광역시 유성구 유성대로783번길 38, 201호", "(합)고랭 울 팬츠 / 블랙 / 1개", "센스", "울PT", "010-2144-8887", "집 앞 배송부탁드려요", "택, 사은품 같이 보내주세요", 1, "서울특별시 광진구 강변역로 2 C동 3층 물류센터 한국물류8 밤낮딜리버리", "05048"],
-                    ["밤낮딜리버리(애플샵)", "010-5425-9060", "김태희", "부산광역시 연제구 거제천로146번길 34 일마레 1001호", "겨울엔 골덴 조거/ 블랙 / L / 1개", "센스", "골덴조거", "010-6634-7776", "", "반품자:이미자 고객건으로 출고해주세요", 1, "서울특별시 광진구 강변역로 2 C동 3층 물류센터 한국물류8 밤낮딜리버리", "05048"],
-                    ["밤낮딜리버리(애플샵)", "010-5425-9060", "최불암", "제주도 서귀포시 중앙로 11번길 22, 1층", "(킵)(합)아로나민 니트 / 블랙 / 1개", "아톰", "울니트", "010-1134-4274", "꼼꼼한 검품 부탁드려요", "", 1, "서울특별시 광진구 강변역로 2 C동 3층 물류센터 한국물류8 밤낮딜리버리", "05048"]
-                ];
-                const ws1 = XLSX.utils.aoa_to_sheet(sheet1Data);
-
-                // 2번 시트: 풀필먼트 엑셀양식 (2026 신규양식: A열 NO. 추가)
-                // 로그인한 셀러의 송화인명/연락처를 앞 3줄에 미리 채워둡니다.
-                const mySender = currentSellerAccount ? `밤낮딜리버리(${currentSellerAccount.company})` : '';
-                const myPhone = (currentSellerAccount && currentSellerAccount.phone) || '';
-                const dataRows = [];
-                for (let n = 1; n <= 28; n++) {
-                    const prefill = n <= 3;
-                    dataRows.push([n <= 21 ? n : '', prefill ? mySender : '', prefill ? myPhone : '', '', '', '', '', '', '', '', '',
-                        1, FULFILLMENT_SENDER_ADDRESS, FULFILLMENT_SENDER_ZIP]);
-                }
-                const ws2 = buildFulfillmentSheet(dataRows);
-
-                XLSX.utils.book_append_sheet(wb, ws1, "풀필먼트 작성안내");
-                XLSX.utils.book_append_sheet(wb, ws2, "풀필먼트 엑셀양식");
-
-                XLSX.writeFile(wb, "밤낮딜리버리_풀필먼트_엑셀양식_2026.xlsx");
-            } catch (err) {
-                console.error("엑셀 다운로드 오류:", err);
-                alert("엑셀 다운로드 중 오류가 발생했습니다: " + err.message);
-            }
-        }
-
-        // ---------------- 2026 풀필먼트 엑셀양식 (업로드 양식 / 관리자 다운로드 공통) ----------------
+        // =====================================================================
+        // 엑셀: 밤낮딜리버리 원본 양식 파일(아래 FULFILLMENT_TEMPLATE_B64)을 서식 그대로 사용
+        //   1번 시트 '풀필먼트 엑셀양식 작성안내', 2번 시트 '풀필먼트 엑셀양식'
+        //   글꼴·색상·열 너비·줄바꿈은 원본 그대로 두고, 필요한 칸의 값만 채워 넣습니다.
+        // =====================================================================
         const FULFILLMENT_SENDER_ADDRESS = '서울특별시 광진구 강변역로 2 C동 3층 물류센터 한국물류8 밤낮딜리버리';
         const FULFILLMENT_SENDER_ZIP = '05048';
-        const FULFILLMENT_HEADERS = [
-            'NO.',
-            '송화인명(보내는사람) -> \n밤낮딜리버리(대표님 업체상호)로 적어주세요\nEX) 밤낮딜리버리(스타일난다)',
-            '대표님C/S\n가능한연락처',
-            '수화인명(받는사람)',
-            '주소(받는사람)',
-            '쇼핑몰 상품명(상품명 / 컬러 / 사이즈 / 수량"개")\nex) 라운드티 / 그레이 / M / 1개\n도매명과 쇼핑몰명이 동일한경우, \n동일하게 도매명으로 적어주셔도 됩니다',
-            '도매거래처명',
-            '도매 상품명',
-            '전화번호,휴대폰(받는사람)',
-            '배송메세지',
-            '밤낮딜리버리 전달메세지',
-            '수량(고정값)',
-            '보내는사람주소(고정값,변경금지!)',
-            '보내는사람 우편번호\n(고정값,변경금지!)'
-        ];
-        const FULFILLMENT_COL_WIDTHS = [8, 40, 14, 16, 45, 50, 12, 12, 18, 20, 26, 10, 55, 16];
+        const FORM_SHEET_PATH = 'xl/worksheets/sheet2.xml'; // '풀필먼트 엑셀양식' 시트
+        const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
-        // rows: [NO, 송화인, C/S, 수화인, 주소, 상품명, 도매처, 도매상품, 받는분전화, 배송메세지, 밤낮메세지, 수량, 보내는주소, 우편번호, ...추가열]
-        // extraHeaders: N열 뒤에 붙일 관리자용 열 이름 (회색 머리글)
-        function buildFulfillmentSheet(rows, extraHeaders = [], extraWidths = []) {
-            const width = FULFILLMENT_HEADERS.length + extraHeaders.length;
-            const title = new Array(width).fill('');
-            title[0] = '[고객 풀필먼트 요청서] 노란색바탕 아래행을 작성해 주시면 됩니다';
-            title[3] = '초록색은 "고정값" 입니다';
-            title[5] = '대납금 입금계좌는 [ 신한은행 110 359 193710 이현재 ] 입니다';
-            const ws = XLSX.utils.aoa_to_sheet([title, [...FULFILLMENT_HEADERS, ...extraHeaders], ...rows]);
+        const xmlEscape = v => String(v)
+            .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-            ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
-            ws['!cols'] = [...FULFILLMENT_COL_WIDTHS, ...extraWidths].map(w => ({ wch: w }));
-            ws['!rows'] = [{ hpt: 24 }, { hpt: 65 }];
-
-            const thin = { style: 'thin', color: { rgb: 'BFBFBF' } };
-            const border = { top: thin, bottom: thin, left: thin, right: thin };
-            const addr = (r, c) => XLSX.utils.encode_cell({ r, c });
-            const style = (r, c, st) => { const a = addr(r, c); if (!ws[a]) ws[a] = { t: 's', v: '' }; ws[a].s = st; };
-
-            // 1행: A1(주황, A1:B1 병합) / D1(초록) / F1(안내)
-            style(0, 0, { fill: { fgColor: { rgb: 'FFC000' } }, font: { bold: true, sz: 10 } });
-            style(0, 1, { fill: { fgColor: { rgb: 'FFC000' } } });
-            style(0, 3, { fill: { fgColor: { rgb: '92D050' } }, font: { bold: true, sz: 10 } });
-            style(0, 5, { font: { bold: true, sz: 10 } });
-
-            // 2행 머리글: A(NO.) 흰색 / B~J 노랑 / K 주황 / L~N 초록 / 추가열 회색
-            for (let c = 0; c < width; c++) {
-                let rgb = null;
-                if (c >= 1 && c <= 9) rgb = 'FFFF00';
-                else if (c === 10) rgb = 'FFC000';
-                else if (c >= 11 && c <= 13) rgb = '92D050';
-                else if (c >= 14) rgb = 'D9D9D9';
-                style(1, c, {
-                    ...(rgb ? { fill: { fgColor: { rgb } } } : {}),
-                    font: { sz: 10, bold: true },
-                    alignment: { wrapText: true, vertical: 'center', horizontal: 'center' },
-                    border
-                });
-            }
-
-            // 데이터: L~N(고정값) 연한 초록
-            for (let r = 2; r < rows.length + 2; r++) {
-                for (let c = 11; c <= 13; c++) {
-                    style(r, c, { fill: { fgColor: { rgb: 'E2EFDA' } }, font: { sz: 9 }, alignment: { vertical: 'center' } });
-                }
-                const noCell = ws[addr(r, 0)];
-                if (noCell) noCell.s = { alignment: { horizontal: 'center' }, font: { bold: true } };
-            }
-            return ws;
+        function colLetter(index) {
+            let s = '';
+            for (let n = index + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + (n - 1) % 26) + s;
+            return s;
         }
 
-        // 관리자: 현재 필터(거래처/출고상태) 기준으로 2026 양식 그대로 다운로드
-        function downloadMasterExcel() {
+        // 셀 XML 한 칸 (style = 원본 양식의 서식 번호)
+        function xlsxCell(ref, value, style) {
+            const s = style != null ? ` s="${style}"` : '';
+            if (value === '' || value === null || value === undefined) return style != null ? `<c r="${ref}"${s}/>` : '';
+            if (typeof value === 'number' && isFinite(value)) return `<c r="${ref}"${s}><v>${value}</v></c>`;
+            return `<c r="${ref}"${s} t="inlineStr"><is><t xml:space="preserve">${xmlEscape(value)}</t></is></c>`;
+        }
+
+        async function loadFulfillmentTemplate() {
+            if (!window.JSZip) throw new Error('엑셀 모듈을 불러오지 못했습니다. 새로고침 후 다시 시도해주세요.');
+            const bin = Uint8Array.from(atob(FULFILLMENT_TEMPLATE_B64), ch => ch.charCodeAt(0));
+            return JSZip.loadAsync(bin);
+        }
+
+        async function saveZipAsXlsx(zip, fileName) {
+            const blob = await zip.generateAsync({ type: 'blob', mimeType: XLSX_MIME, compression: 'DEFLATE' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 5000);
+        }
+
+        // 셀러: 빈 양식 다운로드 (원본 그대로, 3행 예시 송화인/연락처만 내 정보로)
+        async function downloadSampleExcel() {
+            try {
+                const zip = await loadFulfillmentTemplate();
+                let xml = await zip.file(FORM_SHEET_PATH).async('string');
+                if (currentSellerAccount && currentRole === 'seller') {
+                    const put = (ref, value, style) => {
+                        xml = xml.replace(new RegExp(`<c r="${ref}"[^>]*?(?:/>|>[\\s\\S]*?</c>)`), xlsxCell(ref, value, style));
+                    };
+                    put('B3', `밤낮딜리버리(${currentSellerAccount.company})`, 14);
+                    if (currentSellerAccount.phone) put('C3', currentSellerAccount.phone, 13);
+                }
+                zip.file(FORM_SHEET_PATH, xml);
+                await saveZipAsXlsx(zip, '밤낮딜리버리_풀필먼트_엑셀양식_2026.xlsx');
+            } catch (err) {
+                console.error('엑셀 다운로드 오류:', err);
+                alert('엑셀 다운로드 중 오류가 발생했습니다: ' + err.message);
+            }
+        }
+
+        // 원본 양식의 1~2행(안내·머리글)은 그대로 두고, 3행부터 주문 데이터를 채운 파일 만들기
+        // rows: [NO, 송화인, C/S, 수화인, 주소, 상품명, 도매처, 도매상품, 받는분전화, 배송메세지, 밤낮메세지, 수량, 보내는주소, 우편번호, ...추가열]
+        async function buildFilledTemplate(rows, extraHeaders = [], extraWidths = []) {
+            const zip = await loadFulfillmentTemplate();
+            let xml = await zip.file(FORM_SHEET_PATH).async('string');
+            const getRow = r => (xml.match(new RegExp(`<row r="${r}"[^>]*>[\\s\\S]*?</row>`)) || [''])[0].replace(/ spans="[^"]*"/, '');
+            const row1 = getRow(1);
+            let row2 = getRow(2);
+            if (extraHeaders.length) {
+                row2 = row2.replace('</row>', extraHeaders.map((h, i) => xlsxCell(`${colLetter(14 + i)}2`, h, 1)).join('') + '</row>');
+            }
+            const dataXml = rows.map((vals, i) => {
+                const r = i + 3;
+                const cells = vals.map((v, c) => xlsxCell(`${colLetter(c)}${r}`, v, c === 0 ? 5 : (c >= 11 && c <= 13 ? 7 : null))).join('');
+                return `<row r="${r}">${cells}</row>`;
+            }).join('');
+            const lastCol = colLetter(13 + extraHeaders.length);
+            const lastRow = Math.max(2, rows.length + 2);
+            xml = xml
+                .replace(/<sheetData>[\s\S]*<\/sheetData>/, `<sheetData>${row1}${row2}${dataXml}</sheetData>`)
+                .replace(/<dimension ref="[^"]*"\/>/, `<dimension ref="A1:${lastCol}${lastRow}"/>`)
+                .replace(/<ignoredErrors>[\s\S]*?<\/ignoredErrors>/, `<ignoredErrors><ignoredError sqref="A1:${lastCol}${lastRow}" numberStoredAsText="1"/></ignoredErrors>`);
+            if (extraWidths.length) {
+                xml = xml.replace('</cols>', extraWidths.map((w, i) => `<col min="${15 + i}" max="${15 + i}" width="${w}" customWidth="1"/>`).join('') + '</cols>');
+            }
+            zip.file(FORM_SHEET_PATH, xml);
+            return zip;
+        }
+
+        // 주문 한 건 → 양식 A~N열 값
+        function orderToTemplateRow(o, groups) {
+            const no = orderNoLabel(o, groups);
+            return [
+                /^\d+$/.test(no) ? Number(no) : no,
+                o.sender_name || `밤낮딜리버리(${o.seller_company})`,
+                o.cs_phone || '',
+                o.recipient || '',
+                `${o.address || ''} ${o.detail_address || ''}`.trim(),
+                o.product || '',
+                o.wholesale_company || '',
+                o.wholesale_product || '',
+                o.phone || '',
+                o.memo || '',
+                o.bamnat_memo || '',
+                Number(o.qty) || 1,
+                FULFILLMENT_SENDER_ADDRESS,
+                FULFILLMENT_SENDER_ZIP
+            ];
+        }
+
+        // 셀러: 조회된 내 주문을 원본 양식으로 다운로드
+        async function downloadSellerHistoryExcel() {
+            const list = getSellerHistoryOrders();
+            if (list.length === 0) {
+                alert('다운로드할 주문이 없습니다. 조회 기간/검색어를 확인해주세요.');
+                return;
+            }
+            try {
+                const groups = getOrderGroups();
+                const rows = list.map(o => [...orderToTemplateRow(o, groups), o.ship_status || '미출고', formatKstDateTime(o.created_at)]);
+                const zip = await buildFilledTemplate(rows, ['출고상태', '접수일시'], [12, 18]);
+                const p = getKstParts();
+                await saveZipAsXlsx(zip, `밤낮딜리버리_내주문_${historyFrom || '전체'}~${historyTo || `${p.y}-${p.m}-${p.d}`}.xlsx`);
+            } catch (err) {
+                console.error(err);
+                alert('엑셀 다운로드 중 오류가 발생했습니다: ' + err.message);
+            }
+        }
+
+        // 관리자: 현재 필터(거래처/출고상태) 기준으로 원본 양식 그대로 다운로드 (O열부터 관리자용 정보)
+        async function downloadMasterExcel() {
             const list = getAdminFilteredOrders();
             if (list.length === 0) {
                 alert('다운로드할 주문이 없습니다. (필터를 확인해주세요)');
                 return;
             }
-            const groups = getOrderGroups();
-            const rows = list.map(o => {
-                const state = orderShipState(o, groups);
-                const g = groups[o.order_no];
-                return [
-                    orderNoLabel(o, groups),
-                    o.sender_name || `밤낮딜리버리(${o.seller_company})`,
-                    o.cs_phone || '',
-                    o.recipient || '',
-                    `${o.address || ''} ${o.detail_address || ''}`.trim(),
-                    o.product || '',
-                    o.wholesale_company || '',
-                    o.wholesale_product || '',
-                    o.phone || '',
-                    o.memo || '',
-                    o.bamnat_memo || '',
-                    o.qty || 1,
-                    FULFILLMENT_SENDER_ADDRESS,
-                    FULFILLMENT_SENDER_ZIP,
-                    // 관리자용 추가 열
-                    o.ship_status || '미출고',
-                    state === '부분출고' ? `부분출고 (${g.shipped}/${g.total})` : state,
-                    o.seller_company || '',
-                    formatKstDateTime(o.created_at),
-                    o.status || ''
-                ];
-            });
-            const ws = buildFulfillmentSheet(rows,
-                ['상품 출고상태', '주문 출고상태', '거래처(상호)', '접수일시', '처리상태'],
-                [12, 16, 14, 17, 10]);
-
-            // 주문 출고상태 색상: 부분출고 주황 / 출고완료 하늘색
-            rows.forEach((row, i) => {
-                const a = XLSX.utils.encode_cell({ r: i + 2, c: 15 });
-                const state = String(row[15]);
-                const rgb = state.startsWith('부분출고') ? 'F8CBAD' : state === '출고완료' ? 'DDEBF7' : null;
-                if (rgb && ws[a]) ws[a].s = { fill: { fgColor: { rgb } }, font: { bold: true } };
-            });
-
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, '풀필먼트 엑셀양식');
-            const p = getKstParts();
-            const shipFilter = document.getElementById('admin-ship-filter');
-            const label = shipFilter.value === 'ALL' ? '전체' : shipFilter.options[shipFilter.selectedIndex].text.replace(/\s|\+/g, '');
-            XLSX.writeFile(wb, `밤낮딜리버리_주문_${label}_${p.y}-${p.m}-${p.d}.xlsx`);
+            try {
+                const groups = getOrderGroups();
+                const rows = list.map(o => {
+                    const state = orderShipState(o, groups);
+                    const g = groups[o.order_no];
+                    return [
+                        ...orderToTemplateRow(o, groups),
+                        o.ship_status || '미출고',
+                        state === '부분출고' ? `부분출고 (${g.shipped}/${g.total})` : state,
+                        o.seller_company || '',
+                        formatKstDateTime(o.created_at),
+                        o.status || ''
+                    ];
+                });
+                const zip = await buildFilledTemplate(rows,
+                    ['상품 출고상태', '주문 출고상태', '거래처(상호)', '접수일시', '처리상태'],
+                    [14, 18, 16, 18, 12]);
+                const p = getKstParts();
+                const shipFilter = document.getElementById('admin-ship-filter');
+                const label = shipFilter.value === 'ALL' ? '전체' : shipFilter.options[shipFilter.selectedIndex].text.replace(/\s|\+/g, '');
+                await saveZipAsXlsx(zip, `밤낮딜리버리_주문_${label}_${p.y}-${p.m}-${p.d}.xlsx`);
+            } catch (err) {
+                console.error(err);
+                alert('엑셀 다운로드 중 오류가 발생했습니다: ' + err.message);
+            }
         }
+    </script>
+    <!-- 밤낮딜리버리 풀필먼트 엑셀양식 원본 파일 (2026, 1번 작성안내 + 2번 엑셀양식). 양식을 바꾸려면 이 값을 새 파일로 교체하세요. -->
+    <script>
+        const FULFILLMENT_TEMPLATE_B64 = "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";
     </script>
 </body>
 </html>
