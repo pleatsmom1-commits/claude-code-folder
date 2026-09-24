@@ -73,9 +73,6 @@
             <div id="db-status-badge" class="px-2.5 py-1 bg-slate-100 text-slate-500 text-xs font-bold rounded-full flex items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full bg-slate-400"></span> DB 연결 확인 중...
             </div>
-            <button onclick="showSqlGuideModal()" class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg flex items-center gap-1">
-                <i data-lucide="database" class="w-3.5 h-3.5"></i> SQL 테이블 가이드
-            </button>
             <div class="h-4 w-px bg-slate-200 my-auto"></div>
             <div id="nav-user-area" class="flex items-center gap-2"></div>
         </div>
@@ -86,55 +83,35 @@
 
         <!-- 1. AUTH SCREEN -->
         <div id="auth-screen" class="max-w-md mx-auto my-12 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
-            <div class="flex border-b border-slate-200 bg-slate-50">
-                <button id="tab-btn-seller" onclick="switchAuthTab('seller')" class="flex-1 py-3 text-sm font-bold text-indigo-600 border-b-2 border-indigo-600 bg-white">
-                    셀러 전용
-                </button>
-                <button id="tab-btn-admin" onclick="switchAuthTab('admin')" class="flex-1 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-700">
-                    밤낮딜리버리 관리자
-                </button>
-            </div>
-
             <div class="p-8">
-                <!-- Seller Login Form -->
-                <form id="seller-login-form" onsubmit="handleSellerLogin(event)" class="space-y-4">
+                <!-- 셀러/관리자 공용 로그인 (계정의 권한에 따라 화면이 나뉩니다) -->
+                <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
                     <div class="text-center mb-6">
-                        <h2 class="text-xl font-bold text-slate-900">셀러 로그인</h2>
-                        <p class="text-xs text-slate-500 mt-1">등록된 계정으로 로그인해주세요.</p>
+                        <h2 class="text-xl font-bold text-slate-900">로그인</h2>
+                        <p class="text-xs text-slate-500 mt-1">가입하신 이메일과 비밀번호로 로그인해주세요.</p>
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-slate-600 mb-1">아이디</label>
-                        <input type="text" id="login-seller-id" placeholder="아이디 입력" required class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">이메일</label>
+                        <input type="email" id="login-email" placeholder="example@email.com" required autocomplete="username" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1">비밀번호</label>
-                        <input type="password" id="login-seller-pw" placeholder="비밀번호 입력" required class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                        <input type="password" id="login-pw" placeholder="비밀번호 입력" required autocomplete="current-password" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
                     </div>
-                    <button type="submit" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-sm transition">
+                    <button type="submit" id="btn-login" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-lg text-sm transition">
                         로그인
                     </button>
-                    <div class="pt-3 text-center border-t border-slate-100 mt-4">
+                    <div class="text-right">
+                        <button type="button" onclick="requestPasswordReset()" class="text-[11px] text-slate-500 hover:text-slate-700 hover:underline">
+                            비밀번호를 잊으셨나요?
+                        </button>
+                    </div>
+                    <div class="pt-3 text-center border-t border-slate-100">
                         <span class="text-xs text-slate-500">아직 계정이 없으신가요?</span>
                         <button type="button" onclick="showSignupModal()" class="text-xs text-indigo-600 font-bold hover:underline ml-1">
                             회원가입하기
                         </button>
                     </div>
-                </form>
-
-                <!-- Admin Login Form -->
-                <form id="admin-login-form" onsubmit="handleAdminLogin(event)" class="space-y-4 hidden">
-                    <div class="text-center mb-6">
-                        <h2 class="text-xl font-bold text-slate-900">관리자 로그인</h2>
-                        <p class="text-xs text-slate-500 mt-1">밤낮딜리버리 관리자 전용 페이지입니다.</p>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-600 mb-1">관리자 암호</label>
-                        <input type="password" id="admin-password" placeholder="admin1234" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
-                        <p class="text-[11px] text-slate-400 mt-1">* 기본 비밀번호: admin1234</p>
-                    </div>
-                    <button type="submit" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-lg text-sm transition">
-                        관리자 접속
-                    </button>
                 </form>
             </div>
         </div>
@@ -304,6 +281,9 @@
                     <p class="text-xs text-slate-500">모든 거래처(셀러)가 수집/등록한 주문정보를 취합하여 마감 및 다운로드합니다.</p>
                 </div>
                 <div class="flex gap-2">
+                    <button onclick="fetchOrdersFromDB()" class="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm transition flex items-center gap-1.5">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i> 새로고침
+                    </button>
                     <button onclick="confirmAdminBatch()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow transition flex items-center gap-1.5">
                         <i data-lucide="check-circle" class="w-4 h-4"></i> 주문접수완료 (마감 처리)
                     </button>
@@ -454,14 +434,21 @@
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">상호명 (거래처명) *</label>
                     <input type="text" id="signup-company" required placeholder="예: 이레앤컴퍼니" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    <p class="text-[10px] text-slate-400 mt-1">송화인명이 '밤낮딜리버리(상호명)'으로 자동 입력됩니다. 가입 후 변경은 관리자에게 요청해주세요.</p>
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1">로그인 아이디 *</label>
-                    <input type="text" id="signup-id" required placeholder="아이디 입력" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    <label class="block text-xs font-bold text-slate-700 mb-1">이메일 (로그인 아이디) *</label>
+                    <input type="email" id="signup-email" required placeholder="example@email.com" autocomplete="username" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
                 </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1">비밀번호 *</label>
-                    <input type="password" id="signup-pw" required placeholder="비밀번호 입력" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">비밀번호 * (8자 이상)</label>
+                        <input type="password" id="signup-pw" required minlength="8" autocomplete="new-password" placeholder="비밀번호 입력" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">비밀번호 확인 *</label>
+                        <input type="password" id="signup-pw-confirm" required minlength="8" autocomplete="new-password" placeholder="한 번 더 입력" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
                 </div>
                 <div class="grid grid-cols-2 gap-2">
                     <div>
@@ -469,7 +456,7 @@
                         <input type="text" id="signup-name" placeholder="이현재" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1">연락처</label>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">연락처 (C/S)</label>
                         <input type="text" id="signup-phone" placeholder="010-0000-0000" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
                     </div>
                 </div>
@@ -485,20 +472,26 @@
         </div>
     </div>
 
-    <!-- MODAL: SQL GUIDE -->
-    <div id="sql-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 border border-slate-100">
-            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-                <h3 class="font-bold text-slate-900 text-base">Supabase 최신 테이블 SQL</h3>
-                <button onclick="closeSqlGuideModal()" class="text-slate-400 hover:text-slate-600">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
+    <!-- MODAL: NEW PASSWORD (비밀번호 재설정 메일의 링크로 들어왔을 때) -->
+    <div id="reset-pw-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-slate-100">
+            <div class="border-b border-slate-100 pb-3">
+                <h3 class="font-bold text-slate-900 text-base">새 비밀번호 설정</h3>
+                <p class="text-xs text-slate-500 mt-1">새로 사용할 비밀번호를 입력해주세요.</p>
             </div>
-            <p class="text-xs text-slate-500">Supabase 대시보드 ➔ <b>SQL Editor</b> 메뉴에 실행하여 테이블 컬럼을 확장하세요.</p>
-            <pre class="bg-slate-900 text-amber-300 p-4 rounded-lg text-[11px] overflow-x-auto select-all font-mono leading-relaxed" id="sql-code-block"></pre>
-            <button onclick="copySqlCode()" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1.5">
-                <i data-lucide="copy" class="w-3.5 h-3.5"></i> SQL 명령어 복사하기
-            </button>
+            <form onsubmit="handleNewPasswordSubmit(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">새 비밀번호 * (8자 이상)</label>
+                    <input type="password" id="new-pw" required minlength="8" autocomplete="new-password" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">새 비밀번호 확인 *</label>
+                    <input type="password" id="new-pw-confirm" required minlength="8" autocomplete="new-password" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                </div>
+                <button type="submit" class="w-full py-2.5 bg-indigo-600 text-white font-bold rounded-lg text-xs hover:bg-indigo-700">
+                    비밀번호 변경하기
+                </button>
+            </form>
         </div>
     </div>
 
@@ -510,14 +503,11 @@
         let currentSimulatedHour = null;
         let lastTimePhase = null;
         let currentRole = null;
-        let currentSellerAccount = null;
+        let currentSellerAccount = null; // 로그인한 계정의 프로필 (company, name, phone, role)
+        let currentUserId = null;
 
         let supabaseClient = null;
         let ordersMaster = [];
-        let registeredSellers = [
-            { id: 'seller1', pw: '1234', company: '이레앤컴퍼니', name: '이현재', phone: '010-1234-5678' }
-        ];
-
         // 한국 시간(Asia/Seoul) 기준 현재 날짜/시간 조각 (PC 시간대 설정과 무관)
         function getKstParts(date = new Date()) {
             const parts = new Intl.DateTimeFormat('en-CA', {
@@ -604,42 +594,12 @@
             }
         }
 
-        const SQL_SCRIPT = `-- 1. 셀러 테이블 생성
-CREATE TABLE IF NOT EXISTS sellers (
-    id TEXT PRIMARY KEY,
-    pw TEXT NOT NULL,
-    company TEXT NOT NULL,
-    name TEXT,
-    phone TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW())
-);
-
--- 2. 2026 풀필먼트 표준 주문(orders) 테이블 생성
-CREATE TABLE IF NOT EXISTS orders (
-    id TEXT PRIMARY KEY,
-    seller_company TEXT NOT NULL,
-    sender_name TEXT,
-    cs_phone TEXT,
-    recipient TEXT NOT NULL,
-    phone TEXT NOT NULL,
-    zipcode TEXT,
-    address TEXT NOT NULL,
-    detail_address TEXT,
-    product TEXT NOT NULL,
-    wholesale_company TEXT,
-    wholesale_product TEXT,
-    memo TEXT,
-    bamnat_memo TEXT,
-    qty INTEGER DEFAULT 1,
-    status TEXT DEFAULT '접수대기',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW())
-);
-
--- 3. RLS 보안 정책 설정
-ALTER TABLE sellers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow all access to sellers" ON sellers FOR ALL USING (true);
-CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
+        // DB 오류를 셀러가 이해할 수 있는 문장으로 바꿉니다.
+        function dbErrorMessage(error) {
+            if (!error) return '';
+            if (error.code === '42501') return '접수 가능 시간이 아니거나 권한이 없는 작업입니다.';
+            return error.message || String(error);
+        }
 
         window.onload = function() {
             lucide.createIcons();
@@ -652,21 +612,75 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
             setInterval(refreshTimeStatus, 30 * 1000); // 30초마다 시간/접수상태 갱신
             initSupabaseAuto();
             updateNavUserArea();
-            document.getElementById('sql-code-block').innerText = SQL_SCRIPT;
         };
 
         function initSupabaseAuto() {
-            if (SUPABASE_URL && SUPABASE_KEY && window.supabase) {
-                try {
-                    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-                    fetchOrdersFromDB();
-                    fetchSellersFromDB();
-                } catch(e) {
-                    setDbBadge(false, 'DB 키 오류');
-                }
-            } else {
+            if (!(SUPABASE_URL && SUPABASE_KEY && window.supabase)) {
                 setDbBadge(false, 'DB 라이브러리 로딩 실패');
+                return;
             }
+            try {
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            } catch (e) {
+                setDbBadge(false, 'DB 키 오류');
+                return;
+            }
+            setDbBadge(true, 'DB 연결됨');
+
+            // 로그인 상태 변화(새로고침 후 자동로그인, 로그인, 로그아웃, 비밀번호 재설정 링크)를 한 곳에서 처리합니다.
+            // (Supabase 권장사항: 콜백 안에서 바로 DB를 호출하지 않고 한 박자 뒤에 처리)
+            supabaseClient.auth.onAuthStateChange((event, session) => {
+                setTimeout(() => handleAuthEvent(event, session), 0);
+            });
+        }
+
+        async function handleAuthEvent(event, session) {
+            if (event === 'PASSWORD_RECOVERY') {
+                showResetPasswordModal();
+            }
+            if (event === 'SIGNED_OUT' || !session) {
+                showLoginScreen();
+                return;
+            }
+            // 토큰 자동갱신 등으로 같은 계정의 이벤트가 다시 와도 화면을 새로 만들지 않습니다.
+            if (currentUserId === session.user.id && currentRole) return;
+            await enterApp(session.user);
+        }
+
+        async function enterApp(user) {
+            const { data: profile, error } = await supabaseClient.from('profiles').select('*').eq('id', user.id).maybeSingle();
+            if (error || !profile) {
+                console.error('프로필 조회 오류:', error);
+                alert('계정 정보를 불러오지 못했습니다. 잠시 후 다시 시도하거나 관리자에게 문의해주세요.');
+                await supabaseClient.auth.signOut();
+                return;
+            }
+
+            currentUserId = user.id;
+            currentSellerAccount = { ...profile, email: user.email };
+            currentRole = profile.role === 'admin' ? 'admin' : 'seller';
+
+            document.getElementById('auth-screen').classList.add('hidden');
+            if (currentRole === 'admin') {
+                document.getElementById('admin-dashboard').classList.remove('hidden');
+            } else {
+                setupSellerUI();
+            }
+            updateNavUserArea();
+            fetchOrdersFromDB();
+        }
+
+        function showLoginScreen() {
+            currentRole = null;
+            currentSellerAccount = null;
+            currentUserId = null;
+            ordersMaster = [];
+            document.getElementById('auth-screen').classList.remove('hidden');
+            document.getElementById('seller-dashboard').classList.add('hidden');
+            document.getElementById('admin-dashboard').classList.add('hidden');
+            document.getElementById('seller-order-list').innerHTML = '';
+            document.getElementById('admin-order-list').innerHTML = '';
+            updateNavUserArea();
         }
 
         async function fetchOrdersFromDB() {
@@ -686,27 +700,6 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
                 populateAdminFilter();
                 renderAdminTable();
             }
-        }
-
-        async function fetchSellersFromDB() {
-            if (!supabaseClient) return;
-            const { data, error } = await supabaseClient.from('sellers').select('*');
-            if (!error && data && data.length > 0) {
-                registeredSellers = data;
-            }
-        }
-
-        function showSqlGuideModal() {
-            document.getElementById('sql-modal').classList.remove('hidden');
-            document.getElementById('sql-modal').classList.add('flex');
-        }
-        function closeSqlGuideModal() {
-            document.getElementById('sql-modal').classList.add('hidden');
-            document.getElementById('sql-modal').classList.remove('flex');
-        }
-        function copySqlCode() {
-            navigator.clipboard.writeText(SQL_SCRIPT);
-            alert('SQL 명령어 복사 완료! Supabase SQL Editor에서 실행하세요.');
         }
 
         function setSimulatedTime(hour) {
@@ -751,25 +744,6 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
             if (currentRole === 'admin') renderAdminTable();
         }
 
-        function switchAuthTab(type) {
-            const btnSeller = document.getElementById('tab-btn-seller');
-            const btnAdmin = document.getElementById('tab-btn-admin');
-            const formSeller = document.getElementById('seller-login-form');
-            const formAdmin = document.getElementById('admin-login-form');
-
-            if (type === 'seller') {
-                btnSeller.className = "flex-1 py-3 text-sm font-bold text-indigo-600 border-b-2 border-indigo-600 bg-white";
-                btnAdmin.className = "flex-1 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-700";
-                formSeller.classList.remove('hidden');
-                formAdmin.classList.add('hidden');
-            } else {
-                btnAdmin.className = "flex-1 py-3 text-sm font-bold text-slate-900 border-b-2 border-slate-900 bg-white";
-                btnSeller.className = "flex-1 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-700";
-                formAdmin.classList.remove('hidden');
-                formSeller.classList.add('hidden');
-            }
-        }
-
         function showSignupModal() {
             document.getElementById('signup-modal').classList.remove('hidden');
             document.getElementById('signup-modal').classList.add('flex');
@@ -779,101 +753,127 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
             document.getElementById('signup-modal').classList.remove('flex');
         }
 
+        // 이메일 인증/비밀번호 재설정 메일의 링크가 돌아올 주소 (?test 등은 제외)
+        function getAppUrl() {
+            return location.origin + location.pathname;
+        }
+
+        function authErrorMessage(error) {
+            const msg = (error && error.message) || '';
+            if (/Invalid login credentials/i.test(msg)) return '이메일 또는 비밀번호가 올바르지 않습니다.';
+            if (/Email not confirmed/i.test(msg)) return '이메일 인증이 아직 완료되지 않았습니다. 가입하신 메일함의 인증 링크를 눌러주세요.';
+            if (/already registered|already exists/i.test(msg)) return '이미 가입된 이메일입니다. 로그인하거나 비밀번호 찾기를 이용해주세요.';
+            if (/Password should be/i.test(msg)) return '비밀번호가 너무 짧거나 단순합니다. 8자 이상으로 입력해주세요.';
+            if (/rate limit|too many/i.test(msg)) return '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.';
+            return msg || '알 수 없는 오류가 발생했습니다.';
+        }
+
         async function handleSignupSubmit(e) {
             e.preventDefault();
+            if (!supabaseClient) { alert('DB에 연결되지 않았습니다. 잠시 후 다시 시도해주세요.'); return; }
+
             const company = document.getElementById('signup-company').value.trim();
-            const id = document.getElementById('signup-id').value.trim();
-            const pw = document.getElementById('signup-pw').value.trim();
+            const email = document.getElementById('signup-email').value.trim();
+            const pw = document.getElementById('signup-pw').value;
+            const pwConfirm = document.getElementById('signup-pw-confirm').value;
             const name = document.getElementById('signup-name').value.trim();
             const phone = document.getElementById('signup-phone').value.trim();
 
-            const newSeller = { id, pw, company, name, phone };
-
-            if (supabaseClient) {
-                const { data: existing } = await supabaseClient.from('sellers').select('id').eq('id', id);
-                if (existing && existing.length > 0) {
-                    alert('이미 존재하는 아이디입니다.');
-                    return;
-                }
-
-                const { error } = await supabaseClient.from('sellers').insert([newSeller]);
-                if (error) {
-                    alert('회원가입 오류: ' + error.message);
-                    return;
-                }
+            if (pw !== pwConfirm) {
+                alert('비밀번호와 비밀번호 확인이 서로 다릅니다.');
+                return;
             }
-
-            registeredSellers.push(newSeller);
-            alert(`회원가입 완료!\n상호명: ${company}\n아이디: ${id} 로 로그인 해주세요.`);
-            closeSignupModal();
-            document.getElementById('login-seller-id').value = id;
-            document.getElementById('login-seller-pw').value = pw;
-        }
-
-        async function handleSellerLogin(e) {
-            e.preventDefault();
-            const id = document.getElementById('login-seller-id').value.trim();
-            const pw = document.getElementById('login-seller-pw').value.trim();
-
-            if (supabaseClient) {
-                const { data, error } = await supabaseClient.from('sellers').select('*').eq('id', id).eq('pw', pw);
-                if (!error && data && data.length > 0) {
-                    currentRole = 'seller';
-                    currentSellerAccount = data[0];
-                    setupSellerUI();
-                    return;
-                }
-            }
-
-            const account = registeredSellers.find(s => s.id === id && s.pw === pw);
-            if (account) {
-                currentRole = 'seller';
-                currentSellerAccount = account;
-                setupSellerUI();
+            if (/[()]/.test(company)) {
+                alert("상호명에는 괄호를 넣을 수 없습니다. (송화인명이 '밤낮딜리버리(상호명)' 형식으로 만들어집니다)");
                 return;
             }
 
-            alert('아이디 또는 비밀번호가 올바르지 않습니다.');
+            const { data, error } = await supabaseClient.auth.signUp({
+                email,
+                password: pw,
+                options: {
+                    data: { company, name, phone }, // 프로필은 DB 트리거가 자동으로 만듭니다
+                    emailRedirectTo: getAppUrl()
+                }
+            });
+            if (error) {
+                alert('회원가입 오류: ' + authErrorMessage(error));
+                return;
+            }
+
+            closeSignupModal();
+            e.target.reset();
+            if (data.session) {
+                alert(`회원가입 완료!\n상호명: ${company}`); // 자동으로 로그인됩니다
+            } else {
+                alert(`회원가입 신청 완료!\n\n${email} 로 인증 메일을 보냈습니다.\n메일의 링크를 눌러 인증한 뒤 로그인해주세요.`);
+                document.getElementById('login-email').value = email;
+            }
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            if (!supabaseClient) { alert('DB에 연결되지 않았습니다. 잠시 후 다시 시도해주세요.'); return; }
+
+            const email = document.getElementById('login-email').value.trim();
+            const pw = document.getElementById('login-pw').value;
+            const btn = document.getElementById('btn-login');
+            btn.disabled = true;
+            const { error } = await supabaseClient.auth.signInWithPassword({ email, password: pw });
+            btn.disabled = false;
+
+            if (error) {
+                alert(authErrorMessage(error));
+                return;
+            }
+            document.getElementById('login-pw').value = '';
+            // 화면 전환은 onAuthStateChange → handleAuthEvent 에서 처리됩니다.
+        }
+
+        async function requestPasswordReset() {
+            if (!supabaseClient) { alert('DB에 연결되지 않았습니다. 잠시 후 다시 시도해주세요.'); return; }
+            const email = prompt('가입하신 이메일을 입력해주세요. 비밀번호 재설정 링크를 보내드립니다.', document.getElementById('login-email').value.trim());
+            if (!email) return;
+            const { error } = await supabaseClient.auth.resetPasswordForEmail(email.trim(), { redirectTo: getAppUrl() });
+            if (error) {
+                alert('메일 발송 오류: ' + authErrorMessage(error));
+                return;
+            }
+            alert('비밀번호 재설정 메일을 보냈습니다. 메일함을 확인해주세요.\n(가입된 이메일인 경우에만 메일이 발송됩니다)');
+        }
+
+        function showResetPasswordModal() {
+            document.getElementById('reset-pw-modal').classList.remove('hidden');
+            document.getElementById('reset-pw-modal').classList.add('flex');
+        }
+
+        async function handleNewPasswordSubmit(e) {
+            e.preventDefault();
+            const pw = document.getElementById('new-pw').value;
+            if (pw !== document.getElementById('new-pw-confirm').value) {
+                alert('새 비밀번호와 확인이 서로 다릅니다.');
+                return;
+            }
+            const { error } = await supabaseClient.auth.updateUser({ password: pw });
+            if (error) {
+                alert('비밀번호 변경 오류: ' + authErrorMessage(error));
+                return;
+            }
+            e.target.reset();
+            document.getElementById('reset-pw-modal').classList.add('hidden');
+            document.getElementById('reset-pw-modal').classList.remove('flex');
+            alert('비밀번호가 변경되었습니다.');
         }
 
         function setupSellerUI() {
-            document.getElementById('auth-screen').classList.add('hidden');
             document.getElementById('seller-dashboard').classList.remove('hidden');
-
             document.getElementById('so-sender-name').value = `밤낮딜리버리(${currentSellerAccount.company})`;
-            if (currentSellerAccount.phone) {
-                document.getElementById('so-cs-phone').value = currentSellerAccount.phone;
-            }
-
-            updateNavUserArea();
-            fetchOrdersFromDB();
-            renderSellerTable();
+            document.getElementById('so-cs-phone').value = currentSellerAccount.phone || '';
         }
 
-        function handleAdminLogin(e) {
-            e.preventDefault();
-            const pw = document.getElementById('admin-password').value;
-            if (pw !== 'admin1234') {
-                alert('관리자 비밀번호가 틀렸습니다.');
-                return;
-            }
-
-            currentRole = 'admin';
-            currentSellerAccount = null;
-            document.getElementById('auth-screen').classList.add('hidden');
-            document.getElementById('admin-dashboard').classList.remove('hidden');
-            updateNavUserArea();
-            populateAdminFilter();
-            renderAdminTable();
-        }
-
-        function logout() {
-            currentRole = null;
-            currentSellerAccount = null;
-            document.getElementById('auth-screen').classList.remove('hidden');
-            document.getElementById('seller-dashboard').classList.add('hidden');
-            document.getElementById('admin-dashboard').classList.add('hidden');
-            updateNavUserArea();
+        async function logout() {
+            if (supabaseClient) await supabaseClient.auth.signOut();
+            showLoginScreen();
         }
 
         function updateNavUserArea() {
@@ -884,7 +884,7 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
                 area.innerHTML = `
                     <div class="text-right">
                         <span class="text-xs font-bold text-slate-900 block">${escapeHtml(currentSellerAccount.company)}님</span>
-                        <span class="text-[10px] text-slate-400">셀러 회원</span>
+                        <span class="text-[10px] text-slate-400">${escapeHtml(currentSellerAccount.email || '셀러 회원')}</span>
                     </div>
                     <button onclick="logout()" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-bold">로그아웃</button>
                 `;
@@ -972,7 +972,7 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
             if (supabaseClient) {
                 const { data, error } = await supabaseClient.from('orders').insert([newOrder]).select();
                 if (error) {
-                    alert('주문 저장 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.\n\n' + error.message);
+                    alert('주문 저장 중 오류가 발생했습니다.\n\n' + dbErrorMessage(error));
                     return;
                 }
                 if (data && data[0]) savedOrder = data[0];
@@ -981,7 +981,7 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
             ordersMaster.unshift(savedOrder);
             alert('주문이 성공적으로 등록되었습니다.');
             e.target.reset();
-            document.getElementById('so-sender-name').value = `밤낮딜리버리(${currentSellerAccount.company})`;
+            setupSellerUI(); // 송화인명/C/S 연락처 기본값 복원
             renderSellerTable();
         }
 
@@ -1001,7 +1001,11 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
                     const data = new Uint8Array(evt.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
 
-                    let targetSheetName = workbook.SheetNames.find(s => s.includes('엑셀양식') || s.includes('풀필먼트')) || workbook.SheetNames[1] || workbook.SheetNames[0];
+                    // '풀필먼트 작성안내'(1번 시트)의 예시 주문이 잘못 접수되지 않도록 '엑셀양식' 시트를 우선 찾습니다.
+                    const names = workbook.SheetNames;
+                    let targetSheetName = names.find(n => n.includes('엑셀양식'))
+                        || names.find(n => n.includes('풀필먼트') && !n.includes('안내'))
+                        || names[1] || names[0];
                     const targetSheet = workbook.Sheets[targetSheetName];
 
                     const rows = XLSX.utils.sheet_to_json(targetSheet, { header: 1 });
@@ -1099,7 +1103,7 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
                         // 한 번에 저장되므로 오류 시 일부만 들어가는 일 없이 전체가 취소됩니다.
                         const { data, error } = await supabaseClient.from('orders').insert(batchOrders).select();
                         if (error) {
-                            alert('주문 저장 중 오류가 발생하여 업로드가 취소되었습니다. 잠시 후 다시 시도해주세요.\n\n' + error.message);
+                            alert('주문 저장 중 오류가 발생하여 업로드가 취소되었습니다.\n\n' + dbErrorMessage(error));
                             e.target.value = '';
                             return;
                         }
@@ -1214,14 +1218,22 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
             }
 
             if (supabaseClient) {
-                const { error } = await supabaseClient.from('orders').update(updatedData).eq('id', orderId);
+                const { data, error } = await supabaseClient.from('orders').update(updatedData).eq('id', orderId).select();
                 if (error) {
-                    alert('DB 저장 중 오류가 발생했습니다: ' + error.message);
+                    alert('DB 저장 중 오류가 발생했습니다: ' + dbErrorMessage(error));
                     return;
                 }
+                // 권한/시간 조건에 막히면 오류 없이 0건이 수정됩니다.
+                if (!data || data.length === 0) {
+                    alert('주문을 수정할 수 없습니다. 마감 시간이거나 이미 접수완료된 주문입니다.');
+                    closeEditModal();
+                    fetchOrdersFromDB();
+                    return;
+                }
+                Object.assign(ordersMaster[orderIndex], data[0]);
+            } else {
+                Object.assign(ordersMaster[orderIndex], updatedData);
             }
-
-            Object.assign(ordersMaster[orderIndex], updatedData);
             alert('주문 내역이 성공적으로 수정되었습니다.');
             closeEditModal();
 
@@ -1243,7 +1255,7 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
 
         function renderSellerTable() {
             const tbody = document.getElementById('seller-order-list');
-            const myOrders = ordersMaster.filter(o => o.seller_company === currentSellerAccount.company);
+            const myOrders = ordersMaster.filter(o => o.seller_id === currentUserId);
             document.getElementById('seller-order-count').innerText = `총 ${myOrders.length}건`;
             document.getElementById('chk-all-seller').checked = false;
 
@@ -1300,20 +1312,25 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
         // DB에서 먼저 삭제하고, 성공했을 때만 화면 목록에서 지웁니다.
         async function deleteOrdersByIds(ids) {
             // 주소(URL) 길이 제한을 피하려고 200건씩 나눠서 삭제합니다.
+            // 권한/시간 조건에 막힌 건은 오류 없이 건너뛰므로, 실제로 삭제된 건만 셉니다.
             const deleted = [];
             let failure = null;
             for (let i = 0; i < ids.length; i += 200) {
                 const chunk = ids.slice(i, i + 200);
                 if (supabaseClient) {
-                    const { error } = await supabaseClient.from('orders').delete().in('id', chunk);
+                    const { data, error } = await supabaseClient.from('orders').delete().in('id', chunk).select('id');
                     if (error) { failure = error; break; }
+                    deleted.push(...(data || []).map(r => r.id));
+                } else {
+                    deleted.push(...chunk);
                 }
-                deleted.push(...chunk);
             }
             ordersMaster = ordersMaster.filter(o => !deleted.includes(o.id));
-            if (failure) {
+            if (failure || deleted.length < ids.length) {
                 renderSellerTable();
-                alert(`삭제 중 오류가 발생했습니다. (${deleted.length}/${ids.length}건 삭제됨)\n잠시 후 다시 시도해주세요.\n\n` + failure.message);
+                const reason = failure ? dbErrorMessage(failure) : '마감 시간이거나 이미 접수완료된 주문은 삭제할 수 없습니다.';
+                alert(`${ids.length}건 중 ${deleted.length}건만 삭제되었습니다.\n\n${reason}`);
+                fetchOrdersFromDB();
                 return false;
             }
             return true;
@@ -1358,7 +1375,7 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
             }
 
             const excelOrders = ordersMaster.filter(o =>
-                o.seller_company === currentSellerAccount.company &&
+                o.seller_id === currentUserId &&
                 String(o.id).startsWith('ORD-EXCEL-') &&
                 o.status === '접수대기'
             );
@@ -1436,11 +1453,12 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
 
             if (supabaseClient) {
                 // id 목록 대신 상태 조건으로 한 번에 변경 (건수가 많아도 안전)
-                const { error } = await supabaseClient.from('orders').update({ status: '접수완료' }).eq('status', '접수대기');
+                const { data, error } = await supabaseClient.from('orders').update({ status: '접수완료' }).eq('status', '접수대기').select('id');
                 if (error) {
-                    alert('마감 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.\n\n' + error.message);
+                    alert('마감 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.\n\n' + dbErrorMessage(error));
                     return;
                 }
+                pendingIds.splice(0, pendingIds.length, ...(data || []).map(r => r.id));
             }
 
             ordersMaster.forEach(o => {
@@ -1494,13 +1512,15 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
                 ];
                 const ws1 = XLSX.utils.aoa_to_sheet(sheet1Data);
 
-                // 2번 시트: 풀필먼트 엑셀양식
+                // 2번 시트: 풀필먼트 엑셀양식 (로그인한 셀러의 송화인명/연락처를 미리 채워둡니다)
+                const mySender = currentSellerAccount ? `밤낮딜리버리(${currentSellerAccount.company})` : '';
+                const myPhone = (currentSellerAccount && currentSellerAccount.phone) || '';
                 const sheet2Data = [
                     ["[고객 풀필먼트 요청서] 노란색바탕 아래행을 작성해 주시면 됩니다", "", "초록색은 \"고정값\" 입니다", "", "대납금 입금계좌는 [ 신한은행 110 359 193710 이현재 ] 입니다", "", "", "", "", "", "", "", ""],
                     ["송화인명(보내는사람) -> \n밤낮딜리버리(대표님 업체상호)로 적어주세요\nEX) 밤낮딜리버리(스타일난다)", "대표님C/S\n가능한연락처", "수화인명(받는사람)", "주소(받는사람)", "쇼핑몰 상품명(상품명 / 컬러 / 사이즈 / 수량\"개\")\nex) 라운드티 / 그레이 / M / 1개\n도매명과 쇼핑몰명이 동일한경우, \n동일하게 도매명으로 적어주셔도 됩니다", "도매거래처명", "도매 상품명", "전화번호,휴대폰(받는사람)", "배송메세지", "밤낮딜리버리 전달메세지", "수량(고정값)", "보내는사람주소(고정값,변경금지!)", "보내는사람 우편번호\n(고정값,변경금지!)"],
-                    ["밤낮딜리버리(애플샵)", "010-1234-5678", "", "", "", "", "", "", "", "", 1, "서울특별시 광진구 강변역로 2 C동 3층 물류센터 한국물류8 밤낮딜리버리", "05048"],
-                    ["밤낮딜리버리(애플샵)", "010-1234-5678", "", "", "", "", "", "", "", "", 1, "서울특별시 광진구 강변역로 2 C동 3층 물류센터 한국물류8 밤낮딜리버리", "05048"],
-                    ["밤낮딜리버리(애플샵)", "010-1234-5678", "", "", "", "", "", "", "", "", 1, "서울특별시 광진구 강변역로 2 C동 3층 물류센터 한국물류8 밤낮딜리버리", "05048"]
+                    [mySender, myPhone, "", "", "", "", "", "", "", "", 1, "서울특별시 광진구 강변역로 2 C동 3층 물류센터 한국물류8 밤낮딜리버리", "05048"],
+                    [mySender, myPhone, "", "", "", "", "", "", "", "", 1, "서울특별시 광진구 강변역로 2 C동 3층 물류센터 한국물류8 밤낮딜리버리", "05048"],
+                    [mySender, myPhone, "", "", "", "", "", "", "", "", 1, "서울특별시 광진구 강변역로 2 C동 3층 물류센터 한국물류8 밤낮딜리버리", "05048"]
                 ];
 
                 for (let r = 6; r <= 30; r++) {
