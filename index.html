@@ -512,6 +512,58 @@
             { id: 'seller1', pw: '1234', company: '이레앤컴퍼니', name: '이현재', phone: '010-1234-5678' }
         ];
 
+        // 화면에 출력하는 모든 사용자 입력값은 이 함수로 감싸서 HTML 태그가 실행되지 않게 합니다.
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        // 중복되지 않는 접수번호 생성 (예: ORD-20260924-153012-A7K2)
+        function generateOrderId(prefix = 'ORD') {
+            const d = new Date();
+            const pad = n => String(n).padStart(2, '0');
+            const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+            const rand = Math.random().toString(36).slice(2, 6).toUpperCase().padEnd(4, '0');
+            return `${prefix}-${stamp}-${rand}`;
+        }
+
+        // 엑셀이 숫자로 바꿔버린 전화번호(1012345678)의 앞자리 0 복구
+        function normalizePhone(value) {
+            if (value === undefined || value === null || value === '') return '';
+            if (typeof value === 'number') {
+                const s = String(value);
+                return s.startsWith('0') ? s : '0' + s;
+            }
+            return String(value).trim();
+        }
+
+        // Supabase는 한 번에 최대 1000행만 돌려주므로 나눠서 모두 가져옵니다.
+        async function fetchAllRows(buildQuery, pageSize = 1000) {
+            let all = [];
+            for (let from = 0; ; from += pageSize) {
+                const { data, error } = await buildQuery().range(from, from + pageSize - 1);
+                if (error) return { data: null, error };
+                all = all.concat(data || []);
+                if (!data || data.length < pageSize) break;
+            }
+            return { data: all, error: null };
+        }
+
+        function setDbBadge(ok, message) {
+            const badge = document.getElementById('db-status-badge');
+            if (ok) {
+                badge.className = "px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full flex items-center gap-1.5 border border-emerald-200";
+                badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> ${escapeHtml(message)}`;
+            } else {
+                badge.className = "px-2.5 py-1 bg-rose-50 text-rose-700 text-xs font-bold rounded-full flex items-center gap-1.5 border border-rose-200";
+                badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-500"></span> ${escapeHtml(message)}`;
+            }
+        }
+
         const SQL_SCRIPT = `-- 1. 셀러 테이블 생성
 CREATE TABLE IF NOT EXISTS sellers (
     id TEXT PRIMARY KEY,
@@ -558,30 +610,35 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
         };
 
         function initSupabaseAuto() {
-            const badge = document.getElementById('db-status-badge');
-
             if (SUPABASE_URL && SUPABASE_KEY && window.supabase) {
                 try {
                     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-                    badge.className = "px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full flex items-center gap-1.5 border border-emerald-200";
-                    badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> DB 연동 완료`;
-
                     fetchOrdersFromDB();
                     fetchSellersFromDB();
                 } catch(e) {
-                    badge.className = "px-2.5 py-1 bg-rose-50 text-rose-700 text-xs font-bold rounded-full flex items-center gap-1.5";
-                    badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-500"></span> DB 키 오류`;
+                    setDbBadge(false, 'DB 키 오류');
                 }
+            } else {
+                setDbBadge(false, 'DB 라이브러리 로딩 실패');
             }
         }
 
         async function fetchOrdersFromDB() {
             if (!supabaseClient) return;
-            const { data, error } = await supabaseClient.from('orders').select('*').order('created_at', { ascending: false });
-            if (!error && data) {
-                ordersMaster = data;
-                if (currentRole === 'seller') renderSellerTable();
-                if (currentRole === 'admin') renderAdminTable();
+            const { data, error } = await fetchAllRows(() =>
+                supabaseClient.from('orders').select('*').order('created_at', { ascending: false })
+            );
+            if (error) {
+                console.error('주문 불러오기 오류:', error);
+                setDbBadge(false, 'DB 연결 오류');
+                return;
+            }
+            setDbBadge(true, 'DB 연동 완료');
+            ordersMaster = data;
+            if (currentRole === 'seller') renderSellerTable();
+            if (currentRole === 'admin') {
+                populateAdminFilter();
+                renderAdminTable();
             }
         }
 
@@ -768,7 +825,7 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
             } else if (currentRole === 'seller') {
                 area.innerHTML = `
                     <div class="text-right">
-                        <span class="text-xs font-bold text-slate-900 block">${currentSellerAccount.company}님</span>
+                        <span class="text-xs font-bold text-slate-900 block">${escapeHtml(currentSellerAccount.company)}님</span>
                         <span class="text-[10px] text-slate-400">셀러 회원</span>
                     </div>
                     <button onclick="logout()" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-bold">로그아웃</button>
@@ -827,8 +884,14 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
                 return;
             }
 
+            // readonly 입력칸은 브라우저의 required 검사를 건너뛰므로 직접 확인합니다.
+            if (!document.getElementById('so-address').value.trim()) {
+                alert('배송지 주소를 [주소 검색] 버튼으로 입력해주세요.');
+                return;
+            }
+
             const newOrder = {
-                id: `ORD-20260923-${String(ordersMaster.length + 1).padStart(3, '0')}`,
+                id: generateOrderId('ORD'),
                 seller_company: currentSellerAccount.company,
                 sender_name: document.getElementById('so-sender-name').value,
                 cs_phone: document.getElementById('so-cs-phone').value,
@@ -847,12 +910,15 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
                 status: '접수대기'
             };
 
-            ordersMaster.unshift(newOrder);
-
             if (supabaseClient) {
-                await supabaseClient.from('orders').insert([newOrder]);
+                const { error } = await supabaseClient.from('orders').insert([newOrder]);
+                if (error) {
+                    alert('주문 저장 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.\n\n' + error.message);
+                    return;
+                }
             }
 
+            ordersMaster.unshift(newOrder);
             alert('주문이 성공적으로 등록되었습니다.');
             e.target.reset();
             document.getElementById('so-sender-name').value = `밤낮딜리버리(${currentSellerAccount.company})`;
@@ -893,13 +959,15 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
 
                     const batchOrders = [];
                     const invalidSenderRows = [];
+                    const missingFieldRows = [];
                     const senderRegex = /^밤낮딜리버리\([^\(\)]+\)$/;
+                    const cell = v => (v === undefined || v === null) ? '' : String(v).trim();
 
                     for (let i = headerIdx + 1; i < rows.length; i++) {
                         const r = rows[i];
                         if (!r || r.length === 0 || (!r[2] && !r[3] && !r[4])) continue;
 
-                        const rawSender = r[0] ? String(r[0]).trim() : '';
+                        const rawSender = cell(r[0]);
                         const excelRowNo = i + 1;
 
                         if (!rawSender || !senderRegex.test(rawSender)) {
@@ -909,19 +977,27 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
                             });
                         }
 
+                        // 필수값(받는사람/주소/상품명/연락처)이 빠진 행은 '미기재'로 접수하지 않고 업로드를 막습니다.
+                        const missing = [];
+                        if (!cell(r[2])) missing.push('수화인명(C열)');
+                        if (!cell(r[3])) missing.push('주소(D열)');
+                        if (!cell(r[4])) missing.push('상품명(E열)');
+                        if (!normalizePhone(r[7])) missing.push('받는사람 연락처(H열)');
+                        if (missing.length > 0) missingFieldRows.push({ row: excelRowNo, fields: missing.join(', ') });
+
                         batchOrders.push({
-                            id: `ORD-EXCEL-${Date.now()}-${i}`,
+                            id: generateOrderId('ORD-EXCEL'),
                             seller_company: currentSellerAccount.company,
                             sender_name: rawSender || `밤낮딜리버리(${currentSellerAccount.company})`,
-                            cs_phone: r[1] || currentSellerAccount.phone || '',
-                            recipient: r[2] || '미기재',
-                            address: r[3] || '미기재',
-                            product: r[4] || '미기재',
-                            wholesale_company: r[5] || '',
-                            wholesale_product: r[6] || '',
-                            phone: r[7] || '미기재',
-                            memo: r[8] || '',
-                            bamnat_memo: r[9] || '',
+                            cs_phone: normalizePhone(r[1]) || currentSellerAccount.phone || '',
+                            recipient: cell(r[2]),
+                            address: cell(r[3]),
+                            product: cell(r[4]),
+                            wholesale_company: cell(r[5]),
+                            wholesale_product: cell(r[6]),
+                            phone: normalizePhone(r[7]),
+                            memo: cell(r[8]),
+                            bamnat_memo: cell(r[9]),
                             qty: parseInt(r[10]) || 1,
                             created_at: `2026-09-23 ${String(currentSimulatedHour).padStart(2,'0')}:20`,
                             status: '접수대기'
@@ -933,6 +1009,14 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
                         const moreMsg = invalidSenderRows.length > 5 ? `\n  ...외 ${invalidSenderRows.length - 5}건` : '';
 
                         alert(`❌ [송화인명 입력 오류로 업로드 차단]\n\nA열(송화인명)은 반드시 '밤낮딜리버리(본인업체상호)' 형식으로 작성해 주셔야 합니다.\n\n[오류 발생 행 목록]\n${errorDetails}${moreMsg}\n\n올바른 작성 예시: 밤낮딜리버리(${currentSellerAccount.company})\n\n엑셀 파일 수정 후 다시 업로드해 주세요!`);
+                        e.target.value = '';
+                        return;
+                    }
+
+                    if (missingFieldRows.length > 0) {
+                        const details = missingFieldRows.slice(0, 5).map(item => `  • ${item.row}행: ${item.fields} 누락`).join('\n');
+                        const more = missingFieldRows.length > 5 ? `\n  ...외 ${missingFieldRows.length - 5}건` : '';
+                        alert(`❌ [필수 항목 누락으로 업로드 차단]\n\n[누락 행 목록]\n${details}${more}\n\n엑셀 파일 수정 후 다시 업로드해 주세요!`);
                         e.target.value = '';
                         return;
                     }
@@ -951,12 +1035,17 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
                         return;
                     }
 
-                    ordersMaster.unshift(...batchOrders);
-
                     if (supabaseClient) {
-                        await supabaseClient.from('orders').insert(batchOrders);
+                        // 한 번에 저장되므로 오류 시 일부만 들어가는 일 없이 전체가 취소됩니다.
+                        const { error } = await supabaseClient.from('orders').insert(batchOrders);
+                        if (error) {
+                            alert('주문 저장 중 오류가 발생하여 업로드가 취소되었습니다. 잠시 후 다시 시도해주세요.\n\n' + error.message);
+                            e.target.value = '';
+                            return;
+                        }
                     }
 
+                    ordersMaster.unshift(...batchOrders);
                     alert(`총 ${batchOrders.length}건의 주문이 성공적으로 접수되었습니다!`);
                     e.target.value = '';
                     renderSellerTable();
@@ -1058,7 +1147,10 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
                 bamnat_memo: document.getElementById('eo-bamnat-memo').value.trim()
             };
 
-            Object.assign(ordersMaster[orderIndex], updatedData);
+            if (!updatedData.address) {
+                alert('배송지 주소를 [주소 검색] 버튼으로 입력해주세요.');
+                return;
+            }
 
             if (supabaseClient) {
                 const { error } = await supabaseClient.from('orders').update(updatedData).eq('id', orderId);
@@ -1068,6 +1160,7 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
                 }
             }
 
+            Object.assign(ordersMaster[orderIndex], updatedData);
             alert('주문 내역이 성공적으로 수정되었습니다.');
             closeEditModal();
 
@@ -1082,10 +1175,16 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
             });
         }
 
+        function statusBadgeHtml(status) {
+            const cls = status === '접수대기' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700';
+            return `<span class="px-2 py-1 rounded text-[10px] font-bold ${cls}">${escapeHtml(status)}</span>`;
+        }
+
         function renderSellerTable() {
             const tbody = document.getElementById('seller-order-list');
             const myOrders = ordersMaster.filter(o => o.seller_company === currentSellerAccount.company);
             document.getElementById('seller-order-count').innerText = `총 ${myOrders.length}건`;
+            document.getElementById('chk-all-seller').checked = false;
 
             if (myOrders.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="11" class="text-center py-6 text-slate-400">접수된 주문이 없습니다.</td></tr>`;
@@ -1094,39 +1193,37 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
 
             tbody.innerHTML = myOrders.map(o => {
                 const canEdit = (currentSimulatedHour < 7 || currentSimulatedHour >= 15) && o.status === '접수대기';
-                const isExcel = o.id.startsWith('ORD-EXCEL-');
+                const isExcel = String(o.id).startsWith('ORD-EXCEL-');
+                const id = escapeHtml(o.id);
+                const fullAddress = escapeHtml(`${o.address || ''} ${o.detail_address || ''}`.trim());
 
                 return `
                     <tr class="hover:bg-slate-50 transition">
                         <td class="p-3 text-center">
-                            <input type="checkbox" value="${o.id}" ${canEdit ? '' : 'disabled'} class="seller-chk-item rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-40">
+                            <input type="checkbox" value="${id}" ${canEdit ? '' : 'disabled'} class="seller-chk-item rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-40">
                         </td>
                         <td class="p-3 font-mono font-bold text-slate-900">
-                            ${o.id}
+                            ${id}
                             ${isExcel ? '<span class="ml-1 text-[9px] bg-amber-100 text-amber-800 font-bold px-1 rounded">엑셀</span>' : ''}
                         </td>
-                        <td class="p-3 font-semibold text-slate-900">${o.recipient}</td>
-                        <td class="p-3">${o.phone}</td>
-                        <td class="p-3 max-w-xs truncate" title="${o.address}">${o.address} ${o.detail_address || ''}</td>
-                        <td class="p-3 font-medium text-indigo-600 max-w-xs truncate" title="${o.product}">${o.product}</td>
+                        <td class="p-3 font-semibold text-slate-900">${escapeHtml(o.recipient)}</td>
+                        <td class="p-3">${escapeHtml(o.phone)}</td>
+                        <td class="p-3 max-w-xs truncate" title="${fullAddress}">${fullAddress}</td>
+                        <td class="p-3 font-medium text-indigo-600 max-w-xs truncate" title="${escapeHtml(o.product)}">${escapeHtml(o.product)}</td>
                         <td class="p-3 text-slate-600">
-                            ${o.wholesale_company ? `<span class="font-bold">${o.wholesale_company}</span>` : '-'}/
-                            ${o.wholesale_product || '-'}
+                            ${o.wholesale_company ? `<span class="font-bold">${escapeHtml(o.wholesale_company)}</span>` : '-'}/
+                            ${escapeHtml(o.wholesale_product || '-')}
                         </td>
-                        <td class="p-3 max-w-xs truncate text-amber-700 font-medium">${o.bamnat_memo || '-'}</td>
-                        <td class="p-3 text-slate-400">${o.created_at}</td>
-                        <td class="p-3">
-                            <span class="px-2 py-1 rounded text-[10px] font-bold ${o.status === '접수대기' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}">
-                                ${o.status}
-                            </span>
-                        </td>
+                        <td class="p-3 max-w-xs truncate text-amber-700 font-medium">${escapeHtml(o.bamnat_memo || '-')}</td>
+                        <td class="p-3 text-slate-400">${escapeHtml(o.created_at)}</td>
+                        <td class="p-3">${statusBadgeHtml(o.status)}</td>
                         <td class="p-3 text-center">
                             ${canEdit ? `
                                 <div class="flex items-center justify-center gap-1">
-                                    <button onclick="openEditModal('${o.id}')" class="px-2 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold rounded text-[11px]">
+                                    <button data-id="${id}" onclick="openEditModal(this.dataset.id)" class="px-2 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold rounded text-[11px]">
                                         수정
                                     </button>
-                                    <button onclick="deleteOrder('${o.id}')" class="px-2 py-1 bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold rounded text-[11px]">
+                                    <button data-id="${id}" onclick="deleteOrder(this.dataset.id)" class="px-2 py-1 bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold rounded text-[11px]">
                                         삭제
                                     </button>
                                 </div>
@@ -1139,6 +1236,28 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
             }).join('');
         }
 
+        // DB에서 먼저 삭제하고, 성공했을 때만 화면 목록에서 지웁니다.
+        async function deleteOrdersByIds(ids) {
+            // 주소(URL) 길이 제한을 피하려고 200건씩 나눠서 삭제합니다.
+            const deleted = [];
+            let failure = null;
+            for (let i = 0; i < ids.length; i += 200) {
+                const chunk = ids.slice(i, i + 200);
+                if (supabaseClient) {
+                    const { error } = await supabaseClient.from('orders').delete().in('id', chunk);
+                    if (error) { failure = error; break; }
+                }
+                deleted.push(...chunk);
+            }
+            ordersMaster = ordersMaster.filter(o => !deleted.includes(o.id));
+            if (failure) {
+                renderSellerTable();
+                alert(`삭제 중 오류가 발생했습니다. (${deleted.length}/${ids.length}건 삭제됨)\n잠시 후 다시 시도해주세요.\n\n` + failure.message);
+                return false;
+            }
+            return true;
+        }
+
         async function deleteOrder(id) {
             if (currentSimulatedHour >= 7 && currentSimulatedHour < 15) {
                 alert('마감 시간 중에는 주문을 삭제할 수 없습니다.');
@@ -1146,11 +1265,7 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
             }
 
             if (confirm('해당 주문을 삭제하시겠습니까?')) {
-                ordersMaster = ordersMaster.filter(o => o.id !== id);
-                if (supabaseClient) {
-                    await supabaseClient.from('orders').delete().eq('id', id);
-                }
-                renderSellerTable();
+                if (await deleteOrdersByIds([id])) renderSellerTable();
             }
         }
 
@@ -1169,14 +1284,8 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
             const selectedIds = Array.from(checkedBoxes).map(chk => chk.value);
 
             if (confirm(`선택한 ${selectedIds.length}건의 주문을 삭제하시겠습니까?`)) {
-                ordersMaster = ordersMaster.filter(o => !selectedIds.includes(o.id));
-
-                if (supabaseClient) {
-                    await supabaseClient.from('orders').delete().in('id', selectedIds);
-                }
-
+                if (!(await deleteOrdersByIds(selectedIds))) return;
                 alert(`총 ${selectedIds.length}건의 주문이 성공적으로 삭제되었습니다.`);
-                document.getElementById('chk-all-seller').checked = false;
                 renderSellerTable();
             }
         }
@@ -1189,7 +1298,7 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
 
             const excelOrders = ordersMaster.filter(o =>
                 o.seller_company === currentSellerAccount.company &&
-                o.id.startsWith('ORD-EXCEL-') &&
+                String(o.id).startsWith('ORD-EXCEL-') &&
                 o.status === '접수대기'
             );
 
@@ -1200,22 +1309,20 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
 
             if (confirm(`엑셀로 등록한 주문 총 ${excelOrders.length}건을 일괄 삭제하시겠습니까?`)) {
                 const excelIds = excelOrders.map(o => o.id);
-                ordersMaster = ordersMaster.filter(o => !excelIds.includes(o.id));
-
-                if (supabaseClient) {
-                    await supabaseClient.from('orders').delete().in('id', excelIds);
-                }
-
+                if (!(await deleteOrdersByIds(excelIds))) return;
                 alert(`총 ${excelOrders.length}건의 엑셀 주문이 삭제되었습니다.`);
                 renderSellerTable();
             }
         }
 
+        // 주문 목록이 바뀔 때마다 다시 만들되, 선택해둔 거래처는 유지합니다.
         function populateAdminFilter() {
             const select = document.getElementById('admin-seller-filter');
-            const companies = [...new Set(ordersMaster.map(o => o.seller_company))];
+            const previous = select.value;
+            const companies = [...new Set(ordersMaster.map(o => o.seller_company))].sort();
             select.innerHTML = `<option value="ALL">전체 거래처 보기 (${ordersMaster.length}건)</option>` +
-                companies.map(c => `<option value="${c}">${c}</option>`).join('');
+                companies.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+            select.value = companies.includes(previous) ? previous : 'ALL';
         }
 
         function renderAdminTable() {
@@ -1234,46 +1341,53 @@ CREATE POLICY "Allow all access to orders" ON orders FOR ALL USING (true);`;
                 return;
             }
 
-            tbody.innerHTML = filtered.map(o => `
+            tbody.innerHTML = filtered.map(o => {
+                const id = escapeHtml(o.id);
+                return `
                 <tr class="hover:bg-slate-50 transition">
-                    <td class="p-3 font-bold text-slate-900">${o.sender_name || `밤낮딜리버리(${o.seller_company})`}</td>
-                    <td class="p-3 font-mono text-slate-500">${o.id}</td>
-                    <td class="p-3 font-semibold">${o.recipient}</td>
-                    <td class="p-3">${o.phone}</td>
-                    <td class="p-3 max-w-xs truncate">${o.address} ${o.detail_address || ''}</td>
-                    <td class="p-3 text-indigo-600 font-medium">${o.product}</td>
-                    <td class="p-3 text-slate-600">${o.wholesale_company || '-'}/${o.wholesale_product || '-'}</td>
-                    <td class="p-3 text-amber-700 font-medium">${o.bamnat_memo || '-'}</td>
-                    <td class="p-3 text-slate-400">${o.created_at}</td>
-                    <td class="p-3">
-                        <span class="px-2 py-1 rounded text-[10px] font-bold ${o.status === '접수대기' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}">
-                            ${o.status}
-                        </span>
-                    </td>
+                    <td class="p-3 font-bold text-slate-900">${escapeHtml(o.sender_name || `밤낮딜리버리(${o.seller_company})`)}</td>
+                    <td class="p-3 font-mono text-slate-500">${id}</td>
+                    <td class="p-3 font-semibold">${escapeHtml(o.recipient)}</td>
+                    <td class="p-3">${escapeHtml(o.phone)}</td>
+                    <td class="p-3 max-w-xs truncate">${escapeHtml(`${o.address || ''} ${o.detail_address || ''}`.trim())}</td>
+                    <td class="p-3 text-indigo-600 font-medium">${escapeHtml(o.product)}</td>
+                    <td class="p-3 text-slate-600">${escapeHtml(o.wholesale_company || '-')}/${escapeHtml(o.wholesale_product || '-')}</td>
+                    <td class="p-3 text-amber-700 font-medium">${escapeHtml(o.bamnat_memo || '-')}</td>
+                    <td class="p-3 text-slate-400">${escapeHtml(o.created_at)}</td>
+                    <td class="p-3">${statusBadgeHtml(o.status)}</td>
                     <td class="p-3 text-center">
-                        <button onclick="openEditModal('${o.id}')" class="px-2.5 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold rounded text-[11px]">
+                        <button data-id="${id}" onclick="openEditModal(this.dataset.id)" class="px-2.5 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold rounded text-[11px]">
                             수정
                         </button>
                     </td>
                 </tr>
-            `).join('');
+            `;
+            }).join('');
         }
 
         async function confirmAdminBatch() {
-            let updatedIds = [];
-            ordersMaster.forEach(o => {
-                if (o.status === '접수대기') {
-                    o.status = '접수완료';
-                    updatedIds.push(o.id);
-                }
-            });
+            const pendingIds = ordersMaster.filter(o => o.status === '접수대기').map(o => o.id);
+            if (pendingIds.length === 0) {
+                alert('마감 처리할 [접수대기] 주문이 없습니다.');
+                return;
+            }
+            if (!confirm(`[접수대기] 주문 ${pendingIds.length}건을 [접수완료]로 마감 처리하시겠습니까?\n마감된 주문은 셀러가 수정/삭제할 수 없습니다.`)) return;
 
-            if (supabaseClient && updatedIds.length > 0) {
-                await supabaseClient.from('orders').update({ status: '접수완료' }).in('id', updatedIds);
+            if (supabaseClient) {
+                // id 목록 대신 상태 조건으로 한 번에 변경 (건수가 많아도 안전)
+                const { error } = await supabaseClient.from('orders').update({ status: '접수완료' }).eq('status', '접수대기');
+                if (error) {
+                    alert('마감 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.\n\n' + error.message);
+                    return;
+                }
             }
 
-            alert(`총 ${updatedIds.length}건의 주문이 [접수완료] 상태로 변경되었습니다.`);
+            ordersMaster.forEach(o => {
+                if (pendingIds.includes(o.id)) o.status = '접수완료';
+            });
+            alert(`총 ${pendingIds.length}건의 주문이 [접수완료] 상태로 변경되었습니다.`);
             renderAdminTable();
+            fetchOrdersFromDB(); // 그 사이 새로 들어온 주문까지 DB 기준으로 다시 동기화
         }
 
         // 📌 자바스크립트 실시간 2-시트 원본 색상 엑셀 자동 동적 생성 함수 (네트워크 오류 방지)
