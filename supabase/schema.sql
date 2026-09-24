@@ -15,6 +15,10 @@ create table if not exists public.profiles (
     role        text not null default 'seller' check (role in ('seller', 'admin')),
     created_at  timestamptz not null default now()
 );
+alter table public.profiles add column if not exists name       text;
+alter table public.profiles add column if not exists phone      text;
+alter table public.profiles add column if not exists role       text not null default 'seller';
+alter table public.profiles add column if not exists created_at timestamptz not null default now();
 alter table public.profiles enable row level security;
 
 -- 셀러 관리용 칸: 이메일(목록 표시용), 승인 상태
@@ -153,6 +157,24 @@ create table if not exists public.orders (
     created_at          timestamptz default now()
 );
 
+-- 예전 버전으로 만들어진 orders 테이블에는 일부 칸이 없을 수 있습니다.
+-- (예: "Could not find the 'bamnat_memo' column" 오류) 앱이 쓰는 칸을 모두 확인해서 없으면 추가합니다.
+alter table public.orders add column if not exists seller_company    text;
+alter table public.orders add column if not exists sender_name       text;
+alter table public.orders add column if not exists cs_phone          text;
+alter table public.orders add column if not exists recipient         text;
+alter table public.orders add column if not exists phone             text;
+alter table public.orders add column if not exists zipcode           text;
+alter table public.orders add column if not exists address           text;
+alter table public.orders add column if not exists detail_address    text;
+alter table public.orders add column if not exists product           text;
+alter table public.orders add column if not exists wholesale_company text;
+alter table public.orders add column if not exists wholesale_product text;
+alter table public.orders add column if not exists memo              text;
+alter table public.orders add column if not exists bamnat_memo       text;
+alter table public.orders add column if not exists qty               integer default 1;
+alter table public.orders add column if not exists status            text default '접수대기';
+alter table public.orders add column if not exists created_at        timestamptz default now();
 alter table public.orders add column if not exists seller_id uuid references auth.users(id) on delete set null;
 alter table public.orders alter column seller_id set default auth.uid();
 alter table public.orders alter column created_at set default now();
@@ -410,3 +432,8 @@ create policy profiles_admin_update on public.profiles
 -- ---------------------------------------------------------------------
 -- update public.profiles set role = 'admin', status = 'approved'
 -- where id = (select id from auth.users where email = '관리자이메일@example.com');
+
+-- ---------------------------------------------------------------------
+-- 7. 앱(API)이 새 칸을 바로 인식하도록 스키마 캐시 새로고침
+-- ---------------------------------------------------------------------
+notify pgrst, 'reload schema';
