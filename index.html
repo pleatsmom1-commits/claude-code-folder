@@ -86,12 +86,20 @@
 
         <!-- 1. AUTH SCREEN -->
         <div id="auth-screen" class="max-w-md mx-auto my-12 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
+            <div class="flex border-b border-slate-200 bg-slate-50">
+                <button id="tab-btn-seller" onclick="switchLoginMode('seller')" class="flex-1 py-3 text-sm font-bold text-indigo-600 border-b-2 border-indigo-600 bg-white">
+                    셀러 로그인
+                </button>
+                <button id="tab-btn-admin" onclick="switchLoginMode('admin')" class="flex-1 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-700">
+                    밤낮딜리버리 관리자
+                </button>
+            </div>
             <div class="p-8">
-                <!-- 셀러/관리자 공용 로그인 (계정의 권한에 따라 화면이 나뉩니다) -->
+                <!-- 셀러/관리자 모두 이메일 로그인. 관리자 탭에서는 관리자 권한이 있는 계정만 들어갈 수 있습니다. -->
                 <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
                     <div class="text-center mb-6">
-                        <h2 class="text-xl font-bold text-slate-900">로그인</h2>
-                        <p class="text-xs text-slate-500 mt-1">가입하신 이메일과 비밀번호로 로그인해주세요.</p>
+                        <h2 id="login-title" class="text-xl font-bold text-slate-900">셀러 로그인</h2>
+                        <p id="login-desc" class="text-xs text-slate-500 mt-1">가입하신 이메일과 비밀번호로 로그인해주세요.</p>
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1">이메일</label>
@@ -109,7 +117,7 @@
                             비밀번호를 잊으셨나요?
                         </button>
                     </div>
-                    <div class="pt-3 text-center border-t border-slate-100">
+                    <div id="signup-link-area" class="pt-3 text-center border-t border-slate-100">
                         <span class="text-xs text-slate-500">아직 계정이 없으신가요?</span>
                         <button type="button" onclick="showSignupModal()" class="text-xs text-indigo-600 font-bold hover:underline ml-1">
                             회원가입하기
@@ -121,6 +129,9 @@
 
         <!-- 2. SELLER DASHBOARD -->
         <div id="seller-dashboard" class="hidden space-y-6">
+            <!-- 승인 대기 / 정지 계정 안내 -->
+            <div id="seller-status-notice" class="hidden px-4 py-3 rounded-xl border text-sm font-medium flex items-start gap-2"></div>
+
             <div class="flex justify-between items-center flex-wrap gap-3">
                 <div>
                     <h2 class="text-xl font-bold text-slate-900">고객 배송 주문 접수</h2>
@@ -278,12 +289,24 @@
 
         <!-- 3. ADMIN DASHBOARD -->
         <div id="admin-dashboard" class="hidden space-y-6">
-            <div class="flex justify-between items-center">
-                <div>
-                    <h2 class="text-xl font-bold text-slate-900">밤낮딜리버리 관리자 마스터 센터</h2>
-                    <p class="text-xs text-slate-500">모든 거래처(셀러)가 수집/등록한 주문정보를 취합하여 마감 및 다운로드합니다.</p>
-                </div>
-                <div class="flex gap-2">
+            <div>
+                <h2 class="text-xl font-bold text-slate-900">밤낮딜리버리 관리자 마스터 센터</h2>
+                <p class="text-xs text-slate-500">모든 거래처(셀러)의 주문을 취합해 마감·다운로드하고, 셀러 가입 승인과 정보를 관리합니다.</p>
+            </div>
+
+            <div class="flex border-b border-slate-200">
+                <button id="admin-tab-orders" onclick="switchAdminTab('orders')" class="px-5 py-2.5 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600">
+                    주문 관리
+                </button>
+                <button id="admin-tab-sellers" onclick="switchAdminTab('sellers')" class="px-5 py-2.5 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center gap-1.5">
+                    셀러 관리
+                    <span id="admin-pending-badge" class="hidden px-1.5 py-0.5 bg-rose-500 text-white text-[10px] rounded-full"></span>
+                </button>
+            </div>
+
+            <!-- 3-1. 주문 관리 -->
+            <div id="admin-orders-panel" class="space-y-4">
+                <div class="flex gap-2 flex-wrap justify-end">
                     <button onclick="fetchOrdersFromDB()" class="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm transition flex items-center gap-1.5">
                         <i data-lucide="refresh-cw" class="w-4 h-4"></i> 새로고침
                     </button>
@@ -294,39 +317,83 @@
                         <i data-lucide="file-down" class="w-4 h-4"></i> 통합 마스터 엑셀 다운로드
                     </button>
                 </div>
+
+                <!-- Master Table -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
+                    <div class="flex justify-between items-center flex-wrap gap-2">
+                        <div class="flex gap-2 items-center">
+                            <span class="text-xs font-bold text-slate-600">거래처 필터:</span>
+                            <select id="admin-seller-filter" onchange="renderAdminTable()" class="px-3 py-1.5 border rounded-lg text-xs font-medium focus:outline-none">
+                                <option value="ALL">전체 거래처 보기</option>
+                            </select>
+                        </div>
+                        <span id="admin-order-count" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full">총 0건</span>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-800 text-slate-200 font-bold">
+                                <tr>
+                                    <th class="p-3">송화인(거래처)</th>
+                                    <th class="p-3">접수번호</th>
+                                    <th class="p-3">수화인(받는사람)</th>
+                                    <th class="p-3">연락처</th>
+                                    <th class="p-3">배송지 주소</th>
+                                    <th class="p-3">쇼핑몰 상품명</th>
+                                    <th class="p-3">도매처/상품</th>
+                                    <th class="p-3">밤낮 전달메세지</th>
+                                    <th class="p-3">접수시간</th>
+                                    <th class="p-3">상태</th>
+                                    <th class="p-3 text-center">관리</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-order-list" class="divide-y divide-slate-100 text-slate-700"></tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
 
-            <!-- Master Table -->
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
-                <div class="flex justify-between items-center flex-wrap gap-2">
-                    <div class="flex gap-2 items-center">
-                        <span class="text-xs font-bold text-slate-600">거래처 필터:</span>
-                        <select id="admin-seller-filter" onchange="renderAdminTable()" class="px-3 py-1.5 border rounded-lg text-xs font-medium focus:outline-none">
-                            <option value="ALL">전체 거래처 보기</option>
-                        </select>
+            <!-- 3-2. 셀러 관리 -->
+            <div id="admin-sellers-panel" class="hidden space-y-4">
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
+                    <div class="flex justify-between items-center flex-wrap gap-2">
+                        <div class="flex gap-2 items-center flex-wrap">
+                            <select id="seller-status-filter" onchange="renderSellerAdminTable()" class="px-3 py-1.5 border rounded-lg text-xs font-medium focus:outline-none">
+                                <option value="ALL">전체 상태</option>
+                                <option value="pending">승인대기</option>
+                                <option value="approved">승인</option>
+                                <option value="suspended">정지</option>
+                            </select>
+                            <input type="text" id="seller-search" oninput="renderSellerAdminTable()" placeholder="상호명·대표자·이메일·연락처 검색" class="px-3 py-1.5 border rounded-lg text-xs w-60 focus:outline-indigo-500">
+                            <span id="seller-admin-count" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full">총 0명</span>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="fetchSellersFromDB()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm flex items-center gap-1">
+                                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> 새로고침
+                            </button>
+                            <button onclick="downloadSellerExcel()" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow flex items-center gap-1">
+                                <i data-lucide="file-down" class="w-3.5 h-3.5"></i> 셀러 목록 엑셀
+                            </button>
+                        </div>
                     </div>
-                    <span id="admin-order-count" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full">총 0건</span>
-                </div>
 
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-xs">
-                        <thead class="bg-slate-800 text-slate-200 font-bold">
-                            <tr>
-                                <th class="p-3">송화인(거래처)</th>
-                                <th class="p-3">접수번호</th>
-                                <th class="p-3">수화인(받는사람)</th>
-                                <th class="p-3">연락처</th>
-                                <th class="p-3">배송지 주소</th>
-                                <th class="p-3">쇼핑몰 상품명</th>
-                                <th class="p-3">도매처/상품</th>
-                                <th class="p-3">밤낮 전달메세지</th>
-                                <th class="p-3">접수시간</th>
-                                <th class="p-3">상태</th>
-                                <th class="p-3 text-center">관리</th>
-                            </tr>
-                        </thead>
-                        <tbody id="admin-order-list" class="divide-y divide-slate-100 text-slate-700"></tbody>
-                    </table>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-800 text-slate-200 font-bold">
+                                <tr>
+                                    <th class="p-3">상태</th>
+                                    <th class="p-3">상호명</th>
+                                    <th class="p-3">대표자</th>
+                                    <th class="p-3">연락처</th>
+                                    <th class="p-3">이메일(로그인)</th>
+                                    <th class="p-3">가입일</th>
+                                    <th class="p-3 text-center">주문 (대기/전체)</th>
+                                    <th class="p-3 text-center">관리</th>
+                                </tr>
+                            </thead>
+                            <tbody id="seller-admin-list" class="divide-y divide-slate-100 text-slate-700"></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -475,6 +542,51 @@
         </div>
     </div>
 
+    <!-- MODAL: SELLER EDIT (관리자) -->
+    <div id="seller-edit-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-slate-100">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div>
+                    <h3 class="font-bold text-slate-900 text-base">셀러 정보 수정</h3>
+                    <p class="text-xs text-slate-400" id="seller-edit-email"></p>
+                </div>
+                <button onclick="closeSellerEditModal()" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <form onsubmit="handleSellerEditSubmit(event)" class="space-y-3">
+                <input type="hidden" id="seller-edit-id">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">상호명 *</label>
+                    <input type="text" id="seller-edit-company" required class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    <p class="text-[10px] text-slate-400 mt-1">변경 후 새로 등록되는 주문부터 새 상호명이 적용됩니다. (기존 주문은 그대로)</p>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">대표자명</label>
+                        <input type="text" id="seller-edit-name" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">연락처</label>
+                        <input type="text" id="seller-edit-phone" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">상태</label>
+                    <select id="seller-edit-status" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                        <option value="pending">승인대기 (주문 불가)</option>
+                        <option value="approved">승인 (주문 가능)</option>
+                        <option value="suspended">정지 (주문 불가)</option>
+                    </select>
+                </div>
+                <div class="pt-3 flex gap-2">
+                    <button type="button" onclick="closeSellerEditModal()" class="flex-1 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-lg text-xs hover:bg-slate-200">취소</button>
+                    <button type="submit" class="flex-1 py-2.5 bg-indigo-600 text-white font-bold rounded-lg text-xs hover:bg-indigo-700">저장하기</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- MODAL: NEW PASSWORD (비밀번호 재설정 메일의 링크로 들어왔을 때) -->
     <div id="reset-pw-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
         <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-slate-100">
@@ -508,6 +620,18 @@
         let currentRole = null;
         let currentSellerAccount = null; // 로그인한 계정의 프로필 (company, name, phone, role)
         let currentUserId = null;
+        let loginMode = 'seller';        // 로그인 화면에서 선택한 탭 ('seller' | 'admin')
+        let pendingLoginMode = null;     // 방금 로그인 버튼을 누른 탭 (자동 로그인과 구분)
+        let sellerProfiles = [];         // 관리자: 전체 셀러 목록
+
+        const SELLER_STATUS_LABEL = { pending: '승인대기', approved: '승인', suspended: '정지' };
+        const SELLER_STATUS_CLASS = {
+            pending: 'bg-amber-100 text-amber-700',
+            approved: 'bg-emerald-100 text-emerald-700',
+            suspended: 'bg-rose-100 text-rose-700'
+        };
+        // 셀러가 주문을 등록/수정할 수 있는 계정 상태인지
+        const isSellerApproved = () => !!currentSellerAccount && (currentSellerAccount.status || 'approved') === 'approved';
 
         let supabaseClient = null;
         let ordersMaster = [];
@@ -534,8 +658,8 @@
             if (hour < 10) return 'late';
             return 'closed';
         }
-        const canAddOrders = () => getTimePhase() !== 'closed';
-        const canModifyOrders = () => getTimePhase() === 'open';
+        const canAddOrders = () => getTimePhase() !== 'closed' && (currentRole !== 'seller' || isSellerApproved());
+        const canModifyOrders = () => getTimePhase() === 'open' && (currentRole !== 'seller' || isSellerApproved());
 
         // DB의 접수시간(UTC)을 한국 시간 'YYYY-MM-DD HH:mm' 으로 표시
         function formatKstDateTime(value) {
@@ -659,6 +783,15 @@
                 return;
             }
 
+            // 관리자 탭에서 로그인했는데 관리자 권한이 없는 계정이면 막습니다.
+            const requestedMode = pendingLoginMode;
+            pendingLoginMode = null;
+            if (requestedMode === 'admin' && profile.role !== 'admin') {
+                alert('관리자 권한이 없는 계정입니다.\n셀러 계정은 [셀러 로그인] 탭에서 로그인해주세요.');
+                await supabaseClient.auth.signOut();
+                return;
+            }
+
             currentUserId = user.id;
             currentSellerAccount = { ...profile, email: user.email };
             currentRole = profile.role === 'admin' ? 'admin' : 'seller';
@@ -666,9 +799,13 @@
             document.getElementById('auth-screen').classList.add('hidden');
             if (currentRole === 'admin') {
                 document.getElementById('admin-dashboard').classList.remove('hidden');
+                switchAdminTab('orders');
+                fetchSellersFromDB();
             } else {
                 setupSellerUI();
             }
+            lastTimePhase = null;
+            refreshTimeStatus();
             updateNavUserArea();
             fetchOrdersFromDB();
         }
@@ -678,11 +815,13 @@
             currentSellerAccount = null;
             currentUserId = null;
             ordersMaster = [];
+            sellerProfiles = [];
             document.getElementById('auth-screen').classList.remove('hidden');
             document.getElementById('seller-dashboard').classList.add('hidden');
             document.getElementById('admin-dashboard').classList.add('hidden');
             document.getElementById('seller-order-list').innerHTML = '';
             document.getElementById('admin-order-list').innerHTML = '';
+            document.getElementById('seller-admin-list').innerHTML = '';
             updateNavUserArea();
         }
 
@@ -702,6 +841,7 @@
             if (currentRole === 'admin') {
                 populateAdminFilter();
                 renderAdminTable();
+                renderSellerAdminTable();
             }
         }
 
@@ -721,7 +861,7 @@
                 : `현재 한국시간 ${p.m}/${p.d} ${p.hh}:${p.mm}`;
 
             const phase = getTimePhase();
-            if (phase === lastTimePhase) return; // 구간이 바뀔 때만 화면을 다시 그립니다
+            if (phase === lastTimePhase) return; // 구간이 바뀔 때만 화면을 다시 그립니다 (로그인 시 강제 갱신)
             lastTimePhase = phase;
 
             const banner = document.getElementById('status-banner');
@@ -733,12 +873,12 @@
                 banner.className = "bg-emerald-500 text-white px-6 py-2.5 text-sm font-medium flex justify-between items-center shadow-inner";
                 text.innerText = "현재 정상 주문 접수 및 수정 가능 시간입니다 (15:00 ~ 익일 07:00)";
                 subtext.innerText = "오전 7시 이전까지 자유롭게 수정/삭제가 가능합니다.";
-                if(submitBtn) submitBtn.disabled = false;
+                if(submitBtn) submitBtn.disabled = !canAddOrders();
             } else if (phase === 'late') {
                 banner.className = "bg-amber-500 text-white px-6 py-2.5 text-sm font-medium flex justify-between items-center shadow-inner";
                 text.innerText = "지연/신규 주문 접수 시간 (07:00 ~ 10:00) - 기존 접수건 수정 불가";
                 subtext.innerText = "오전 7시 이전 주문은 마감 처리 진행 중이며, 신규 주문 추가만 가능합니다.";
-                if(submitBtn) submitBtn.disabled = false;
+                if(submitBtn) submitBtn.disabled = !canAddOrders();
             } else {
                 banner.className = "bg-rose-600 text-white px-6 py-2.5 text-sm font-medium flex justify-between items-center shadow-inner";
                 text.innerText = "주문 접수 및 수정 마감 시간 (10:00 ~ 15:00)";
@@ -831,15 +971,35 @@
             const pw = document.getElementById('login-pw').value;
             const btn = document.getElementById('btn-login');
             btn.disabled = true;
+            pendingLoginMode = loginMode;
             const { error } = await supabaseClient.auth.signInWithPassword({ email, password: pw });
             btn.disabled = false;
 
             if (error) {
+                pendingLoginMode = null;
                 alert(authErrorMessage(error));
                 return;
             }
             document.getElementById('login-pw').value = '';
             // 화면 전환은 onAuthStateChange → handleAuthEvent 에서 처리됩니다.
+        }
+
+        function switchLoginMode(mode) {
+            loginMode = mode;
+            const active = mode === 'admin'
+                ? "flex-1 py-3 text-sm font-bold text-slate-900 border-b-2 border-slate-900 bg-white"
+                : "flex-1 py-3 text-sm font-bold text-indigo-600 border-b-2 border-indigo-600 bg-white";
+            const inactive = "flex-1 py-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-700";
+            document.getElementById('tab-btn-seller').className = mode === 'seller' ? active : inactive;
+            document.getElementById('tab-btn-admin').className = mode === 'admin' ? active : inactive;
+            document.getElementById('login-title').innerText = mode === 'admin' ? '관리자 로그인' : '셀러 로그인';
+            document.getElementById('login-desc').innerText = mode === 'admin'
+                ? '밤낮딜리버리 관리자 전용입니다. 관리자 권한이 있는 이메일 계정으로 로그인해주세요.'
+                : '가입하신 이메일과 비밀번호로 로그인해주세요.';
+            document.getElementById('signup-link-area').classList.toggle('hidden', mode === 'admin');
+            document.getElementById('btn-login').className = (mode === 'admin'
+                ? 'bg-slate-900 hover:bg-slate-800' : 'bg-indigo-600 hover:bg-indigo-700')
+                + ' w-full py-2.5 disabled:opacity-50 text-white font-bold rounded-lg text-sm transition';
         }
 
         async function requestPasswordReset() {
@@ -881,6 +1041,20 @@
             document.getElementById('seller-dashboard').classList.remove('hidden');
             document.getElementById('so-sender-name').value = `밤낮딜리버리(${currentSellerAccount.company})`;
             document.getElementById('so-cs-phone').value = currentSellerAccount.phone || '';
+
+            const notice = document.getElementById('seller-status-notice');
+            const status = currentSellerAccount.status || 'approved';
+            if (status === 'approved') {
+                notice.classList.add('hidden');
+            } else {
+                notice.classList.remove('hidden');
+                notice.className = status === 'pending'
+                    ? 'px-4 py-3 rounded-xl border text-sm font-medium flex items-start gap-2 bg-amber-50 border-amber-200 text-amber-800'
+                    : 'px-4 py-3 rounded-xl border text-sm font-medium flex items-start gap-2 bg-rose-50 border-rose-200 text-rose-800';
+                notice.innerHTML = status === 'pending'
+                    ? '⏳ <div><b>관리자 승인 대기 중입니다.</b><br><span class="text-xs">밤낮딜리버리에서 가입을 승인하면 주문 접수가 가능합니다. 승인 후 새로고침해주세요.</span></div>'
+                    : '⛔ <div><b>이용이 정지된 계정입니다.</b><br><span class="text-xs">주문 등록·수정이 제한됩니다. 밤낮딜리버리에 문의해주세요.</span></div>';
+            }
         }
 
         async function logout() {
@@ -904,7 +1078,7 @@
                 area.innerHTML = `
                     <div class="text-right">
                         <span class="text-xs font-bold text-indigo-600 block">밤낮딜리버리 관리자</span>
-                        <span class="text-[10px] text-slate-400">최고 권한</span>
+                        <span class="text-[10px] text-slate-400">${escapeHtml(currentSellerAccount.email || '최고 권한')}</span>
                     </div>
                     <button onclick="logout()" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-bold">로그아웃</button>
                 `;
@@ -950,7 +1124,9 @@
             e.preventDefault();
 
             if (!canAddOrders()) {
-                alert('현재 마감 시간(10:00 ~ 15:00)으로 신규 주문을 등록할 수 없습니다.');
+                alert(isSellerApproved()
+                    ? '현재 마감 시간(10:00 ~ 15:00)으로 신규 주문을 등록할 수 없습니다.'
+                    : '관리자 승인 전이거나 이용이 정지된 계정은 주문을 등록할 수 없습니다.');
                 return;
             }
 
@@ -999,7 +1175,9 @@
 
         function handleFileUpload(e) {
             if (!canAddOrders()) {
-                alert('현재 마감 시간(10:00 ~ 15:00)으로 신규 주문을 등록할 수 없습니다.');
+                alert(isSellerApproved()
+                    ? '현재 마감 시간(10:00 ~ 15:00)으로 신규 주문을 등록할 수 없습니다.'
+                    : '관리자 승인 전이거나 이용이 정지된 계정은 주문을 등록할 수 없습니다.');
                 e.target.value = '';
                 return;
             }
@@ -1479,6 +1657,192 @@
             alert(`총 ${pendingIds.length}건의 주문이 [접수완료] 상태로 변경되었습니다.`);
             renderAdminTable();
             fetchOrdersFromDB(); // 그 사이 새로 들어온 주문까지 DB 기준으로 다시 동기화
+        }
+
+        // =====================================================================
+        // 관리자: 셀러 관리
+        // =====================================================================
+        function switchAdminTab(tab) {
+            const on = "px-5 py-2.5 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 flex items-center gap-1.5";
+            const off = "px-5 py-2.5 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center gap-1.5";
+            document.getElementById('admin-tab-orders').className = tab === 'orders' ? on : off;
+            document.getElementById('admin-tab-sellers').className = tab === 'sellers' ? on : off;
+            document.getElementById('admin-orders-panel').classList.toggle('hidden', tab !== 'orders');
+            document.getElementById('admin-sellers-panel').classList.toggle('hidden', tab !== 'sellers');
+        }
+
+        async function fetchSellersFromDB() {
+            if (!supabaseClient || currentRole !== 'admin') return;
+            const { data, error } = await fetchAllRows(() =>
+                supabaseClient.from('profiles').select('*').order('created_at', { ascending: false })
+            );
+            if (error) {
+                console.error('셀러 목록 오류:', error);
+                alert('셀러 목록을 불러오지 못했습니다.\n\n' + dbErrorMessage(error)
+                    + '\n\n(Supabase에서 최신 schema.sql 을 실행했는지 확인해주세요)');
+                return;
+            }
+            sellerProfiles = data;
+            renderSellerAdminTable();
+        }
+
+        function sellerStatusBadgeHtml(status) {
+            const key = status || 'approved';
+            return `<span class="px-2 py-1 rounded text-[10px] font-bold ${SELLER_STATUS_CLASS[key] || ''}">${escapeHtml(SELLER_STATUS_LABEL[key] || key)}</span>`;
+        }
+
+        function renderSellerAdminTable() {
+            const tbody = document.getElementById('seller-admin-list');
+            if (!tbody || currentRole !== 'admin') return;
+
+            const pendingCount = sellerProfiles.filter(p => p.role !== 'admin' && p.status === 'pending').length;
+            const badge = document.getElementById('admin-pending-badge');
+            badge.innerText = `승인대기 ${pendingCount}`;
+            badge.classList.toggle('hidden', pendingCount === 0);
+
+            const statusFilter = document.getElementById('seller-status-filter').value;
+            const keyword = document.getElementById('seller-search').value.trim().toLowerCase();
+
+            // 셀러별 주문 건수 (대기/전체)
+            const counts = {};
+            ordersMaster.forEach(o => {
+                if (!o.seller_id) return;
+                counts[o.seller_id] = counts[o.seller_id] || { pending: 0, total: 0 };
+                counts[o.seller_id].total++;
+                if (o.status === '접수대기') counts[o.seller_id].pending++;
+            });
+
+            let list = sellerProfiles;
+            if (statusFilter !== 'ALL') list = list.filter(p => (p.status || 'approved') === statusFilter);
+            if (keyword) {
+                list = list.filter(p => [p.company, p.name, p.email, p.phone].some(v => String(v || '').toLowerCase().includes(keyword)));
+            }
+            // 승인대기를 맨 위로
+            list = [...list].sort((a, b) => (a.status === 'pending' ? 0 : 1) - (b.status === 'pending' ? 0 : 1));
+
+            document.getElementById('seller-admin-count').innerText = `총 ${list.length}명`;
+
+            if (list.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" class="text-center py-6 text-slate-400">해당하는 셀러가 없습니다.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = list.map(p => {
+                const id = escapeHtml(p.id);
+                const c = counts[p.id] || { pending: 0, total: 0 };
+                const isAdmin = p.role === 'admin';
+                const btn = (label, action, cls) =>
+                    `<button data-id="${id}" onclick="${action}" class="px-2 py-1 ${cls} font-bold rounded text-[11px]">${label}</button>`;
+                let actions = '';
+                if (isAdmin) {
+                    actions = `<span class="text-[10px] text-indigo-600 font-bold">관리자</span>`;
+                } else {
+                    if (p.status === 'pending') actions += btn('승인', "setSellerStatus(this.dataset.id, 'approved')", 'bg-emerald-600 text-white hover:bg-emerald-700');
+                    if (p.status === 'approved') actions += btn('정지', "setSellerStatus(this.dataset.id, 'suspended')", 'bg-rose-50 text-rose-600 hover:bg-rose-100');
+                    if (p.status === 'suspended') actions += btn('정지해제', "setSellerStatus(this.dataset.id, 'approved')", 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100');
+                    actions += btn('정보수정', 'openSellerEditModal(this.dataset.id)', 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100');
+                }
+                return `
+                    <tr class="hover:bg-slate-50 transition ${p.status === 'pending' ? 'bg-amber-50/40' : ''}">
+                        <td class="p-3">${isAdmin ? '<span class="px-2 py-1 rounded text-[10px] font-bold bg-indigo-100 text-indigo-700">관리자</span>' : sellerStatusBadgeHtml(p.status)}</td>
+                        <td class="p-3 font-bold text-slate-900">${escapeHtml(p.company)}</td>
+                        <td class="p-3">${escapeHtml(p.name || '-')}</td>
+                        <td class="p-3">${escapeHtml(p.phone || '-')}</td>
+                        <td class="p-3 text-slate-600">${escapeHtml(p.email || '-')}</td>
+                        <td class="p-3 text-slate-400 whitespace-nowrap">${escapeHtml(formatKstDateTime(p.created_at))}</td>
+                        <td class="p-3 text-center font-mono">${c.pending} / ${c.total}</td>
+                        <td class="p-3 text-center"><div class="flex items-center justify-center gap-1 flex-wrap">${actions}</div></td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function updateSellerProfile(id, changes) {
+            const { data, error } = await supabaseClient.from('profiles').update(changes).eq('id', id).select();
+            if (error || !data || data.length === 0) {
+                alert('셀러 정보 저장에 실패했습니다.\n\n' + (error ? dbErrorMessage(error) : '권한이 없거나 셀러를 찾을 수 없습니다.'));
+                return false;
+            }
+            const idx = sellerProfiles.findIndex(p => p.id === id);
+            if (idx !== -1) sellerProfiles[idx] = data[0];
+            renderSellerAdminTable();
+            return true;
+        }
+
+        async function setSellerStatus(id, status) {
+            const p = sellerProfiles.find(x => x.id === id);
+            if (!p) return;
+            const messages = {
+                approved: p.status === 'suspended'
+                    ? `[${p.company}] 셀러의 이용 정지를 해제할까요?`
+                    : `[${p.company}] 셀러의 가입을 승인할까요?\n승인하면 바로 주문 접수가 가능합니다.`,
+                suspended: `[${p.company}] 셀러를 이용 정지할까요?\n정지하면 주문 등록·수정·삭제가 막힙니다. (기존 주문은 유지)`
+            };
+            if (!confirm(messages[status])) return;
+            if (await updateSellerProfile(id, { status })) {
+                alert(status === 'approved' ? '처리되었습니다. 셀러가 새로고침하면 바로 주문할 수 있습니다.' : '이용 정지되었습니다.');
+            }
+        }
+
+        function openSellerEditModal(id) {
+            const p = sellerProfiles.find(x => x.id === id);
+            if (!p) return;
+            document.getElementById('seller-edit-id').value = p.id;
+            document.getElementById('seller-edit-email').innerText = p.email || '';
+            document.getElementById('seller-edit-company').value = p.company || '';
+            document.getElementById('seller-edit-name').value = p.name || '';
+            document.getElementById('seller-edit-phone').value = p.phone || '';
+            document.getElementById('seller-edit-status').value = p.status || 'approved';
+            document.getElementById('seller-edit-modal').classList.remove('hidden');
+            document.getElementById('seller-edit-modal').classList.add('flex');
+            lucide.createIcons();
+        }
+
+        function closeSellerEditModal() {
+            document.getElementById('seller-edit-modal').classList.add('hidden');
+            document.getElementById('seller-edit-modal').classList.remove('flex');
+        }
+
+        async function handleSellerEditSubmit(e) {
+            e.preventDefault();
+            const id = document.getElementById('seller-edit-id').value;
+            const company = document.getElementById('seller-edit-company').value.trim();
+            if (!company) { alert('상호명을 입력해주세요.'); return; }
+            if (/[()]/.test(company)) {
+                alert("상호명에는 괄호를 넣을 수 없습니다. (송화인명이 '밤낮딜리버리(상호명)' 형식으로 만들어집니다)");
+                return;
+            }
+            const ok = await updateSellerProfile(id, {
+                company,
+                name: document.getElementById('seller-edit-name').value.trim() || null,
+                phone: document.getElementById('seller-edit-phone').value.trim() || null,
+                status: document.getElementById('seller-edit-status').value
+            });
+            if (ok) {
+                closeSellerEditModal();
+                alert('셀러 정보가 저장되었습니다.');
+            }
+        }
+
+        function downloadSellerExcel() {
+            const counts = {};
+            ordersMaster.forEach(o => { if (o.seller_id) counts[o.seller_id] = (counts[o.seller_id] || 0) + 1; });
+            const rows = sellerProfiles.filter(p => p.role !== 'admin').map(p => ({
+                '상태': SELLER_STATUS_LABEL[p.status] || p.status,
+                '상호명': p.company,
+                '송화인명': `밤낮딜리버리(${p.company})`,
+                '대표자명': p.name || '',
+                '연락처': p.phone || '',
+                '이메일': p.email || '',
+                '가입일': formatKstDateTime(p.created_at),
+                '전체 주문수': counts[p.id] || 0
+            }));
+            const ws = XLSX.utils.json_to_sheet(rows);
+            ws['!cols'] = [{ wch: 8 }, { wch: 18 }, { wch: 26 }, { wch: 10 }, { wch: 16 }, { wch: 28 }, { wch: 18 }, { wch: 10 }];
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "셀러목록");
+            const p = getKstParts();
+            XLSX.writeFile(wb, `밤낮딜리버리_셀러목록_${p.y}-${p.m}-${p.d}.xlsx`);
         }
 
         // 📌 자바스크립트 실시간 2-시트 원본 색상 엑셀 자동 동적 생성 함수 (네트워크 오류 방지)

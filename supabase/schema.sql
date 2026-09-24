@@ -17,7 +17,27 @@ create table if not exists public.profiles (
 );
 alter table public.profiles enable row level security;
 
--- 회원가입 시 프로필 자동 생성 (role 은 항상 seller 로 시작)
+-- 셀러 관리용 칸: 이메일(목록 표시용), 승인 상태
+--   pending   : 가입 후 관리자 승인 대기 (주문 불가)
+--   approved  : 승인됨 (주문 가능)
+--   suspended : 이용 정지 (주문 불가)
+alter table public.profiles add column if not exists email text;
+alter table public.profiles add column if not exists status text;
+-- 이 칸이 생기기 전에 가입한 계정은 기존처럼 쓸 수 있도록 '승인'으로 채웁니다.
+update public.profiles set status = 'approved' where status is null;
+alter table public.profiles alter column status set default 'pending';
+alter table public.profiles alter column status set not null;
+do $$
+begin
+    if not exists (select 1 from pg_constraint where conname = 'profiles_status_check') then
+        alter table public.profiles add constraint profiles_status_check
+            check (status in ('pending', 'approved', 'suspended'));
+    end if;
+end;
+$$;
+update public.profiles p set email = u.email from auth.users u where u.id = p.id and p.email is null;
+
+-- 회원가입 시 프로필 자동 생성 (role 은 항상 seller, 상태는 승인 대기로 시작)
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -25,9 +45,10 @@ security definer
 set search_path = public
 as $$
 begin
-    insert into public.profiles (id, company, name, phone)
+    insert into public.profiles (id, email, company, name, phone)
     values (
         new.id,
+        new.email,
         coalesce(nullif(trim(new.raw_user_meta_data->>'company'), ''), '미등록'),
         nullif(trim(new.raw_user_meta_data->>'name'), ''),
         nullif(trim(new.raw_user_meta_data->>'phone'), '')
@@ -50,6 +71,17 @@ security definer
 set search_path = public
 as $$
     select exists (select 1 from public.profiles where id = auth.uid() and role = 'admin');
+$$;
+
+-- 현재 로그인한 사용자가 승인된 셀러인지 확인 (승인 대기/정지 계정은 주문 불가)
+create or replace function public.is_approved_seller()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+    select exists (select 1 from public.profiles where id = auth.uid() and status = 'approved');
 $$;
 
 -- ---------------------------------------------------------------------
@@ -187,18 +219,44 @@ create policy orders_select on public.orders
 -- 등록: 셀러는 접수 가능 시간에만
 create policy orders_insert on public.orders
     for insert to authenticated
-    with check ((seller_id = auth.uid() and public.can_add_orders()) or public.is_admin());
+    with check ((seller_id = auth.uid() and public.is_approved_seller() and public.can_add_orders()) or public.is_admin());
 
 -- 수정: 셀러는 수정 가능 시간 + 접수대기 상태인 자기 주문만
 create policy orders_update on public.orders
     for update to authenticated
-    using ((seller_id = auth.uid() and status = '접수대기' and public.can_modify_orders()) or public.is_admin())
+    using ((seller_id = auth.uid() and public.is_approved_seller() and status = '접수대기' and public.can_modify_orders()) or public.is_admin())
     with check (seller_id = auth.uid() or public.is_admin());
 
 -- 삭제: 수정과 같은 조건
 create policy orders_delete on public.orders
     for delete to authenticated
-    using ((seller_id = auth.uid() and status = '접수대기' and public.can_modify_orders()) or public.is_admin());
+    using ((seller_id = auth.uid() and public.is_approved_seller() and status = '접수대기' and public.can_modify_orders()) or public.is_admin());
+
+-- 관리자 화면에서 셀러 정보를 고칠 때 id/이메일/가입일은 바뀌지 않게 하고,
+-- 관리자 계정은 항상 승인 상태로 유지합니다. (권한(role) 변경은 SQL 로만 합니다)
+create or replace function public.profiles_protect()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+    new.id := old.id;
+    new.email := old.email;
+    new.created_at := old.created_at;
+    if current_user in ('authenticated', 'anon') then
+        new.role := old.role;
+    end if;
+    if new.role = 'admin' then
+        new.status := 'approved';
+    end if;
+    return new;
+end;
+$$;
+
+drop trigger if exists profiles_protect on public.profiles;
+create trigger profiles_protect
+    before update on public.profiles
+    for each row execute function public.profiles_protect();
 
 drop policy if exists profiles_select on public.profiles;
 drop policy if exists profiles_admin_update on public.profiles;
@@ -223,5 +281,5 @@ create policy profiles_admin_update on public.profiles
 -- ---------------------------------------------------------------------
 -- 6. 관리자 지정 (관리자 이메일로 먼저 회원가입한 뒤 이메일을 바꿔서 실행)
 -- ---------------------------------------------------------------------
--- update public.profiles set role = 'admin'
+-- update public.profiles set role = 'admin', status = 'approved'
 -- where id = (select id from auth.users where email = '관리자이메일@example.com');
