@@ -44,10 +44,10 @@
         <div class="flex items-center gap-2">
             <span class="text-slate-400">시간 변경:</span>
             <button onclick="setSimulatedTime(null)" class="px-2 py-1 bg-amber-500 hover:bg-amber-400 rounded text-slate-900 font-bold">실제 시간</button>
-            <button onclick="setSimulatedTime(5)" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200">05:00 (정상접수/수정 가능)</button>
-            <button onclick="setSimulatedTime(8)" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200">08:00 (지연/신규 10시마감)</button>
-            <button onclick="setSimulatedTime(11)" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200">11:00 (접수 불가시간)</button>
-            <button onclick="setSimulatedTime(16)" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200">16:00 (이튿날 접수시간)</button>
+            <button onclick="setSimulatedTime(5 * 60)" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200">05:00</button>
+            <button onclick="setSimulatedTime(7 * 60 + 30)" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200">07:30 (카톡 안내 시작)</button>
+            <button onclick="setSimulatedTime(14 * 60)" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200">14:00 (카톡 안내 마지막)</button>
+            <button onclick="setSimulatedTime(14 * 60 + 1)" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200">14:01</button>
         </div>
     </header>
 
@@ -271,6 +271,7 @@
                                 <th class="p-3 text-center w-10">
                                     <input type="checkbox" id="chk-all-seller" onchange="toggleAllSellerCheckboxes(this)" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
                                 </th>
+                                <th class="p-3">NO.</th>
                                 <th class="p-3">접수번호</th>
                                 <th class="p-3">수화인(받는사람)</th>
                                 <th class="p-3">연락처</th>
@@ -280,6 +281,7 @@
                                 <th class="p-3">밤낮 전달메세지</th>
                                 <th class="p-3">접수일시</th>
                                 <th class="p-3">상태</th>
+                                <th class="p-3">출고</th>
                                 <th class="p-3 text-center">관리</th>
                             </tr>
                         </thead>
@@ -316,28 +318,44 @@
                         <i data-lucide="check-circle" class="w-4 h-4"></i> 주문접수완료 (마감 처리)
                     </button>
                     <button onclick="downloadMasterExcel()" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow transition flex items-center gap-1.5">
-                        <i data-lucide="file-down" class="w-4 h-4"></i> 통합 마스터 엑셀 다운로드
+                        <i data-lucide="file-down" class="w-4 h-4"></i> 엑셀 다운로드 (현재 필터 기준)
                     </button>
                 </div>
 
                 <!-- Master Table -->
                 <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
                     <div class="flex justify-between items-center flex-wrap gap-2">
-                        <div class="flex gap-2 items-center">
-                            <span class="text-xs font-bold text-slate-600">거래처 필터:</span>
+                        <div class="flex gap-2 items-center flex-wrap">
+                            <span class="text-xs font-bold text-slate-600">거래처:</span>
                             <select id="admin-seller-filter" onchange="renderAdminTable()" class="px-3 py-1.5 border rounded-lg text-xs font-medium focus:outline-none">
                                 <option value="ALL">전체 거래처 보기</option>
                             </select>
+                            <span class="text-xs font-bold text-slate-600 ml-2">출고:</span>
+                            <select id="admin-ship-filter" onchange="renderAdminTable()" class="px-3 py-1.5 border rounded-lg text-xs font-medium focus:outline-none">
+                                <option value="ALL">전체</option>
+                                <option value="NOT_DONE">미출고 + 부분출고</option>
+                                <option value="미출고">미출고</option>
+                                <option value="부분출고">부분출고</option>
+                                <option value="출고완료">출고완료</option>
+                            </select>
+                            <span id="admin-order-count" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full">총 0건</span>
                         </div>
-                        <span id="admin-order-count" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full">총 0건</span>
+                        <div class="flex gap-2 items-center">
+                            <span id="admin-ship-summary" class="text-[11px] text-slate-500"></span>
+                            <button onclick="setShipStatusForSelected('출고완료')" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg shadow-sm">선택 출고완료</button>
+                            <button onclick="setShipStatusForSelected('미출고')" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg shadow-sm">선택 미출고로</button>
+                        </div>
                     </div>
 
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-xs">
                             <thead class="bg-slate-800 text-slate-200 font-bold">
                                 <tr>
+                                    <th class="p-3 text-center w-10">
+                                        <input type="checkbox" id="chk-all-admin" onchange="document.querySelectorAll('.admin-chk-item').forEach(c => c.checked = this.checked)" class="rounded border-slate-300">
+                                    </th>
+                                    <th class="p-3">NO.</th>
                                     <th class="p-3">송화인(거래처)</th>
-                                    <th class="p-3">접수번호</th>
                                     <th class="p-3">수화인(받는사람)</th>
                                     <th class="p-3">연락처</th>
                                     <th class="p-3">배송지 주소</th>
@@ -346,6 +364,7 @@
                                     <th class="p-3">밤낮 전달메세지</th>
                                     <th class="p-3">접수시간</th>
                                     <th class="p-3">상태</th>
+                                    <th class="p-3">출고</th>
                                     <th class="p-3 text-center">관리</th>
                                 </tr>
                             </thead>
@@ -617,8 +636,13 @@
         // 테스트 모드(?test)에서만 시뮬레이터 시간을 쓰고, 평소에는 실제 한국 시간을 씁니다.
         // ※ 시뮬레이터는 화면 표시만 바꿉니다. 실제 저장 가능 여부는 DB가 실제 시간으로 판단합니다.
         const TEST_MODE = new URLSearchParams(location.search).has('test');
-        let currentSimulatedHour = null;
+        let currentSimulatedMinutes = null; // 테스트 모드에서 고른 시각 (자정부터 분)
         let lastTimePhase = null;
+
+        // 오전 7시 30분 ~ 오후 2시 접수건은 당일 출고 누락 방지를 위해 카카오톡 단톡방 안내가 필요합니다.
+        const KAKAO_NOTICE_START = 7 * 60 + 30;
+        const KAKAO_NOTICE_END = 14 * 60;
+        const KAKAO_NOTICE_MESSAGE = '📢 [당일 출고 요청 안내]\n\n오전 7시30분 ~ 오후 2시 사이에 접수된 주문 중 급하게 당일 출고가 필요한 주문건은\n\n접수누락을 방지하기위해 반드시 카카오톡 단톡방으로 접수 안내 메세지를 보내주셔야합니다.';
         let currentRole = null;
         let currentSellerAccount = null; // 로그인한 계정의 프로필 (company, name, phone, role)
         let currentUserId = null;
@@ -648,20 +672,24 @@
             return { y: get('year'), m: get('month'), d: get('day'), hh: get('hour'), mm: get('minute'), ss: get('second') };
         }
 
-        function getCurrentHour() {
-            if (currentSimulatedHour !== null) return currentSimulatedHour;
-            return parseInt(getKstParts().hh, 10);
+        // 현재 한국 시각 (자정부터 몇 분 지났는지). 테스트 모드에서는 시뮬레이터 값.
+        function getCurrentMinutes() {
+            if (currentSimulatedMinutes !== null) return currentSimulatedMinutes;
+            const p = getKstParts();
+            return parseInt(p.hh, 10) * 60 + parseInt(p.mm, 10);
         }
+        const formatMinutes = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
-        // 'open': 15:00~익일 07:00 접수/수정 가능, 'late': 07:00~10:00 신규만, 'closed': 10:00~15:00 마감
+        // 접수는 24시간 가능합니다. 'kakao': 07:30~14:00 (카톡 안내 필요), 'normal': 그 외
         function getTimePhase() {
-            const hour = getCurrentHour();
-            if (hour >= 15 || hour < 7) return 'open';
-            if (hour < 10) return 'late';
-            return 'closed';
+            const m = getCurrentMinutes();
+            return (m >= KAKAO_NOTICE_START && m <= KAKAO_NOTICE_END) ? 'kakao' : 'normal';
         }
-        const canAddOrders = () => getTimePhase() !== 'closed' && (currentRole !== 'seller' || isSellerApproved());
-        const canModifyOrders = () => getTimePhase() === 'open' && (currentRole !== 'seller' || isSellerApproved());
+        const isKakaoNoticeTime = () => getTimePhase() === 'kakao';
+        const canAddOrders = () => currentRole !== 'seller' || isSellerApproved();
+        const canModifyOrders = () => currentRole !== 'seller' || isSellerApproved();
+        // 셀러가 이 주문(상품)을 고치거나 지울 수 있는지: 관리자 마감 전 + 출고 전
+        const canEditOrder = o => canModifyOrders() && o.status === '접수대기' && (o.ship_status || '미출고') === '미출고';
 
         // DB의 접수시간(UTC)을 한국 시간 'YYYY-MM-DD HH:mm' 으로 표시
         function formatKstDateTime(value) {
@@ -726,7 +754,7 @@
         // DB 오류를 셀러가 이해할 수 있는 문장으로 바꿉니다.
         function dbErrorMessage(error) {
             if (!error) return '';
-            if (error.code === '42501') return '접수 가능 시간이 아니거나 권한이 없는 작업입니다.';
+            if (error.code === '42501') return '권한이 없는 작업입니다. (승인 전/정지 계정이거나, 마감·출고된 주문)';
             return error.message || String(error);
         }
 
@@ -838,7 +866,10 @@
         async function fetchOrdersFromDB() {
             if (!supabaseClient) return;
             const { data, error } = await fetchAllRows(() =>
-                supabaseClient.from('orders').select('*').order('created_at', { ascending: false })
+                supabaseClient.from('orders').select('*')
+                    .order('order_no', { ascending: false, nullsFirst: false })
+                    .order('item_no', { ascending: true })
+                    .order('created_at', { ascending: false })
             );
             if (error) {
                 console.error('주문 불러오기 오류:', error);
@@ -847,6 +878,7 @@
             }
             setDbBadge(true, 'DB 연동 완료');
             ordersMaster = data;
+            sortOrdersMaster();
             if (currentRole === 'seller') renderSellerTable();
             if (currentRole === 'admin') {
                 populateAdminFilter();
@@ -855,19 +887,19 @@
             }
         }
 
-        function setSimulatedTime(hour) {
-            currentSimulatedHour = hour;
+        function setSimulatedTime(minutes) {
+            currentSimulatedMinutes = minutes;
             lastTimePhase = null; // 표시를 강제로 새로고침
             refreshTimeStatus();
         }
 
         function refreshTimeStatus() {
             const p = getKstParts();
-            document.getElementById('simulated-time-display').innerText = currentSimulatedHour !== null
-                ? `${String(currentSimulatedHour).padStart(2, '0')}:00 (시뮬레이션)`
+            document.getElementById('simulated-time-display').innerText = currentSimulatedMinutes !== null
+                ? `${formatMinutes(currentSimulatedMinutes)} (시뮬레이션)`
                 : `${p.hh}:${p.mm} (실제 한국시간)`;
-            document.getElementById('status-clock').innerText = currentSimulatedHour !== null
-                ? `시뮬레이션 ${String(currentSimulatedHour).padStart(2, '0')}:00`
+            document.getElementById('status-clock').innerText = currentSimulatedMinutes !== null
+                ? `시뮬레이션 ${formatMinutes(currentSimulatedMinutes)}`
                 : `현재 한국시간 ${p.m}/${p.d} ${p.hh}:${p.mm}`;
 
             const phase = getTimePhase();
@@ -878,18 +910,14 @@
             const text = document.getElementById('status-text');
             const subtext = document.getElementById('status-subtext');
 
-            if (phase === 'open') {
-                banner.className = "bg-emerald-500 text-white px-6 py-2.5 text-sm font-medium flex justify-between items-center shadow-inner";
-                text.innerText = "현재 정상 주문 접수 및 수정 가능 시간입니다 (15:00 ~ 익일 07:00)";
-                subtext.innerText = "오전 7시 이전까지 자유롭게 수정/삭제가 가능합니다.";
-            } else if (phase === 'late') {
+            if (phase === 'kakao') {
                 banner.className = "bg-amber-500 text-white px-6 py-2.5 text-sm font-medium flex justify-between items-center shadow-inner";
-                text.innerText = "지연/신규 주문 접수 시간 (07:00 ~ 10:00) - 기존 접수건 수정 불가";
-                subtext.innerText = "오전 7시 이전 주문은 마감 처리 진행 중이며, 신규 주문 추가만 가능합니다.";
+                text.innerText = "24시간 주문 접수 가능 · 지금(07:30~14:00) 당일 출고 긴급건은 카카오톡 단톡방으로 꼭 알려주세요";
+                subtext.innerText = "접수누락 방지를 위해 당일 출고건은 단톡방 안내 메세지가 필수입니다.";
             } else {
-                banner.className = "bg-rose-600 text-white px-6 py-2.5 text-sm font-medium flex justify-between items-center shadow-inner";
-                text.innerText = "주문 접수 및 수정 마감 시간 (10:00 ~ 15:00)";
-                subtext.innerText = "출고 작업 진행 시간입니다. 오후 3시 이후 다시 접수가 시작됩니다.";
+                banner.className = "bg-emerald-500 text-white px-6 py-2.5 text-sm font-medium flex justify-between items-center shadow-inner";
+                text.innerText = "24시간 주문 접수 가능합니다";
+                subtext.innerText = "관리자 마감(접수완료) 전·출고 전 주문은 수정/삭제할 수 있습니다.";
             }
 
             updateOrderAvailability();
@@ -902,9 +930,7 @@
             const allowed = canAddOrders();
             let reason = '';
             if (!allowed) {
-                reason = (currentRole === 'seller' && !isSellerApproved())
-                    ? '관리자 승인 후 주문을 등록할 수 있습니다.'
-                    : '⏰ 지금은 마감 시간(10:00~15:00)입니다. 오후 3시부터 다시 등록할 수 있습니다.';
+                reason = '관리자 승인 후 주문을 등록할 수 있습니다.';
             }
             ['btn-submit-order', 'btn-excel-upload'].forEach(id => {
                 const btn = document.getElementById(id);
@@ -1154,9 +1180,7 @@
             e.preventDefault();
 
             if (!canAddOrders()) {
-                alert(isSellerApproved()
-                    ? '현재 마감 시간(10:00 ~ 15:00)으로 신규 주문을 등록할 수 없습니다.'
-                    : '관리자 승인 전이거나 이용이 정지된 계정은 주문을 등록할 수 없습니다.');
+                alert('관리자 승인 전이거나 이용이 정지된 계정은 주문을 등록할 수 없습니다.');
                 return;
             }
 
@@ -1197,7 +1221,9 @@
             }
 
             ordersMaster.unshift(savedOrder);
-            alert('주문이 성공적으로 등록되었습니다.');
+            sortOrdersMaster();
+            alert(`주문이 성공적으로 등록되었습니다. (NO. ${orderNoLabel(savedOrder)})`);
+            if (isKakaoNoticeTime()) alert(KAKAO_NOTICE_MESSAGE);
             e.target.reset();
             setupSellerUI(); // 송화인명/C/S 연락처 기본값 복원
             renderSellerTable();
@@ -1205,9 +1231,7 @@
 
         function handleFileUpload(e) {
             if (!canAddOrders()) {
-                alert(isSellerApproved()
-                    ? '현재 마감 시간(10:00 ~ 15:00)으로 신규 주문을 등록할 수 없습니다.'
-                    : '관리자 승인 전이거나 이용이 정지된 계정은 주문을 등록할 수 없습니다.');
+                alert('관리자 승인 전이거나 이용이 정지된 계정은 주문을 등록할 수 없습니다.');
                 e.target.value = '';
                 return;
             }
@@ -1241,6 +1265,11 @@
 
                     if (headerIdx === -1) headerIdx = 1;
 
+                    // 2026 신규 양식은 맨 앞(A열)에 'NO.' 열이 있습니다. 있으면 한 칸씩 밀어서 읽습니다.
+                    const headerRow = rows[headerIdx] || [];
+                    const off = /^\s*no\.?\s*$/i.test(String(headerRow[0] ?? '')) ? 1 : 0;
+                    const colName = i => String.fromCharCode(65 + i + off);
+
                     const batchOrders = [];
                     const invalidSenderRows = [];
                     const missingFieldRows = [];
@@ -1248,7 +1277,8 @@
                     const cell = v => (v === undefined || v === null) ? '' : String(v).trim();
 
                     for (let i = headerIdx + 1; i < rows.length; i++) {
-                        const r = rows[i];
+                        const raw = rows[i];
+                        const r = raw ? raw.slice(off) : raw;
                         if (!r || r.length === 0 || (!r[2] && !r[3] && !r[4])) continue;
 
                         const rawSender = cell(r[0]);
@@ -1263,10 +1293,10 @@
 
                         // 필수값(받는사람/주소/상품명/연락처)이 빠진 행은 '미기재'로 접수하지 않고 업로드를 막습니다.
                         const missing = [];
-                        if (!cell(r[2])) missing.push('수화인명(C열)');
-                        if (!cell(r[3])) missing.push('주소(D열)');
-                        if (!cell(r[4])) missing.push('상품명(E열)');
-                        if (!normalizePhone(r[7])) missing.push('받는사람 연락처(H열)');
+                        if (!cell(r[2])) missing.push(`수화인명(${colName(2)}열)`);
+                        if (!cell(r[3])) missing.push(`주소(${colName(3)}열)`);
+                        if (!cell(r[4])) missing.push(`상품명(${colName(4)}열)`);
+                        if (!normalizePhone(r[7])) missing.push(`받는사람 연락처(${colName(7)}열)`);
                         if (missing.length > 0) missingFieldRows.push({ row: excelRowNo, fields: missing.join(', ') });
 
                         batchOrders.push({
@@ -1291,7 +1321,7 @@
                         const errorDetails = invalidSenderRows.slice(0, 5).map(item => `  • ${item.row}행: "${item.val}"`).join('\n');
                         const moreMsg = invalidSenderRows.length > 5 ? `\n  ...외 ${invalidSenderRows.length - 5}건` : '';
 
-                        alert(`❌ [송화인명 입력 오류로 업로드 차단]\n\nA열(송화인명)은 반드시 '밤낮딜리버리(본인업체상호)' 형식으로 작성해 주셔야 합니다.\n\n[오류 발생 행 목록]\n${errorDetails}${moreMsg}\n\n올바른 작성 예시: 밤낮딜리버리(${currentSellerAccount.company})\n\n엑셀 파일 수정 후 다시 업로드해 주세요!`);
+                        alert(`❌ [송화인명 입력 오류로 업로드 차단]\n\n송화인명(${colName(0)}열)은 반드시 '밤낮딜리버리(본인업체상호)' 형식으로 작성해 주셔야 합니다.\n\n[오류 발생 행 목록]\n${errorDetails}${moreMsg}\n\n올바른 작성 예시: 밤낮딜리버리(${currentSellerAccount.company})\n\n엑셀 파일 수정 후 다시 업로드해 주세요!`);
                         e.target.value = '';
                         return;
                     }
@@ -1331,7 +1361,9 @@
                     }
 
                     ordersMaster.unshift(...savedOrders);
+                    sortOrdersMaster();
                     alert(`총 ${batchOrders.length}건의 주문이 성공적으로 접수되었습니다!`);
+                    if (isKakaoNoticeTime()) alert(KAKAO_NOTICE_MESSAGE);
                     e.target.value = '';
                     renderSellerTable();
                 } catch (err) {
@@ -1347,15 +1379,9 @@
             const order = ordersMaster.find(o => o.id === orderId);
             if (!order) return;
 
-            if (currentRole === 'seller') {
-                if (!canModifyOrders()) {
-                    alert('마감 시간(07:00 ~ 15:00) 중에는 주문을 수정할 수 없습니다.');
-                    return;
-                }
-                if (order.status !== '접수대기') {
-                    alert('접수완료된 주문은 수정할 수 없습니다.');
-                    return;
-                }
+            if (currentRole === 'seller' && !canEditOrder(order)) {
+                alert('관리자 마감(접수완료) 또는 출고된 주문은 수정할 수 없습니다.');
+                return;
             }
 
             document.getElementById('edit-order-id').value = order.id;
@@ -1445,7 +1471,7 @@
                 }
                 // 권한/시간 조건에 막히면 오류 없이 0건이 수정됩니다.
                 if (!data || data.length === 0) {
-                    alert('주문을 수정할 수 없습니다. 마감 시간이거나 이미 접수완료된 주문입니다.');
+                    alert('주문을 수정할 수 없습니다. 관리자 마감(접수완료) 또는 출고된 주문입니다.');
                     closeEditModal();
                     fetchOrdersFromDB();
                     return;
@@ -1473,6 +1499,53 @@
             return `<span class="px-2 py-1 rounded text-[10px] font-bold ${cls}">${escapeHtml(status)}</span>`;
         }
 
+        // ---------------- 주문 번호 / 출고 상태 ----------------
+        // 주문번호 큰 순서(최신) → 같은 주문 안에서는 상품 번호 순서
+        function sortOrdersMaster() {
+            ordersMaster.sort((a, b) =>
+                (Number(b.order_no) || 0) - (Number(a.order_no) || 0)
+                || (Number(a.item_no) || 0) - (Number(b.item_no) || 0)
+                || String(b.created_at || '').localeCompare(String(a.created_at || '')));
+        }
+
+        // 주문(order_no)별 상품 수 / 출고된 상품 수
+        function getOrderGroups(list = ordersMaster) {
+            const groups = {};
+            list.forEach(o => {
+                if (o.order_no == null) return;
+                const g = groups[o.order_no] = groups[o.order_no] || { total: 0, shipped: 0 };
+                g.total++;
+                if (o.ship_status === '출고완료') g.shipped++;
+            });
+            return groups;
+        }
+
+        // 화면/엑셀에 표시할 NO. : 합배송(여러 상품)은 15-1, 15-2 / 단일 상품은 16
+        function orderNoLabel(o, groups) {
+            if (o.order_no == null) return '-';
+            const g = (groups || getOrderGroups())[o.order_no];
+            const multi = (g && g.total > 1) || Number(o.item_no) > 1;
+            return multi ? `${o.order_no}-${o.item_no}` : String(o.order_no);
+        }
+
+        // 주문 단위 출고 상태: 미출고 / 부분출고 / 출고완료
+        function orderShipState(o, groups) {
+            const g = (groups || getOrderGroups())[o.order_no];
+            if (!g) return o.ship_status === '출고완료' ? '출고완료' : '미출고';
+            if (g.shipped === 0) return '미출고';
+            if (g.shipped === g.total) return '출고완료';
+            return '부분출고';
+        }
+
+        function shipBadgeHtml(o, groups) {
+            const item = o.ship_status === '출고완료'
+                ? '<span class="px-2 py-1 rounded text-[10px] font-bold bg-sky-100 text-sky-700">출고완료</span>'
+                : '<span class="px-2 py-1 rounded text-[10px] font-bold bg-slate-100 text-slate-500">미출고</span>';
+            const g = (groups || getOrderGroups())[o.order_no];
+            const partial = g && g.total > 1 && g.shipped > 0 && g.shipped < g.total;
+            return item + (partial ? `<span class="block mt-1 text-[10px] font-bold text-orange-600">부분출고 ${g.shipped}/${g.total}</span>` : '');
+        }
+
         function renderSellerTable() {
             const tbody = document.getElementById('seller-order-list');
             const myOrders = ordersMaster.filter(o => o.seller_id === currentUserId);
@@ -1480,12 +1553,13 @@
             document.getElementById('chk-all-seller').checked = false;
 
             if (myOrders.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="11" class="text-center py-6 text-slate-400">접수된 주문이 없습니다.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="13" class="text-center py-6 text-slate-400">접수된 주문이 없습니다.</td></tr>`;
                 return;
             }
 
+            const groups = getOrderGroups();
             tbody.innerHTML = myOrders.map(o => {
-                const canEdit = canModifyOrders() && o.status === '접수대기';
+                const canEdit = canEditOrder(o);
                 const isExcel = String(o.id).startsWith('ORD-EXCEL-');
                 const id = escapeHtml(o.id);
                 const fullAddress = escapeHtml(`${o.address || ''} ${o.detail_address || ''}`.trim());
@@ -1495,7 +1569,8 @@
                         <td class="p-3 text-center">
                             <input type="checkbox" value="${id}" ${canEdit ? '' : 'disabled'} class="seller-chk-item rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-40">
                         </td>
-                        <td class="p-3 font-mono font-bold text-slate-900">
+                        <td class="p-3 font-mono font-black text-indigo-700 whitespace-nowrap">${escapeHtml(orderNoLabel(o, groups))}</td>
+                        <td class="p-3 font-mono text-[10px] text-slate-500">
                             ${id}
                             ${isExcel ? '<span class="ml-1 text-[9px] bg-amber-100 text-amber-800 font-bold px-1 rounded">엑셀</span>' : ''}
                         </td>
@@ -1510,6 +1585,7 @@
                         <td class="p-3 max-w-xs truncate text-amber-700 font-medium">${escapeHtml(o.bamnat_memo || '-')}</td>
                         <td class="p-3 text-slate-400 whitespace-nowrap">${escapeHtml(formatKstDateTime(o.created_at))}</td>
                         <td class="p-3">${statusBadgeHtml(o.status)}</td>
+                        <td class="p-3 whitespace-nowrap">${shipBadgeHtml(o, groups)}</td>
                         <td class="p-3 text-center">
                             ${canEdit ? `
                                 <div class="flex items-center justify-center gap-1">
@@ -1548,7 +1624,7 @@
             ordersMaster = ordersMaster.filter(o => !deleted.includes(o.id));
             if (failure || deleted.length < ids.length) {
                 renderSellerTable();
-                const reason = failure ? dbErrorMessage(failure) : '마감 시간이거나 이미 접수완료된 주문은 삭제할 수 없습니다.';
+                const reason = failure ? dbErrorMessage(failure) : '관리자 마감(접수완료) 또는 출고된 주문은 삭제할 수 없습니다.';
                 alert(`${ids.length}건 중 ${deleted.length}건만 삭제되었습니다.\n\n${reason}`);
                 fetchOrdersFromDB();
                 return false;
@@ -1558,7 +1634,7 @@
 
         async function deleteOrder(id) {
             if (!canModifyOrders()) {
-                alert('마감 시간 중에는 주문을 삭제할 수 없습니다.');
+                alert('관리자 승인 전이거나 이용이 정지된 계정은 주문을 삭제할 수 없습니다.');
                 return;
             }
 
@@ -1569,7 +1645,7 @@
 
         async function deleteSelectedOrders() {
             if (!canModifyOrders()) {
-                alert('마감 시간 중에는 주문을 삭제할 수 없습니다.');
+                alert('관리자 승인 전이거나 이용이 정지된 계정은 주문을 삭제할 수 없습니다.');
                 return;
             }
 
@@ -1590,14 +1666,14 @@
 
         async function deleteExcelOrdersOnly() {
             if (!canModifyOrders()) {
-                alert('마감 시간 중에는 주문을 삭제할 수 없습니다.');
+                alert('관리자 승인 전이거나 이용이 정지된 계정은 주문을 삭제할 수 없습니다.');
                 return;
             }
 
             const excelOrders = ordersMaster.filter(o =>
                 o.seller_id === currentUserId &&
                 String(o.id).startsWith('ORD-EXCEL-') &&
-                o.status === '접수대기'
+                canEditOrder(o)
             );
 
             if (excelOrders.length === 0) {
@@ -1623,28 +1699,58 @@
             select.value = companies.includes(previous) ? previous : 'ALL';
         }
 
+        // 관리자 화면의 현재 필터(거래처 + 출고상태)를 적용한 주문 목록
+        function getAdminFilteredOrders() {
+            const sellerFilter = document.getElementById('admin-seller-filter').value;
+            const shipFilter = document.getElementById('admin-ship-filter').value;
+            const groups = getOrderGroups();
+            return ordersMaster.filter(o => {
+                if (sellerFilter !== 'ALL' && o.seller_company !== sellerFilter) return false;
+                if (shipFilter === 'ALL') return true;
+                const state = orderShipState(o, groups);
+                return shipFilter === 'NOT_DONE' ? state !== '출고완료' : state === shipFilter;
+            });
+        }
+
         function renderAdminTable() {
-            const filterValue = document.getElementById('admin-seller-filter').value;
             const tbody = document.getElementById('admin-order-list');
+            const groups = getOrderGroups();
+            const filtered = getAdminFilteredOrders();
+            document.getElementById('chk-all-admin').checked = false;
 
-            let filtered = ordersMaster;
-            if (filterValue !== 'ALL') {
-                filtered = ordersMaster.filter(o => o.seller_company === filterValue);
-            }
+            // 주문 단위 요약 (전체 기준)
+            const summary = { '미출고': 0, '부분출고': 0, '출고완료': 0 };
+            const seen = new Set();
+            ordersMaster.forEach(o => {
+                const key = o.order_no ?? o.id;
+                if (seen.has(key)) return;
+                seen.add(key);
+                summary[orderShipState(o, groups)]++;
+            });
+            document.getElementById('admin-ship-summary').innerText =
+                `주문 기준 · 미출고 ${summary['미출고']} · 부분출고 ${summary['부분출고']} · 출고완료 ${summary['출고완료']}`;
 
-            document.getElementById('admin-order-count').innerText = `총 ${filtered.length}건`;
+            const orderCount = new Set(filtered.map(o => o.order_no ?? o.id)).size;
+            document.getElementById('admin-order-count').innerText = `주문 ${orderCount}건 · 상품 ${filtered.length}개`;
 
             if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="11" class="text-center py-6 text-slate-400">등록된 주문 내역이 없습니다.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="14" class="text-center py-6 text-slate-400">등록된 주문 내역이 없습니다.</td></tr>`;
                 return;
             }
 
+            let prevNo = null;
             tbody.innerHTML = filtered.map(o => {
                 const id = escapeHtml(o.id);
+                const state = orderShipState(o, groups);
+                const rowBg = state === '부분출고' ? 'bg-orange-50/70' : state === '출고완료' ? 'bg-slate-50 text-slate-400' : '';
+                const newGroup = o.order_no !== prevNo;
+                prevNo = o.order_no;
+                const shipped = o.ship_status === '출고완료';
                 return `
-                <tr class="hover:bg-slate-50 transition">
+                <tr class="hover:bg-slate-100/60 transition ${rowBg} ${newGroup ? 'border-t-2 border-slate-200' : ''}">
+                    <td class="p-3 text-center"><input type="checkbox" value="${id}" class="admin-chk-item rounded border-slate-300"></td>
+                    <td class="p-3 font-mono font-black text-indigo-700 whitespace-nowrap">${escapeHtml(orderNoLabel(o, groups))}</td>
                     <td class="p-3 font-bold text-slate-900">${escapeHtml(o.sender_name || `밤낮딜리버리(${o.seller_company})`)}</td>
-                    <td class="p-3 font-mono text-slate-500">${id}</td>
                     <td class="p-3 font-semibold">${escapeHtml(o.recipient)}</td>
                     <td class="p-3">${escapeHtml(o.phone)}</td>
                     <td class="p-3 max-w-xs truncate">${escapeHtml(`${o.address || ''} ${o.detail_address || ''}`.trim())}</td>
@@ -1653,14 +1759,52 @@
                     <td class="p-3 text-amber-700 font-medium">${escapeHtml(o.bamnat_memo || '-')}</td>
                     <td class="p-3 text-slate-400 whitespace-nowrap">${escapeHtml(formatKstDateTime(o.created_at))}</td>
                     <td class="p-3">${statusBadgeHtml(o.status)}</td>
+                    <td class="p-3 whitespace-nowrap">${shipBadgeHtml(o, groups)}</td>
                     <td class="p-3 text-center">
-                        <button data-id="${id}" onclick="openEditModal(this.dataset.id)" class="px-2.5 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold rounded text-[11px]">
-                            수정
-                        </button>
+                        <div class="flex items-center justify-center gap-1">
+                            <button data-id="${id}" onclick="setShipStatus([this.dataset.id], '${shipped ? '미출고' : '출고완료'}')" class="px-2 py-1 ${shipped ? 'bg-white border border-slate-200 text-slate-500' : 'bg-sky-600 text-white hover:bg-sky-700'} font-bold rounded text-[11px] whitespace-nowrap">
+                                ${shipped ? '출고취소' : '출고'}
+                            </button>
+                            <button data-id="${id}" onclick="openEditModal(this.dataset.id)" class="px-2 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold rounded text-[11px]">
+                                수정
+                            </button>
+                        </div>
                     </td>
                 </tr>
             `;
             }).join('');
+        }
+
+        // 관리자: 상품(행) 단위로 출고 상태 변경
+        async function setShipStatus(ids, status) {
+            if (!ids.length) return;
+            const updated = [];
+            for (let i = 0; i < ids.length; i += 200) {
+                const chunk = ids.slice(i, i + 200);
+                const { data, error } = await supabaseClient.from('orders').update({ ship_status: status }).in('id', chunk).select();
+                if (error) {
+                    alert('출고 상태 저장 중 오류가 발생했습니다.\n\n' + dbErrorMessage(error));
+                    break;
+                }
+                updated.push(...(data || []));
+            }
+            updated.forEach(row => {
+                const idx = ordersMaster.findIndex(o => o.id === row.id);
+                if (idx !== -1) ordersMaster[idx] = row;
+            });
+            renderAdminTable();
+            return updated.length;
+        }
+
+        async function setShipStatusForSelected(status) {
+            const ids = Array.from(document.querySelectorAll('.admin-chk-item:checked')).map(c => c.value);
+            if (ids.length === 0) {
+                alert('출고 상태를 바꿀 상품을 체크박스로 선택해주세요.');
+                return;
+            }
+            if (!confirm(`선택한 상품 ${ids.length}개를 [${status}] 로 변경할까요?`)) return;
+            const n = await setShipStatus(ids, status);
+            if (n) alert(`${n}개 상품이 [${status}] 로 변경되었습니다.`);
         }
 
         async function confirmAdminBatch() {
@@ -1918,73 +2062,17 @@
                 ];
                 const ws1 = XLSX.utils.aoa_to_sheet(sheet1Data);
 
-                // 2번 시트: 풀필먼트 엑셀양식 (로그인한 셀러의 송화인명/연락처를 미리 채워둡니다)
+                // 2번 시트: 풀필먼트 엑셀양식 (2026 신규양식: A열 NO. 추가)
+                // 로그인한 셀러의 송화인명/연락처를 앞 3줄에 미리 채워둡니다.
                 const mySender = currentSellerAccount ? `밤낮딜리버리(${currentSellerAccount.company})` : '';
                 const myPhone = (currentSellerAccount && currentSellerAccount.phone) || '';
-                const sheet2Data = [
-                    ["[고객 풀필먼트 요청서] 노란색바탕 아래행을 작성해 주시면 됩니다", "", "초록색은 \"고정값\" 입니다", "", "대납금 입금계좌는 [ 신한은행 110 359 193710 이현재 ] 입니다", "", "", "", "", "", "", "", ""],
-                    ["송화인명(보내는사람) -> \n밤낮딜리버리(대표님 업체상호)로 적어주세요\nEX) 밤낮딜리버리(스타일난다)", "대표님C/S\n가능한연락처", "수화인명(받는사람)", "주소(받는사람)", "쇼핑몰 상품명(상품명 / 컬러 / 사이즈 / 수량\"개\")\nex) 라운드티 / 그레이 / M / 1개\n도매명과 쇼핑몰명이 동일한경우, \n동일하게 도매명으로 적어주셔도 됩니다", "도매거래처명", "도매 상품명", "전화번호,휴대폰(받는사람)", "배송메세지", "밤낮딜리버리 전달메세지", "수량(고정값)", "보내는사람주소(고정값,변경금지!)", "보내는사람 우편번호\n(고정값,변경금지!)"],
-                    [mySender, myPhone, "", "", "", "", "", "", "", "", 1, "서울특별시 광진구 강변역로 2 C동 3층 물류센터 한국물류8 밤낮딜리버리", "05048"],
-                    [mySender, myPhone, "", "", "", "", "", "", "", "", 1, "서울특별시 광진구 강변역로 2 C동 3층 물류센터 한국물류8 밤낮딜리버리", "05048"],
-                    [mySender, myPhone, "", "", "", "", "", "", "", "", 1, "서울특별시 광진구 강변역로 2 C동 3층 물류센터 한국물류8 밤낮딜리버리", "05048"]
-                ];
-
-                for (let r = 6; r <= 30; r++) {
-                    sheet2Data.push(["", "", "", "", "", "", "", "", "", "", 1, "서울특별시 광진구 강변역로 2 C동 3층 물류센터 한국물류8 밤낮딜리버리", "05048"]);
+                const dataRows = [];
+                for (let n = 1; n <= 28; n++) {
+                    const prefill = n <= 3;
+                    dataRows.push([n <= 21 ? n : '', prefill ? mySender : '', prefill ? myPhone : '', '', '', '', '', '', '', '', '',
+                        1, FULFILLMENT_SENDER_ADDRESS, FULFILLMENT_SENDER_ZIP]);
                 }
-
-                const ws2 = XLSX.utils.aoa_to_sheet(sheet2Data);
-
-                // 컬럼 너비 지정
-                ws2['!cols'] = [
-                    { wch: 35 }, { wch: 18 }, { wch: 18 }, { wch: 35 }, { wch: 45 },
-                    { wch: 16 }, { wch: 16 }, { wch: 22 }, { wch: 20 }, { wch: 30 },
-                    { wch: 12 }, { wch: 55 }, { wch: 18 }
-                ];
-
-                // 헤더 행 높이 지정
-                ws2['!rows'] = [{ hpt: 24 }, { hpt: 65 }];
-
-                // 바탕색 배경 스타일 지정 (A1: 주황, C1: 초록)
-                if (ws2['A1']) ws2['A1'].s = { fill: { fgColor: { rgb: "FFC000" } }, font: { bold: true, sz: 10 } };
-                if (ws2['C1']) ws2['C1'].s = { fill: { fgColor: { rgb: "92D050" } }, font: { bold: true, sz: 10 } };
-
-                // Row 2 헤더 바탕색 설정 (A~I: 노란색, J: 주황색, K~M: 초록색)
-                const cols = ['A','B','C','D','E','F','G','H','I','J','K','L','M'];
-                cols.forEach((col, idx) => {
-                    const cellRef = col + '2';
-                    if (!ws2[cellRef]) return;
-
-                    let bgColor = "FFFF00"; // 노란색 (A ~ I)
-                    if (idx === 9) bgColor = "FFC000"; // 주황색 (J)
-                    else if (idx >= 10) bgColor = "92D050"; // 초록색 (K ~ M)
-
-                    ws2[cellRef].s = {
-                        fill: { fgColor: { rgb: bgColor } },
-                        font: { name: "Pretendard", sz: 10, bold: true },
-                        alignment: { wrapText: true, vertical: "center", horizontal: "center" },
-                        border: {
-                            top: { style: "thin", color: { rgb: "CCCCCC" } },
-                            bottom: { style: "thin", color: { rgb: "CCCCCC" } },
-                            left: { style: "thin", color: { rgb: "CCCCCC" } },
-                            right: { style: "thin", color: { rgb: "CCCCCC" } }
-                        }
-                    };
-                });
-
-                // Row 3 ~ 30 고정값 셀 (K, L, M) 연한 초록색 바탕
-                for (let r = 3; r <= 30; r++) {
-                    ['K', 'L', 'M'].forEach(col => {
-                        const cellRef = col + r;
-                        if (ws2[cellRef]) {
-                            ws2[cellRef].s = {
-                                fill: { fgColor: { rgb: "E2EFDA" } },
-                                font: { sz: 9 },
-                                alignment: { vertical: "center" }
-                            };
-                        }
-                    });
-                }
+                const ws2 = buildFulfillmentSheet(dataRows);
 
                 XLSX.utils.book_append_sheet(wb, ws1, "풀필먼트 작성안내");
                 XLSX.utils.book_append_sheet(wb, ws2, "풀필먼트 엑셀양식");
@@ -1996,30 +2084,130 @@
             }
         }
 
-        function downloadMasterExcel() {
-            const exportData = ordersMaster.map(o => ({
-                '송화인명(보내는사람)': o.sender_name || `밤낮딜리버리(${o.seller_company})`,
-                '대표님C/S 가능한연락처': o.cs_phone || '',
-                '수화인명(받는사람)': o.recipient,
-                '주소(받는사람)': `${o.address} ${o.detail_address || ''}`,
-                '쇼핑몰 상품명': o.product,
-                '도매거래처명': o.wholesale_company || '',
-                '도매 상품명': o.wholesale_product || '',
-                '전화번호,휴대폰(받는사람)': o.phone,
-                '배송메세지': o.memo || '',
-                '밤낮딜리버리 전달메세지': o.bamnat_memo || '',
-                '수량(고정값)': o.qty || 1,
-                '보내는사람주소': '서울특별시 광진구 강변역로 2 C동 3층 물류센터 한국물류8 밤낮딜리버리',
-                '보내는사람 우편번호': '05048',
-                '접수일시': formatKstDateTime(o.created_at),
-                '처리상태': o.status
-            }));
+        // ---------------- 2026 풀필먼트 엑셀양식 (업로드 양식 / 관리자 다운로드 공통) ----------------
+        const FULFILLMENT_SENDER_ADDRESS = '서울특별시 광진구 강변역로 2 C동 3층 물류센터 한국물류8 밤낮딜리버리';
+        const FULFILLMENT_SENDER_ZIP = '05048';
+        const FULFILLMENT_HEADERS = [
+            'NO.',
+            '송화인명(보내는사람) -> \n밤낮딜리버리(대표님 업체상호)로 적어주세요\nEX) 밤낮딜리버리(스타일난다)',
+            '대표님C/S\n가능한연락처',
+            '수화인명(받는사람)',
+            '주소(받는사람)',
+            '쇼핑몰 상품명(상품명 / 컬러 / 사이즈 / 수량"개")\nex) 라운드티 / 그레이 / M / 1개\n도매명과 쇼핑몰명이 동일한경우, \n동일하게 도매명으로 적어주셔도 됩니다',
+            '도매거래처명',
+            '도매 상품명',
+            '전화번호,휴대폰(받는사람)',
+            '배송메세지',
+            '밤낮딜리버리 전달메세지',
+            '수량(고정값)',
+            '보내는사람주소(고정값,변경금지!)',
+            '보내는사람 우편번호\n(고정값,변경금지!)'
+        ];
+        const FULFILLMENT_COL_WIDTHS = [8, 40, 14, 16, 45, 50, 12, 12, 18, 20, 26, 10, 55, 16];
 
-            const ws = XLSX.utils.json_to_sheet(exportData);
+        // rows: [NO, 송화인, C/S, 수화인, 주소, 상품명, 도매처, 도매상품, 받는분전화, 배송메세지, 밤낮메세지, 수량, 보내는주소, 우편번호, ...추가열]
+        // extraHeaders: N열 뒤에 붙일 관리자용 열 이름 (회색 머리글)
+        function buildFulfillmentSheet(rows, extraHeaders = [], extraWidths = []) {
+            const width = FULFILLMENT_HEADERS.length + extraHeaders.length;
+            const title = new Array(width).fill('');
+            title[0] = '[고객 풀필먼트 요청서] 노란색바탕 아래행을 작성해 주시면 됩니다';
+            title[3] = '초록색은 "고정값" 입니다';
+            title[5] = '대납금 입금계좌는 [ 신한은행 110 359 193710 이현재 ] 입니다';
+            const ws = XLSX.utils.aoa_to_sheet([title, [...FULFILLMENT_HEADERS, ...extraHeaders], ...rows]);
+
+            ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
+            ws['!cols'] = [...FULFILLMENT_COL_WIDTHS, ...extraWidths].map(w => ({ wch: w }));
+            ws['!rows'] = [{ hpt: 24 }, { hpt: 65 }];
+
+            const thin = { style: 'thin', color: { rgb: 'BFBFBF' } };
+            const border = { top: thin, bottom: thin, left: thin, right: thin };
+            const addr = (r, c) => XLSX.utils.encode_cell({ r, c });
+            const style = (r, c, st) => { const a = addr(r, c); if (!ws[a]) ws[a] = { t: 's', v: '' }; ws[a].s = st; };
+
+            // 1행: A1(주황, A1:B1 병합) / D1(초록) / F1(안내)
+            style(0, 0, { fill: { fgColor: { rgb: 'FFC000' } }, font: { bold: true, sz: 10 } });
+            style(0, 1, { fill: { fgColor: { rgb: 'FFC000' } } });
+            style(0, 3, { fill: { fgColor: { rgb: '92D050' } }, font: { bold: true, sz: 10 } });
+            style(0, 5, { font: { bold: true, sz: 10 } });
+
+            // 2행 머리글: A(NO.) 흰색 / B~J 노랑 / K 주황 / L~N 초록 / 추가열 회색
+            for (let c = 0; c < width; c++) {
+                let rgb = null;
+                if (c >= 1 && c <= 9) rgb = 'FFFF00';
+                else if (c === 10) rgb = 'FFC000';
+                else if (c >= 11 && c <= 13) rgb = '92D050';
+                else if (c >= 14) rgb = 'D9D9D9';
+                style(1, c, {
+                    ...(rgb ? { fill: { fgColor: { rgb } } } : {}),
+                    font: { sz: 10, bold: true },
+                    alignment: { wrapText: true, vertical: 'center', horizontal: 'center' },
+                    border
+                });
+            }
+
+            // 데이터: L~N(고정값) 연한 초록
+            for (let r = 2; r < rows.length + 2; r++) {
+                for (let c = 11; c <= 13; c++) {
+                    style(r, c, { fill: { fgColor: { rgb: 'E2EFDA' } }, font: { sz: 9 }, alignment: { vertical: 'center' } });
+                }
+                const noCell = ws[addr(r, 0)];
+                if (noCell) noCell.s = { alignment: { horizontal: 'center' }, font: { bold: true } };
+            }
+            return ws;
+        }
+
+        // 관리자: 현재 필터(거래처/출고상태) 기준으로 2026 양식 그대로 다운로드
+        function downloadMasterExcel() {
+            const list = getAdminFilteredOrders();
+            if (list.length === 0) {
+                alert('다운로드할 주문이 없습니다. (필터를 확인해주세요)');
+                return;
+            }
+            const groups = getOrderGroups();
+            const rows = list.map(o => {
+                const state = orderShipState(o, groups);
+                const g = groups[o.order_no];
+                return [
+                    orderNoLabel(o, groups),
+                    o.sender_name || `밤낮딜리버리(${o.seller_company})`,
+                    o.cs_phone || '',
+                    o.recipient || '',
+                    `${o.address || ''} ${o.detail_address || ''}`.trim(),
+                    o.product || '',
+                    o.wholesale_company || '',
+                    o.wholesale_product || '',
+                    o.phone || '',
+                    o.memo || '',
+                    o.bamnat_memo || '',
+                    o.qty || 1,
+                    FULFILLMENT_SENDER_ADDRESS,
+                    FULFILLMENT_SENDER_ZIP,
+                    // 관리자용 추가 열
+                    o.ship_status || '미출고',
+                    state === '부분출고' ? `부분출고 (${g.shipped}/${g.total})` : state,
+                    o.seller_company || '',
+                    formatKstDateTime(o.created_at),
+                    o.status || ''
+                ];
+            });
+            const ws = buildFulfillmentSheet(rows,
+                ['상품 출고상태', '주문 출고상태', '거래처(상호)', '접수일시', '처리상태'],
+                [12, 16, 14, 17, 10]);
+
+            // 주문 출고상태 색상: 부분출고 주황 / 출고완료 하늘색
+            rows.forEach((row, i) => {
+                const a = XLSX.utils.encode_cell({ r: i + 2, c: 15 });
+                const state = String(row[15]);
+                const rgb = state.startsWith('부분출고') ? 'F8CBAD' : state === '출고완료' ? 'DDEBF7' : null;
+                if (rgb && ws[a]) ws[a].s = { fill: { fgColor: { rgb } }, font: { bold: true } };
+            });
+
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "통합주문마스터");
+            XLSX.utils.book_append_sheet(wb, ws, '풀필먼트 엑셀양식');
             const p = getKstParts();
-            XLSX.writeFile(wb, `밤낮딜리버리_통합주문_마스터_${p.y}-${p.m}-${p.d}.xlsx`);
+            const shipFilter = document.getElementById('admin-ship-filter');
+            const label = shipFilter.value === 'ALL' ? '전체' : shipFilter.options[shipFilter.selectedIndex].text.replace(/\s|\+/g, '');
+            XLSX.writeFile(wb, `밤낮딜리버리_주문_${label}_${p.y}-${p.m}-${p.d}.xlsx`);
         }
     </script>
 </body>

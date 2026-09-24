@@ -99,10 +99,9 @@ as $$
 $$;
 
 -- ---------------------------------------------------------------------
--- 2. 접수 시간 규칙 (한국 시간 기준, 서버에서 강제)
---    15:00 ~ 익일 07:00 : 신규 접수 + 수정/삭제 가능
---    07:00 ~ 10:00      : 신규 접수만 가능
---    10:00 ~ 15:00      : 마감 (셀러는 아무것도 불가)
+-- 2. 접수 시간: 24시간 접수 가능
+--    (07:30~14:00 접수건에 대한 카카오톡 안내는 화면에서 알림창으로 처리합니다)
+--    예전 버전에서 쓰던 시간 함수는 호환을 위해 남겨두되 항상 허용합니다.
 -- ---------------------------------------------------------------------
 create or replace function public.kst_hour()
 returns int
@@ -119,7 +118,7 @@ language sql
 stable
 set search_path = public
 as $$
-    select public.kst_hour() >= 15 or public.kst_hour() < 10;
+    select true;
 $$;
 
 create or replace function public.can_modify_orders()
@@ -128,7 +127,7 @@ language sql
 stable
 set search_path = public
 as $$
-    select public.kst_hour() >= 15 or public.kst_hour() < 7;
+    select true;
 $$;
 
 -- ---------------------------------------------------------------------
@@ -160,9 +159,88 @@ alter table public.orders alter column created_at set default now();
 create index if not exists orders_seller_id_idx on public.orders (seller_id);
 create index if not exists orders_created_at_idx on public.orders (created_at desc);
 create index if not exists orders_status_idx on public.orders (status);
+
+-- 주문 번호 / 출고 관리
+--   order_no    : 주문 번호 (합배송 '(합)' 상품은 같은 받는분이면 같은 번호로 묶임)
+--   item_no     : 주문 안의 상품 번호 (예: 15-1, 15-2)
+--   ship_status : 상품별 출고 상태 ('미출고' / '출고완료')
+create sequence if not exists public.orders_order_no_seq;
+alter table public.orders add column if not exists order_no bigint;
+alter table public.orders add column if not exists item_no integer;
+alter table public.orders add column if not exists ship_status text;
+alter table public.orders add column if not exists shipped_at timestamptz;
+update public.orders set ship_status = '미출고' where ship_status is null;
+alter table public.orders alter column ship_status set default '미출고';
+alter table public.orders alter column ship_status set not null;
+do $$
+begin
+    if not exists (select 1 from pg_constraint where conname = 'orders_ship_status_check') then
+        alter table public.orders add constraint orders_ship_status_check
+            check (ship_status in ('미출고', '출고완료'));
+    end if;
+end;
+$$;
+create index if not exists orders_order_no_idx on public.orders (order_no desc, item_no);
 alter table public.orders enable row level security;
 
--- 셀러가 다른 업체 이름으로 등록하거나, 상태(접수완료)를 스스로 바꾸는 것을 막습니다.
+-- 합배송 묶음 비교용: 공백 제거 / 숫자만
+create or replace function public.norm_text(v text)
+returns text
+language sql
+immutable
+as $$
+    select regexp_replace(coalesce(v, ''), '\s', '', 'g');
+$$;
+
+create or replace function public.norm_phone(v text)
+returns text
+language sql
+immutable
+as $$
+    select regexp_replace(coalesce(v, ''), '\D', '', 'g');
+$$;
+
+-- 새 주문(상품)에 붙일 번호를 정합니다.
+-- 상품명에 '(합)'이 있으면, 같은 셀러 + 같은 받는분(이름/연락처/주소) + 같은 상태의
+-- '(합)' 주문이 이미 있을 때 그 번호에 이어 붙입니다 (15-1, 15-2 ...).
+-- 그 외에는 새 번호를 받습니다.
+create or replace function public.orders_pick_number(
+    p_id text, p_seller uuid, p_recipient text, p_phone text,
+    p_address text, p_detail text, p_product text, p_status text,
+    out o_order_no bigint, out o_item_no integer)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+    if coalesce(p_product, '') like '%(합)%' then
+        select o.order_no into o_order_no
+        from public.orders o
+        where o.order_no is not null
+          and o.id <> coalesce(p_id, '')
+          and o.seller_id is not distinct from p_seller
+          and coalesce(o.status, '접수대기') = coalesce(p_status, '접수대기')
+          and o.product like '%(합)%'
+          and public.norm_text(o.recipient) = public.norm_text(p_recipient)
+          and public.norm_phone(o.phone) = public.norm_phone(p_phone)
+          and public.norm_text(o.address || coalesce(o.detail_address, ''))
+              = public.norm_text(p_address || coalesce(p_detail, ''))
+        order by o.created_at desc
+        limit 1;
+    end if;
+
+    if o_order_no is null then
+        o_order_no := nextval('public.orders_order_no_seq');
+        o_item_no := 1;
+    else
+        select coalesce(max(item_no), 0) + 1 into o_item_no
+        from public.orders where order_no = o_order_no;
+    end if;
+end;
+$$;
+
+-- 셀러가 다른 업체 이름으로 등록하거나, 상태(접수완료)/출고상태/주문번호를 스스로 바꾸는 것을 막습니다.
+-- 관리자, 그리고 SQL Editor 에서 직접 실행하는 경우(auth.uid() 없음)는 제한하지 않습니다.
 create or replace function public.orders_enforce_owner()
 returns trigger
 language plpgsql
@@ -171,6 +249,7 @@ set search_path = public
 as $$
 declare
     v_company text;
+    v_privileged boolean := public.is_admin() or auth.uid() is null;
 begin
     if tg_op = 'UPDATE' then
         -- 주문의 주인과 접수번호/접수시간은 누구도 바꿀 수 없습니다.
@@ -178,26 +257,44 @@ begin
         new.seller_id := old.seller_id;
         new.seller_company := old.seller_company;
         new.created_at := old.created_at;
-        if not public.is_admin() then
+        -- 주문 번호는 한 번 정해지면 바뀌지 않습니다. (예전 주문에 번호를 채울 때만 허용)
+        if old.order_no is not null or not v_privileged then
+            new.order_no := old.order_no;
+            new.item_no := old.item_no;
+        end if;
+        if not v_privileged then
             new.status := old.status;
+            new.ship_status := old.ship_status;
+            new.shipped_at := old.shipped_at;
+        elsif new.ship_status is distinct from old.ship_status then
+            new.shipped_at := case when new.ship_status = '출고완료' then now() else null end;
         end if;
         return new;
     end if;
 
     -- INSERT
-    if public.is_admin() then
-        return new;
+    if not v_privileged then
+        select company into v_company from public.profiles where id = auth.uid();
+        if v_company is null then
+            raise exception '셀러 정보가 없는 계정입니다.' using errcode = '42501';
+        end if;
+
+        new.seller_id := auth.uid();
+        new.seller_company := v_company;
+        new.status := '접수대기';
+        new.created_at := now();
+        new.ship_status := '미출고';
+        new.shipped_at := null;
+        new.order_no := null;
+        new.item_no := null;
     end if;
 
-    select company into v_company from public.profiles where id = auth.uid();
-    if v_company is null then
-        raise exception '셀러 정보가 없는 계정입니다.' using errcode = '42501';
+    if new.order_no is null then
+        select o_order_no, o_item_no into new.order_no, new.item_no
+        from public.orders_pick_number(new.id, new.seller_id, new.recipient, new.phone,
+                                       new.address, new.detail_address, new.product,
+                                       coalesce(new.status, '접수대기'));
     end if;
-
-    new.seller_id := auth.uid();
-    new.seller_company := v_company;
-    new.status := '접수대기';
-    new.created_at := now();
     return new;
 end;
 $$;
@@ -206,6 +303,22 @@ drop trigger if exists orders_enforce_owner on public.orders;
 create trigger orders_enforce_owner
     before insert or update on public.orders
     for each row execute function public.orders_enforce_owner();
+
+-- 번호가 없는 기존 주문에 접수 순서대로 주문 번호를 채워 넣습니다.
+do $$
+declare
+    r record;
+    v_no bigint;
+    v_item integer;
+begin
+    for r in select * from public.orders where order_no is null order by created_at, id loop
+        select o_order_no, o_item_no into v_no, v_item
+        from public.orders_pick_number(r.id, r.seller_id, r.recipient, r.phone,
+                                       r.address, r.detail_address, r.product, r.status);
+        update public.orders set order_no = v_no, item_no = v_item where id = r.id;
+    end loop;
+end;
+$$;
 
 -- ---------------------------------------------------------------------
 -- 4. 접근 권한 정책 (RLS)
@@ -230,21 +343,21 @@ create policy orders_select on public.orders
     for select to authenticated
     using (seller_id = auth.uid() or public.is_admin());
 
--- 등록: 셀러는 접수 가능 시간에만
+-- 등록: 승인된 셀러는 24시간 가능
 create policy orders_insert on public.orders
     for insert to authenticated
-    with check ((seller_id = auth.uid() and public.is_approved_seller() and public.can_add_orders()) or public.is_admin());
+    with check ((seller_id = auth.uid() and public.is_approved_seller()) or public.is_admin());
 
--- 수정: 셀러는 수정 가능 시간 + 접수대기 상태인 자기 주문만
+-- 수정: 셀러는 관리자 마감 전(접수대기) + 출고 전(미출고)인 자기 주문만
 create policy orders_update on public.orders
     for update to authenticated
-    using ((seller_id = auth.uid() and public.is_approved_seller() and status = '접수대기' and public.can_modify_orders()) or public.is_admin())
+    using ((seller_id = auth.uid() and public.is_approved_seller() and status = '접수대기' and ship_status = '미출고') or public.is_admin())
     with check (seller_id = auth.uid() or public.is_admin());
 
 -- 삭제: 수정과 같은 조건
 create policy orders_delete on public.orders
     for delete to authenticated
-    using ((seller_id = auth.uid() and public.is_approved_seller() and status = '접수대기' and public.can_modify_orders()) or public.is_admin());
+    using ((seller_id = auth.uid() and public.is_approved_seller() and status = '접수대기' and ship_status = '미출고') or public.is_admin());
 
 -- 관리자 화면에서 셀러 정보를 고칠 때 id/이메일/가입일은 바뀌지 않게 하고,
 -- 관리자 계정은 항상 승인 상태로 유지합니다. (권한(role) 변경은 SQL 로만 합니다)
