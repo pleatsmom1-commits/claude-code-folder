@@ -342,6 +342,8 @@
                                 <th class="p-3 whitespace-nowrap">접수일시</th>
                                 <th class="p-3 whitespace-nowrap">상태</th>
                                 <th class="p-3 whitespace-nowrap">출고</th>
+                                <th class="p-3 whitespace-nowrap">택배사</th>
+                                <th class="p-3 whitespace-nowrap">송장번호</th>
                                 <th class="p-3 whitespace-nowrap text-center">관리</th>
                             </tr>
                         </thead>
@@ -1785,7 +1787,7 @@
             document.getElementById('chk-all-seller').checked = false;
 
             if (myOrders.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="13" class="text-center py-6 text-slate-400">${allMine.length ? '조회 조건에 맞는 주문이 없습니다.' : '접수된 주문이 없습니다.'}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="15" class="text-center py-6 text-slate-400">${allMine.length ? '조회 조건에 맞는 주문이 없습니다.' : '접수된 주문이 없습니다.'}</td></tr>`;
                 return;
             }
 
@@ -1817,7 +1819,11 @@
                         <td class="p-3 min-w-[120px] max-w-xs truncate text-amber-700 font-medium">${escapeHtml(o.bamnat_memo || '-')}</td>
                         <td class="p-3 text-slate-400 whitespace-nowrap">${escapeHtml(formatKstDateTime(o.created_at))}</td>
                         <td class="p-3">${statusBadgeHtml(o.status)}</td>
-                        <td class="p-3 whitespace-nowrap">${shipBadgeHtml(o, groups)}</td>
+                        <td class="p-3 whitespace-nowrap">${shipBadgeHtml(o, groups, false)}</td>
+                        <td class="p-3 whitespace-nowrap">${o.courier ? escapeHtml(o.courier) : '<span class="text-slate-300">-</span>'}</td>
+                        <td class="p-3 whitespace-nowrap font-mono">${o.tracking_no
+                            ? `<b class="text-sky-700">${escapeHtml(o.tracking_no)}</b>`
+                            : '<span class="text-[10px] text-slate-400">미등록</span>'}</td>
                         <td class="p-3 text-center">
                             ${canEdit ? `
                                 <div class="flex items-center justify-center gap-1 whitespace-nowrap">
