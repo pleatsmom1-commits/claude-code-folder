@@ -191,6 +191,8 @@ alter table public.orders add column if not exists order_no bigint;
 alter table public.orders add column if not exists item_no integer;
 alter table public.orders add column if not exists ship_status text;
 alter table public.orders add column if not exists shipped_at timestamptz;
+alter table public.orders add column if not exists courier text;       -- 택배사
+alter table public.orders add column if not exists tracking_no text;   -- 송장(운송장)번호
 update public.orders set ship_status = '미출고' where ship_status is null;
 alter table public.orders alter column ship_status set default '미출고';
 alter table public.orders alter column ship_status set not null;
@@ -288,8 +290,18 @@ begin
             new.status := old.status;
             new.ship_status := old.ship_status;
             new.shipped_at := old.shipped_at;
+            new.courier := old.courier;
+            new.tracking_no := old.tracking_no;
         elsif new.ship_status is distinct from old.ship_status then
+            -- 출고완료는 송장번호가 있어야만 가능합니다.
+            if new.ship_status = '출고완료' and coalesce(trim(new.tracking_no), '') = '' then
+                raise exception '송장번호를 먼저 입력해야 출고완료로 바꿀 수 있습니다.' using errcode = 'P0001';
+            end if;
             new.shipped_at := case when new.ship_status = '출고완료' then now() else null end;
+            -- 출고된 주문은 자동으로 접수완료 (셀러 수정/삭제 잠금)
+            if new.ship_status = '출고완료' and coalesce(new.status, '접수대기') = '접수대기' then
+                new.status := '접수완료';
+            end if;
         end if;
         return new;
     end if;
@@ -307,6 +319,8 @@ begin
         new.created_at := now();
         new.ship_status := '미출고';
         new.shipped_at := null;
+        new.courier := null;
+        new.tracking_no := null;
         new.order_no := null;
         new.item_no := null;
     end if;
@@ -431,6 +445,31 @@ create policy profiles_self_update on public.profiles
     for update to authenticated
     using (id = auth.uid())
     with check (id = auth.uid());
+
+-- ---------------------------------------------------------------------
+-- 4-2. 택배사 목록 (관리자가 추가/삭제, 모두 조회 가능)
+-- ---------------------------------------------------------------------
+create table if not exists public.couriers (
+    id          uuid primary key default gen_random_uuid(),
+    name        text not null unique,
+    sort_order  integer not null default 0,
+    created_at  timestamptz not null default now()
+);
+alter table public.couriers enable row level security;
+insert into public.couriers (name, sort_order) values
+    ('우체국택배', 1),
+    ('딜리래빗(당일택배)', 2)
+on conflict (name) do nothing;
+
+drop policy if exists couriers_select on public.couriers;
+drop policy if exists couriers_admin_write on public.couriers;
+create policy couriers_select on public.couriers
+    for select to authenticated
+    using (true);
+create policy couriers_admin_write on public.couriers
+    for all to authenticated
+    using (public.is_admin())
+    with check (public.is_admin());
 
 -- ---------------------------------------------------------------------
 -- 4-1. 자주 쓰는 주소록 (셀러별)

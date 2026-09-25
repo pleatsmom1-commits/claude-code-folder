@@ -166,16 +166,18 @@
                                     송화인명 (보내는사람)
                                     <button type="button" onclick="resetSenderCompany()" class="ml-1 text-[10px] font-normal text-indigo-600 hover:underline">내 상호로 되돌리기</button>
                                 </label>
-                                <div class="flex items-center w-full border rounded-lg bg-white focus-within:outline focus-within:outline-2 focus-within:outline-indigo-500 overflow-hidden">
-                                    <span class="pl-3 pr-0.5 py-2 text-sm font-bold text-slate-500 whitespace-nowrap">밤낮딜리버리(</span>
-                                    <input type="text" id="so-sender-company" required placeholder="상호" class="flex-1 min-w-0 py-2 text-sm font-bold text-slate-900 outline-none">
-                                    <span class="pr-3 pl-0.5 py-2 text-sm font-bold text-slate-500">)</span>
+                                <!-- 괄호 칸은 기본 3글자 크기, 상호가 길면 글자 수에 맞춰 늘어납니다 -->
+                                <div class="inline-flex items-center max-w-full border rounded-lg bg-white px-3 focus-within:outline focus-within:outline-2 focus-within:outline-indigo-500">
+                                    <span class="py-2 text-sm font-bold text-slate-500 whitespace-nowrap">밤낮딜리버리(</span>
+                                    <input type="text" id="so-sender-company" required placeholder="상호" oninput="autosizeSenderInput()"
+                                        class="py-2 px-0.5 text-sm font-bold text-slate-900 outline-none bg-transparent min-w-0 max-w-full text-center border-b border-dashed border-slate-300 focus:border-indigo-400">
+                                    <span class="py-2 text-sm font-bold text-slate-500">)</span>
                                 </div>
                                 <p class="text-[10px] text-slate-400 mt-1">괄호 안 상호는 필요할 때 바꿔서 접수할 수 있습니다.</p>
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-slate-700 mb-1">대표님 C/S 연락처 *</label>
-                                <input type="text" id="so-cs-phone" required placeholder="010-1234-5678" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                                <input type="text" id="so-cs-phone" required inputmode="tel" onblur="formatPhoneInput(this)" placeholder="010-1234-5678" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-slate-700 mb-1">수화인명 (받는사람) *</label>
@@ -186,7 +188,7 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-xs font-bold text-slate-700 mb-1">받는사람 연락처 *</label>
-                                <input type="text" id="so-phone" required class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500" placeholder="010-0000-0000">
+                                <input type="text" id="so-phone" required inputmode="tel" onblur="formatPhoneInput(this)" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500" placeholder="010-0000-0000">
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-slate-700 mb-1">
@@ -274,6 +276,9 @@
                         <span id="seller-order-count" class="text-xs font-semibold text-slate-500">총 0건</span>
                     </div>
                     <div class="flex items-center gap-2">
+                        <button onclick="fetchOrdersFromDB()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold rounded-lg transition flex items-center gap-1 shadow-sm">
+                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> 새로고침
+                        </button>
                         <button onclick="deleteSelectedOrders()" class="px-3 py-1.5 bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-100 text-xs font-bold rounded-lg transition flex items-center gap-1 shadow-sm">
                             <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> 선택 항목 일괄 삭제
                         </button>
@@ -309,9 +314,9 @@
                             <option value="recipient">수취인</option>
                             <option value="phone">연락처</option>
                             <option value="address">주소</option>
-                            <option value="product">상품명</option>
+                            <option value="product">쇼핑몰상품명</option>
                         </select>
-                        <input type="text" id="history-keyword" oninput="renderSellerTable()" placeholder="수취인 · 연락처 · 주소 · 상품명 검색" class="px-3 py-1.5 border rounded-lg text-xs bg-white w-64">
+                        <input type="text" id="history-keyword" oninput="renderSellerTable()" placeholder="수취인 · 연락처 · 주소 · 쇼핑몰상품명 검색" class="px-3 py-1.5 border rounded-lg text-xs bg-white w-64">
                         <button type="button" onclick="resetHistorySearch()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-bold">초기화</button>
                         <button type="button" onclick="downloadSellerHistoryExcel()" class="ml-auto px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1">
                             <i data-lucide="file-down" class="w-3.5 h-3.5"></i> 조회결과 엑셀
@@ -375,6 +380,17 @@
                     <button onclick="downloadMasterExcel()" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow transition flex items-center gap-1.5">
                         <i data-lucide="file-down" class="w-4 h-4"></i> 엑셀 다운로드 (현재 필터 기준)
                     </button>
+                    <div class="flex items-center gap-1 bg-sky-50 border border-sky-200 rounded-lg px-2">
+                        <span class="text-[11px] font-bold text-sky-800 whitespace-nowrap">기본 택배사</span>
+                        <select id="tracking-upload-courier" class="courier-select py-1.5 text-xs font-bold bg-transparent focus:outline-none"></select>
+                        <input type="file" id="tracking-file-input" accept=".xlsx,.xls,.csv" class="hidden" onchange="handleTrackingUpload(event)">
+                        <button onclick="document.getElementById('tracking-file-input').click()" class="my-1 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg shadow flex items-center gap-1.5 whitespace-nowrap">
+                            <i data-lucide="upload" class="w-4 h-4"></i> 송장번호 업로드
+                        </button>
+                    </div>
+                    <button onclick="openCourierModal()" class="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm flex items-center gap-1.5">
+                        <i data-lucide="truck" class="w-4 h-4"></i> 택배사 관리
+                    </button>
                 </div>
 
                 <!-- Master Table -->
@@ -397,8 +413,9 @@
                         </div>
                         <div class="flex gap-2 items-center">
                             <span id="admin-ship-summary" class="text-[11px] text-slate-500"></span>
-                            <button onclick="setShipStatusForSelected('출고완료')" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg shadow-sm">선택 출고완료</button>
-                            <button onclick="setShipStatusForSelected('미출고')" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg shadow-sm">선택 미출고로</button>
+                            <button onclick="acceptSelectedOrders()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm">선택 접수</button>
+                            <button onclick="shipSelectedOrders()" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg shadow-sm">선택 출고완료</button>
+                            <button onclick="setShipStatusForSelected('미출고')" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg shadow-sm">선택 출고취소</button>
                         </div>
                     </div>
 
@@ -420,6 +437,8 @@
                                     <th class="p-3 whitespace-nowrap">접수시간</th>
                                     <th class="p-3 whitespace-nowrap">상태</th>
                                     <th class="p-3 whitespace-nowrap">출고</th>
+                                    <th class="p-3 whitespace-nowrap">택배사</th>
+                                    <th class="p-3 whitespace-nowrap">송장번호</th>
                                     <th class="p-3 whitespace-nowrap text-center">관리</th>
                                 </tr>
                             </thead>
@@ -498,7 +517,7 @@
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-700 mb-1">대표님 C/S 연락처 *</label>
-                        <input type="text" id="eo-cs-phone" required class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                        <input type="text" id="eo-cs-phone" required inputmode="tel" onblur="formatPhoneInput(this)" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
                     </div>
                 </div>
 
@@ -509,7 +528,7 @@
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-700 mb-1">받는사람 연락처 *</label>
-                        <input type="text" id="eo-phone" required class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                        <input type="text" id="eo-phone" required inputmode="tel" onblur="formatPhoneInput(this)" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
                     </div>
                 </div>
 
@@ -614,6 +633,21 @@
                         회원가입 완료
                     </button>
                 </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: COURIERS (관리자 택배사 관리) -->
+    <div id="courier-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4 border border-slate-100">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 class="font-bold text-slate-900 text-base">🚚 택배사 관리</h3>
+                <button onclick="closeCourierModal()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <ul id="courier-list" class="divide-y divide-slate-100"></ul>
+            <form onsubmit="addCourier(event)" class="flex gap-2">
+                <input type="text" id="courier-new-name" placeholder="추가할 택배사 이름" class="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs">추가</button>
             </form>
         </div>
     </div>
@@ -855,6 +889,20 @@
             return String(value).trim();
         }
 
+        // 연락처를 010-1234-5678 형식으로 맞춤 ('-' 없이 01012345678 로 적어도 됨)
+        function formatPhone(value) {
+            const raw = String(value ?? '').trim();
+            const d = raw.replace(/\D/g, '');
+            if (d.startsWith('02') && (d.length === 9 || d.length === 10)) return `02-${d.slice(2, d.length - 4)}-${d.slice(-4)}`;
+            if (d.length === 11) return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
+            if (d.length === 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
+            if (d.length === 8) return `${d.slice(0, 4)}-${d.slice(4)}`;
+            return raw;
+        }
+        // 숫자 8~12자리면 정상 연락처로 봅니다
+        const isValidPhone = value => { const n = String(value ?? '').replace(/\D/g, '').length; return n >= 8 && n <= 12; };
+        function formatPhoneInput(el) { if (el.value.trim()) el.value = formatPhone(el.value); }
+
         // Supabase는 한 번에 최대 1000행만 돌려주므로 나눠서 모두 가져옵니다.
         async function fetchAllRows(buildQuery, pageSize = 1000) {
             let all = [];
@@ -882,6 +930,9 @@
         function dbErrorMessage(error) {
             if (!error) return '';
             if (error.code === '42501') return '권한이 없는 작업입니다. (승인 전/정지 계정이거나, 마감·출고된 주문)';
+            if (['PGRST205', 'PGRST204', '42P01', '42703'].includes(error.code) || /schema cache|does not exist/i.test(error.message || '')) {
+                return 'DB 설정이 최신이 아닙니다.\n(관리자: Supabase SQL Editor에서 최신 supabase/schema.sql 전체를 실행해주세요)\n\n' + (error.message || '');
+            }
             return error.message || String(error);
         }
 
@@ -966,6 +1017,7 @@
                 document.getElementById('admin-dashboard').classList.remove('hidden');
                 switchAdminTab('orders');
                 fetchSellersFromDB();
+                fetchCouriers();
             } else {
                 setupSellerUI();
                 setHistoryPreset('week', false);
@@ -984,6 +1036,7 @@
             ordersMaster = [];
             sellerProfiles = [];
             addressBook = [];
+            trackingDrafts = {};
             document.getElementById('auth-screen').classList.remove('hidden');
             document.getElementById('seller-dashboard').classList.add('hidden');
             document.getElementById('admin-dashboard').classList.add('hidden');
@@ -1246,6 +1299,17 @@
         // 송화인명 = 밤낮딜리버리(상호). 괄호 안 상호는 기본이 내 상호이고, 주문마다 바꿀 수 있습니다.
         function resetSenderCompany() {
             document.getElementById('so-sender-company').value = currentSellerAccount ? currentSellerAccount.company : '';
+            autosizeSenderInput();
+        }
+
+        // 송화인 상호 입력칸 너비: 최소 한글 3글자, 더 길면 글자 수만큼
+        function autosizeSenderInput() {
+            const input = document.getElementById('so-sender-company');
+            const ctx = (autosizeSenderInput.canvas ||= document.createElement('canvas')).getContext('2d');
+            const cs = getComputedStyle(input);
+            ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+            const textWidth = Math.max(ctx.measureText('가나다').width, ctx.measureText(input.value || input.placeholder || '').width);
+            input.style.width = `${Math.ceil(textWidth) + 8}px`;
         }
         function getSenderName() {
             const company = document.getElementById('so-sender-company').value.trim() || (currentSellerAccount && currentSellerAccount.company) || '';
@@ -1329,6 +1393,11 @@
                 return;
             }
 
+            if (!isValidPhone(document.getElementById('so-phone').value)) {
+                alert('받는사람 연락처를 확인해주세요.\n예) 010-1234-5678 또는 01012345678');
+                return;
+            }
+
             // readonly 입력칸은 브라우저의 required 검사를 건너뛰므로 직접 확인합니다.
             if (!document.getElementById('so-address').value.trim()) {
                 alert('배송지 주소를 [주소 검색] 버튼으로 입력해주세요.');
@@ -1339,9 +1408,9 @@
                 id: generateOrderId('ORD'),
                 seller_company: currentSellerAccount.company,
                 sender_name: getSenderName(),
-                cs_phone: document.getElementById('so-cs-phone').value,
-                recipient: document.getElementById('so-recipient').value,
-                phone: document.getElementById('so-phone').value,
+                cs_phone: formatPhone(document.getElementById('so-cs-phone').value),
+                recipient: document.getElementById('so-recipient').value.trim(),
+                phone: formatPhone(document.getElementById('so-phone').value),
                 zipcode: document.getElementById('so-zipcode').value,
                 address: document.getElementById('so-address').value,
                 detail_address: document.getElementById('so-detail-address').value,
@@ -1450,13 +1519,13 @@
                             id: generateOrderId('ORD-EXCEL'),
                             seller_company: currentSellerAccount.company,
                             sender_name: rawSender || `밤낮딜리버리(${currentSellerAccount.company})`,
-                            cs_phone: normalizePhone(r[1]) || currentSellerAccount.phone || '',
+                            cs_phone: formatPhone(normalizePhone(r[1]) || currentSellerAccount.phone || ''),
                             recipient: cell(r[2]),
                             address: cell(r[3]),
                             product: cell(r[4]),
                             wholesale_company: cell(r[5]),
                             wholesale_product: cell(r[6]),
-                            phone: normalizePhone(r[7]),
+                            phone: formatPhone(normalizePhone(r[7])),
                             memo: cell(r[8]),
                             bamnat_memo: cell(r[9]),
                             qty: parseInt(r[10]) || 1,
@@ -1605,9 +1674,9 @@
 
             const updatedData = {
                 sender_name: senderName,
-                cs_phone: document.getElementById('eo-cs-phone').value.trim(),
+                cs_phone: formatPhone(document.getElementById('eo-cs-phone').value),
                 recipient: document.getElementById('eo-recipient').value.trim(),
-                phone: document.getElementById('eo-phone').value.trim(),
+                phone: formatPhone(document.getElementById('eo-phone').value),
                 zipcode: document.getElementById('eo-zipcode').value.trim(),
                 address: document.getElementById('eo-address').value.trim(),
                 detail_address: document.getElementById('eo-detail-address').value.trim(),
@@ -1697,13 +1766,15 @@
             return '부분출고';
         }
 
-        function shipBadgeHtml(o, groups) {
+        function shipBadgeHtml(o, groups, showTracking = true) {
             const item = o.ship_status === '출고완료'
                 ? '<span class="px-2 py-1 rounded text-[10px] font-bold bg-sky-100 text-sky-700">출고완료</span>'
                 : '<span class="px-2 py-1 rounded text-[10px] font-bold bg-slate-100 text-slate-500">미출고</span>';
             const g = (groups || getOrderGroups())[o.order_no];
             const partial = g && g.total > 1 && g.shipped > 0 && g.shipped < g.total;
-            return item + (partial ? `<span class="block mt-1 text-[10px] font-bold text-orange-600">부분출고 ${g.shipped}/${g.total}</span>` : '');
+            const tracking = showTracking && o.tracking_no
+                ? `<span class="block mt-1 text-[10px] text-slate-600">${escapeHtml(o.courier || '')} <b class="font-mono">${escapeHtml(o.tracking_no)}</b></span>` : '';
+            return item + tracking + (partial ? `<span class="block mt-1 text-[10px] font-bold text-orange-600">부분출고 ${g.shipped}/${g.total}</span>` : '');
         }
 
         function renderSellerTable() {
@@ -1933,7 +2004,7 @@
             if (error) {
                 console.error('주소록 오류:', error);
                 document.getElementById('address-chips').innerHTML =
-                    '<span class="text-[11px] text-rose-500">주소록을 불러오지 못했습니다. (관리자: 최신 schema.sql 실행 필요)</span>';
+                    '<span class="text-[11px] text-rose-500">주소록을 불러오지 못했습니다. (관리자: Supabase에서 최신 schema.sql 실행 필요)</span>';
                 return;
             }
             addressBook = data || [];
@@ -2177,7 +2248,7 @@
             document.getElementById('admin-order-count').innerText = `주문 ${orderCount}건 · 상품 ${filtered.length}개`;
 
             if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="14" class="text-center py-6 text-slate-400">등록된 주문 내역이 없습니다.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="16" class="text-center py-6 text-slate-400">등록된 주문 내역이 없습니다.</td></tr>`;
                 return;
             }
 
@@ -2189,6 +2260,8 @@
                 const newGroup = o.order_no !== prevNo;
                 prevNo = o.order_no;
                 const shipped = o.ship_status === '출고완료';
+                const draftT = trackingDrafts[o.id] || {};
+                const trackingValue = draftT.tracking ?? o.tracking_no ?? '';
                 return `
                 <tr class="hover:bg-slate-100/60 transition ${rowBg} ${newGroup ? 'border-t-2 border-slate-200' : ''}">
                     <td class="p-3 text-center"><input type="checkbox" value="${id}" class="admin-chk-item rounded border-slate-300"></td>
@@ -2201,13 +2274,30 @@
                     <td class="p-3 text-slate-600 whitespace-nowrap">${escapeHtml(o.wholesale_company || '-')} / ${escapeHtml(o.wholesale_product || '-')}</td>
                     <td class="p-3 text-amber-700 font-medium min-w-[120px]">${escapeHtml(o.bamnat_memo || '-')}</td>
                     <td class="p-3 text-slate-400 whitespace-nowrap">${escapeHtml(formatKstDateTime(o.created_at))}</td>
-                    <td class="p-3">${statusBadgeHtml(o.status)}</td>
-                    <td class="p-3 whitespace-nowrap">${shipBadgeHtml(o, groups)}</td>
+                    <td class="p-3">
+                        <div class="flex items-center gap-1 whitespace-nowrap">
+                            ${statusBadgeHtml(o.status)}
+                            ${o.status === '접수대기' ? `<button data-id="${id}" onclick="acceptOrders([this.dataset.id])" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded text-[11px]">접수</button>` : ''}
+                        </div>
+                    </td>
+                    <td class="p-3 whitespace-nowrap">${shipBadgeHtml(o, groups, false)}</td>
+                    <td class="p-3">
+                        <select data-id="${id}" onchange="setTrackingDraft(this.dataset.id, 'courier', this.value)" class="admin-courier courier-select px-2 py-1 border rounded text-[11px] bg-white">${courierOptionsHtml(draftT.courier ?? o.courier)}</select>
+                    </td>
+                    <td class="p-3">
+                        <input type="text" data-id="${id}" value="${escapeHtml(trackingValue)}" placeholder="송장번호 입력"
+                            oninput="setTrackingDraft(this.dataset.id, 'tracking', this.value)"
+                            onkeydown="if (event.key === 'Enter') shipOrder(this.dataset.id)"
+                            class="admin-tracking w-36 px-2 py-1 border rounded text-[11px] font-mono ${o.tracking_no ? 'bg-sky-50 border-sky-200' : 'bg-white'}">
+                    </td>
                     <td class="p-3 text-center">
-                        <div class="flex items-center justify-center gap-1">
-                            <button data-id="${id}" onclick="setShipStatus([this.dataset.id], '${shipped ? '미출고' : '출고완료'}')" class="px-2 py-1 ${shipped ? 'bg-white border border-slate-200 text-slate-500' : 'bg-sky-600 text-white hover:bg-sky-700'} font-bold rounded text-[11px] whitespace-nowrap">
-                                ${shipped ? '출고취소' : '출고'}
-                            </button>
+                        <div class="flex items-center justify-center gap-1 whitespace-nowrap">
+                            ${shipped ? `
+                                <button data-id="${id}" onclick="shipOrder(this.dataset.id)" class="px-2 py-1 bg-sky-50 border border-sky-200 text-sky-700 font-bold rounded text-[11px]">송장저장</button>
+                                <button data-id="${id}" onclick="setShipStatus([this.dataset.id], '미출고')" class="px-2 py-1 bg-white border border-slate-200 text-slate-500 font-bold rounded text-[11px]">출고취소</button>
+                            ` : `
+                                <button data-id="${id}" onclick="shipOrder(this.dataset.id)" class="px-2 py-1 bg-sky-600 text-white hover:bg-sky-700 font-bold rounded text-[11px]" title="송장번호를 입력한 뒤 누르세요">출고완료</button>
+                            `}
                             <button data-id="${id}" onclick="openEditModal(this.dataset.id)" class="px-2 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold rounded text-[11px]">
                                 수정
                             </button>
@@ -2216,6 +2306,13 @@
                 </tr>
             `;
             }).join('');
+
+        }
+
+        // 관리자가 입력했지만 아직 저장하지 않은 택배사/송장번호 (표를 다시 그려도 유지)
+        let trackingDrafts = {};
+        function setTrackingDraft(id, field, value) {
+            trackingDrafts[id] = { ...(trackingDrafts[id] || {}), [field]: value };
         }
 
         // 관리자: 상품(행) 단위로 출고 상태 변경
@@ -2248,6 +2345,301 @@
             if (!confirm(`선택한 상품 ${ids.length}개를 [${status}] 로 변경할까요?`)) return;
             const n = await setShipStatus(ids, status);
             if (n) alert(`${n}개 상품이 [${status}] 로 변경되었습니다.`);
+        }
+
+        // 관리자: 주문 접수 (접수대기 → 접수완료, 이후 셀러 수정/삭제 불가)
+        async function acceptOrders(ids) {
+            const targets = ids.filter(id => (ordersMaster.find(o => o.id === id) || {}).status === '접수대기');
+            if (targets.length === 0) {
+                alert('접수할 [접수대기] 주문이 없습니다.');
+                return 0;
+            }
+            const updated = [];
+            for (let i = 0; i < targets.length; i += 200) {
+                const { data, error } = await supabaseClient.from('orders').update({ status: '접수완료' }).in('id', targets.slice(i, i + 200)).select();
+                if (error) {
+                    alert('접수 처리 중 오류가 발생했습니다.\n\n' + dbErrorMessage(error));
+                    break;
+                }
+                updated.push(...(data || []));
+            }
+            replaceOrders(updated);
+            renderAdminTable();
+            return updated.length;
+        }
+
+        async function acceptSelectedOrders() {
+            const ids = Array.from(document.querySelectorAll('.admin-chk-item:checked')).map(c => c.value);
+            if (ids.length === 0) {
+                alert('접수할 주문을 체크박스로 선택해주세요.');
+                return;
+            }
+            const n = await acceptOrders(ids);
+            if (n) alert(`${n}개 상품이 [접수완료] 되었습니다. 이제 셀러는 수정/삭제할 수 없습니다.`);
+        }
+
+        function replaceOrders(rows) {
+            rows.forEach(row => {
+                const idx = ordersMaster.findIndex(o => o.id === row.id);
+                if (idx !== -1) ordersMaster[idx] = row;
+            });
+        }
+
+        // 화면의 택배사/송장번호 입력값 읽기
+        function readTrackingInputs(id) {
+            const sel = document.querySelector(`.admin-courier[data-id="${CSS.escape(id)}"]`);
+            const inp = document.querySelector(`.admin-tracking[data-id="${CSS.escape(id)}"]`);
+            return { courier: sel ? sel.value : '', tracking_no: inp ? inp.value.trim() : '' };
+        }
+
+        // 관리자: 송장번호를 저장하고 출고완료 처리 (송장번호가 있어야만 가능)
+        async function shipOrder(id) {
+            const { courier, tracking_no } = readTrackingInputs(id);
+            if (!tracking_no) {
+                alert('송장번호를 먼저 입력해주세요. 송장번호가 있어야 출고완료로 바꿀 수 있습니다.');
+                return;
+            }
+            await applyTracking([{ id, courier, tracking_no }]);
+        }
+
+        async function shipSelectedOrders() {
+            const ids = Array.from(document.querySelectorAll('.admin-chk-item:checked')).map(c => c.value);
+            if (ids.length === 0) {
+                alert('출고완료할 상품을 체크박스로 선택해주세요.');
+                return;
+            }
+            const items = ids.map(id => ({ id, ...readTrackingInputs(id) }));
+            const ready = items.filter(x => x.tracking_no);
+            const missing = items.length - ready.length;
+            if (ready.length === 0) {
+                alert('선택한 상품에 송장번호가 없습니다. 송장번호를 입력한 상품만 출고완료할 수 있습니다.');
+                return;
+            }
+            if (!confirm(`선택한 ${items.length}개 중 송장번호가 있는 ${ready.length}개를 출고완료로 변경할까요?` + (missing ? `\n(송장번호가 없는 ${missing}개는 제외됩니다)` : ''))) return;
+            const n = await applyTracking(ready);
+            if (n) alert(`${n}개 상품이 [출고완료] 되었습니다.` + (missing ? `\n송장번호가 없어 제외된 상품: ${missing}개` : ''));
+        }
+
+        // items: [{ id, courier, tracking_no }] → 같은 송장/택배사끼리 묶어서 저장
+        async function applyTracking(items) {
+            const groupsByTracking = {};
+            items.forEach(x => {
+                const key = `${x.courier}\u0000${x.tracking_no}`;
+                (groupsByTracking[key] = groupsByTracking[key] || { courier: x.courier, tracking_no: x.tracking_no, ids: [] }).ids.push(x.id);
+            });
+            const updated = [];
+            for (const g of Object.values(groupsByTracking)) {
+                for (let i = 0; i < g.ids.length; i += 200) {
+                    const { data, error } = await supabaseClient.from('orders')
+                        .update({ courier: g.courier || null, tracking_no: g.tracking_no, ship_status: '출고완료' })
+                        .in('id', g.ids.slice(i, i + 200)).select();
+                    if (error) {
+                        alert('송장 저장 중 오류가 발생했습니다.\n\n' + dbErrorMessage(error));
+                        replaceOrders(updated);
+                        renderAdminTable();
+                        return updated.length;
+                    }
+                    updated.push(...(data || []));
+                }
+            }
+            replaceOrders(updated);
+            updated.forEach(row => delete trackingDrafts[row.id]); // 저장된 값은 임시 입력에서 제거
+            renderAdminTable();
+            return updated.length;
+        }
+
+        // ---------------- 택배사 목록 (관리자가 추가/삭제) ----------------
+        let couriers = [];
+
+        async function fetchCouriers() {
+            if (!supabaseClient) return;
+            const { data, error } = await supabaseClient.from('couriers').select('*').order('sort_order').order('created_at');
+            if (error) {
+                console.error('택배사 목록 오류:', error);
+                couriers = [];
+            } else {
+                couriers = data || [];
+            }
+            refreshCourierSelects();
+        }
+
+        function courierOptionsHtml(selected) {
+            const names = couriers.map(c => c.name);
+            if (selected && !names.includes(selected)) names.push(selected); // 삭제된 택배사로 저장된 주문도 표시
+            if (names.length === 0) return '<option value="">택배사 없음</option>';
+            return names.map(n => `<option value="${escapeHtml(n)}" ${n === selected ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('');
+        }
+
+        function refreshCourierSelects() {
+            const def = document.getElementById('tracking-upload-courier');
+            if (def) {
+                const prev = def.value;
+                def.innerHTML = courierOptionsHtml(prev || (couriers[0] && couriers[0].name));
+            }
+            if (currentRole === 'admin') renderAdminTable();
+            renderCourierList();
+        }
+
+        function openCourierModal() {
+            renderCourierList();
+            document.getElementById('courier-modal').classList.remove('hidden');
+            document.getElementById('courier-modal').classList.add('flex');
+            lucide.createIcons();
+        }
+        function closeCourierModal() {
+            document.getElementById('courier-modal').classList.add('hidden');
+            document.getElementById('courier-modal').classList.remove('flex');
+        }
+
+        function renderCourierList() {
+            const ul = document.getElementById('courier-list');
+            if (!ul) return;
+            ul.innerHTML = couriers.length === 0
+                ? '<li class="py-4 text-center text-xs text-slate-400">등록된 택배사가 없습니다.</li>'
+                : couriers.map(c => `
+                    <li class="flex items-center justify-between py-2">
+                        <span class="text-sm font-bold text-slate-800">${escapeHtml(c.name)}</span>
+                        <button data-id="${escapeHtml(c.id)}" onclick="deleteCourier(this.dataset.id)" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold rounded text-[11px]">삭제</button>
+                    </li>`).join('');
+        }
+
+        async function addCourier(e) {
+            e.preventDefault();
+            const input = document.getElementById('courier-new-name');
+            const name = input.value.trim();
+            if (!name) return;
+            if (couriers.some(c => c.name === name)) {
+                alert('이미 있는 택배사입니다.');
+                return;
+            }
+            const sort_order = couriers.reduce((m, c) => Math.max(m, c.sort_order || 0), 0) + 1;
+            const { error } = await supabaseClient.from('couriers').insert([{ name, sort_order }]);
+            if (error) {
+                alert('택배사 추가에 실패했습니다.\n\n' + dbErrorMessage(error));
+                return;
+            }
+            input.value = '';
+            await fetchCouriers();
+        }
+
+        async function deleteCourier(id) {
+            const c = couriers.find(x => x.id === id);
+            if (!c || !confirm(`[${c.name}] 을(를) 택배사 목록에서 삭제할까요?\n(이미 이 택배사로 저장된 주문의 송장 정보는 그대로 남습니다)`)) return;
+            const { error } = await supabaseClient.from('couriers').delete().eq('id', id);
+            if (error) {
+                alert('택배사 삭제에 실패했습니다.\n\n' + dbErrorMessage(error));
+                return;
+            }
+            await fetchCouriers();
+        }
+
+        // ---------------- 송장번호 엑셀 업로드 ----------------
+        // 엑셀의 송화인명 + 수화인명 + 주소가 같은 '미출고' 주문을 찾아 송장번호/택배사를 넣고 출고완료 처리
+        const normMatch = v => String(v ?? '').replace(/[\s,.\-()\[\]·]/g, '').toLowerCase();
+
+        function findTrackingColumns(rows) {
+            const tests = {
+                sender: h => /송화인|보내는\s*(분|사람)|발송인|발송자/.test(h) && !/주소|전화|연락|우편/.test(h),
+                recipient: h => /수화인|수하인|받는\s*(분|사람)|수취인|수령인/.test(h) && !/주소|전화|연락|우편/.test(h),
+                address: h => /주소/.test(h) && !/보내는|송화인|발송|우편/.test(h),
+                tracking: h => /송장|운송장|등기번호/.test(h),
+                courier: h => /택배사|배송사|운송사/.test(h)
+            };
+            for (let r = 0; r < Math.min(rows.length, 30); r++) {
+                const head = (rows[r] || []).map(v => String(v ?? '').replace(/\s+/g, ' ').trim());
+                const cols = {};
+                for (const [key, test] of Object.entries(tests)) {
+                    const idx = head.findIndex(h => h && test(h));
+                    if (idx !== -1) cols[key] = idx;
+                }
+                if (cols.recipient !== undefined && cols.address !== undefined && cols.tracking !== undefined) {
+                    return { headerRow: r, cols };
+                }
+            }
+            return null;
+        }
+
+        function addressMatches(a, b) {
+            const x = normMatch(a), y = normMatch(b);
+            if (!x || !y) return false;
+            if (x === y) return true;
+            return Math.min(x.length, y.length) >= 8 && (x.includes(y) || y.includes(x));
+        }
+
+        function handleTrackingUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async evt => {
+                try {
+                    const wb = XLSX.read(new Uint8Array(evt.target.result), { type: 'array' });
+                    let found = null, rows = null;
+                    for (const name of wb.SheetNames) {
+                        const r = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '' });
+                        const f = findTrackingColumns(r);
+                        if (f) { found = f; rows = r; break; }
+                    }
+                    if (!found) {
+                        alert('송장 엑셀에서 머리글을 찾지 못했습니다.\n\n수화인명(받는사람), 주소, 송장번호(운송장번호) 열이 있어야 합니다.\n(송화인명, 택배사 열은 있으면 함께 사용합니다)');
+                        return;
+                    }
+                    const { headerRow, cols } = found;
+                    const defaultCourier = document.getElementById('tracking-upload-courier').value;
+                    const candidates = ordersMaster.filter(o => (o.ship_status || '미출고') === '미출고')
+                        .sort((a, b) => (Number(a.order_no) || 0) - (Number(b.order_no) || 0) || (Number(a.item_no) || 0) - (Number(b.item_no) || 0));
+
+                    // 엑셀 행 → 맞는 주문들 (같은 주문에 송장이 여러 개면 상품 순서대로 하나씩)
+                    const byKey = new Map();
+                    const unmatched = [];
+                    let excelRows = 0;
+                    for (let i = headerRow + 1; i < rows.length; i++) {
+                        const r = rows[i];
+                        const tracking = String(r[cols.tracking] ?? '').trim();
+                        const recipient = r[cols.recipient];
+                        if (!tracking || !String(recipient ?? '').trim()) continue;
+                        excelRows++;
+                        const sender = cols.sender !== undefined ? r[cols.sender] : null;
+                        const address = r[cols.address];
+                        const matches = candidates.filter(o =>
+                            normMatch(o.recipient) === normMatch(recipient) &&
+                            addressMatches(`${o.address || ''} ${o.detail_address || ''}`, address) &&
+                            (sender == null || String(sender).trim() === '' || normMatch(o.sender_name || `밤낮딜리버리(${o.seller_company})`) === normMatch(sender)));
+                        if (matches.length === 0) {
+                            unmatched.push(`${i + 1}행: ${String(recipient).trim()} / ${String(address ?? '').trim().slice(0, 20)}`);
+                            continue;
+                        }
+                        const key = matches.map(o => o.id).join('|');
+                        const courier = (cols.courier !== undefined && String(r[cols.courier] ?? '').trim()) || defaultCourier;
+                        if (!byKey.has(key)) byKey.set(key, { matches, trackings: [] });
+                        byKey.get(key).trackings.push({ tracking_no: tracking, courier });
+                    }
+
+                    const items = [];
+                    for (const { matches, trackings } of byKey.values()) {
+                        matches.forEach((o, idx) => {
+                            const t = trackings.length === 1 ? trackings[0] : trackings[Math.min(idx, trackings.length - 1)];
+                            items.push({ id: o.id, courier: t.courier, tracking_no: t.tracking_no });
+                        });
+                    }
+
+                    if (items.length === 0) {
+                        alert(`송장 엑셀 ${excelRows}행 중 일치하는 미출고 주문을 찾지 못했습니다.\n\n` + unmatched.slice(0, 8).join('\n'));
+                        return;
+                    }
+                    const msg = `📦 송장번호 업로드\n\n엑셀 ${excelRows}행 중 ${excelRows - unmatched.length}행 일치 → 상품 ${items.length}개를 출고완료로 처리합니다.`
+                        + (unmatched.length ? `\n\n⚠️ 일치하는 주문을 찾지 못한 행 ${unmatched.length}개:\n${unmatched.slice(0, 8).join('\n')}${unmatched.length > 8 ? `\n...외 ${unmatched.length - 8}개` : ''}` : '')
+                        + '\n\n진행할까요?';
+                    if (!confirm(msg)) return;
+                    const n = await applyTracking(items);
+                    alert(`송장번호 ${n}개 상품에 반영되어 [출고완료] 되었습니다.`);
+                } catch (err) {
+                    console.error(err);
+                    alert('송장 엑셀을 읽는 중 오류가 발생했습니다: ' + err.message);
+                } finally {
+                    e.target.value = '';
+                }
+            };
+            reader.readAsArrayBuffer(file);
         }
 
         async function confirmAdminBatch() {
@@ -2588,8 +2980,8 @@
             }
             try {
                 const groups = getOrderGroups();
-                const rows = list.map(o => [...orderToTemplateRow(o, groups), o.ship_status || '미출고', formatKstDateTime(o.created_at)]);
-                const zip = await buildFilledTemplate(rows, ['출고상태', '접수일시'], [12, 18]);
+                const rows = list.map(o => [...orderToTemplateRow(o, groups), o.status || '', o.ship_status || '미출고', o.courier || '', o.tracking_no || '', formatKstDateTime(o.created_at)]);
+                const zip = await buildFilledTemplate(rows, ['처리상태', '출고상태', '택배사', '송장번호', '접수일시'], [10, 10, 16, 18, 18]);
                 const p = getKstParts();
                 await saveZipAsXlsx(zip, `밤낮딜리버리_내주문_${historyFrom || '전체'}~${historyTo || `${p.y}-${p.m}-${p.d}`}.xlsx`);
             } catch (err) {
@@ -2614,14 +3006,16 @@
                         ...orderToTemplateRow(o, groups),
                         o.ship_status || '미출고',
                         state === '부분출고' ? `부분출고 (${g.shipped}/${g.total})` : state,
+                        o.courier || '',
+                        o.tracking_no || '',
                         o.seller_company || '',
                         formatKstDateTime(o.created_at),
                         o.status || ''
                     ];
                 });
                 const zip = await buildFilledTemplate(rows,
-                    ['상품 출고상태', '주문 출고상태', '거래처(상호)', '접수일시', '처리상태'],
-                    [14, 18, 16, 18, 12]);
+                    ['상품 출고상태', '주문 출고상태', '택배사', '송장번호', '거래처(상호)', '접수일시', '처리상태'],
+                    [14, 18, 16, 18, 16, 18, 12]);
                 const p = getKstParts();
                 const shipFilter = document.getElementById('admin-ship-filter');
                 const label = shipFilter.value === 'ALL' ? '전체' : shipFilter.options[shipFilter.selectedIndex].text.replace(/\s|\+/g, '');
