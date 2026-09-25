@@ -193,6 +193,7 @@ alter table public.orders add column if not exists ship_status text;
 alter table public.orders add column if not exists shipped_at timestamptz;
 alter table public.orders add column if not exists courier text;       -- 택배사
 alter table public.orders add column if not exists tracking_no text;   -- 송장(운송장)번호
+alter table public.orders add column if not exists seller_order_no integer;  -- 셀러별 접수 순번 (셀러마다 1번부터)
 update public.orders set ship_status = '미출고' where ship_status is null;
 alter table public.orders alter column ship_status set default '미출고';
 alter table public.orders alter column ship_status set not null;
@@ -263,6 +264,31 @@ begin
 end;
 $$;
 
+-- 셀러별 접수 순번: 셀러마다 1번부터 접수 순서대로. 합배송으로 같은 주문(order_no)에 묶이면 같은 순번.
+create or replace function public.orders_pick_seller_no(p_seller uuid, p_order_no bigint, p_id text)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+    v_no integer;
+begin
+    -- 같은 셀러가 동시에 등록해도 번호가 겹치지 않도록 셀러 단위로 잠급니다.
+    perform pg_advisory_xact_lock(hashtext('seller_order_no:' || coalesce(p_seller::text, '')));
+    select seller_order_no into v_no
+    from public.orders
+    where order_no = p_order_no and seller_order_no is not null and id <> coalesce(p_id, '')
+    limit 1;
+    if v_no is null then
+        select coalesce(max(seller_order_no), 0) + 1 into v_no
+        from public.orders
+        where seller_id is not distinct from p_seller;
+    end if;
+    return v_no;
+end;
+$$;
+
 -- 셀러가 다른 업체 이름으로 등록하거나, 상태(접수완료)/출고상태/주문번호를 스스로 바꾸는 것을 막습니다.
 -- 관리자, 그리고 SQL Editor 에서 직접 실행하는 경우(auth.uid() 없음)는 제한하지 않습니다.
 create or replace function public.orders_enforce_owner()
@@ -285,6 +311,9 @@ begin
         if old.order_no is not null or not v_privileged then
             new.order_no := old.order_no;
             new.item_no := old.item_no;
+        end if;
+        if old.seller_order_no is not null or not v_privileged then
+            new.seller_order_no := old.seller_order_no;
         end if;
         if not v_privileged then
             new.status := old.status;
@@ -323,6 +352,7 @@ begin
         new.tracking_no := null;
         new.order_no := null;
         new.item_no := null;
+        new.seller_order_no := null;
     end if;
 
     if new.order_no is null then
@@ -330,6 +360,9 @@ begin
         from public.orders_pick_number(new.id, new.seller_id, new.recipient, new.phone,
                                        new.address, new.detail_address, new.product,
                                        coalesce(new.status, '접수대기'));
+    end if;
+    if new.seller_order_no is null then
+        new.seller_order_no := public.orders_pick_seller_no(new.seller_id, new.order_no, new.id);
     end if;
     return new;
 end;
@@ -352,6 +385,13 @@ begin
         from public.orders_pick_number(r.id, r.seller_id, r.recipient, r.phone,
                                        r.address, r.detail_address, r.product, r.status);
         update public.orders set order_no = v_no, item_no = v_item where id = r.id;
+    end loop;
+
+    -- 셀러별 접수 순번이 없는 주문에 접수 순서대로 채워 넣기
+    for r in select id, seller_id, order_no from public.orders where seller_order_no is null order by created_at, id loop
+        update public.orders
+        set seller_order_no = public.orders_pick_seller_no(r.seller_id, r.order_no, r.id)
+        where id = r.id;
     end loop;
 end;
 $$;

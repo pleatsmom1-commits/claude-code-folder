@@ -317,6 +317,10 @@
                             <option value="product">쇼핑몰상품명</option>
                         </select>
                         <input type="text" id="history-keyword" oninput="renderSellerTable()" placeholder="수취인 · 연락처 · 주소 · 쇼핑몰상품명 검색" class="px-3 py-1.5 border rounded-lg text-xs bg-white w-64">
+                        <select id="history-sort" onchange="renderSellerTable()" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
+                            <option value="desc">최신순</option>
+                            <option value="asc">오래된순 (1번부터)</option>
+                        </select>
                         <button type="button" onclick="resetHistorySearch()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-bold">초기화</button>
                         <button type="button" onclick="downloadSellerHistoryExcel()" class="ml-auto px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1">
                             <i data-lucide="file-down" class="w-3.5 h-3.5"></i> 조회결과 엑셀
@@ -1438,7 +1442,7 @@
 
             ordersMaster.unshift(savedOrder);
             sortOrdersMaster();
-            alert(`주문이 성공적으로 등록되었습니다. (NO. ${orderNoLabel(savedOrder)})`);
+            alert(`주문이 성공적으로 등록되었습니다. (NO. ${sellerNoLabel(savedOrder)})`);
             if (isKakaoNoticeTime()) alert(KAKAO_NOTICE_MESSAGE);
             e.target.reset();
             setupSellerUI(); // 송화인명/C/S 연락처 기본값 복원
@@ -1759,6 +1763,14 @@
             return multi ? `${o.order_no}-${o.item_no}` : String(o.order_no);
         }
 
+        // 셀러 화면용 NO. : 셀러마다 접수 순서대로 1번부터 (합배송은 3-1, 3-2)
+        function sellerNoLabel(o, groups) {
+            if (o.seller_order_no == null) return orderNoLabel(o, groups);
+            const g = (groups || getOrderGroups())[o.order_no];
+            const multi = (g && g.total > 1) || Number(o.item_no) > 1;
+            return multi ? `${o.seller_order_no}-${o.item_no}` : String(o.seller_order_no);
+        }
+
         // 주문 단위 출고 상태: 미출고 / 부분출고 / 출고완료
         function orderShipState(o, groups) {
             const g = (groups || getOrderGroups())[o.order_no];
@@ -1803,7 +1815,7 @@
                         <td class="p-3 text-center">
                             <input type="checkbox" value="${id}" ${canEdit ? '' : 'disabled'} class="seller-chk-item rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-40">
                         </td>
-                        <td class="p-3 font-mono font-black text-indigo-700 whitespace-nowrap">${escapeHtml(orderNoLabel(o, groups))}</td>
+                        <td class="p-3 font-mono font-black text-indigo-700 whitespace-nowrap">${escapeHtml(sellerNoLabel(o, groups))}</td>
                         <td class="p-3 font-mono text-[10px] text-slate-500 min-w-[150px] break-all">
                             ${id}
                             ${isExcel ? '<span class="ml-1 text-[9px] bg-amber-100 text-amber-800 font-bold px-1 rounded">엑셀</span>' : ''}
@@ -1906,6 +1918,11 @@
             const keyword = (document.getElementById('history-keyword').value || '').trim().toLowerCase();
             const field = document.getElementById('history-field').value;
             const kwDigits = keyword.replace(/\D/g, '');
+            const oldestFirst = document.getElementById('history-sort').value === 'asc';
+            const bySellerNo = (a, b) =>
+                ((Number(a.seller_order_no) || 0) - (Number(b.seller_order_no) || 0)) * (oldestFirst ? 1 : -1)
+                || (Number(a.item_no) || 0) - (Number(b.item_no) || 0)
+                || String(a.created_at || '').localeCompare(String(b.created_at || '')) * (oldestFirst ? 1 : -1);
             return ordersMaster.filter(o => {
                 if (o.seller_id !== currentUserId) return false;
                 const day = o.created_at ? kstDateString(new Date(o.created_at)) : '';
@@ -1922,7 +1939,7 @@
                 if (field === 'phone') return text.phone.includes(keyword) || phoneHit;
                 if (field !== 'all') return text[field].includes(keyword);
                 return Object.values(text).some(v => v.includes(keyword)) || phoneHit;
-            });
+            }).sort(bySellerNo);
         }
 
         // =====================================================================
@@ -2271,7 +2288,10 @@
                 return `
                 <tr class="hover:bg-slate-100/60 transition ${rowBg} ${newGroup ? 'border-t-2 border-slate-200' : ''}">
                     <td class="p-3 text-center"><input type="checkbox" value="${id}" class="admin-chk-item rounded border-slate-300"></td>
-                    <td class="p-3 font-mono font-black text-indigo-700 whitespace-nowrap">${escapeHtml(orderNoLabel(o, groups))}</td>
+                    <td class="p-3 font-mono font-black text-indigo-700 whitespace-nowrap">
+                        ${escapeHtml(orderNoLabel(o, groups))}
+                        ${o.seller_order_no != null ? `<span class="block text-[10px] font-normal text-slate-400" title="셀러 화면에 보이는 번호">셀러 #${escapeHtml(sellerNoLabel(o, groups))}</span>` : ''}
+                    </td>
                     <td class="p-3 font-bold text-slate-900 whitespace-nowrap">${escapeHtml(o.sender_name || `밤낮딜리버리(${o.seller_company})`)}</td>
                     <td class="p-3 font-semibold whitespace-nowrap">${escapeHtml(o.recipient)}</td>
                     <td class="p-3 whitespace-nowrap">${escapeHtml(o.phone)}</td>
@@ -2957,8 +2977,8 @@
         }
 
         // 주문 한 건 → 양식 A~N열 값
-        function orderToTemplateRow(o, groups) {
-            const no = orderNoLabel(o, groups);
+        function orderToTemplateRow(o, groups, useSellerNo = false) {
+            const no = useSellerNo ? sellerNoLabel(o, groups) : orderNoLabel(o, groups);
             return [
                 /^\d+$/.test(no) ? Number(no) : no,
                 o.sender_name || `밤낮딜리버리(${o.seller_company})`,
@@ -2986,7 +3006,7 @@
             }
             try {
                 const groups = getOrderGroups();
-                const rows = list.map(o => [...orderToTemplateRow(o, groups), o.status || '', o.ship_status || '미출고', o.courier || '', o.tracking_no || '', formatKstDateTime(o.created_at)]);
+                const rows = list.map(o => [...orderToTemplateRow(o, groups, true), o.status || '', o.ship_status || '미출고', o.courier || '', o.tracking_no || '', formatKstDateTime(o.created_at)]);
                 const zip = await buildFilledTemplate(rows, ['처리상태', '출고상태', '택배사', '송장번호', '접수일시'], [10, 10, 16, 18, 18]);
                 const p = getKstParts();
                 await saveZipAsXlsx(zip, `밤낮딜리버리_내주문_${historyFrom || '전체'}~${historyTo || `${p.y}-${p.m}-${p.d}`}.xlsx`);
