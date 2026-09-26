@@ -134,6 +134,111 @@
             <!-- 승인 대기 / 정지 계정 안내 -->
             <div id="seller-status-notice" class="hidden px-4 py-3 rounded-xl border text-sm font-medium flex items-start gap-2"></div>
 
+            <!-- 택배접수 종류 선택: 왼쪽 매장/사무실(사입대행) · 오른쪽 고객풀필먼트(고객배송대행) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button type="button" id="mode-card-store" onclick="switchSellerMode('store')" class="mode-card text-left p-5 rounded-2xl border-2 transition">
+                    <div class="text-2xl">🏬</div>
+                    <div class="mt-1 text-lg font-black text-slate-900">매장/사무실 택배접수</div>
+                    <div class="text-xs font-bold text-slate-500">사입대행택배 · 우체국택배 / 당일택배</div>
+                </button>
+                <button type="button" id="mode-card-fulfillment" onclick="switchSellerMode('fulfillment')" class="mode-card text-left p-5 rounded-2xl border-2 transition">
+                    <div class="text-2xl">📦</div>
+                    <div class="mt-1 text-lg font-black text-slate-900">고객풀필먼트 택배접수</div>
+                    <div class="text-xs font-bold text-slate-500">고객배송대행 · 단건 / 엑셀 일괄 접수</div>
+                </button>
+            </div>
+
+            <!-- ===== 매장/사무실 택배접수 (사입대행택배) ===== -->
+            <div id="store-section" class="hidden space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <button type="button" id="store-type-post" onclick="switchStoreType('store_post')" class="store-type-btn px-5 py-4 rounded-xl border-2 font-black text-base transition">
+                        📮 우체국택배 접수
+                    </button>
+                    <div class="flex gap-2">
+                        <button type="button" id="store-type-sameday" onclick="switchStoreType('store_sameday')" class="store-type-btn flex-1 px-5 py-4 rounded-xl border-2 font-black text-base transition">
+                            🚚 당일택배 접수
+                        </button>
+                        <a href="https://delivus.retool.com/embedded/public/e5aa69aa-75f7-42c5-952d-d69e5cd06edf/page1" target="_blank" rel="noopener noreferrer"
+                            class="px-4 py-4 rounded-xl border-2 border-sky-200 bg-sky-50 hover:bg-sky-100 text-sky-800 font-bold text-xs flex items-center gap-1 whitespace-nowrap">
+                            <i data-lucide="map-pin" class="w-4 h-4"></i> 당일택배<br>가능지역 조회
+                        </a>
+                    </div>
+                </div>
+
+                <div id="store-form-card" class="hidden bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
+                    <div class="flex justify-between items-start flex-wrap gap-3">
+                        <div>
+                            <h3 id="store-form-title" class="text-lg font-black text-slate-900">우체국택배 접수</h3>
+                            <p class="text-xs text-slate-500">매장/사무실로 받을 사입(픽업)건 택배 접수입니다.</p>
+                        </div>
+                        <button type="button" onclick="fillRecentStoreOrder()" class="px-5 py-3 bg-amber-500 hover:bg-amber-600 text-white font-black text-sm rounded-xl shadow flex items-center gap-2">
+                            <i data-lucide="rotate-ccw" class="w-5 h-5"></i> 최근 접수내용 재등록
+                        </button>
+                    </div>
+
+                    <form id="store-order-form" onsubmit="handleStoreOrderSubmit(event)" class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">송화인명 (보내는사람) <span class="font-normal text-slate-400">· 고정</span></label>
+                                <input type="text" id="st-sender" value="밤낮딜리버리" readonly class="w-full px-3 py-2 bg-slate-100 border text-slate-600 font-bold rounded-lg text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">보내는사람 연락처 <span class="font-normal text-slate-400">· 고정</span></label>
+                                <input type="text" id="st-sender-phone" value="010-5425-9060" readonly class="w-full px-3 py-2 bg-slate-100 border text-slate-600 font-bold rounded-lg text-sm">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">수화인명 (받는사람) * <span class="font-normal text-indigo-600">본인 상호로 기재해주세요</span></label>
+                                <input type="text" id="st-recipient" required class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">받는사람 연락처 * <span class="font-normal text-slate-400">수취할 연락처</span></label>
+                                <input type="text" id="st-phone" required inputmode="tel" onblur="formatPhoneInput(this)" placeholder="010-0000-0000" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-xs font-bold text-slate-700">받을 주소 (매장/사무실) *</label>
+                            <div class="flex gap-2 max-w-md">
+                                <input type="text" id="st-zipcode" placeholder="우편번호" readonly class="w-28 px-3 py-2 bg-slate-50 border rounded-lg text-sm text-slate-600">
+                                <button type="button" onclick="execDaumPostcodeFor('st')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg flex items-center gap-1.5">
+                                    <i data-lucide="search" class="w-3.5 h-3.5"></i> 주소 검색
+                                </button>
+                            </div>
+                            <input type="text" id="st-address" placeholder="기본주소 (주소 검색 시 자동입력)" readonly class="w-full px-3 py-2 bg-slate-50 border rounded-lg text-sm text-slate-600">
+                            <input type="text" id="st-detail-address" placeholder="상세주소 (층, 호수 등)" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">상품명 <span class="font-normal text-slate-400">· 보통 픽업된 건들을 보내드리므로 생략 가능 (추가 내용은 아래 밤낮 전달메세지에)</span></label>
+                            <input type="text" id="st-product" placeholder="생략 가능" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">배송메세지 <span class="font-normal text-slate-400">· 필요시</span></label>
+                                <input type="text" id="st-memo" placeholder="예: 매장 앞에 놓아주세요" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">밤낮딜리버리 전달메세지 <span class="font-normal text-slate-400">· 필요시</span></label>
+                                <input type="text" id="st-bamnat-memo" placeholder="예: 풀필먼트 출고건을 제외하고 나머지 상품을 보내주세요" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                                <ul class="mt-1 text-[11px] text-slate-400 leading-5">
+                                    <li>예1) 풀필먼트 출고건을 제외하고 나머지 상품을 보내주세요</li>
+                                    <li>예2) 사무실에 킵되어있는 상품을 픽업건과 같이 출고해주세요</li>
+                                    <li>예3) 반품들어온 ㅇㅇㅇ님 상품을 픽업건과 같이 보내주세요</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="flex justify-end items-center gap-3 pt-2 flex-wrap">
+                            <span class="order-block-reason hidden text-xs font-bold text-rose-600"></span>
+                            <button type="submit" id="btn-store-submit" class="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-black rounded-xl text-sm shadow transition">
+                                주문 등록하기
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- ===== 고객풀필먼트 택배접수 (고객배송대행) ===== -->
+            <div id="fulfillment-section" class="space-y-6">
             <div class="flex justify-between items-center flex-wrap gap-3">
                 <div>
                     <h2 class="text-xl font-bold text-slate-900">고객 배송 주문 접수</h2>
@@ -267,6 +372,7 @@
                     </div>
                 </div>
             </div>
+            </div><!-- /fulfillment-section -->
 
             <!-- Orders Table -->
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
@@ -317,6 +423,13 @@
                             <option value="product">쇼핑몰상품명</option>
                         </select>
                         <input type="text" id="history-keyword" oninput="renderSellerTable()" placeholder="수취인 · 연락처 · 주소 · 쇼핑몰상품명 검색" class="px-3 py-1.5 border rounded-lg text-xs bg-white w-64">
+                        <select id="history-type" onchange="renderSellerTable()" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
+                            <option value="all">접수구분 전체</option>
+                            <option value="fulfillment">고객풀필먼트</option>
+                            <option value="store">매장/사무실 (전체)</option>
+                            <option value="store_post">매장 · 우체국택배</option>
+                            <option value="store_sameday">매장 · 당일택배</option>
+                        </select>
                         <select id="history-sort" onchange="renderSellerTable()" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
                             <option value="desc">최신순</option>
                             <option value="asc">오래된순 (1번부터)</option>
@@ -406,6 +519,14 @@
                             <span class="text-xs font-bold text-slate-600">거래처:</span>
                             <select id="admin-seller-filter" onchange="renderAdminTable()" class="px-3 py-1.5 border rounded-lg text-xs font-medium focus:outline-none">
                                 <option value="ALL">전체 거래처 보기</option>
+                            </select>
+                            <span class="text-xs font-bold text-slate-600 ml-2">구분:</span>
+                            <select id="admin-type-filter" onchange="renderAdminTable()" class="px-3 py-1.5 border rounded-lg text-xs font-medium focus:outline-none">
+                                <option value="all">전체</option>
+                                <option value="fulfillment">고객풀필먼트</option>
+                                <option value="store">매장/사무실 (전체)</option>
+                                <option value="store_post">매장 · 우체국택배</option>
+                                <option value="store_sameday">매장 · 당일택배</option>
                             </select>
                             <span class="text-xs font-bold text-slate-600 ml-2">출고:</span>
                             <select id="admin-ship-filter" onchange="renderAdminTable()" class="px-3 py-1.5 border rounded-lg text-xs font-medium focus:outline-none">
@@ -1026,6 +1147,7 @@
                 fetchCouriers();
             } else {
                 setupSellerUI();
+                switchSellerMode(loadSellerMode());
                 setHistoryPreset('week', false);
                 loadAddressBook();
             }
@@ -1121,7 +1243,7 @@
             if (!allowed) {
                 reason = '관리자 승인 후 주문을 등록할 수 있습니다.';
             }
-            ['btn-submit-order', 'btn-excel-upload'].forEach(id => {
+            ['btn-submit-order', 'btn-excel-upload', 'btn-store-submit'].forEach(id => {
                 const btn = document.getElementById(id);
                 if (btn) btn.disabled = !allowed;
             });
@@ -1300,6 +1422,134 @@
                     ? '⏳ <div><b>관리자 승인 대기 중입니다.</b><br><span class="text-xs">밤낮딜리버리에서 가입을 승인하면 주문 접수가 가능합니다. 승인 후 새로고침해주세요.</span></div>'
                     : '⛔ <div><b>이용이 정지된 계정입니다.</b><br><span class="text-xs">주문 등록·수정이 제한됩니다. 밤낮딜리버리에 문의해주세요.</span></div>';
             }
+        }
+
+        // =====================================================================
+        // 셀러: 택배접수 종류 (매장/사무실 ↔ 고객풀필먼트)
+        // =====================================================================
+        const STORE_SENDER_NAME = '밤낮딜리버리';
+        const STORE_SENDER_PHONE = '010-5425-9060';
+        const STORE_TYPE_TITLE = { store_post: '📮 우체국택배 접수', store_sameday: '🚚 당일택배 접수' };
+        let sellerMode = 'fulfillment';
+        let storeType = null;
+
+        function loadSellerMode() {
+            try { return localStorage.getItem('bamnat.sellerMode') === 'store' ? 'store' : 'fulfillment'; } catch (e) { return 'fulfillment'; }
+        }
+
+        function switchSellerMode(mode) {
+            sellerMode = mode;
+            try { localStorage.setItem('bamnat.sellerMode', mode); } catch (e) {}
+            const on = 'border-indigo-500 bg-indigo-50 shadow-md ring-2 ring-indigo-200';
+            const off = 'border-slate-200 bg-white hover:border-indigo-300 hover:bg-slate-50';
+            document.getElementById('mode-card-store').className = `mode-card text-left p-5 rounded-2xl border-2 transition ${mode === 'store' ? on : off}`;
+            document.getElementById('mode-card-fulfillment').className = `mode-card text-left p-5 rounded-2xl border-2 transition ${mode === 'fulfillment' ? on : off}`;
+            document.getElementById('store-section').classList.toggle('hidden', mode !== 'store');
+            document.getElementById('fulfillment-section').classList.toggle('hidden', mode !== 'fulfillment');
+            // 아래 주문목록도 선택한 접수 종류로 맞춰 보여줍니다.
+            const typeSel = document.getElementById('history-type');
+            if (typeSel) {
+                typeSel.value = mode === 'store' ? (storeType || 'store') : 'fulfillment';
+                if (currentRole === 'seller') renderSellerTable();
+            }
+            if (mode === 'store' && !storeType) switchStoreType('store_post');
+        }
+
+        function switchStoreType(type) {
+            storeType = type;
+            const on = { store_post: 'border-rose-400 bg-rose-50 text-rose-800 shadow', store_sameday: 'border-teal-400 bg-teal-50 text-teal-800 shadow' };
+            const off = 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50';
+            document.getElementById('store-type-post').className = `store-type-btn px-5 py-4 rounded-xl border-2 font-black text-base transition w-full ${type === 'store_post' ? on.store_post : off}`;
+            document.getElementById('store-type-sameday').className = `store-type-btn flex-1 px-5 py-4 rounded-xl border-2 font-black text-base transition ${type === 'store_sameday' ? on.store_sameday : off}`;
+            document.getElementById('store-form-card').classList.remove('hidden');
+            document.getElementById('store-form-title').innerText = STORE_TYPE_TITLE[type];
+            resetStoreForm();
+            if (sellerMode === 'store') {
+                document.getElementById('history-type').value = type;
+                if (currentRole === 'seller') renderSellerTable();
+            }
+            lucide.createIcons();
+        }
+
+        // 매장 접수서 기본값: 받는사람 = 내 상호, 연락처 = 내 연락처
+        function resetStoreForm() {
+            document.getElementById('store-order-form').reset();
+            document.getElementById('st-sender').value = STORE_SENDER_NAME;
+            document.getElementById('st-sender-phone').value = STORE_SENDER_PHONE;
+            if (currentSellerAccount) {
+                document.getElementById('st-recipient').value = currentSellerAccount.company || '';
+                document.getElementById('st-phone').value = currentSellerAccount.phone || '';
+            }
+        }
+
+        // [최근 접수내용 재등록]: 같은 종류(우체국/당일)로 가장 최근에 접수한 내용을 그대로 채웁니다.
+        function fillRecentStoreOrder() {
+            const recent = ordersMaster
+                .filter(o => o.seller_id === currentUserId && orderTypeOf(o) === storeType)
+                .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))[0];
+            if (!recent) {
+                alert(`최근 ${STORE_TYPE_TITLE[storeType].replace(/^\S+\s/, '')} 내역이 없습니다.`);
+                return;
+            }
+            const set = (id, v) => { document.getElementById(id).value = v || ''; };
+            set('st-recipient', recent.recipient);
+            set('st-phone', recent.phone);
+            set('st-zipcode', recent.zipcode);
+            set('st-address', recent.address);
+            set('st-detail-address', recent.detail_address);
+            set('st-product', recent.product);
+            set('st-memo', recent.memo);
+            set('st-bamnat-memo', recent.bamnat_memo);
+            document.getElementById('btn-store-submit').focus();
+        }
+
+        async function handleStoreOrderSubmit(e) {
+            e.preventDefault();
+            if (!canAddOrders()) {
+                alert('관리자 승인 전이거나 이용이 정지된 계정은 주문을 등록할 수 없습니다.');
+                return;
+            }
+            if (!isValidPhone(document.getElementById('st-phone').value)) {
+                alert('받는사람 연락처를 확인해주세요.\n예) 010-1234-5678 또는 01012345678');
+                return;
+            }
+            if (!document.getElementById('st-address').value.trim()) {
+                alert('받을 주소를 [주소 검색] 버튼으로 입력해주세요.');
+                return;
+            }
+            const newOrder = {
+                id: generateOrderId(storeType === 'store_post' ? 'ORD-POST' : 'ORD-DAY'),
+                order_type: storeType,
+                seller_company: currentSellerAccount.company,
+                sender_name: STORE_SENDER_NAME,
+                cs_phone: STORE_SENDER_PHONE,
+                recipient: document.getElementById('st-recipient').value.trim(),
+                phone: formatPhone(document.getElementById('st-phone').value),
+                zipcode: document.getElementById('st-zipcode').value.trim(),
+                address: document.getElementById('st-address').value.trim(),
+                detail_address: document.getElementById('st-detail-address').value.trim(),
+                product: document.getElementById('st-product').value.trim(),
+                memo: document.getElementById('st-memo').value.trim(),
+                bamnat_memo: document.getElementById('st-bamnat-memo').value.trim(),
+                qty: 1,
+                status: '접수대기'
+            };
+
+            let savedOrder = { ...newOrder, created_at: new Date().toISOString() };
+            if (supabaseClient) {
+                const { data, error } = await supabaseClient.from('orders').insert([newOrder]).select();
+                if (error) {
+                    alert('주문 저장 중 오류가 발생했습니다.\n\n' + dbErrorMessage(error));
+                    return;
+                }
+                if (data && data[0]) savedOrder = data[0];
+            }
+            ordersMaster.unshift(savedOrder);
+            sortOrdersMaster();
+            alert(`${STORE_TYPE_TITLE[storeType].replace(/^\S+\s/, '')}가 등록되었습니다. (NO. ${sellerNoLabel(savedOrder)})`);
+            if (isKakaoNoticeTime()) alert(KAKAO_NOTICE_MESSAGE);
+            resetStoreForm();
+            renderSellerTable();
         }
 
         // 송화인명 = 밤낮딜리버리(상호). 괄호 안 상호는 기본이 내 상호이고, 주문마다 바꿀 수 있습니다.
@@ -1619,8 +1869,15 @@
                 return;
             }
 
+            // 매장/사무실 접수건: 송화인·보내는 연락처 고정, 상품명 생략 가능
+            const store = isStoreOrder(order);
+            document.getElementById('eo-sender-name').readOnly = store;
+            document.getElementById('eo-cs-phone').readOnly = store;
+            document.getElementById('eo-product').required = !store;
+            ['eo-wholesale-company', 'eo-wholesale-product'].forEach(id => document.getElementById(id).closest('div').classList.toggle('hidden', store));
+
             document.getElementById('edit-order-id').value = order.id;
-            document.getElementById('edit-modal-order-id').innerText = `접수번호: ${order.id}`;
+            document.getElementById('edit-modal-order-id').innerText = `접수번호: ${order.id} · ${ORDER_TYPE_LABEL[orderTypeOf(order)]}`;
             document.getElementById('eo-sender-name').value = order.sender_name || `밤낮딜리버리(${order.seller_company})`;
             document.getElementById('eo-cs-phone').value = order.cs_phone || '';
             document.getElementById('eo-recipient').value = order.recipient || '';
@@ -1642,6 +1899,22 @@
         function closeEditModal() {
             document.getElementById('edit-modal').classList.add('hidden');
             document.getElementById('edit-modal').classList.remove('flex');
+        }
+
+        // prefix 가 'st' 면 st-zipcode / st-address / st-detail-address 에 채웁니다.
+        function execDaumPostcodeFor(prefix) {
+            if (typeof daum === 'undefined' || !daum.Postcode) {
+                alert("주소 검색 서비스 로딩 중입니다. 잠시 후 다시 시도해주세요.");
+                return;
+            }
+            new daum.Postcode({
+                oncomplete: function(data) {
+                    const addr = data.userSelectedType === 'R' ? data.roadAddress : data.jibunAddress;
+                    document.getElementById(`${prefix}-zipcode`).value = data.zonecode;
+                    document.getElementById(`${prefix}-address`).value = addr;
+                    document.getElementById(`${prefix}-detail-address`).focus();
+                }
+            }).open();
         }
 
         function execDaumPostcodeForEdit() {
@@ -1671,16 +1944,17 @@
                 return;
             }
 
-            const senderName = document.getElementById('eo-sender-name').value.trim();
+            const store = isStoreOrder(ordersMaster[orderIndex]);
+            const senderName = store ? STORE_SENDER_NAME : document.getElementById('eo-sender-name').value.trim();
             const senderRegex = /^밤낮딜리버리\([^\(\)]+\)$/;
-            if (!senderRegex.test(senderName)) {
+            if (!store && !senderRegex.test(senderName)) {
                 alert("송화인명은 반드시 '밤낮딜리버리(본인업체상호)' 형식이어야 합니다.");
                 return;
             }
 
             const updatedData = {
                 sender_name: senderName,
-                cs_phone: formatPhone(document.getElementById('eo-cs-phone').value),
+                cs_phone: store ? STORE_SENDER_PHONE : formatPhone(document.getElementById('eo-cs-phone').value),
                 recipient: document.getElementById('eo-recipient').value.trim(),
                 phone: formatPhone(document.getElementById('eo-phone').value),
                 zipcode: document.getElementById('eo-zipcode').value.trim(),
@@ -1763,6 +2037,25 @@
             return multi ? `${o.order_no}-${o.item_no}` : String(o.order_no);
         }
 
+        // 접수구분
+        const ORDER_TYPE_LABEL = { fulfillment: '풀필먼트', store_post: '매장·우체국', store_sameday: '매장·당일' };
+        const ORDER_TYPE_CLASS = {
+            fulfillment: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+            store_post: 'bg-rose-50 text-rose-700 border-rose-200',
+            store_sameday: 'bg-teal-50 text-teal-700 border-teal-200'
+        };
+        const orderTypeOf = o => o.order_type || 'fulfillment';
+        const isStoreOrder = o => orderTypeOf(o) !== 'fulfillment';
+        function orderTypeBadgeHtml(o) {
+            const t = orderTypeOf(o);
+            return `<span class="inline-block mt-1 px-1.5 py-0.5 rounded border text-[10px] font-bold whitespace-nowrap ${ORDER_TYPE_CLASS[t] || ''}">${escapeHtml(ORDER_TYPE_LABEL[t] || t)}</span>`;
+        }
+        function matchesOrderType(o, filter) {
+            if (!filter || filter === 'all') return true;
+            if (filter === 'store') return isStoreOrder(o);
+            return orderTypeOf(o) === filter;
+        }
+
         // 셀러 화면용 NO. : 셀러마다 접수 순서대로 1번부터 (합배송은 3-1, 3-2)
         function sellerNoLabel(o, groups) {
             if (o.seller_order_no == null) return orderNoLabel(o, groups);
@@ -1815,7 +2108,7 @@
                         <td class="p-3 text-center">
                             <input type="checkbox" value="${id}" ${canEdit ? '' : 'disabled'} class="seller-chk-item rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-40">
                         </td>
-                        <td class="p-3 font-mono font-black text-indigo-700 whitespace-nowrap">${escapeHtml(sellerNoLabel(o, groups))}</td>
+                        <td class="p-3 font-mono font-black text-indigo-700 whitespace-nowrap">${escapeHtml(sellerNoLabel(o, groups))}<br>${orderTypeBadgeHtml(o)}</td>
                         <td class="p-3 font-mono text-[10px] text-slate-500 min-w-[150px] break-all">
                             ${id}
                             ${isExcel ? '<span class="ml-1 text-[9px] bg-amber-100 text-amber-800 font-bold px-1 rounded">엑셀</span>' : ''}
@@ -1923,8 +2216,10 @@
                 ((Number(a.seller_order_no) || 0) - (Number(b.seller_order_no) || 0)) * (oldestFirst ? 1 : -1)
                 || (Number(a.item_no) || 0) - (Number(b.item_no) || 0)
                 || String(a.created_at || '').localeCompare(String(b.created_at || '')) * (oldestFirst ? 1 : -1);
+            const typeFilter = document.getElementById('history-type').value;
             return ordersMaster.filter(o => {
                 if (o.seller_id !== currentUserId) return false;
+                if (!matchesOrderType(o, typeFilter)) return false;
                 const day = o.created_at ? kstDateString(new Date(o.created_at)) : '';
                 if (historyFrom && day < historyFrom) return false;
                 if (historyTo && day > historyTo) return false;
@@ -2240,9 +2535,11 @@
         function getAdminFilteredOrders() {
             const sellerFilter = document.getElementById('admin-seller-filter').value;
             const shipFilter = document.getElementById('admin-ship-filter').value;
+            const typeFilter = document.getElementById('admin-type-filter').value;
             const groups = getOrderGroups();
             return ordersMaster.filter(o => {
                 if (sellerFilter !== 'ALL' && o.seller_company !== sellerFilter) return false;
+                if (!matchesOrderType(o, typeFilter)) return false;
                 if (shipFilter === 'ALL') return true;
                 const state = orderShipState(o, groups);
                 return shipFilter === 'NOT_DONE' ? state !== '출고완료' : state === shipFilter;
@@ -2291,6 +2588,7 @@
                     <td class="p-3 font-mono font-black text-indigo-700 whitespace-nowrap">
                         ${escapeHtml(orderNoLabel(o, groups))}
                         ${o.seller_order_no != null ? `<span class="block text-[10px] font-normal text-slate-400" title="셀러 화면에 보이는 번호">셀러 #${escapeHtml(sellerNoLabel(o, groups))}</span>` : ''}
+                        ${orderTypeBadgeHtml(o)}
                     </td>
                     <td class="p-3 font-bold text-slate-900 whitespace-nowrap">${escapeHtml(o.sender_name || `밤낮딜리버리(${o.seller_company})`)}</td>
                     <td class="p-3 font-semibold whitespace-nowrap">${escapeHtml(o.recipient)}</td>
@@ -3006,8 +3304,8 @@
             }
             try {
                 const groups = getOrderGroups();
-                const rows = list.map(o => [...orderToTemplateRow(o, groups, true), o.status || '', o.ship_status || '미출고', o.courier || '', o.tracking_no || '', formatKstDateTime(o.created_at)]);
-                const zip = await buildFilledTemplate(rows, ['처리상태', '출고상태', '택배사', '송장번호', '접수일시'], [10, 10, 16, 18, 18]);
+                const rows = list.map(o => [...orderToTemplateRow(o, groups, true), o.status || '', o.ship_status || '미출고', o.courier || '', o.tracking_no || '', formatKstDateTime(o.created_at), ORDER_TYPE_LABEL[orderTypeOf(o)] || '']);
+                const zip = await buildFilledTemplate(rows, ['처리상태', '출고상태', '택배사', '송장번호', '접수일시', '접수구분'], [10, 10, 16, 18, 18, 12]);
                 const p = getKstParts();
                 await saveZipAsXlsx(zip, `밤낮딜리버리_내주문_${historyFrom || '전체'}~${historyTo || `${p.y}-${p.m}-${p.d}`}.xlsx`);
             } catch (err) {
@@ -3034,14 +3332,15 @@
                         state === '부분출고' ? `부분출고 (${g.shipped}/${g.total})` : state,
                         o.courier || '',
                         o.tracking_no || '',
+                        ORDER_TYPE_LABEL[orderTypeOf(o)] || '',
                         o.seller_company || '',
                         formatKstDateTime(o.created_at),
                         o.status || ''
                     ];
                 });
                 const zip = await buildFilledTemplate(rows,
-                    ['상품 출고상태', '주문 출고상태', '택배사', '송장번호', '거래처(상호)', '접수일시', '처리상태'],
-                    [14, 18, 16, 18, 16, 18, 12]);
+                    ['상품 출고상태', '주문 출고상태', '택배사', '송장번호', '접수구분', '거래처(상호)', '접수일시', '처리상태'],
+                    [14, 18, 16, 18, 12, 16, 18, 12]);
                 const p = getKstParts();
                 const shipFilter = document.getElementById('admin-ship-filter');
                 const label = shipFilter.value === 'ALL' ? '전체' : shipFilter.options[shipFilter.selectedIndex].text.replace(/\s|\+/g, '');

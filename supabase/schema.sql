@@ -194,6 +194,19 @@ alter table public.orders add column if not exists shipped_at timestamptz;
 alter table public.orders add column if not exists courier text;       -- 택배사
 alter table public.orders add column if not exists tracking_no text;   -- 송장(운송장)번호
 alter table public.orders add column if not exists seller_order_no integer;  -- 셀러별 접수 순번 (셀러마다 1번부터)
+-- 접수구분: fulfillment = 고객풀필먼트(고객배송대행) / store_post = 매장·사무실 우체국택배 / store_sameday = 매장·사무실 당일택배
+alter table public.orders add column if not exists order_type text;
+update public.orders set order_type = 'fulfillment' where order_type is null;
+alter table public.orders alter column order_type set default 'fulfillment';
+alter table public.orders alter column order_type set not null;
+do $$
+begin
+    if not exists (select 1 from pg_constraint where conname = 'orders_order_type_check') then
+        alter table public.orders add constraint orders_order_type_check
+            check (order_type in ('fulfillment', 'store_post', 'store_sameday'));
+    end if;
+end;
+$$;
 update public.orders set ship_status = '미출고' where ship_status is null;
 alter table public.orders alter column ship_status set default '미출고';
 alter table public.orders alter column ship_status set not null;
@@ -316,6 +329,7 @@ begin
             new.seller_order_no := old.seller_order_no;
         end if;
         if not v_privileged then
+            new.order_type := old.order_type;
             new.status := old.status;
             new.ship_status := old.ship_status;
             new.shipped_at := old.shipped_at;
