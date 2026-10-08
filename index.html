@@ -134,18 +134,35 @@
             <!-- 승인 대기 / 정지 계정 안내 -->
             <div id="seller-status-notice" class="hidden px-4 py-3 rounded-xl border text-sm font-medium flex items-start gap-2"></div>
 
-            <!-- 택배접수 종류 선택: 왼쪽 매장/사무실(사입대행) · 오른쪽 고객풀필먼트(고객배송대행) -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <button type="button" id="mode-card-store" onclick="switchSellerMode('store')" class="mode-card text-left p-5 rounded-2xl border-2 transition">
-                    <div class="text-2xl">🏬</div>
-                    <div class="mt-1 text-lg font-black text-slate-900">매장/사무실 택배접수</div>
-                    <div class="text-xs font-bold text-slate-500">사입대행택배 · 우체국택배 / 당일택배</div>
+            <!-- 택배접수 종류 선택: 매장/사무실(사입대행) · 고객풀필먼트(고객배송대행) + 오른쪽 사무실 보관요청(모든 접수 필수) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[1fr_1fr_1.5fr] gap-3 items-stretch">
+                <button type="button" id="mode-card-store" onclick="switchSellerMode('store')" class="mode-card text-left px-4 py-3 rounded-xl border-2 transition">
+                    <div class="text-base font-black text-slate-900">🏬 매장/사무실 택배접수</div>
+                    <div class="text-[11px] font-bold text-slate-500">사입대행택배 · 우체국택배 / 당일택배</div>
                 </button>
-                <button type="button" id="mode-card-fulfillment" onclick="switchSellerMode('fulfillment')" class="mode-card text-left p-5 rounded-2xl border-2 transition">
-                    <div class="text-2xl">📦</div>
-                    <div class="mt-1 text-lg font-black text-slate-900">고객풀필먼트 택배접수</div>
-                    <div class="text-xs font-bold text-slate-500">고객배송대행 · 단건 / 엑셀 일괄 접수</div>
+                <button type="button" id="mode-card-fulfillment" onclick="switchSellerMode('fulfillment')" class="mode-card text-left px-4 py-3 rounded-xl border-2 transition">
+                    <div class="text-base font-black text-slate-900">📦 고객풀필먼트 택배접수</div>
+                    <div class="text-[11px] font-bold text-slate-500">고객배송대행 · 단건 / 엑셀 일괄 접수</div>
                 </button>
+
+                <!-- 픽업건 중 사무실 보관요청 (모든 택배접수 시 필수 선택) -->
+                <div id="keep-request-box" class="md:col-span-2 lg:col-span-1 bg-amber-50 border-2 border-amber-300 rounded-xl px-4 py-2.5 space-y-1.5">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="text-sm font-black text-amber-900">📥 픽업건 중 사무실 보관요청</span>
+                        <span class="text-[11px] font-bold text-rose-600">* 필수 체크</span>
+                    </div>
+                    <div class="flex items-center gap-4 flex-wrap">
+                        <label class="flex items-center gap-1.5 text-xs font-bold text-slate-800 cursor-pointer">
+                            <input type="radio" name="keep-request" value="있음" onchange="onKeepRequestChange()" class="w-4 h-4 text-amber-600"> 1. 보관건 있습니다
+                        </label>
+                        <label class="flex items-center gap-1.5 text-xs font-bold text-slate-800 cursor-pointer">
+                            <input type="radio" name="keep-request" value="없음" onchange="onKeepRequestChange()" class="w-4 h-4 text-amber-600"> 2. 보관건 없습니다
+                        </label>
+                    </div>
+                    <input type="text" id="keep-memo" disabled
+                        placeholder="예시) 풀필외 남은재고 킵해주세요, 오늘 사입건 모두 킵해주세요 또는 일부만 킵해주세요"
+                        class="w-full px-2.5 py-1.5 border rounded-lg text-xs bg-white disabled:bg-slate-100 disabled:text-slate-400 placeholder:text-slate-400 focus:outline-amber-500">
+                </div>
             </div>
 
             <!-- ===== 매장/사무실 택배접수 (사입대행택배) ===== -->
@@ -249,24 +266,6 @@
                         <i data-lucide="download" class="w-4 h-4"></i> 풀필먼트 일괄접수 엑셀양식 다운로드
                     </button>
                 </div>
-            </div>
-
-            <!-- 픽업건 중 사무실 보관요청 (풀필먼트 접수 시 필수 선택) -->
-            <div id="keep-request-box" class="bg-amber-50 border-2 border-amber-300 rounded-xl p-4 space-y-2">
-                <div class="flex items-center gap-2 flex-wrap">
-                    <span class="text-base font-black text-amber-900">📦 픽업건 중 사무실 보관요청</span>
-                    <span class="text-[11px] font-bold text-rose-600">* 필수 선택</span>
-                    <span class="text-[11px] text-amber-800">풀필먼트 출고 후 남은 사입건을 사무실에 보관(킵) 요청합니다. (단건·엑셀 접수 모두 적용)</span>
-                </div>
-                <label class="flex items-center gap-2 text-sm font-bold text-slate-800 cursor-pointer">
-                    <input type="radio" name="keep-request" value="있음" onchange="onKeepRequestChange()" class="w-4 h-4 text-amber-600"> 1. 보관건 있습니다
-                </label>
-                <textarea id="keep-memo" rows="2" disabled
-                    placeholder="예시) 풀필외 남은재고 킵해주세요, 오늘 사입건 모두 킵해주세요 또는 일부만 킵해주세요"
-                    class="w-full px-3 py-2 border rounded-lg text-sm bg-white disabled:bg-slate-100 disabled:text-slate-400 placeholder:text-slate-400 focus:outline-amber-500"></textarea>
-                <label class="flex items-center gap-2 text-sm font-bold text-slate-800 cursor-pointer">
-                    <input type="radio" name="keep-request" value="없음" onchange="onKeepRequestChange()" class="w-4 h-4 text-amber-600"> 2. 보관건 없습니다
-                </label>
             </div>
 
             <!-- Single & Batch Registration Tabs -->
@@ -1477,8 +1476,8 @@
             try { localStorage.setItem('bamnat.sellerMode', mode); } catch (e) {}
             const on = 'border-indigo-500 bg-indigo-50 shadow-md ring-2 ring-indigo-200';
             const off = 'border-slate-200 bg-white hover:border-indigo-300 hover:bg-slate-50';
-            document.getElementById('mode-card-store').className = `mode-card text-left p-5 rounded-2xl border-2 transition ${mode === 'store' ? on : off}`;
-            document.getElementById('mode-card-fulfillment').className = `mode-card text-left p-5 rounded-2xl border-2 transition ${mode === 'fulfillment' ? on : off}`;
+            document.getElementById('mode-card-store').className = `mode-card text-left px-4 py-3 rounded-xl border-2 transition ${mode === 'store' ? on : off}`;
+            document.getElementById('mode-card-fulfillment').className = `mode-card text-left px-4 py-3 rounded-xl border-2 transition ${mode === 'fulfillment' ? on : off}`;
             document.getElementById('store-section').classList.toggle('hidden', mode !== 'store');
             document.getElementById('fulfillment-section').classList.toggle('hidden', mode !== 'fulfillment');
             // 아래 주문목록도 선택한 접수 종류로 맞춰 보여줍니다.
@@ -1544,6 +1543,8 @@
                 alert('관리자 승인 전이거나 이용이 정지된 계정은 주문을 등록할 수 없습니다.');
                 return;
             }
+            const keep = readKeepRequest();
+            if (!keep) return;
             if (!isValidPhone(document.getElementById('st-phone').value)) {
                 alert('받는사람 연락처를 확인해주세요.\n예) 010-1234-5678 또는 01012345678');
                 return;
@@ -1566,6 +1567,7 @@
                 product: document.getElementById('st-product').value.trim(),
                 memo: document.getElementById('st-memo').value.trim(),
                 bamnat_memo: document.getElementById('st-bamnat-memo').value.trim(),
+                ...keep,
                 qty: 1,
                 status: '접수대기'
             };
@@ -1587,12 +1589,13 @@
             renderSellerTable();
         }
 
-        // ---------------- 픽업건 중 사무실 보관요청 (풀필먼트 접수 필수) ----------------
+        // ---------------- 픽업건 중 사무실 보관요청 (모든 택배접수 필수) ----------------
         function onKeepRequestChange() {
             const checked = document.querySelector('input[name="keep-request"]:checked');
             const memo = document.getElementById('keep-memo');
             memo.disabled = !(checked && checked.value === '있음');
-            if (!memo.disabled) memo.focus();
+            if (memo.disabled) memo.value = '';
+            else memo.focus();
         }
 
         // 선택 확인: 안 골랐거나 '있음'인데 메모가 없으면 안내 후 null
@@ -3513,10 +3516,10 @@
 
             // 4. 사무실 보관요청건: 같은 셀러 · 같은 날 · 같은 메모는 한 줄로
             const keepMap = new Map();
-            fulfill.filter(o => o.keep_request === '있음').forEach(o => {
+            list.filter(o => o.keep_request === '있음').forEach(o => {
                 const day = o.created_at ? kstDateString(new Date(o.created_at)) : '';
                 const key = `${o.seller_id}|${day}|${o.keep_memo || ''}`;
-                if (!keepMap.has(key)) keepMap.set(key, { company: o.seller_company || '', sender: senderCompanyOf(o), memo: o.keep_memo || '', day, orders: [], recipients: new Set() });
+                if (!keepMap.has(key)) keepMap.set(key, { company: o.seller_company || '', sender: isStoreOrder(o) ? (o.seller_company || '') : senderCompanyOf(o), memo: o.keep_memo || '', day, orders: [], recipients: new Set() });
                 const k = keepMap.get(key);
                 k.orders.push(o);
                 k.recipients.add(o.recipient || '');
