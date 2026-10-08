@@ -246,9 +246,27 @@
                 </div>
                 <div class="flex gap-2">
                     <button onclick="downloadSampleExcel()" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 shadow transition">
-                        <i data-lucide="download" class="w-4 h-4"></i> 2026 원본 색상 엑셀 양식 다운로드
+                        <i data-lucide="download" class="w-4 h-4"></i> 풀필먼트 일괄접수 엑셀양식 다운로드
                     </button>
                 </div>
+            </div>
+
+            <!-- 픽업건 중 사무실 보관요청 (풀필먼트 접수 시 필수 선택) -->
+            <div id="keep-request-box" class="bg-amber-50 border-2 border-amber-300 rounded-xl p-4 space-y-2">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-base font-black text-amber-900">📦 픽업건 중 사무실 보관요청</span>
+                    <span class="text-[11px] font-bold text-rose-600">* 필수 선택</span>
+                    <span class="text-[11px] text-amber-800">풀필먼트 출고 후 남은 사입건을 사무실에 보관(킵) 요청합니다. (단건·엑셀 접수 모두 적용)</span>
+                </div>
+                <label class="flex items-center gap-2 text-sm font-bold text-slate-800 cursor-pointer">
+                    <input type="radio" name="keep-request" value="있음" onchange="onKeepRequestChange()" class="w-4 h-4 text-amber-600"> 1. 보관건 있습니다
+                </label>
+                <textarea id="keep-memo" rows="2" disabled
+                    placeholder="예시) 풀필외 남은재고 킵해주세요, 오늘 사입건 모두 킵해주세요 또는 일부만 킵해주세요"
+                    class="w-full px-3 py-2 border rounded-lg text-sm bg-white disabled:bg-slate-100 disabled:text-slate-400 placeholder:text-slate-400 focus:outline-amber-500"></textarea>
+                <label class="flex items-center gap-2 text-sm font-bold text-slate-800 cursor-pointer">
+                    <input type="radio" name="keep-request" value="없음" onchange="onKeepRequestChange()" class="w-4 h-4 text-amber-600"> 2. 보관건 없습니다
+                </label>
             </div>
 
             <!-- Single & Batch Registration Tabs -->
@@ -265,10 +283,16 @@
                 <div class="p-6">
                     <!-- Single Order Form -->
                     <form id="single-order-form" onsubmit="handleSingleOrderSubmit(event)" class="space-y-4">
+                        <div class="flex justify-between items-center flex-wrap gap-3">
+                            <p class="text-xs font-bold text-rose-600">* 표시가 붙은 항목은 반드시 기재해주셔야 합니다</p>
+                            <button type="button" onclick="fillRecentFulfillmentOrder()" class="px-5 py-3 bg-amber-500 hover:bg-amber-600 text-white font-black text-sm rounded-xl shadow flex items-center gap-2">
+                                <i data-lucide="rotate-ccw" class="w-5 h-5"></i> 최근 접수내용 재등록
+                            </button>
+                        </div>
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
                             <div>
                                 <label class="block text-xs font-bold text-slate-700 mb-1">
-                                    송화인명 (보내는사람)
+                                    송화인명 (보내는사람) *
                                     <button type="button" onclick="resetSenderCompany()" class="ml-1 text-[10px] font-normal text-indigo-600 hover:underline">내 상호로 되돌리기</button>
                                 </label>
                                 <!-- 괄호 칸은 기본 3글자 크기, 상호가 길면 글자 수에 맞춰 늘어납니다 -->
@@ -307,12 +331,14 @@
                         <!-- Wholesale Details -->
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1">도매거래처명</label>
-                                <input type="text" id="so-wholesale-company" placeholder="예: 센스" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                                <label class="block text-xs font-bold text-slate-700 mb-1">도매거래처명 *</label>
+                                <input type="text" id="so-wholesale-company" required placeholder="예: 센스" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                                <p class="text-[11px] text-slate-500 mt-1 leading-4">'사무실 킵건'으로 출고되는 제품은 <b>"킵건"</b>, '고객 반품건'으로 출고되는 제품은 <b>"고객반품건"</b> 이라고 기재해주세요.</p>
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1">도매 상품명</label>
-                                <input type="text" id="so-wholesale-product" placeholder="예: 울PT" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                                <label class="block text-xs font-bold text-slate-700 mb-1">도매 상품명 *</label>
+                                <input type="text" id="so-wholesale-product" required placeholder="예: 울PT" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                                <p class="text-[11px] text-slate-500 mt-1 leading-4">도매 상품명을 잘 모를경우 쇼핑몰 상품명과 동일하게 작성해주세요.</p>
                             </div>
                         </div>
 
@@ -554,6 +580,7 @@
                                         <input type="checkbox" id="chk-all-admin" onchange="document.querySelectorAll('.admin-chk-item').forEach(c => c.checked = this.checked)" class="rounded border-slate-300">
                                     </th>
                                     <th class="p-3 whitespace-nowrap">NO.</th>
+                                    <th class="p-3 whitespace-nowrap">셀러 가입상호</th>
                                     <th class="p-3 whitespace-nowrap">송화인(거래처)</th>
                                     <th class="p-3 whitespace-nowrap">수화인(받는사람)</th>
                                     <th class="p-3 whitespace-nowrap">연락처</th>
@@ -1560,6 +1587,58 @@
             renderSellerTable();
         }
 
+        // ---------------- 픽업건 중 사무실 보관요청 (풀필먼트 접수 필수) ----------------
+        function onKeepRequestChange() {
+            const checked = document.querySelector('input[name="keep-request"]:checked');
+            const memo = document.getElementById('keep-memo');
+            memo.disabled = !(checked && checked.value === '있음');
+            if (!memo.disabled) memo.focus();
+        }
+
+        // 선택 확인: 안 골랐거나 '있음'인데 메모가 없으면 안내 후 null
+        function readKeepRequest() {
+            const checked = document.querySelector('input[name="keep-request"]:checked');
+            if (!checked) {
+                alert('사무실 보관요청 버튼을 체크해주세요.');
+                document.getElementById('keep-request-box').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return null;
+            }
+            const memo = document.getElementById('keep-memo').value.trim();
+            if (checked.value === '있음' && !memo) {
+                alert('보관건이 있는 경우 보관요청 메모를 꼭 작성해주세요.\n예시) 풀필외 남은재고 킵해주세요');
+                document.getElementById('keep-memo').focus();
+                return null;
+            }
+            return { keep_request: checked.value, keep_memo: checked.value === '있음' ? memo : null };
+        }
+
+        // [최근 접수내용 재등록] 고객풀필먼트: 마지막 풀필먼트 접수 내용을 그대로 채웁니다.
+        function fillRecentFulfillmentOrder() {
+            const recent = ordersMaster
+                .filter(o => o.seller_id === currentUserId && orderTypeOf(o) === 'fulfillment')
+                .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))[0];
+            if (!recent) {
+                alert('최근 고객풀필먼트 접수 내역이 없습니다.');
+                return;
+            }
+            const set = (id, v) => { document.getElementById(id).value = v || ''; };
+            const m = /^밤낮딜리버리\((.*)\)$/.exec(recent.sender_name || '');
+            set('so-sender-company', m ? m[1] : (currentSellerAccount && currentSellerAccount.company));
+            autosizeSenderInput();
+            set('so-cs-phone', recent.cs_phone);
+            set('so-recipient', recent.recipient);
+            set('so-phone', recent.phone);
+            set('so-product', recent.product);
+            set('so-wholesale-company', recent.wholesale_company);
+            set('so-wholesale-product', recent.wholesale_product);
+            set('so-zipcode', recent.zipcode);
+            set('so-address', recent.address);
+            set('so-detail-address', recent.detail_address);
+            set('so-memo', recent.memo);
+            set('so-bamnat-memo', recent.bamnat_memo);
+            document.getElementById('btn-submit-order').focus();
+        }
+
         // 송화인명 = 밤낮딜리버리(상호). 괄호 안 상호는 기본이 내 상호이고, 주문마다 바꿀 수 있습니다.
         function resetSenderCompany() {
             document.getElementById('so-sender-company').value = currentSellerAccount ? currentSellerAccount.company : '';
@@ -1652,6 +1731,9 @@
                 return;
             }
 
+            const keep = readKeepRequest();
+            if (!keep) return;
+
             if (/[()]/.test(document.getElementById('so-sender-company').value)) {
                 alert('송화인 상호에는 괄호를 넣을 수 없습니다. 괄호 안에 들어갈 상호만 입력해주세요.');
                 return;
@@ -1683,6 +1765,8 @@
                 wholesale_product: document.getElementById('so-wholesale-product').value,
                 memo: document.getElementById('so-memo').value,
                 bamnat_memo: document.getElementById('so-bamnat-memo').value,
+                keep_request: keep.keep_request,
+                keep_memo: keep.keep_memo,
                 qty: 1,
                 status: '접수대기'
             };
@@ -1716,6 +1800,12 @@
 
             const file = e.target.files[0];
             if (!file) return;
+
+            const keep = readKeepRequest();
+            if (!keep) {
+                e.target.value = '';
+                return;
+            }
 
             const reader = new FileReader();
             reader.onload = async function(evt) {
@@ -1792,6 +1882,8 @@
                             phone: formatPhone(normalizePhone(r[7])),
                             memo: cell(r[8]),
                             bamnat_memo: cell(r[9]),
+                            keep_request: keep.keep_request,
+                            keep_memo: keep.keep_memo,
                             qty: parseInt(r[10]) || 1,
                             status: '접수대기'
                         });
@@ -2576,7 +2668,7 @@
             document.getElementById('admin-order-count').innerText = `주문 ${orderCount}건 · 상품 ${filtered.length}개`;
 
             if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="16" class="text-center py-6 text-slate-400">등록된 주문 내역이 없습니다.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="17" class="text-center py-6 text-slate-400">등록된 주문 내역이 없습니다.</td></tr>`;
                 return;
             }
 
@@ -2598,13 +2690,17 @@
                         ${o.seller_order_no != null ? `<span class="block text-[10px] font-normal text-slate-400" title="셀러 화면에 보이는 번호">셀러 #${escapeHtml(sellerNoLabel(o, groups))}</span>` : ''}
                         ${orderTypeBadgeHtml(o)}
                     </td>
+                    <td class="p-3 whitespace-nowrap"><span class="px-2 py-1 rounded-lg bg-slate-900 text-white text-[11px] font-black">${escapeHtml(o.seller_company || '-')}</span></td>
                     <td class="p-3 font-bold text-slate-900 whitespace-nowrap">${escapeHtml(o.sender_name || `밤낮딜리버리(${o.seller_company})`)}</td>
                     <td class="p-3 font-semibold whitespace-nowrap">${escapeHtml(o.recipient)}</td>
                     <td class="p-3 whitespace-nowrap">${escapeHtml(o.phone)}</td>
                     <td class="p-3 max-w-xs truncate">${escapeHtml(`${o.address || ''} ${o.detail_address || ''}`.trim())}</td>
                     <td class="p-3 text-indigo-600 font-medium min-w-[160px]">${escapeHtml(o.product)}</td>
                     <td class="p-3 text-slate-600 whitespace-nowrap">${escapeHtml(o.wholesale_company || '-')} / ${escapeHtml(o.wholesale_product || '-')}</td>
-                    <td class="p-3 text-amber-700 font-medium min-w-[120px]">${escapeHtml(o.bamnat_memo || '-')}</td>
+                    <td class="p-3 text-amber-700 font-medium min-w-[120px]">
+                        ${escapeHtml(o.bamnat_memo || '-')}
+                        ${o.keep_request === '있음' ? `<span class="block mt-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 text-[10px] font-black">📦 보관요청: ${escapeHtml(o.keep_memo || '')}</span>` : ''}
+                    </td>
                     <td class="p-3 text-slate-400 whitespace-nowrap">${escapeHtml(formatKstDateTime(o.created_at))}</td>
                     <td class="p-3">
                         <div class="flex items-center gap-1 whitespace-nowrap">
@@ -3255,9 +3351,9 @@
 
         // 원본 양식의 1~2행(안내·머리글)은 그대로 두고, 3행부터 주문 데이터를 채운 파일 만들기
         // rows: [NO, 송화인, C/S, 수화인, 주소, 상품명, 도매처, 도매상품, 받는분전화, 배송메세지, 밤낮메세지, 수량, 보내는주소, 우편번호, ...추가열]
-        async function buildFilledTemplate(rows, extraHeaders = [], extraWidths = []) {
-            const zip = await loadFulfillmentTemplate();
-            let xml = await zip.file(FORM_SHEET_PATH).async('string');
+        // 원본 양식 시트(2번 '풀필먼트 엑셀양식')의 1~2행은 그대로 두고, 3행부터 주문 rows 를 채운 시트 XML
+        function buildFormSheetXml(baseXml, rows, extraHeaders = [], extraWidths = [], selected = true) {
+            let xml = baseXml;
             const getRow = r => (xml.match(new RegExp(`<row r="${r}"[^>]*>[\\s\\S]*?</row>`)) || [''])[0].replace(/ spans="[^"]*"/, '');
             const row1 = getRow(1);
             let row2 = getRow(2);
@@ -3278,8 +3374,73 @@
             if (extraWidths.length) {
                 xml = xml.replace('</cols>', extraWidths.map((w, i) => `<col min="${15 + i}" max="${15 + i}" width="${w}" customWidth="1"/>`).join('') + '</cols>');
             }
+            if (!selected) xml = xml.replace(/ tabSelected="1"/, '');
+            return xml;
+        }
+
+        async function buildFilledTemplate(rows, extraHeaders = [], extraWidths = []) {
+            const zip = await loadFulfillmentTemplate();
+            const xml = buildFormSheetXml(await zip.file(FORM_SHEET_PATH).async('string'), rows, extraHeaders, extraWidths, true);
             zip.file(FORM_SHEET_PATH, xml);
             return zip;
+        }
+
+        // 일반 표 시트 XML (1행 머리글: 원본 양식의 노란 머리글 서식 사용, 머리글 고정)
+        function buildTableSheetXml(headers, rows, widths) {
+            const lastCol = colLetter(Math.max(headers.length, 1) - 1);
+            const lastRow = rows.length + 1;
+            const head = `<row r="1" ht="30" customHeight="1">${headers.map((h, c) => xlsxCell(`${colLetter(c)}1`, h, 2)).join('')}</row>`;
+            const body = rows.map((vals, i) => `<row r="${i + 2}">${vals.map((v, c) => xlsxCell(`${colLetter(c)}${i + 2}`, v, null)).join('')}</row>`).join('');
+            return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+                + '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+                + `<dimension ref="A1:${lastCol}${lastRow}"/>`
+                + '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A2" sqref="A2"/></sheetView></sheetViews>'
+                + '<sheetFormatPr defaultRowHeight="16.5"/>'
+                + `<cols>${widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('')}</cols>`
+                + `<sheetData>${head}${body}</sheetData>`
+                + '<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/>'
+                + '</worksheet>';
+        }
+
+        // 원본 양식 파일의 서식(styles)을 그대로 쓰면서 시트를 sheets 목록으로 교체한 엑셀 파일
+        async function buildWorkbookFromTemplate(sheets) {
+            const zip = await loadFulfillmentTemplate();
+            zip.forEach(path => { if (/^xl\/worksheets\/sheet\d+\.xml$/.test(path)) zip.remove(path); });
+            sheets.forEach((sh, i) => zip.file(`xl/worksheets/sheet${i + 1}.xml`, sh.xml));
+
+            let wbXml = await zip.file('xl/workbook.xml').async('string');
+            wbXml = wbXml
+                .replace(/<sheets>[\s\S]*?<\/sheets>/, `<sheets>${sheets.map((sh, i) => `<sheet name="${xmlEscape(sh.name)}" sheetId="${i + 1}" r:id="rIdS${i + 1}"/>`).join('')}</sheets>`)
+                .replace(/activeTab="\d+"/, 'activeTab="0"');
+            zip.file('xl/workbook.xml', wbXml);
+
+            let rels = await zip.file('xl/_rels/workbook.xml.rels').async('string');
+            rels = rels.replace(/<Relationship [^>]*Target="worksheets\/sheet\d+\.xml"\/>/g, '')
+                .replace('</Relationships>', sheets.map((sh, i) =>
+                    `<Relationship Id="rIdS${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('') + '</Relationships>');
+            zip.file('xl/_rels/workbook.xml.rels', rels);
+
+            let ct = await zip.file('[Content_Types].xml').async('string');
+            ct = ct.replace(/<Override PartName="\/xl\/worksheets\/sheet\d+\.xml"[^>]*\/>/g, '')
+                .replace('</Types>', sheets.map((sh, i) =>
+                    `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('') + '</Types>');
+            zip.file('[Content_Types].xml', ct);
+
+            const appFile = zip.file('docProps/app.xml');
+            if (appFile) {
+                let app = await appFile.async('string');
+                app = app.replace(/<HeadingPairs>[\s\S]*?<\/TitlesOfParts>/,
+                    `<HeadingPairs><vt:vector size="2" baseType="variant"><vt:variant><vt:lpstr>워크시트</vt:lpstr></vt:variant><vt:variant><vt:i4>${sheets.length}</vt:i4></vt:variant></vt:vector></HeadingPairs>`
+                    + `<TitlesOfParts><vt:vector size="${sheets.length}" baseType="lpstr">${sheets.map(sh => `<vt:lpstr>${xmlEscape(sh.name)}</vt:lpstr>`).join('')}</vt:vector></TitlesOfParts>`);
+                zip.file('docProps/app.xml', app);
+            }
+            return zip;
+        }
+
+        // 풀필먼트 접수 시 송화인 '밤낮딜리버리(상호)'의 괄호 안 상호
+        function senderCompanyOf(o) {
+            const m = /^밤낮딜리버리\((.*)\)$/.exec(o.sender_name || '');
+            return m ? m[1] : (o.sender_name || o.seller_company || '');
         }
 
         // 주문 한 건 → 양식 A~N열 값
@@ -3322,7 +3483,83 @@
             }
         }
 
-        // 관리자: 현재 필터(거래처/출고상태) 기준으로 원본 양식 그대로 다운로드 (O열부터 관리자용 정보)
+        // 관리자: 현재 필터 기준 접수건 엑셀 (8개 시트)
+        //  1 풀필먼트 접수건(풀필) / 2 일반택배 접수건(일반) / 3 당일택배 접수건(당택)  ← 원본 양식 그대로
+        //  4 사무실 보관요청건(킵) / 5 셀러별 접수유형 / 6 풀필도소매명 / 7 킵출고리스트 / 8 밤낮전달메세지리스트
+        function buildAdminWorkbookSheets(list, baseFormXml) {
+            const groups = getOrderGroups();
+            const fulfill = list.filter(o => orderTypeOf(o) === 'fulfillment');
+            const post = list.filter(o => orderTypeOf(o) === 'store_post');
+            const sameday = list.filter(o => orderTypeOf(o) === 'store_sameday');
+
+            const extraHeaders = ['상품 출고상태', '주문 출고상태', '택배사', '송장번호', '셀러 가입상호', '접수일시', '처리상태', '사무실 보관요청', '보관요청 메모'];
+            const extraWidths = [14, 18, 16, 18, 16, 18, 12, 14, 36];
+            const formRows = arr => arr.map(o => {
+                const state = orderShipState(o, groups);
+                const g = groups[o.order_no];
+                return [
+                    ...orderToTemplateRow(o, groups),
+                    o.ship_status || '미출고',
+                    state === '부분출고' ? `부분출고 (${g.shipped}/${g.total})` : state,
+                    o.courier || '',
+                    o.tracking_no || '',
+                    o.seller_company || '',
+                    formatKstDateTime(o.created_at),
+                    o.status || '',
+                    o.keep_request || '',
+                    o.keep_memo || ''
+                ];
+            });
+
+            // 4. 사무실 보관요청건: 같은 셀러 · 같은 날 · 같은 메모는 한 줄로
+            const keepMap = new Map();
+            fulfill.filter(o => o.keep_request === '있음').forEach(o => {
+                const day = o.created_at ? kstDateString(new Date(o.created_at)) : '';
+                const key = `${o.seller_id}|${day}|${o.keep_memo || ''}`;
+                if (!keepMap.has(key)) keepMap.set(key, { company: o.seller_company || '', sender: senderCompanyOf(o), memo: o.keep_memo || '', day, orders: [], recipients: new Set() });
+                const k = keepMap.get(key);
+                k.orders.push(o);
+                k.recipients.add(o.recipient || '');
+            });
+            const keepRows = [...keepMap.values()].map(k => [k.company, k.sender, k.memo, k.day, k.orders.length, [...k.recipients].join(', ')]);
+
+            // 5. 셀러별 접수유형: (풀필+일반+당택+킵)상호
+            const sellers = new Map();
+            const touch = o => {
+                const key = o.seller_id || o.seller_company;
+                if (!sellers.has(key)) sellers.set(key, { company: o.seller_company || '', 풀필: 0, 일반: 0, 당택: 0, 킵: 0 });
+                return sellers.get(key);
+            };
+            fulfill.forEach(o => { touch(o).풀필++; });
+            post.forEach(o => { touch(o).일반++; });
+            sameday.forEach(o => { touch(o).당택++; });
+            keepMap.forEach(k => { touch(k.orders[0]).킵++; });
+            const typeRows = [...sellers.values()]
+                .sort((a, b) => a.company.localeCompare(b.company, 'ko'))
+                .map(v => {
+                    const types = ['풀필', '일반', '당택', '킵'].filter(t => v[t] > 0);
+                    return [v.company, `(${types.join('+')})${v.company}`, v.풀필, v.일반, v.당택, v.킵];
+                });
+
+            // 6~8. 풀필먼트 정리표
+            const retailRow = o => [senderCompanyOf(o), o.recipient || '', o.product || '', o.wholesale_company || '', o.wholesale_product || ''];
+            const retailHeaders = ['보내는사람 상호명', '수취인명', '쇼핑몰상품명(소매상품명)', '도매처명', '도매상품명'];
+            const retailWidths = [18, 14, 44, 16, 26];
+            const keepShip = fulfill.filter(o => String(o.product || '').includes('킵'));
+            const withMemo = fulfill.filter(o => String(o.bamnat_memo || '').trim());
+
+            return [
+                { name: '풀필먼트 접수건 (풀필)', xml: buildFormSheetXml(baseFormXml, formRows(fulfill), extraHeaders, extraWidths, true) },
+                { name: '일반택배 접수건 (일반)', xml: buildFormSheetXml(baseFormXml, formRows(post), extraHeaders, extraWidths, false) },
+                { name: '당일택배 접수건 (당택)', xml: buildFormSheetXml(baseFormXml, formRows(sameday), extraHeaders, extraWidths, false) },
+                { name: '사무실 보관 요청건 (킵)', xml: buildTableSheetXml(['셀러 가입상호', '보내는사람 상호명', '보관요청 메모', '접수일', '함께 접수된 상품수', '수취인'], keepRows, [16, 18, 50, 12, 16, 40]) },
+                { name: '셀러별 접수유형', xml: buildTableSheetXml(['셀러 가입상호', '접수유형', '풀필 상품수', '일반 상품수', '당택 상품수', '킵 요청수'], typeRows, [16, 30, 12, 12, 12, 10]) },
+                { name: '풀필도소매명', xml: buildTableSheetXml(retailHeaders, fulfill.map(retailRow), retailWidths) },
+                { name: '킵출고리스트', xml: buildTableSheetXml([...retailHeaders, '밤낮딜리버리 전달메세지'], keepShip.map(o => [...retailRow(o), o.bamnat_memo || '']), [...retailWidths, 40]) },
+                { name: '밤낮전달메세지리스트', xml: buildTableSheetXml([...retailHeaders, '밤낮딜리버리 전달메세지'], withMemo.map(o => [...retailRow(o), o.bamnat_memo || '']), [...retailWidths, 40]) }
+            ];
+        }
+
         async function downloadMasterExcel() {
             const list = getAdminFilteredOrders();
             if (list.length === 0) {
@@ -3330,29 +3567,13 @@
                 return;
             }
             try {
-                const groups = getOrderGroups();
-                const rows = list.map(o => {
-                    const state = orderShipState(o, groups);
-                    const g = groups[o.order_no];
-                    return [
-                        ...orderToTemplateRow(o, groups),
-                        o.ship_status || '미출고',
-                        state === '부분출고' ? `부분출고 (${g.shipped}/${g.total})` : state,
-                        o.courier || '',
-                        o.tracking_no || '',
-                        ORDER_TYPE_LABEL[orderTypeOf(o)] || '',
-                        o.seller_company || '',
-                        formatKstDateTime(o.created_at),
-                        o.status || ''
-                    ];
-                });
-                const zip = await buildFilledTemplate(rows,
-                    ['상품 출고상태', '주문 출고상태', '택배사', '송장번호', '접수구분', '거래처(상호)', '접수일시', '처리상태'],
-                    [14, 18, 16, 18, 12, 16, 18, 12]);
+                const template = await loadFulfillmentTemplate();
+                const baseFormXml = await template.file(FORM_SHEET_PATH).async('string');
+                const zip = await buildWorkbookFromTemplate(buildAdminWorkbookSheets(list, baseFormXml));
                 const p = getKstParts();
                 const shipFilter = document.getElementById('admin-ship-filter');
                 const label = shipFilter.value === 'ALL' ? '전체' : shipFilter.options[shipFilter.selectedIndex].text.replace(/\s|\+/g, '');
-                await saveZipAsXlsx(zip, `밤낮딜리버리_주문_${label}_${p.y}-${p.m}-${p.d}.xlsx`);
+                await saveZipAsXlsx(zip, `밤낮딜리버리_접수건_${label}_${p.y}-${p.m}-${p.d}.xlsx`);
             } catch (err) {
                 console.error(err);
                 alert('엑셀 다운로드 중 오류가 발생했습니다: ' + err.message);
