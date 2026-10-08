@@ -131,8 +131,12 @@ Supabase 기본 메일 서버는 **프로젝트 팀원 이메일로만, 시간�
 
 ---
 
-## 배포 (GitHub Pages 예시)
-저장소 **Settings → Pages → Branch**에서 배포할 브랜치를 선택하면 `https://<계정>.github.io/<저장소>/` 주소로 열립니다.
+## 배포 (Cloudflare Workers)
+Cloudflare **Workers & Pages → bamnat-delivery** 가 이 저장소의 `claude/fulfillment-order-system-d0h6g2` 브랜치와 연결되어,
+코드가 올라가면 `npx wrangler deploy` 로 자동 배포됩니다.
+- 설정 파일: `wrangler.jsonc` (이름 `bamnat-delivery`, 저장소 폴더를 정적 사이트로 올림)
+- `.assetsignore` 에 적힌 파일(`supabase/`, `README.md` 등)은 사이트에 올라가지 않고 `index.html` 만 공개됩니다.
+- 배포 주소가 바뀌면 Supabase **Authentication → URL Configuration** 의 Site URL / Redirect URLs 도 새 주소로 맞춰야 합니다.
 이메일 링크가 정상 동작하려면 파일을 PC에서 직접 여는(`file://`) 방식이 아닌, 이렇게 웹 주소로 배포해서 써야 합니다.
 
 ## 테스트 모드
