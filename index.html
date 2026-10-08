@@ -1053,9 +1053,16 @@
             }
         }
 
+        // 서버(Supabase)에 아예 연결되지 않을 때 ("Failed to fetch")
+        const SERVER_UNREACHABLE_MESSAGE = '서버에 연결할 수 없습니다.\n\n'
+            + '· 인터넷 연결을 확인한 뒤 새로고침해주세요.\n'
+            + '· 계속 안 되면 밤낮딜리버리에 문의해주세요.\n'
+            + '(관리자: Supabase 프로젝트가 일시정지(Paused) 상태인지 대시보드에서 확인 후 Restore 해주세요)';
+
         // DB 오류를 셀러가 이해할 수 있는 문장으로 바꿉니다.
         function dbErrorMessage(error) {
             if (!error) return '';
+            if (/Failed to fetch|NetworkError|Load failed|fetch failed/i.test(error.message || '')) return SERVER_UNREACHABLE_MESSAGE;
             if (error.code === '42501') return '권한이 없는 작업입니다. (승인 전/정지 계정이거나, 마감·출고된 주문)';
             if (['PGRST205', 'PGRST204', '42P01', '42703'].includes(error.code) || /schema cache|does not exist/i.test(error.message || '')) {
                 return 'DB 설정이 최신이 아닙니다.\n(관리자: Supabase SQL Editor에서 최신 supabase/schema.sql 전체를 실행해주세요)\n\n' + (error.message || '');
@@ -1275,6 +1282,7 @@
 
         function authErrorMessage(error) {
             const msg = (error && error.message) || '';
+            if (/Failed to fetch|NetworkError|Load failed|fetch failed/i.test(msg)) return SERVER_UNREACHABLE_MESSAGE;
             if (/Invalid login credentials/i.test(msg)) return '이메일 또는 비밀번호가 올바르지 않습니다.';
             if (/Email not confirmed/i.test(msg)) return '이메일 인증이 아직 완료되지 않았습니다. 가입하신 메일함의 인증 링크를 눌러주세요.';
             if (/already registered|already exists/i.test(msg)) return '이미 가입된 이메일입니다. 로그인하거나 비밀번호 찾기를 이용해주세요.';
