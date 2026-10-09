@@ -30,6 +30,8 @@
     <style>
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
         body { font-family: 'Pretendard', sans-serif; }
+        /* 주문 목록 박스: 박스 안에서 상하·좌우 스크롤, 머리줄은 위에 고정 */
+        .order-scroll thead th { position: sticky; top: 0; z-index: 10; background-color: var(--th-bg, #f1f5f9); }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
@@ -84,7 +86,7 @@
     </nav>
 
     <!-- MAIN CONTAINER -->
-    <main class="flex-1 p-6 max-w-7xl w-full mx-auto">
+    <main class="flex-1 px-3 sm:px-6 py-6 max-w-[1920px] w-full mx-auto">
 
         <!-- 1. AUTH SCREEN -->
         <div id="auth-screen" class="max-w-md mx-auto my-12 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
@@ -151,15 +153,21 @@
                         <span class="text-sm font-black text-amber-900">📥 픽업건 중 사무실 보관요청</span>
                         <span class="text-[11px] font-bold text-rose-600">* 필수 체크</span>
                     </div>
-                    <div class="flex items-center gap-4 flex-wrap">
+                    <div class="flex items-start gap-x-4 gap-y-1 flex-wrap">
                         <label class="flex items-center gap-1.5 text-xs font-bold text-slate-800 cursor-pointer">
-                            <input type="radio" name="keep-request" value="있음" onchange="onKeepRequestChange()" class="w-4 h-4 text-amber-600"> 1. 보관건 있습니다
+                            <input type="radio" name="keep-request" value="있음" autocomplete="off" onchange="onKeepRequestChange()" class="w-4 h-4 text-amber-600"> 1. 보관건 있습니다
                         </label>
                         <label class="flex items-center gap-1.5 text-xs font-bold text-slate-800 cursor-pointer">
-                            <input type="radio" name="keep-request" value="없음" onchange="onKeepRequestChange()" class="w-4 h-4 text-amber-600"> 2. 보관건 없습니다
+                            <input type="radio" name="keep-request" value="없음" autocomplete="off" onchange="onKeepRequestChange()" class="w-4 h-4 text-amber-600"> 2. 보관건 없습니다
                         </label>
+                        <div>
+                            <label class="flex items-center gap-1.5 text-xs font-bold text-slate-800 cursor-pointer">
+                                <input type="radio" name="keep-request" value="이미접수" autocomplete="off" onchange="onKeepRequestChange()" class="w-4 h-4 text-amber-600"> 3. 이미 접수했습니다
+                            </label>
+                            <p class="pl-5 text-[10px] font-bold text-rose-600">이미 보관건 내용을 접수한 경우 체크해주세요</p>
+                        </div>
                     </div>
-                    <input type="text" id="keep-memo" disabled
+                    <input type="text" id="keep-memo" autocomplete="off" disabled
                         placeholder="예시) 풀필외 남은재고 킵해주세요, 오늘 사입건 모두 킵해주세요 또는 일부만 킵해주세요"
                         class="w-full px-2.5 py-1.5 border rounded-lg text-xs bg-white disabled:bg-slate-100 disabled:text-slate-400 placeholder:text-slate-400 focus:outline-amber-500">
                 </div>
@@ -466,7 +474,7 @@
                     </div>
                 </div>
 
-                <div class="overflow-x-auto">
+                <div id="seller-order-scroll" class="order-scroll overflow-auto max-h-[70vh] border border-slate-200 rounded-lg">
                     <table class="w-full text-left text-xs">
                         <thead class="bg-slate-100 text-slate-600 font-bold border-b border-slate-200">
                             <tr>
@@ -475,6 +483,7 @@
                                 </th>
                                 <th class="p-3 whitespace-nowrap">NO.</th>
                                 <th class="p-3 whitespace-nowrap">접수번호</th>
+                                <th class="p-3 whitespace-nowrap">운송장정보<span class="block text-[10px] font-normal text-slate-400">택배사 / 송장번호</span></th>
                                 <th class="p-3 whitespace-nowrap">수화인(받는사람)</th>
                                 <th class="p-3 whitespace-nowrap">연락처</th>
                                 <th class="p-3 whitespace-nowrap">주소</th>
@@ -484,8 +493,6 @@
                                 <th class="p-3 whitespace-nowrap">접수일시</th>
                                 <th class="p-3 whitespace-nowrap">상태</th>
                                 <th class="p-3 whitespace-nowrap">출고</th>
-                                <th class="p-3 whitespace-nowrap">택배사</th>
-                                <th class="p-3 whitespace-nowrap">송장번호</th>
                                 <th class="p-3 whitespace-nowrap text-center">관리</th>
                             </tr>
                         </thead>
@@ -568,10 +575,53 @@
                             <button onclick="acceptSelectedOrders()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm">선택 접수</button>
                             <button onclick="shipSelectedOrders()" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg shadow-sm">선택 출고완료</button>
                             <button onclick="setShipStatusForSelected('미출고')" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg shadow-sm">선택 출고취소</button>
+                            <button onclick="editSelectedAdminOrder()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-sm">선택수정</button>
                         </div>
                     </div>
 
-                    <div class="overflow-x-auto">
+                    <!-- 주문 조회: 기간 버튼 / 날짜 지정 / 검색 (셀러 조회와 같은 방식) -->
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-xs font-bold text-slate-600 w-12">기간</span>
+                            <div id="admin-presets" class="flex flex-wrap gap-1">
+                                <button type="button" data-preset="today" onclick="setAdminPreset('today')" class="admin-preset px-3 py-1.5 rounded-lg text-xs font-bold border">오늘</button>
+                                <button type="button" data-preset="yesterday" onclick="setAdminPreset('yesterday')" class="admin-preset px-3 py-1.5 rounded-lg text-xs font-bold border">어제</button>
+                                <button type="button" data-preset="week" onclick="setAdminPreset('week')" class="admin-preset px-3 py-1.5 rounded-lg text-xs font-bold border">1주일</button>
+                                <button type="button" data-preset="month" onclick="setAdminPreset('month')" class="admin-preset px-3 py-1.5 rounded-lg text-xs font-bold border">1개월</button>
+                                <button type="button" data-preset="year" onclick="setAdminPreset('year')" class="admin-preset px-3 py-1.5 rounded-lg text-xs font-bold border">1년</button>
+                                <button type="button" data-preset="all" onclick="setAdminPreset('all')" class="admin-preset px-3 py-1.5 rounded-lg text-xs font-bold border">전체</button>
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <input type="date" id="admin-from" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
+                                <span class="text-xs text-slate-400">~</span>
+                                <input type="date" id="admin-to" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
+                                <button type="button" onclick="applyAdminDates()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold">기간 조회</button>
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-xs font-bold text-slate-600 w-12">검색</span>
+                            <select id="admin-field" onchange="renderAdminTable()" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
+                                <option value="all">전체</option>
+                                <option value="company">셀러 가입상호</option>
+                                <option value="sender">송화인(거래처)</option>
+                                <option value="recipient">수취인</option>
+                                <option value="phone">연락처</option>
+                                <option value="address">주소</option>
+                                <option value="product">쇼핑몰상품명</option>
+                                <option value="wholesale">도매처 / 도매상품</option>
+                                <option value="tracking">송장번호</option>
+                                <option value="memo">밤낮 전달메세지 / 보관요청</option>
+                            </select>
+                            <input type="text" id="admin-keyword" oninput="renderAdminTable()" placeholder="상호 · 수취인 · 연락처 · 주소 · 상품명 · 송장번호 검색" class="px-3 py-1.5 border rounded-lg text-xs bg-white w-72">
+                            <select id="admin-sort" onchange="renderAdminTable()" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
+                                <option value="desc">최신순</option>
+                                <option value="asc">오래된순 (1번부터)</option>
+                            </select>
+                            <button type="button" onclick="resetAdminSearch()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-bold">초기화</button>
+                        </div>
+                    </div>
+
+                    <div id="admin-order-scroll" class="order-scroll overflow-auto max-h-[70vh] border border-slate-200 rounded-lg" style="--th-bg:#1e293b">
                         <table class="w-full text-left text-xs">
                             <thead class="bg-slate-800 text-slate-200 font-bold">
                                 <tr>
@@ -581,6 +631,7 @@
                                     <th class="p-3 whitespace-nowrap">NO.</th>
                                     <th class="p-3 whitespace-nowrap">셀러 가입상호</th>
                                     <th class="p-3 whitespace-nowrap">송화인(거래처)</th>
+                                    <th class="p-3 whitespace-nowrap">운송장정보<span class="block text-[10px] font-normal text-slate-400">택배사 / 송장번호</span></th>
                                     <th class="p-3 whitespace-nowrap">수화인(받는사람)</th>
                                     <th class="p-3 whitespace-nowrap">연락처</th>
                                     <th class="p-3 whitespace-nowrap">배송지 주소</th>
@@ -590,9 +641,6 @@
                                     <th class="p-3 whitespace-nowrap">접수시간</th>
                                     <th class="p-3 whitespace-nowrap">상태</th>
                                     <th class="p-3 whitespace-nowrap">출고</th>
-                                    <th class="p-3 whitespace-nowrap">택배사</th>
-                                    <th class="p-3 whitespace-nowrap">송장번호</th>
-                                    <th class="p-3 whitespace-nowrap text-center">관리</th>
                                 </tr>
                             </thead>
                             <tbody id="admin-order-list" class="divide-y divide-slate-100 text-slate-700"></tbody>
@@ -1176,10 +1224,12 @@
             if (currentRole === 'admin') {
                 document.getElementById('admin-dashboard').classList.remove('hidden');
                 switchAdminTab('orders');
+                setAdminPreset('all', false);
                 fetchSellersFromDB();
                 fetchCouriers();
             } else {
                 setupSellerUI();
+                resetKeepRequest(); // 로그인할 때마다 보관요청은 다시 선택
                 switchSellerMode(loadSellerMode());
                 setHistoryPreset('week', false);
                 loadAddressBook();
@@ -1595,7 +1645,13 @@
             const memo = document.getElementById('keep-memo');
             memo.disabled = !(checked && checked.value === '있음');
             if (memo.disabled) memo.value = '';
-            else memo.focus();
+            else if (document.activeElement && document.activeElement.name === 'keep-request') memo.focus();
+        }
+
+        // 로그인할 때마다 보관요청은 비운 상태로 시작 (매번 직접 선택)
+        function resetKeepRequest() {
+            document.querySelectorAll('input[name="keep-request"]').forEach(r => { r.checked = false; });
+            onKeepRequestChange();
         }
 
         // 선택 확인: 안 골랐거나 '있음'인데 메모가 없으면 안내 후 null
@@ -2195,7 +2251,7 @@
             document.getElementById('chk-all-seller').checked = false;
 
             if (myOrders.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="15" class="text-center py-6 text-slate-400">${allMine.length ? '조회 조건에 맞는 주문이 없습니다.' : '접수된 주문이 없습니다.'}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="14" class="text-center py-6 text-slate-400">${allMine.length ? '조회 조건에 맞는 주문이 없습니다.' : '접수된 주문이 없습니다.'}</td></tr>`;
                 return;
             }
 
@@ -2216,6 +2272,9 @@
                             ${id}
                             ${isExcel ? '<span class="ml-1 text-[9px] bg-amber-100 text-amber-800 font-bold px-1 rounded">엑셀</span>' : ''}
                         </td>
+                        <td class="p-3 whitespace-nowrap">${o.tracking_no
+                            ? `<span class="block text-[11px] text-slate-600">${escapeHtml(o.courier || '-')}</span><b class="font-mono text-sky-700">${escapeHtml(o.tracking_no)}</b>`
+                            : '<span class="text-[10px] text-slate-400">미등록</span>'}</td>
                         <td class="p-3 font-semibold text-slate-900 whitespace-nowrap">${escapeHtml(o.recipient)}</td>
                         <td class="p-3 whitespace-nowrap">${escapeHtml(o.phone)}</td>
                         <td class="p-3 max-w-xs truncate" title="${fullAddress}">${fullAddress}</td>
@@ -2228,10 +2287,6 @@
                         <td class="p-3 text-slate-400 whitespace-nowrap">${escapeHtml(formatKstDateTime(o.created_at))}</td>
                         <td class="p-3">${statusBadgeHtml(o.status)}</td>
                         <td class="p-3 whitespace-nowrap">${shipBadgeHtml(o, groups, false)}</td>
-                        <td class="p-3 whitespace-nowrap">${o.courier ? escapeHtml(o.courier) : '<span class="text-slate-300">-</span>'}</td>
-                        <td class="p-3 whitespace-nowrap font-mono">${o.tracking_no
-                            ? `<b class="text-sky-700">${escapeHtml(o.tracking_no)}</b>`
-                            : '<span class="text-[10px] text-slate-400">미등록</span>'}</td>
                         <td class="p-3 text-center">
                             ${canEdit ? `
                                 <div class="flex items-center justify-center gap-1 whitespace-nowrap">
@@ -2265,7 +2320,8 @@
             return dt.toISOString().slice(0, 10);
         }
 
-        function setHistoryPreset(preset, rerender = true) {
+        // 기간 버튼 → [시작일, 종료일] (한국시간, null = 제한 없음)
+        function presetRange(preset) {
             const today = kstDateString();
             const ranges = {
                 today: [today, today],
@@ -2275,7 +2331,19 @@
                 year: [shiftDate(today, { years: -1 }), today],
                 all: [null, null]
             };
-            [historyFrom, historyTo] = ranges[preset];
+            return ranges[preset];
+        }
+
+        function markPresetButtons(selector, preset) {
+            document.querySelectorAll(selector).forEach(btn => {
+                const on = btn.dataset.preset === preset;
+                btn.className = `${selector.slice(1)} px-3 py-1.5 rounded-lg text-xs font-bold border `
+                    + (on ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100');
+            });
+        }
+
+        function setHistoryPreset(preset, rerender = true) {
+            [historyFrom, historyTo] = presetRange(preset);
             document.getElementById('history-from').value = historyFrom || '';
             document.getElementById('history-to').value = historyTo || '';
             markHistoryPreset(preset);
@@ -2283,11 +2351,7 @@
         }
 
         function markHistoryPreset(preset) {
-            document.querySelectorAll('.history-preset').forEach(btn => {
-                const on = btn.dataset.preset === preset;
-                btn.className = 'history-preset px-3 py-1.5 rounded-lg text-xs font-bold border '
-                    + (on ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100');
-            });
+            markPresetButtons('.history-preset', preset);
         }
 
         function applyHistoryDates() {
@@ -2309,35 +2373,80 @@
             setHistoryPreset('week');
         }
 
+        // 주문 검색: 항목별 검색 대상 텍스트
+        const SEARCH_FIELDS = {
+            recipient: o => o.recipient,
+            phone: o => o.phone,
+            address: o => `${o.address || ''} ${o.detail_address || ''}`,
+            product: o => o.product,
+            company: o => o.seller_company,
+            sender: o => o.sender_name,
+            wholesale: o => `${o.wholesale_company || ''} ${o.wholesale_product || ''}`,
+            tracking: o => `${o.courier || ''} ${o.tracking_no || ''}`,
+            memo: o => `${o.bamnat_memo || ''} ${o.keep_memo || ''}`
+        };
+        // field = 'all' 이면 allFields 중 하나라도 맞으면 통과. 연락처는 숫자만으로도 찾습니다.
+        function orderMatchesKeyword(o, field, keyword, allFields) {
+            const kw = (keyword || '').trim().toLowerCase();
+            if (!kw) return true;
+            const digits = kw.replace(/\D/g, '');
+            const phoneHit = digits.length >= 3 && String(o.phone || '').replace(/\D/g, '').includes(digits);
+            const has = f => String(SEARCH_FIELDS[f](o) || '').toLowerCase().includes(kw);
+            if (field === 'phone') return has('phone') || phoneHit;
+            if (field !== 'all') return has(field);
+            return allFields.some(has) || phoneHit;
+        }
+        function orderInDateRange(o, from, to) {
+            if (!from && !to) return true;
+            const day = o.created_at ? kstDateString(new Date(o.created_at)) : '';
+            return !(from && day < from) && !(to && day > to);
+        }
+
         // 셀러 주문 목록에 기간 + 검색어 적용
         function getSellerHistoryOrders() {
-            const keyword = (document.getElementById('history-keyword').value || '').trim().toLowerCase();
+            const keyword = document.getElementById('history-keyword').value;
             const field = document.getElementById('history-field').value;
-            const kwDigits = keyword.replace(/\D/g, '');
             const oldestFirst = document.getElementById('history-sort').value === 'asc';
             const bySellerNo = (a, b) =>
                 ((Number(a.seller_order_no) || 0) - (Number(b.seller_order_no) || 0)) * (oldestFirst ? 1 : -1)
                 || (Number(a.item_no) || 0) - (Number(b.item_no) || 0)
                 || String(a.created_at || '').localeCompare(String(b.created_at || '')) * (oldestFirst ? 1 : -1);
             const typeFilter = document.getElementById('history-type').value;
-            return ordersMaster.filter(o => {
-                if (o.seller_id !== currentUserId) return false;
-                if (!matchesOrderType(o, typeFilter)) return false;
-                const day = o.created_at ? kstDateString(new Date(o.created_at)) : '';
-                if (historyFrom && day < historyFrom) return false;
-                if (historyTo && day > historyTo) return false;
-                if (!keyword) return true;
-                const text = {
-                    recipient: String(o.recipient || '').toLowerCase(),
-                    phone: String(o.phone || '').toLowerCase(),
-                    address: `${o.address || ''} ${o.detail_address || ''}`.toLowerCase(),
-                    product: String(o.product || '').toLowerCase()
-                };
-                const phoneHit = kwDigits.length >= 3 && String(o.phone || '').replace(/\D/g, '').includes(kwDigits);
-                if (field === 'phone') return text.phone.includes(keyword) || phoneHit;
-                if (field !== 'all') return text[field].includes(keyword);
-                return Object.values(text).some(v => v.includes(keyword)) || phoneHit;
-            }).sort(bySellerNo);
+            return ordersMaster.filter(o =>
+                o.seller_id === currentUserId
+                && matchesOrderType(o, typeFilter)
+                && orderInDateRange(o, historyFrom, historyTo)
+                && orderMatchesKeyword(o, field, keyword, ['recipient', 'phone', 'address', 'product'])
+            ).sort(bySellerNo);
+        }
+
+        // 관리자: 주문 조회 (기간 / 검색)
+        let adminFrom = null;
+        let adminTo = null;
+        function setAdminPreset(preset, rerender = true) {
+            [adminFrom, adminTo] = presetRange(preset);
+            document.getElementById('admin-from').value = adminFrom || '';
+            document.getElementById('admin-to').value = adminTo || '';
+            markPresetButtons('.admin-preset', preset);
+            if (rerender) renderAdminTable();
+        }
+        function applyAdminDates() {
+            const from = document.getElementById('admin-from').value || null;
+            const to = document.getElementById('admin-to').value || null;
+            if (from && to && from > to) {
+                alert('시작일이 종료일보다 늦습니다. 날짜를 확인해주세요.');
+                return;
+            }
+            adminFrom = from;
+            adminTo = to;
+            markPresetButtons('.admin-preset', null);
+            renderAdminTable();
+        }
+        function resetAdminSearch() {
+            document.getElementById('admin-keyword').value = '';
+            document.getElementById('admin-field').value = 'all';
+            document.getElementById('admin-sort').value = 'desc';
+            setAdminPreset('all');
         }
 
         // =====================================================================
@@ -2634,19 +2743,30 @@
             select.value = companies.includes(previous) ? previous : 'ALL';
         }
 
-        // 관리자 화면의 현재 필터(거래처 + 출고상태)를 적용한 주문 목록
+        // 관리자 화면의 현재 필터(거래처 + 구분 + 출고상태 + 기간 + 검색)를 적용한 주문 목록
         function getAdminFilteredOrders() {
             const sellerFilter = document.getElementById('admin-seller-filter').value;
             const shipFilter = document.getElementById('admin-ship-filter').value;
             const typeFilter = document.getElementById('admin-type-filter').value;
+            const field = document.getElementById('admin-field').value;
+            const keyword = document.getElementById('admin-keyword').value;
             const groups = getOrderGroups();
-            return ordersMaster.filter(o => {
+            const list = ordersMaster.filter(o => {
                 if (sellerFilter !== 'ALL' && o.seller_company !== sellerFilter) return false;
                 if (!matchesOrderType(o, typeFilter)) return false;
+                if (!orderInDateRange(o, adminFrom, adminTo)) return false;
+                if (!orderMatchesKeyword(o, field, keyword, Object.keys(SEARCH_FIELDS))) return false;
                 if (shipFilter === 'ALL') return true;
                 const state = orderShipState(o, groups);
                 return shipFilter === 'NOT_DONE' ? state !== '출고완료' : state === shipFilter;
             });
+            if (document.getElementById('admin-sort').value === 'asc') {
+                // 오래된순: 주문번호 작은 것부터 (합배송 상품은 1, 2 순서 유지)
+                list.sort((a, b) => (Number(a.order_no) || 0) - (Number(b.order_no) || 0)
+                    || (Number(a.item_no) || 0) - (Number(b.item_no) || 0)
+                    || String(a.created_at || '').localeCompare(String(b.created_at || '')));
+            }
+            return list;
         }
 
         function renderAdminTable() {
@@ -2671,7 +2791,7 @@
             document.getElementById('admin-order-count').innerText = `주문 ${orderCount}건 · 상품 ${filtered.length}개`;
 
             if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="17" class="text-center py-6 text-slate-400">등록된 주문 내역이 없습니다.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="14" class="text-center py-6 text-slate-400">${ordersMaster.length ? '조회 조건에 맞는 주문이 없습니다.' : '등록된 주문 내역이 없습니다.'}</td></tr>`;
                 return;
             }
 
@@ -2682,7 +2802,6 @@
                 const rowBg = state === '부분출고' ? 'bg-orange-50/70' : state === '출고완료' ? 'bg-slate-50 text-slate-400' : '';
                 const newGroup = o.order_no !== prevNo;
                 prevNo = o.order_no;
-                const shipped = o.ship_status === '출고완료';
                 const draftT = trackingDrafts[o.id] || {};
                 const trackingValue = draftT.tracking ?? o.tracking_no ?? '';
                 return `
@@ -2695,6 +2814,13 @@
                     </td>
                     <td class="p-3 whitespace-nowrap"><span class="px-2 py-1 rounded-lg bg-slate-900 text-white text-[11px] font-black">${escapeHtml(o.seller_company || '-')}</span></td>
                     <td class="p-3 font-bold text-slate-900 whitespace-nowrap">${escapeHtml(o.sender_name || `밤낮딜리버리(${o.seller_company})`)}</td>
+                    <td class="p-3 min-w-[170px]">
+                        <select data-id="${id}" onchange="setTrackingDraft(this.dataset.id, 'courier', this.value)" class="admin-courier courier-select w-full px-2 py-1 border rounded text-[11px] bg-white">${courierOptionsHtml(draftT.courier ?? o.courier)}</select>
+                        <input type="text" data-id="${id}" value="${escapeHtml(trackingValue)}" placeholder="송장번호 입력" title="송장번호 입력 후 Enter 를 누르면 바로 출고완료됩니다"
+                            oninput="setTrackingDraft(this.dataset.id, 'tracking', this.value)"
+                            onkeydown="if (event.key === 'Enter') shipOrder(this.dataset.id)"
+                            class="admin-tracking mt-1 w-full px-2 py-1 border rounded text-[11px] font-mono ${o.tracking_no ? 'bg-sky-50 border-sky-200' : 'bg-white'}">
+                    </td>
                     <td class="p-3 font-semibold whitespace-nowrap">${escapeHtml(o.recipient)}</td>
                     <td class="p-3 whitespace-nowrap">${escapeHtml(o.phone)}</td>
                     <td class="p-3 max-w-xs truncate">${escapeHtml(`${o.address || ''} ${o.detail_address || ''}`.trim())}</td>
@@ -2712,28 +2838,6 @@
                         </div>
                     </td>
                     <td class="p-3 whitespace-nowrap">${shipBadgeHtml(o, groups, false)}</td>
-                    <td class="p-3">
-                        <select data-id="${id}" onchange="setTrackingDraft(this.dataset.id, 'courier', this.value)" class="admin-courier courier-select px-2 py-1 border rounded text-[11px] bg-white">${courierOptionsHtml(draftT.courier ?? o.courier)}</select>
-                    </td>
-                    <td class="p-3">
-                        <input type="text" data-id="${id}" value="${escapeHtml(trackingValue)}" placeholder="송장번호 입력"
-                            oninput="setTrackingDraft(this.dataset.id, 'tracking', this.value)"
-                            onkeydown="if (event.key === 'Enter') shipOrder(this.dataset.id)"
-                            class="admin-tracking w-36 px-2 py-1 border rounded text-[11px] font-mono ${o.tracking_no ? 'bg-sky-50 border-sky-200' : 'bg-white'}">
-                    </td>
-                    <td class="p-3 text-center">
-                        <div class="flex items-center justify-center gap-1 whitespace-nowrap">
-                            ${shipped ? `
-                                <button data-id="${id}" onclick="shipOrder(this.dataset.id)" class="px-2 py-1 bg-sky-50 border border-sky-200 text-sky-700 font-bold rounded text-[11px]">송장저장</button>
-                                <button data-id="${id}" onclick="setShipStatus([this.dataset.id], '미출고')" class="px-2 py-1 bg-white border border-slate-200 text-slate-500 font-bold rounded text-[11px]">출고취소</button>
-                            ` : `
-                                <button data-id="${id}" onclick="shipOrder(this.dataset.id)" class="px-2 py-1 bg-sky-600 text-white hover:bg-sky-700 font-bold rounded text-[11px]" title="송장번호를 입력한 뒤 누르세요">출고완료</button>
-                            `}
-                            <button data-id="${id}" onclick="openEditModal(this.dataset.id)" class="px-2 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold rounded text-[11px]">
-                                수정
-                            </button>
-                        </div>
-                    </td>
                 </tr>
             `;
             }).join('');
@@ -2765,6 +2869,20 @@
             });
             renderAdminTable();
             return updated.length;
+        }
+
+        // 관리자: 체크한 주문 1건 수정
+        function editSelectedAdminOrder() {
+            const ids = Array.from(document.querySelectorAll('.admin-chk-item:checked')).map(c => c.value);
+            if (ids.length === 0) {
+                alert('수정할 주문을 체크박스로 1건 선택해주세요.');
+                return;
+            }
+            if (ids.length > 1) {
+                alert(`선택수정은 한 번에 1건씩 가능합니다. (현재 ${ids.length}건 선택됨)`);
+                return;
+            }
+            openEditModal(ids[0]);
         }
 
         async function setShipStatusForSelected(status) {

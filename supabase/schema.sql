@@ -194,17 +194,12 @@ alter table public.orders add column if not exists shipped_at timestamptz;
 alter table public.orders add column if not exists courier text;       -- 택배사
 alter table public.orders add column if not exists tracking_no text;   -- 송장(운송장)번호
 alter table public.orders add column if not exists seller_order_no integer;  -- 셀러별 접수 순번 (셀러마다 1번부터)
--- 픽업건 중 사무실 보관요청 (풀필먼트 접수 시 필수 선택): '있음' / '없음', 있음이면 요청 메모
+-- 픽업건 중 사무실 보관요청 (모든 접수 시 필수 선택): '있음' / '없음' / '이미접수', 있음이면 요청 메모
 alter table public.orders add column if not exists keep_request text;
 alter table public.orders add column if not exists keep_memo text;
-do $$
-begin
-    if not exists (select 1 from pg_constraint where conname = 'orders_keep_request_check') then
-        alter table public.orders add constraint orders_keep_request_check
-            check (keep_request is null or keep_request in ('있음', '없음'));
-    end if;
-end;
-$$;
+alter table public.orders drop constraint if exists orders_keep_request_check;
+alter table public.orders add constraint orders_keep_request_check
+    check (keep_request is null or keep_request in ('있음', '없음', '이미접수'));
 -- 접수구분: fulfillment = 고객풀필먼트(고객배송대행) / store_post = 매장·사무실 우체국택배 / store_sameday = 매장·사무실 당일택배
 alter table public.orders add column if not exists order_type text;
 update public.orders set order_type = 'fulfillment' where order_type is null;
