@@ -43,13 +43,20 @@ End Sub
 Sub 정산서_순차복사()
     Dim 일자 As Date, 목록 As Collection, 상호 As Variant
     Dim 대상 As Range, 순번 As Long, 답 As VbMsgBoxResult
+    Dim 시작상호 As String, 시작함 As Boolean
 
     If Not 정산일_입력받기(일자) Then Exit Sub
     Set 목록 = 정산일_상호목록(일자)
     If 목록.Count = 0 Then MsgBox Format(일자, "yyyy-mm-dd") & " 정산 데이터가 없습니다.": Exit Sub
 
+    시작상호 = Trim(InputBox("어느 업체부터 시작할까요?" & vbCrLf & "(비워두면 첫 업체 [" & 목록(1) & "]부터 시작)", "시작 업체"))
+    시작함 = (시작상호 = "")
+
     For Each 상호 In 목록
         순번 = 순번 + 1
+        If Not 시작함 Then
+            If CStr(상호) = 시작상호 Then 시작함 = True Else GoTo 다음업체
+        End If
         Set 대상 = 정산서_만들기(CStr(상호), 일자)
         If 대상 Is Nothing Then
             답 = MsgBox("[" & 상호 & "] 정산서를 만들지 못했습니다. 계속할까요?", vbExclamation + vbOKCancel)
@@ -61,8 +68,10 @@ Sub 정산서_순차복사()
                        "[취소]를 누르면 중단합니다.", vbInformation + vbOKCancel, "정산서 순차복사")
         End If
         If 답 = vbCancel Then Exit For
+다음업체:
     Next 상호
 
+    If Not 시작함 Then MsgBox "[" & 시작상호 & "] 은(는) 해당 정산일 목록에 없습니다.", vbExclamation
     Sheet4.Activate
 End Sub
 
