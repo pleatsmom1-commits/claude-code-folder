@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>밤낮딜리버리 정산서</title>
+<style>
+    :root {
+        --bg: #f1f5f9; --card: #ffffff; --line: #e2e8f0; --text: #0f172a; --sub: #64748b;
+        --head: #1e293b; --accent: #4f46e5; --red: #e11d48; --green: #059669; --yellow: #fef9c3;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; font-size: 15px; line-height: 1.5; }
+    .wrap { max-width: 640px; margin: 0 auto; padding: 16px 16px 40px; }
+    .brand { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 14px; }
+    .brand b { font-size: 16px; }
+    .brand span { font-size: 12px; color: var(--sub); }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-bottom: 12px; }
+    .hero { text-align: center; }
+    .hero .company { font-size: 20px; font-weight: 800; }
+    .hero .date { color: var(--sub); font-size: 13px; margin-top: 2px; }
+    .hero .label { margin-top: 16px; font-size: 13px; color: var(--sub); }
+    .hero .amount { font-size: 34px; font-weight: 800; letter-spacing: -0.5px; }
+    .badge { display: inline-block; padding: 3px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; margin-top: 6px; }
+    .badge.red { background: #ffe4e6; color: var(--red); }
+    .badge.green { background: #d1fae5; color: var(--green); }
+    .msg { margin-top: 6px; font-weight: 700; }
+    .account { background: var(--yellow); border-radius: 10px; padding: 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .account .num { font-weight: 800; font-size: 16px; word-break: keep-all; }
+    .btn { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 7px 12px; font-size: 13px; font-weight: 700; color: var(--text); cursor: pointer; white-space: nowrap; }
+    .note { font-size: 13px; color: var(--sub); margin: 8px 0 0; padding-left: 4px; }
+    .note em { color: var(--red); font-style: normal; font-weight: 700; }
+    h2 { font-size: 15px; margin: 0 0 10px; display: flex; align-items: center; gap: 6px; }
+    h2::before { content: ""; width: 4px; height: 15px; border-radius: 2px; background: var(--accent); }
+    table { width: 100%; border-collapse: collapse; }
+    td, th { padding: 9px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    td.k { color: var(--sub); width: 52%; }
+    td.v { text-align: right; font-weight: 600; word-break: break-all; }
+    tr.total td { font-weight: 800; font-size: 16px; border-top: 2px solid var(--head); }
+    tr.total td.v { color: var(--red); }
+    .stores th { text-align: left; font-size: 12px; color: var(--sub); font-weight: 600; white-space: nowrap; }
+    .stores th:last-child, .stores td:last-child { text-align: right; }
+    .stores td { font-size: 14px; }
+    details { font-size: 13px; color: var(--sub); }
+    details summary { cursor: pointer; font-weight: 700; color: var(--text); }
+    details p { margin: 8px 0; }
+    .state { text-align: center; padding: 60px 16px; color: var(--sub); }
+    .preview-bar { background: #fef3c7; color: #92400e; text-align: center; padding: 8px; font-size: 13px; font-weight: 700; }
+    .foot { text-align: center; font-size: 12px; color: var(--sub); margin-top: 18px; }
+</style>
+</head>
+<body>
+<div id="preview-bar" class="preview-bar" hidden>미리보기 화면입니다 (아직 저장 전)</div>
+<div class="wrap">
+    <div class="brand"><b>밤낮딜리버리 정산서</b><span id="brand-date"></span></div>
+    <div id="app"><div class="state">정산서를 불러오는 중입니다...</div></div>
+    <div class="foot">문의: 밤낮딜리버리 카카오톡 채널</div>
+</div>
+
+<script>
+    // index.html 에도 들어 있는 공개용 주소/키 (비밀값 아님). 정산서는 정확한 링크(token)로만 조회됩니다.
+    const SUPABASE_URL = "https://doierphwtctcomrujgem.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_5XM4HoFx4U_0kL-8ET_x-Q_WfvGwFXL";
+
+    const RESULT_MESSAGE = { '청구': '입금 부탁드립니다.', '이월': '결제완료, 잔여금입니다.', '영수': '결제완료' };
+
+    function esc(value) {
+        return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    function isEmpty(v) { return v === null || v === undefined || v === ''; }
+    function won(v) {
+        if (isEmpty(v)) return '-';
+        const n = Number(v);
+        return Number.isFinite(n) ? n.toLocaleString('ko-KR') + '원' : esc(v);
+    }
+    function num(v) {
+        if (isEmpty(v)) return '-';
+        const n = Number(v);
+        return Number.isFinite(n) ? n.toLocaleString('ko-KR') : esc(v);
+    }
+    function text(v) { return isEmpty(v) ? '-' : esc(v); }
+    function nonzero(...vals) { return vals.some(v => !isEmpty(v) && Number(v) !== 0); }
+    function dateLabel(key) {
+        const m = String(key || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+        return m ? `${m[1]}년 ${Number(m[2])}월 ${Number(m[3])}일` : esc(key);
+    }
+    function rows(list) {
+        return list.map(([k, v, cls]) => `<tr class="${cls || ''}"><td class="k">${k}</td><td class="v">${v}</td></tr>`).join('');
+    }
+
+    function render(s) {
+        const d = s.data || {};
+        const result = d.result || '';
+        const resultCls = result === '청구' ? 'red' : 'green';
+        document.getElementById('brand-date').textContent = s.settle_date || d.date || '';
+        document.title = `${s.company} ${s.settle_date || ''} 정산서`;
+
+        const stores = (d.stores || []).filter(x => !isEmpty(x.name) || !isEmpty(x.info) || nonzero(x.amount));
+        const showFulfill = nonzero(d.fulfillCount, d.fulfillExtraCount, d.fulfillExtraShipping, d.fulfillCost);
+        const showEtc = nonzero(d.etcCost) || !isEmpty(d.etcNote);
+        const carry = result === '이월' && Number(d.total) < 0;
+
+        let html = `
+        <div class="card hero">
+            <div class="company">${esc(s.company)}</div>
+            <div class="date">${dateLabel(s.settle_date || d.date)} 정산</div>
+            <div class="label">${carry ? '이월 잔여금 (다음 정산에서 차감)' : '총 청구금액'}</div>
+            <div class="amount">${carry ? won(Math.abs(Number(d.total))) : won(d.total)}</div>
+            ${result ? `<span class="badge ${resultCls}">${esc(result)}</span>` : ''}
+            ${RESULT_MESSAGE[result] ? `<div class="msg">${RESULT_MESSAGE[result]}</div>` : ''}
+        </div>`;
+
+        if (d.account) {
+            html += `
+        <div class="card">
+            <h2>입금계좌</h2>
+            <div class="account">
+                <div class="num">${esc(d.account)}</div>
+                <button class="btn" id="copy-account">복사</button>
+            </div>
+            <p class="note">* 입금은 반드시 <em>"상호명"</em>으로 부탁드립니다.<br>&nbsp;&nbsp;예) 마가렛 (O) / 김태희(마가렛) (X) / 김태희 (X)</p>
+            <p class="note">* 세금계산서는 익월초에 "이레앤컴퍼니" 상호로 전자발급 됩니다.<br>&nbsp;&nbsp;<em>사업자사본</em>을 반드시 전달 부탁드립니다.</p>
+        </div>`;
+        }
+
+        html += `
+        <div class="card">
+            <h2>총 정산내역</h2>
+            <table>${rows([
+                ['⑦ 당일 서비스 비용 합계<br><small>(①+③+④+⑤+⑥)</small>', won(d.serviceTotal)],
+                ['② 총 대납금액', won(d.prepaid)],
+                ['⑧ 부가세 합계 <small>(대납금액 제외)</small>', won(d.vat)],
+                ['⑨ 전일 청구금 / 이월잔여금<br><small>(+전일청구금, -이월잔여금)</small>', won(d.carryOver)],
+                ['입금액 (-)', won(d.paid)],
+                ['총 청구금액<br><small>(②+⑦+⑧+⑨-입금액)</small>', won(d.total), 'total'],
+            ])}</table>
+        </div>
+
+        <div class="card">
+            <h2>일반 / 당택 / 풀필 / 킵</h2>
+            <table>${rows([
+                ['택배유형', text(d.deliveryType)],
+                ['픽업/반납 매장 수', num(d.pickupStores)],
+                ['① 총 픽업/반납 비용', won(d.pickupCost)],
+                ['② 총 대납금액', won(d.prepaid)],
+                ['대납미송 매장 수', num(d.unsentStores)],
+                ['③ 총 대납미송 비용', won(d.unsentCost)],
+                ['④ 적용택배비', won(d.shippingFee)],
+                ['송장번호', text(d.trackingNo)],
+            ])}</table>
+        </div>`;
+
+        if (showFulfill) {
+            html += `
+        <div class="card">
+            <h2>풀필먼트</h2>
+            <table>${rows([
+                ['풀필 건수', num(d.fulfillCount)],
+                ['풀필 추가 개수', num(d.fulfillExtraCount)],
+                ['풀필 추가 택배요금', won(d.fulfillExtraShipping)],
+                ['⑤ 풀필 총 비용', won(d.fulfillCost)],
+            ])}</table>
+        </div>`;
+        }
+
+        if (showEtc) {
+            html += `
+        <div class="card">
+            <h2>기타</h2>
+            <table>${rows([
+                ['⑥ 기타비용청구 <small>(반품, 추가비용)</small>', won(d.etcCost)],
+                ['기타청구 내용', text(d.etcNote)],
+            ])}</table>
+        </div>`;
+        }
+
+        html += `
+        <div class="card">
+            <h2>사입내역서</h2>
+            ${stores.length ? `
+            <table class="stores">
+                <tr><th>매장명</th><th>사입정보</th><th>대납금액</th></tr>
+                ${stores.map(x => `<tr><td>${text(x.name)}</td><td>${text(x.info)}</td><td>${won(x.amount)}</td></tr>`).join('')}
+            </table>` : '<div class="note">사입내역이 없습니다.</div>'}
+        </div>
+
+        <div class="card">
+            <details>
+                <summary>⑨ 전일 청구금 / 이월잔여금 안내</summary>
+                <p>직전 거래의 청구금액보다 입금액이 <b>적으면</b> 남은 금액이 다음 정산서에 <b>전일 청구금(+)</b>으로 더해집니다.</p>
+                <p>직전 거래의 청구금액보다 입금액이 <b>많으면</b> 남은 금액이 다음 정산서에 <b>이월잔여금(-)</b>으로 차감됩니다.</p>
+                <p>청구금액과 입금액이 같으면 결제완료 처리되어 다음 정산서에 남지 않습니다.</p>
+                <p>풀필먼트와 일반/당일택배를 함께 이용하면 택배유형에는 일반 또는 당일택배만 표시됩니다.</p>
+            </details>
+        </div>`;
+
+        document.getElementById('app').innerHTML = html;
+
+        const copyBtn = document.getElementById('copy-account');
+        if (copyBtn) copyBtn.onclick = async () => {
+            const digits = String(d.account).match(/[\d-\s]{6,}/);
+            const value = digits ? digits[0].trim() : d.account;
+            try { await navigator.clipboard.writeText(value); copyBtn.textContent = '복사됨'; }
+            catch (e) { prompt('계좌번호를 복사하세요', value); }
+        };
+    }
+
+    function showState(message) {
+        document.getElementById('app').innerHTML = `<div class="state">${message}</div>`;
+    }
+
+    async function load() {
+        const params = new URLSearchParams(location.search);
+        if (params.has('preview')) {
+            document.getElementById('preview-bar').hidden = false;
+            try {
+                const s = JSON.parse(localStorage.getItem('settlePreview') || 'null');
+                if (s) return render(s);
+            } catch (e) { /* 아래 안내로 */ }
+            return showState('미리보기 정보를 찾지 못했습니다. 관리자 화면에서 다시 열어주세요.');
+        }
+
+        const token = (params.get('t') || '').trim();
+        if (!/^[0-9a-f]{24,}$/i.test(token)) return showState('정산서 주소가 올바르지 않습니다.<br>받으신 링크를 다시 눌러주세요.');
+        try {
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_settlement`, {
+                method: 'POST',
+                headers: { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ p_token: token }),
+            });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const s = await res.json();
+            if (!s) return showState('정산서를 찾을 수 없습니다.<br>링크가 만료되었거나 잘못되었습니다.');
+            render(s);
+        } catch (e) {
+            showState('정산서를 불러오지 못했습니다.<br>잠시 후 다시 시도해주세요.');
+        }
+    }
+    load();
+</script>
+</body>
+</html>

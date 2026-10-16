@@ -6,3 +6,4 @@ wrangler.jsonc
 node_modules
 .wrangler
 worker
+정산서자동화
