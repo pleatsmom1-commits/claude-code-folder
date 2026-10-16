@@ -5,7 +5,7 @@
 ## 실제 사이트 보호 (가장 중요)
 
 - **원본(실제 사이트) 브랜치: `claude/fulfillment-order-system-d0h6g2`**
-  여기에 올라간 코드는 Cloudflare 가 바로 https://bamnat-delivery.pleatsmom1.workers.dev/ 로 배포합니다.
+  여기에 올라간 코드는 Cloudflare 가 바로 https://bamnat-delivery.bamnat.workers.dev/ 로 배포합니다.
 - 원본 브랜치에 **직접 커밋하거나 push 하지 않습니다.** 모든 수정은 작업용 브랜치에서 합니다.
 - 원본에 합치는 것(머지)은 사용자가 **"합쳐줘" / "반영해줘"처럼 명시적으로 요청했을 때만** 합니다.
   이전 요청에서 받은 허락은 다음 작업에 이어지지 않습니다. 작업마다 다시 확인합니다.
@@ -19,7 +19,7 @@
    - 바뀐 기능 + 기존 핵심 기능(로그인 화면 표시, 셀러 주문 등록 화면, 관리자 주문 목록)이 오류 없이 뜨는지
    - DB 를 바꾸는 SQL 은 로컬 PostgreSQL 에 schema.sql → 새 SQL 순서로 실행해 보고, 두 번 실행해도 안전한지 확인
 4. **`test` 브랜치에 올려 확인**: 사용자가 확인하는 곳은 항상 고정 주소
-   **https://test-bamnat-delivery.pleatsmom1.workers.dev** (`test` 브랜치의 Cloudflare 미리보기)입니다.
+   **https://test-bamnat-delivery.bamnat.workers.dev** (`test` 브랜치의 Cloudflare 미리보기)입니다.
    - 올리기 전에 `test` 에 원본 브랜치 최신 내용을 먼저 합쳐, 확인 화면이 "지금 실제 사이트 + 이번 수정"이 되게 합니다.
    - 작업용 브랜치를 `test` 에 합쳐 push 합니다 (`test` 는 확인용이므로 사용자 허락 없이 올려도 됩니다).
    - 1~2분 뒤 반영됩니다. 사용자에게 **무엇을 눌러서 확인하면 되는지** 체크리스트를 줍니다.

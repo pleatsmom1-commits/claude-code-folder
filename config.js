@@ -5,8 +5,12 @@
 //    TEST_SUPABASE 가 채워져 있으면 테스트 DB를 씁니다.
 //  주소와 publishable 키는 원래 화면에 공개되는 값입니다 (비밀값 아님).
 // =====================================================================
-const PRODUCTION_HOST = 'bamnat-delivery.pleatsmom1.workers.dev';
-const IS_PRODUCTION = location.hostname === PRODUCTION_HOST;
+// 실제 사이트 주소. 예전 주소(pleatsmom1)는 Cloudflare 하위 도메인을 바꾸기 전/직후를 위해 함께 둡니다.
+const PRODUCTION_HOSTS = [
+    'bamnat-delivery.bamnat.workers.dev',
+    'bamnat-delivery.pleatsmom1.workers.dev',
+];
+const IS_PRODUCTION = PRODUCTION_HOSTS.includes(location.hostname);
 
 const PROD_SUPABASE = {
     url: 'https://doierphwtctcomrujgem.supabase.co',

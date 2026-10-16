@@ -179,7 +179,7 @@ Cloudflare **Workers & Pages → bamnat-delivery** 가 이 저장소의 `claude/
 ## 수정 작업 순서 (실제 사이트 보호)
 
 1. 수정은 **작업용 브랜치**(원본을 복사한 공간)에서 합니다. 원본 `claude/fulfillment-order-system-d0h6g2` 는 실제 사이트입니다.
-2. 확인은 항상 **`test` 브랜치의 고정 주소** https://test-bamnat-delivery.pleatsmom1.workers.dev 에서 합니다.
+2. 확인은 항상 **`test` 브랜치의 고정 주소** https://test-bamnat-delivery.bamnat.workers.dev 에서 합니다.
    (작업용 브랜치를 `test` 에 합쳐 올리면 1~2분 뒤 반영됩니다.) 화면 맨 위에 "테스트 사이트" 띠가 뜹니다.
    - 노란 띠: 테스트 DB 사용 (마음껏 눌러봐도 됨)
    - 빨간 띠: 실제 DB 연결 (저장·수정하면 실제 데이터가 바뀜)
