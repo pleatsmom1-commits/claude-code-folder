@@ -62,13 +62,17 @@
     </div>
 
     <!-- Navigation Header -->
-    <nav class="bg-white border-b border-slate-200 px-6 py-3 flex justify-between items-center shadow-sm">
+    <nav class="bg-white border-b border-slate-200 px-6 py-3 flex flex-wrap gap-2 justify-between items-center shadow-sm">
         <div class="flex items-center gap-3">
             <div class="bg-indigo-600 text-white p-2 rounded-lg font-black tracking-wider text-sm">밤낮</div>
             <div>
                 <h1 class="font-bold text-lg leading-tight text-slate-900">밤낮딜리버리 풀필먼트</h1>
                 <p class="text-xs text-slate-500">통합 주문접수 및 관리 시스템</p>
             </div>
+            <!-- 셀러 로그인 시에만 표시: 사입팀 픽업요청 페이지로 이동 -->
+            <button id="nav-pickup-btn" type="button" onclick="openPickupPage()" class="hidden shrink-0 whitespace-nowrap ml-2 px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
+                <i data-lucide="shopping-bag" class="w-4 h-4"></i> 사입팀 픽업요청
+            </button>
         </div>
         <div class="flex items-center gap-3">
             <div id="db-status-badge" class="px-2.5 py-1 bg-slate-100 text-slate-500 text-xs font-bold rounded-full flex items-center gap-1.5">
@@ -496,6 +500,89 @@
             </div>
         </div>
 
+        <!-- 2-1. SELLER: 사입팀 픽업요청 페이지 -->
+        <div id="pickup-screen" class="hidden max-w-2xl mx-auto space-y-5">
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+                <h2 class="text-xl font-black text-slate-900">🛍️ 사입팀 픽업요청</h2>
+                <button type="button" onclick="closePickupPage()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-lg shadow-sm">
+                    ← 택배접수 화면으로
+                </button>
+            </div>
+
+            <!-- 공지 -->
+            <div class="bg-amber-50 border-2 border-amber-300 rounded-xl px-5 py-4 space-y-1.5 text-amber-900">
+                <div class="font-black text-sm">📢 공지</div>
+                <p class="text-sm font-bold">23시 이후 카카오톡 상담이 불가한 경우 이용해주세요.</p>
+                <p class="text-sm">SO솔루션 사용자는 <b>1시까지 SO솔루션으로</b> 접수 부탁드립니다.</p>
+            </div>
+
+            <div id="pickup-status-notice" class="hidden px-4 py-3 rounded-xl border text-sm font-medium bg-amber-50 border-amber-200 text-amber-800"></div>
+
+            <form id="pickup-form" onsubmit="submitPickupRequest(event)" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-5">
+                <div>
+                    <label for="pk-store-name" class="block text-sm font-bold text-slate-800 mb-1">1) 매장상호 <span class="text-rose-500">*</span></label>
+                    <input id="pk-store-name" type="text" required maxlength="100" placeholder="예: OO상가 OO호 OO매장" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                </div>
+                <div>
+                    <label for="pk-store-location" class="block text-sm font-bold text-slate-800 mb-1">2) 매장위치 <span class="text-rose-500">*</span></label>
+                    <input id="pk-store-location" type="text" required maxlength="200" placeholder="예: 디오트 2층 B-123" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                </div>
+                <div>
+                    <div class="text-sm font-bold text-slate-800 mb-1.5">3) 대납 유무 <span class="text-rose-500">*</span></div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <label class="flex items-center gap-2 px-3 py-2.5 border rounded-lg cursor-pointer hover:bg-slate-50 has-[:checked]:border-orange-500 has-[:checked]:bg-orange-50">
+                            <input type="radio" name="pk-prepay" value="yes" onchange="updatePickupAgree()" class="accent-orange-500"> <span class="text-sm font-bold">대납하고 픽업해주세요</span>
+                        </label>
+                        <label class="flex items-center gap-2 px-3 py-2.5 border rounded-lg cursor-pointer hover:bg-slate-50 has-[:checked]:border-orange-500 has-[:checked]:bg-orange-50">
+                            <input type="radio" name="pk-prepay" value="no" onchange="updatePickupAgree()" class="accent-orange-500"> <span class="text-sm font-bold">대납없이 픽업해주세요</span>
+                        </label>
+                    </div>
+                </div>
+                <div>
+                    <div class="text-sm font-bold text-slate-800 mb-1.5">4) 대납미송 유무 <span class="text-rose-500">*</span></div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <label class="flex items-center gap-2 px-3 py-2.5 border rounded-lg cursor-pointer hover:bg-slate-50 has-[:checked]:border-orange-500 has-[:checked]:bg-orange-50">
+                            <input type="radio" name="pk-misong" value="yes" onchange="updatePickupAgree()" class="accent-orange-500"> <span class="text-sm font-bold">재고없는 경우 대납미송을 잡습니다</span>
+                        </label>
+                        <label class="flex items-center gap-2 px-3 py-2.5 border rounded-lg cursor-pointer hover:bg-slate-50 has-[:checked]:border-orange-500 has-[:checked]:bg-orange-50">
+                            <input type="radio" name="pk-misong" value="no" onchange="updatePickupAgree()" class="accent-orange-500"> <span class="text-sm font-bold">재고없는 경우 대납미송을 잡지 않습니다</span>
+                        </label>
+                    </div>
+                    <p class="text-[11px] text-slate-500 mt-1.5">* 대납미송이란 매장에 재고가 없을 때 미리 상품값을 결제하여 주문예약을 하는 기능입니다.</p>
+                </div>
+                <div>
+                    <label for="pk-memo" class="block text-sm font-bold text-slate-800 mb-1">요청사항 <span class="text-[11px] font-medium text-slate-400">(선택)</span></label>
+                    <textarea id="pk-memo" rows="2" maxlength="500" placeholder="픽업할 상품, 수량 등 전달할 내용이 있으면 적어주세요" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500"></textarea>
+                </div>
+
+                <!-- 중요안내: 대납하거나 대납미송을 잡는 경우 동의 필수 -->
+                <div class="bg-rose-50 border-2 border-rose-300 rounded-xl px-5 py-4 space-y-2 text-rose-900">
+                    <div class="font-black text-sm">⚠️ 중요안내</div>
+                    <p class="text-sm">대납금은 밤낮딜리버리 계좌로 <b>반드시 선입금</b>해주셔야 합니다.<br>
+                        <span class="inline-block mt-1 px-2 py-0.5 bg-white border border-rose-200 rounded font-bold">신한 110 359 193710 이현재</span></p>
+                    <p class="text-sm">대납금을 선입금하지 않아서 발생하는 모든 문제에 대해선 <b>이용자에게 책임</b>이 있습니다.</p>
+                    <label id="pk-agree-box" class="hidden mt-1 flex items-start gap-2 px-3 py-2.5 bg-white border-2 border-rose-400 rounded-lg cursor-pointer">
+                        <input id="pk-agree" type="checkbox" class="mt-0.5 w-4 h-4 accent-rose-600">
+                        <span class="text-sm font-bold">위 내용을 확인했으며, 대납금을 선입금하는 것에 동의합니다. (필수)</span>
+                    </label>
+                    <p id="pk-agree-hint" class="hidden text-[11px] font-bold text-rose-700">'대납하고 픽업' 또는 '대납미송을 잡습니다'를 선택하면 동의해야만 접수할 수 있습니다.</p>
+                </div>
+
+                <button id="btn-pickup-submit" type="submit" class="w-full py-3 bg-orange-500 hover:bg-orange-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black rounded-lg shadow">
+                    픽업요청 접수
+                </button>
+            </form>
+
+            <!-- 내 픽업요청 내역 -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-bold text-slate-900 text-sm">내 픽업요청 내역 <span class="text-[11px] font-medium text-slate-400">(최근 30건)</span></h3>
+                    <button type="button" onclick="loadMyPickupRequests()" class="px-2.5 py-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-[11px] font-bold rounded-lg">새로고침</button>
+                </div>
+                <div id="pickup-my-list" class="space-y-2 text-xs text-slate-600"></div>
+            </div>
+        </div>
+
         <!-- 3. ADMIN DASHBOARD -->
         <div id="admin-dashboard" class="hidden space-y-6">
             <div>
@@ -513,6 +600,10 @@
                 </button>
                 <button id="admin-tab-settle" onclick="switchAdminTab('settle')" class="px-5 py-2.5 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center gap-1.5">
                     정산서 발송
+                </button>
+                <button id="admin-tab-pickup" onclick="switchAdminTab('pickup')" class="px-5 py-2.5 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center gap-1.5">
+                    사입 픽업요청
+                    <span id="admin-pickup-badge" class="hidden px-1.5 py-0.5 bg-orange-500 text-white text-[10px] rounded-full"></span>
                 </button>
             </div>
 
@@ -685,6 +776,44 @@
                                 </tr>
                             </thead>
                             <tbody id="seller-admin-list" class="divide-y divide-slate-100 text-slate-700"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3-4. 사입 픽업요청 (셀러가 접수한 픽업요청 목록) -->
+            <div id="admin-pickup-panel" class="hidden space-y-4">
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
+                    <div class="flex justify-between items-center flex-wrap gap-2">
+                        <div class="flex gap-2 items-center flex-wrap">
+                            <select id="pickup-status-filter" onchange="renderAdminPickupTable()" class="px-3 py-1.5 border rounded-lg text-xs font-medium focus:outline-none">
+                                <option value="ALL">전체 상태</option>
+                                <option value="접수" selected>접수 (미처리)</option>
+                                <option value="확인">확인</option>
+                                <option value="완료">완료</option>
+                                <option value="취소">취소</option>
+                            </select>
+                            <span id="pickup-admin-count" class="text-xs font-bold text-orange-600 bg-orange-50 px-3 py-1.5 rounded-full">총 0건</span>
+                        </div>
+                        <button onclick="fetchAdminPickupRequests()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm flex items-center gap-1">
+                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> 새로고침
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-800 text-slate-200 font-bold">
+                                <tr>
+                                    <th class="p-3">접수시각</th>
+                                    <th class="p-3">셀러</th>
+                                    <th class="p-3">매장상호</th>
+                                    <th class="p-3">매장위치</th>
+                                    <th class="p-3">대납</th>
+                                    <th class="p-3">대납미송</th>
+                                    <th class="p-3">요청사항</th>
+                                    <th class="p-3 text-center">상태</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pickup-admin-list" class="divide-y divide-slate-100 text-slate-700"></tbody>
                         </table>
                     </div>
                 </div>
@@ -1300,6 +1429,7 @@
                 setAdminPreset('all', false);
                 fetchSellersFromDB();
                 fetchCouriers();
+                fetchAdminPickupRequests();
             } else {
                 setupSellerUI();
                 resetKeepRequest(); // 로그인할 때마다 보관요청은 다시 선택
@@ -1324,6 +1454,8 @@
             document.getElementById('auth-screen').classList.remove('hidden');
             document.getElementById('seller-dashboard').classList.add('hidden');
             document.getElementById('admin-dashboard').classList.add('hidden');
+            document.getElementById('pickup-screen').classList.add('hidden');
+            pickupRequests = [];
             document.getElementById('seller-order-list').innerHTML = '';
             document.getElementById('admin-order-list').innerHTML = '';
             document.getElementById('seller-admin-list').innerHTML = '';
@@ -1797,6 +1929,9 @@
         }
 
         function updateNavUserArea() {
+            const pickupBtn = document.getElementById('nav-pickup-btn');
+            pickupBtn.classList.toggle('hidden', currentRole !== 'seller');
+            pickupBtn.classList.toggle('flex', currentRole === 'seller');
             const area = document.getElementById('nav-user-area');
             if (!currentRole) {
                 area.innerHTML = `<span class="text-xs text-slate-400">로그인 필요</span>`;
@@ -3291,6 +3426,176 @@
         }
 
         // =====================================================================
+        // 셀러: 사입팀 픽업요청 (DB 테이블: supabase/pickup.sql)
+        // =====================================================================
+        let pickupRequests = [];
+
+        function formatPickupTime(iso) {
+            const d = new Date(iso);
+            const k = new Date(d.getTime() + 9 * 3600 * 1000); // 한국시간
+            const pad = n => String(n).padStart(2, '0');
+            return `${k.getUTCMonth() + 1}/${k.getUTCDate()} ${pad(k.getUTCHours())}:${pad(k.getUTCMinutes())}`;
+        }
+
+        function openPickupPage() {
+            if (currentRole !== 'seller') return;
+            document.getElementById('seller-dashboard').classList.add('hidden');
+            document.getElementById('pickup-screen').classList.remove('hidden');
+            const approved = (currentSellerAccount.status || 'approved') === 'approved';
+            const notice = document.getElementById('pickup-status-notice');
+            notice.classList.toggle('hidden', approved);
+            notice.innerText = approved ? '' : '관리자 승인 후 픽업요청을 접수할 수 있습니다.';
+            document.getElementById('btn-pickup-submit').disabled = !approved;
+            const nameInput = document.getElementById('pk-store-name');
+            if (!nameInput.value) nameInput.value = currentSellerAccount.company || '';
+            updatePickupAgree();
+            loadMyPickupRequests();
+            window.scrollTo(0, 0);
+        }
+
+        function closePickupPage() {
+            document.getElementById('pickup-screen').classList.add('hidden');
+            if (currentRole === 'seller') document.getElementById('seller-dashboard').classList.remove('hidden');
+        }
+
+        function getPickupChoice(name) {
+            const el = document.querySelector(`input[name="${name}"]:checked`);
+            return el ? el.value === 'yes' : null;
+        }
+
+        // '대납하고 픽업' 또는 '대납미송을 잡습니다'를 고르면 선입금 동의 체크칸이 나타납니다.
+        function needsPickupAgree() {
+            return getPickupChoice('pk-prepay') === true || getPickupChoice('pk-misong') === true;
+        }
+        function updatePickupAgree() {
+            const need = needsPickupAgree();
+            document.getElementById('pk-agree-box').classList.toggle('hidden', !need);
+            document.getElementById('pk-agree-hint').classList.toggle('hidden', !need);
+            if (!need) document.getElementById('pk-agree').checked = false;
+        }
+
+        async function submitPickupRequest(e) {
+            e.preventDefault();
+            if (!supabaseClient || currentRole !== 'seller') return;
+            const storeName = document.getElementById('pk-store-name').value.trim();
+            const storeLocation = document.getElementById('pk-store-location').value.trim();
+            const prepay = getPickupChoice('pk-prepay');
+            const misong = getPickupChoice('pk-misong');
+            const agreed = document.getElementById('pk-agree').checked;
+            if (!storeName || !storeLocation) return alert('매장상호와 매장위치를 입력해주세요.');
+            if (prepay === null) return alert('3) 대납 유무를 선택해주세요.');
+            if (misong === null) return alert('4) 대납미송 유무를 선택해주세요.');
+            if ((prepay || misong) && !agreed) {
+                return alert('대납 또는 대납미송을 선택하신 경우,\n중요안내(대납금 선입금)에 동의하셔야 접수할 수 있습니다.\n\n동의하지 않으시면 이용이 불가합니다.');
+            }
+            const summary = `매장상호: ${storeName}\n매장위치: ${storeLocation}\n대납: ${prepay ? '대납하고 픽업' : '대납없이 픽업'}\n대납미송: ${misong ? '재고없으면 대납미송 잡음' : '대납미송 잡지 않음'}`;
+            if (!confirm(`아래 내용으로 픽업요청을 접수할까요?\n\n${summary}`)) return;
+
+            const btn = document.getElementById('btn-pickup-submit');
+            btn.disabled = true;
+            const { error } = await supabaseClient.from('pickup_requests').insert([{
+                seller_company: currentSellerAccount.company || '',
+                store_name: storeName,
+                store_location: storeLocation,
+                prepay,
+                prepay_misong: misong,
+                agreed: (prepay || misong) ? agreed : false,
+                memo: document.getElementById('pk-memo').value.trim() || null,
+            }]);
+            btn.disabled = false;
+            if (error) {
+                console.error('픽업요청 오류:', error);
+                let msg = dbErrorMessage(error);
+                if (['PGRST205', '42P01'].includes(error.code)) msg = 'DB 설정이 아직 적용되지 않았습니다.\n(관리자: Supabase SQL Editor에서 supabase/pickup.sql 을 실행해주세요)';
+                return alert('픽업요청을 접수하지 못했습니다.\n\n' + msg);
+            }
+            alert('픽업요청이 접수되었습니다. 감사합니다.');
+            document.getElementById('pk-store-location').value = '';
+            document.getElementById('pk-memo').value = '';
+            document.querySelectorAll('input[name="pk-prepay"], input[name="pk-misong"]').forEach(r => { r.checked = false; });
+            updatePickupAgree();
+            loadMyPickupRequests();
+        }
+
+        function pickupStatusBadge(status) {
+            const cls = { '접수': 'bg-orange-100 text-orange-700', '확인': 'bg-sky-100 text-sky-700', '완료': 'bg-emerald-100 text-emerald-700', '취소': 'bg-slate-200 text-slate-500' }[status] || '';
+            return `<span class="px-2 py-0.5 rounded text-[10px] font-bold ${cls}">${escapeHtml(status)}</span>`;
+        }
+
+        async function loadMyPickupRequests() {
+            const box = document.getElementById('pickup-my-list');
+            if (!supabaseClient || currentRole !== 'seller') return;
+            const { data, error } = await supabaseClient.from('pickup_requests').select('*')
+                .order('created_at', { ascending: false }).limit(30);
+            if (error) {
+                box.innerHTML = '<p class="text-slate-400">내역을 불러오지 못했습니다.</p>';
+                return;
+            }
+            box.innerHTML = data.length ? data.map(r => `
+                <div class="flex items-start justify-between gap-2 border border-slate-100 rounded-lg px-3 py-2">
+                    <div>
+                        <div class="font-bold text-slate-800">${escapeHtml(r.store_name)} <span class="font-medium text-slate-500">· ${escapeHtml(r.store_location)}</span></div>
+                        <div class="text-[11px] text-slate-500">${formatPickupTime(r.created_at)} · ${r.prepay ? '대납' : '대납없음'} · ${r.prepay_misong ? '대납미송 잡음' : '대납미송 안 잡음'}${r.memo ? ' · ' + escapeHtml(r.memo) : ''}</div>
+                    </div>
+                    ${pickupStatusBadge(r.status)}
+                </div>`).join('') : '<p class="text-slate-400">아직 접수한 픽업요청이 없습니다.</p>';
+        }
+
+        // ---- 관리자: 사입 픽업요청 목록 ----
+        async function fetchAdminPickupRequests() {
+            if (!supabaseClient || currentRole !== 'admin') return;
+            const { data, error } = await supabaseClient.from('pickup_requests').select('*')
+                .order('created_at', { ascending: false }).limit(500);
+            if (error) {
+                console.error('픽업요청 목록 오류:', error);
+                // 아직 pickup.sql 을 실행하지 않은 경우 다른 관리자 화면을 막지 않도록 조용히 넘어갑니다.
+                document.getElementById('pickup-admin-list').innerHTML =
+                    `<tr><td colspan="8" class="p-6 text-center text-slate-400">픽업요청을 불러오지 못했습니다. (Supabase SQL Editor에서 supabase/pickup.sql 을 실행했는지 확인해주세요)</td></tr>`;
+                return;
+            }
+            pickupRequests = data;
+            renderAdminPickupTable();
+        }
+
+        function renderAdminPickupTable() {
+            const tbody = document.getElementById('pickup-admin-list');
+            if (!tbody || currentRole !== 'admin') return;
+            const pending = pickupRequests.filter(r => r.status === '접수').length;
+            const badge = document.getElementById('admin-pickup-badge');
+            badge.textContent = pending;
+            badge.classList.toggle('hidden', pending === 0);
+            const filter = document.getElementById('pickup-status-filter').value;
+            const rows = pickupRequests.filter(r => filter === 'ALL' || r.status === filter);
+            document.getElementById('pickup-admin-count').innerText = `총 ${rows.length}건`;
+            tbody.innerHTML = rows.length ? rows.map(r => `
+                <tr class="hover:bg-slate-50">
+                    <td class="p-3 whitespace-nowrap font-mono">${formatPickupTime(r.created_at)}</td>
+                    <td class="p-3 whitespace-nowrap">${escapeHtml(r.seller_company)}</td>
+                    <td class="p-3 font-bold">${escapeHtml(r.store_name)}</td>
+                    <td class="p-3">${escapeHtml(r.store_location)}</td>
+                    <td class="p-3 whitespace-nowrap ${r.prepay ? 'text-rose-600 font-bold' : ''}">${r.prepay ? '대납하고 픽업' : '대납없이 픽업'}</td>
+                    <td class="p-3 whitespace-nowrap ${r.prepay_misong ? 'text-rose-600 font-bold' : ''}">${r.prepay_misong ? '미송 잡음' : '미송 안 잡음'}</td>
+                    <td class="p-3">${escapeHtml(r.memo || '')}</td>
+                    <td class="p-3 text-center">
+                        <select onchange="updatePickupStatus('${r.id}', this.value)" class="px-2 py-1 border rounded text-[11px] font-bold">
+                            ${['접수', '확인', '완료', '취소'].map(st => `<option value="${st}" ${st === r.status ? 'selected' : ''}>${st}</option>`).join('')}
+                        </select>
+                    </td>
+                </tr>`).join('') : `<tr><td colspan="8" class="p-6 text-center text-slate-400">해당하는 픽업요청이 없습니다.</td></tr>`;
+        }
+
+        async function updatePickupStatus(id, status) {
+            const { error } = await supabaseClient.from('pickup_requests').update({ status }).eq('id', id);
+            if (error) {
+                alert('상태를 바꾸지 못했습니다.\n\n' + dbErrorMessage(error));
+            } else {
+                const r = pickupRequests.find(x => x.id === id);
+                if (r) r.status = status;
+            }
+            renderAdminPickupTable();
+        }
+
+        // =====================================================================
         // 관리자: 셀러 관리
         // =====================================================================
         function switchAdminTab(tab) {
@@ -3299,10 +3604,13 @@
             document.getElementById('admin-tab-orders').className = tab === 'orders' ? on : off;
             document.getElementById('admin-tab-sellers').className = tab === 'sellers' ? on : off;
             document.getElementById('admin-tab-settle').className = tab === 'settle' ? on : off;
+            document.getElementById('admin-tab-pickup').className = tab === 'pickup' ? on : off;
             document.getElementById('admin-orders-panel').classList.toggle('hidden', tab !== 'orders');
             document.getElementById('admin-sellers-panel').classList.toggle('hidden', tab !== 'sellers');
             document.getElementById('admin-settle-panel').classList.toggle('hidden', tab !== 'settle');
+            document.getElementById('admin-pickup-panel').classList.toggle('hidden', tab !== 'pickup');
             if (tab === 'settle') onSettleTabOpened();
+            if (tab === 'pickup') fetchAdminPickupRequests();
         }
 
         async function fetchSellersFromDB() {
