@@ -519,16 +519,38 @@
             <div id="pickup-status-notice" class="hidden px-4 py-3 rounded-xl border text-sm font-medium bg-amber-50 border-amber-200 text-amber-800"></div>
 
             <form id="pickup-form" onsubmit="submitPickupRequest(event)" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-5">
-                <div>
-                    <label for="pk-store-name" class="block text-sm font-bold text-slate-800 mb-1">1) 매장상호 <span class="text-rose-500">*</span></label>
-                    <input id="pk-store-name" type="text" required maxlength="100" placeholder="예: OO상가 OO호 OO매장" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                <!-- 주문자 정보 -->
+                <div class="space-y-3">
+                    <div class="text-sm font-black text-slate-900 border-l-4 border-orange-500 pl-2">주문자 정보</div>
+                    <div>
+                        <label for="pk-orderer-name" class="block text-sm font-bold text-slate-800 mb-1">1) 주문자 상호 <span class="text-rose-500">*</span></label>
+                        <input id="pk-orderer-name" type="text" required maxlength="100" placeholder="예: 누보" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                        <p class="text-[11px] text-slate-500 mt-1">신상마켓이나 매장에 주문하신 대표님 상호 또는 쇼핑몰명</p>
+                    </div>
+                    <div>
+                        <label for="pk-orderer-phone" class="block text-sm font-bold text-slate-800 mb-1">2) 주문자 연락처 <span class="text-rose-500">*</span></label>
+                        <input id="pk-orderer-phone" type="tel" required maxlength="30" placeholder="예: 010-1234-5678" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                </div>
+
+                <!-- 픽업할 매장정보 -->
+                <div class="space-y-3 pt-2 border-t border-slate-100">
+                    <div class="pt-3"><div class="text-sm font-black text-slate-900 border-l-4 border-orange-500 pl-2">픽업할 매장정보</div></div>
+                    <div>
+                        <label for="pk-store-name" class="block text-sm font-bold text-slate-800 mb-1">1) 매장 상호 <span class="text-rose-500">*</span></label>
+                        <input id="pk-store-name" type="text" required maxlength="100" placeholder="예: OO매장" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                    <div>
+                        <label for="pk-store-location" class="block text-sm font-bold text-slate-800 mb-1">2) 매장 위치 <span class="text-rose-500">*</span></label>
+                        <input id="pk-store-location" type="text" required maxlength="200" placeholder="예: 디오트 2층 B-123" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                    <div>
+                        <label for="pk-store-phone" class="block text-sm font-bold text-slate-800 mb-1">3) 매장 연락처 <span class="text-rose-500">*</span></label>
+                        <input id="pk-store-phone" type="tel" required maxlength="30" placeholder="예: 02-123-4567" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
                 </div>
                 <div>
-                    <label for="pk-store-location" class="block text-sm font-bold text-slate-800 mb-1">2) 매장위치 <span class="text-rose-500">*</span></label>
-                    <input id="pk-store-location" type="text" required maxlength="200" placeholder="예: 디오트 2층 B-123" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
-                </div>
-                <div>
-                    <div class="text-sm font-bold text-slate-800 mb-1.5">3) 대납 유무 <span class="text-rose-500">*</span></div>
+                    <div class="text-sm font-bold text-slate-800 mb-1.5">4) 대납 유무 <span class="text-rose-500">*</span></div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <label class="flex items-center gap-2 px-3 py-2.5 border rounded-lg cursor-pointer hover:bg-slate-50 has-[:checked]:border-orange-500 has-[:checked]:bg-orange-50">
                             <input type="radio" name="pk-prepay" value="yes" onchange="updatePickupAgree()" class="accent-orange-500"> <span class="text-sm font-bold">대납하고 픽업해주세요</span>
@@ -539,7 +561,7 @@
                     </div>
                 </div>
                 <div>
-                    <div class="text-sm font-bold text-slate-800 mb-1.5">4) 대납미송 유무 <span class="text-rose-500">*</span></div>
+                    <div class="text-sm font-bold text-slate-800 mb-1.5">5) 대납미송 유무 <span class="text-rose-500">*</span></div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <label class="flex items-center gap-2 px-3 py-2.5 border rounded-lg cursor-pointer hover:bg-slate-50 has-[:checked]:border-orange-500 has-[:checked]:bg-orange-50">
                             <input type="radio" name="pk-misong" value="yes" onchange="updatePickupAgree()" class="accent-orange-500"> <span class="text-sm font-bold">재고없는 경우 대납미송을 잡습니다</span>
@@ -551,7 +573,7 @@
                     <p class="text-[11px] text-slate-500 mt-1.5">* 대납미송이란 매장에 재고가 없을 때 미리 상품값을 결제하여 주문예약을 하는 기능입니다.</p>
                 </div>
                 <div>
-                    <label for="pk-memo" class="block text-sm font-bold text-slate-800 mb-1">요청사항 <span class="text-[11px] font-medium text-slate-400">(선택)</span></label>
+                    <label for="pk-memo" class="block text-sm font-bold text-slate-800 mb-1">6) 사입팀 요청사항 <span class="text-[11px] font-medium text-slate-400">(선택)</span></label>
                     <textarea id="pk-memo" rows="2" maxlength="500" placeholder="픽업할 상품, 수량 등 전달할 내용이 있으면 적어주세요" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500"></textarea>
                 </div>
 
@@ -804,12 +826,11 @@
                             <thead class="bg-slate-800 text-slate-200 font-bold">
                                 <tr>
                                     <th class="p-3">접수시각</th>
-                                    <th class="p-3">셀러</th>
-                                    <th class="p-3">매장상호</th>
-                                    <th class="p-3">매장위치</th>
+                                    <th class="p-3">주문자</th>
+                                    <th class="p-3">픽업할 매장</th>
                                     <th class="p-3">대납</th>
                                     <th class="p-3">대납미송</th>
-                                    <th class="p-3">요청사항</th>
+                                    <th class="p-3">사입팀 요청사항</th>
                                     <th class="p-3 text-center">상태</th>
                                 </tr>
                             </thead>
@@ -3446,8 +3467,10 @@
             notice.classList.toggle('hidden', approved);
             notice.innerText = approved ? '' : '관리자 승인 후 픽업요청을 접수할 수 있습니다.';
             document.getElementById('btn-pickup-submit').disabled = !approved;
-            const nameInput = document.getElementById('pk-store-name');
-            if (!nameInput.value) nameInput.value = currentSellerAccount.company || '';
+            const ordererName = document.getElementById('pk-orderer-name');
+            if (!ordererName.value) ordererName.value = currentSellerAccount.company || '';
+            const ordererPhone = document.getElementById('pk-orderer-phone');
+            if (!ordererPhone.value) ordererPhone.value = currentSellerAccount.phone || '';
             updatePickupAgree();
             loadMyPickupRequests();
             window.scrollTo(0, 0);
@@ -3477,26 +3500,34 @@
         async function submitPickupRequest(e) {
             e.preventDefault();
             if (!supabaseClient || currentRole !== 'seller') return;
-            const storeName = document.getElementById('pk-store-name').value.trim();
-            const storeLocation = document.getElementById('pk-store-location').value.trim();
+            const val = id => document.getElementById(id).value.trim();
+            const ordererName = val('pk-orderer-name');
+            const ordererPhone = val('pk-orderer-phone');
+            const storeName = val('pk-store-name');
+            const storeLocation = val('pk-store-location');
+            const storePhone = val('pk-store-phone');
             const prepay = getPickupChoice('pk-prepay');
             const misong = getPickupChoice('pk-misong');
             const agreed = document.getElementById('pk-agree').checked;
-            if (!storeName || !storeLocation) return alert('매장상호와 매장위치를 입력해주세요.');
-            if (prepay === null) return alert('3) 대납 유무를 선택해주세요.');
-            if (misong === null) return alert('4) 대납미송 유무를 선택해주세요.');
+            if (!ordererName || !ordererPhone) return alert('주문자 상호와 연락처를 입력해주세요.');
+            if (!storeName || !storeLocation || !storePhone) return alert('매장 상호, 위치, 연락처를 입력해주세요.');
+            if (prepay === null) return alert('4) 대납 유무를 선택해주세요.');
+            if (misong === null) return alert('5) 대납미송 유무를 선택해주세요.');
             if ((prepay || misong) && !agreed) {
                 return alert('대납 또는 대납미송을 선택하신 경우,\n중요안내(대납금 선입금)에 동의하셔야 접수할 수 있습니다.\n\n동의하지 않으시면 이용이 불가합니다.');
             }
-            const summary = `매장상호: ${storeName}\n매장위치: ${storeLocation}\n대납: ${prepay ? '대납하고 픽업' : '대납없이 픽업'}\n대납미송: ${misong ? '재고없으면 대납미송 잡음' : '대납미송 잡지 않음'}`;
+            const summary = `[주문자] ${ordererName} / ${ordererPhone}\n[매장] ${storeName} / ${storeLocation} / ${storePhone}\n대납: ${prepay ? '대납하고 픽업' : '대납없이 픽업'}\n대납미송: ${misong ? '재고없으면 대납미송 잡음' : '대납미송 잡지 않음'}`;
             if (!confirm(`아래 내용으로 픽업요청을 접수할까요?\n\n${summary}`)) return;
 
             const btn = document.getElementById('btn-pickup-submit');
             btn.disabled = true;
             const { error } = await supabaseClient.from('pickup_requests').insert([{
                 seller_company: currentSellerAccount.company || '',
+                orderer_name: ordererName,
+                orderer_phone: ordererPhone,
                 store_name: storeName,
                 store_location: storeLocation,
+                store_phone: storePhone,
                 prepay,
                 prepay_misong: misong,
                 agreed: (prepay || misong) ? agreed : false,
@@ -3510,8 +3541,7 @@
                 return alert('픽업요청을 접수하지 못했습니다.\n\n' + msg);
             }
             alert('픽업요청이 접수되었습니다. 감사합니다.');
-            document.getElementById('pk-store-location').value = '';
-            document.getElementById('pk-memo').value = '';
+            ['pk-store-name', 'pk-store-location', 'pk-store-phone', 'pk-memo'].forEach(id => { document.getElementById(id).value = ''; });
             document.querySelectorAll('input[name="pk-prepay"], input[name="pk-misong"]').forEach(r => { r.checked = false; });
             updatePickupAgree();
             loadMyPickupRequests();
@@ -3534,7 +3564,7 @@
             box.innerHTML = data.length ? data.map(r => `
                 <div class="flex items-start justify-between gap-2 border border-slate-100 rounded-lg px-3 py-2">
                     <div>
-                        <div class="font-bold text-slate-800">${escapeHtml(r.store_name)} <span class="font-medium text-slate-500">· ${escapeHtml(r.store_location)}</span></div>
+                        <div class="font-bold text-slate-800">${escapeHtml(r.store_name)} <span class="font-medium text-slate-500">· ${escapeHtml(r.store_location)}${r.store_phone ? ' · ' + escapeHtml(r.store_phone) : ''}</span></div>
                         <div class="text-[11px] text-slate-500">${formatPickupTime(r.created_at)} · ${r.prepay ? '대납' : '대납없음'} · ${r.prepay_misong ? '대납미송 잡음' : '대납미송 안 잡음'}${r.memo ? ' · ' + escapeHtml(r.memo) : ''}</div>
                     </div>
                     ${pickupStatusBadge(r.status)}
@@ -3550,7 +3580,7 @@
                 console.error('픽업요청 목록 오류:', error);
                 // 아직 pickup.sql 을 실행하지 않은 경우 다른 관리자 화면을 막지 않도록 조용히 넘어갑니다.
                 document.getElementById('pickup-admin-list').innerHTML =
-                    `<tr><td colspan="8" class="p-6 text-center text-slate-400">픽업요청을 불러오지 못했습니다. (Supabase SQL Editor에서 supabase/pickup.sql 을 실행했는지 확인해주세요)</td></tr>`;
+                    `<tr><td colspan="7" class="p-6 text-center text-slate-400">픽업요청을 불러오지 못했습니다. (Supabase SQL Editor에서 supabase/pickup.sql 을 실행했는지 확인해주세요)</td></tr>`;
                 return;
             }
             pickupRequests = data;
@@ -3570,9 +3600,16 @@
             tbody.innerHTML = rows.length ? rows.map(r => `
                 <tr class="hover:bg-slate-50">
                     <td class="p-3 whitespace-nowrap font-mono">${formatPickupTime(r.created_at)}</td>
-                    <td class="p-3 whitespace-nowrap">${escapeHtml(r.seller_company)}</td>
-                    <td class="p-3 font-bold">${escapeHtml(r.store_name)}</td>
-                    <td class="p-3">${escapeHtml(r.store_location)}</td>
+                    <td class="p-3">
+                        <div class="font-bold">${escapeHtml(r.orderer_name || r.seller_company)}</div>
+                        <div class="text-slate-500">${escapeHtml(r.orderer_phone || '')}</div>
+                        ${r.orderer_name && r.orderer_name !== r.seller_company ? `<div class="text-[10px] text-slate-400">셀러: ${escapeHtml(r.seller_company)}</div>` : ''}
+                    </td>
+                    <td class="p-3">
+                        <div class="font-bold">${escapeHtml(r.store_name)}</div>
+                        <div>${escapeHtml(r.store_location)}</div>
+                        <div class="text-slate-500">${escapeHtml(r.store_phone || '')}</div>
+                    </td>
                     <td class="p-3 whitespace-nowrap ${r.prepay ? 'text-rose-600 font-bold' : ''}">${r.prepay ? '대납하고 픽업' : '대납없이 픽업'}</td>
                     <td class="p-3 whitespace-nowrap ${r.prepay_misong ? 'text-rose-600 font-bold' : ''}">${r.prepay_misong ? '미송 잡음' : '미송 안 잡음'}</td>
                     <td class="p-3">${escapeHtml(r.memo || '')}</td>
@@ -3581,7 +3618,7 @@
                             ${['접수', '확인', '완료', '취소'].map(st => `<option value="${st}" ${st === r.status ? 'selected' : ''}>${st}</option>`).join('')}
                         </select>
                     </td>
-                </tr>`).join('') : `<tr><td colspan="8" class="p-6 text-center text-slate-400">해당하는 픽업요청이 없습니다.</td></tr>`;
+                </tr>`).join('') : `<tr><td colspan="7" class="p-6 text-center text-slate-400">해당하는 픽업요청이 없습니다.</td></tr>`;
         }
 
         async function updatePickupStatus(id, status) {
