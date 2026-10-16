@@ -3,7 +3,18 @@
 {
   "name": "bamnat-delivery",
   "compatibility_date": "2025-09-01",
+  "main": "worker/keepalive.js",
   "assets": {
-    "directory": "."
+    "directory": ".",
+    "binding": "ASSETS"
+  },
+  // Supabase 자동 깨우기: 2일마다 한국시간 낮 12시 (UTC 03:00)
+  "triggers": {
+    "crons": ["0 3 */2 * *"]
+  },
+  // index.html 에도 들어 있는 공개용 주소/키 (비밀값 아님)
+  "vars": {
+    "SUPABASE_URL": "https://doierphwtctcomrujgem.supabase.co",
+    "SUPABASE_KEY": "sb_publishable_5XM4HoFx4U_0kL-8ET_x-Q_WfvGwFXL"
   }
 }
