@@ -59,10 +59,9 @@
     <div class="foot">문의: 밤낮딜리버리 카카오톡 채널</div>
 </div>
 
+<script src="config.js"></script>
 <script>
-    // index.html 에도 들어 있는 공개용 주소/키 (비밀값 아님). 정산서는 정확한 링크(token)로만 조회됩니다.
-    const SUPABASE_URL = "https://doierphwtctcomrujgem.supabase.co";
-    const SUPABASE_KEY = "sb_publishable_5XM4HoFx4U_0kL-8ET_x-Q_WfvGwFXL";
+    // DB 주소/키는 config.js (공개용 값). 정산서는 정확한 링크(token)로만 조회됩니다.
 
     const RESULT_MESSAGE = { '청구': '입금 부탁드립니다.', '이월': '결제완료, 잔여금입니다.', '영수': '결제완료' };
 
