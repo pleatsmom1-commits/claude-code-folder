@@ -144,6 +144,14 @@ Cloudflare **Workers & Pages → bamnat-delivery** 가 이 저장소의 `claude/
 - 설정 파일: `wrangler.jsonc` (이름 `bamnat-delivery`, 저장소 폴더를 정적 사이트로 올림)
 - `.assetsignore` 에 적힌 파일(`supabase/`, `README.md` 등)은 사이트에 올라가지 않고 `index.html` 만 공개됩니다.
 - 배포 주소가 바뀌면 Supabase **Authentication → URL Configuration** 의 Site URL / Redirect URLs 도 새 주소로 맞춰야 합니다.
+
+## Supabase 자동 깨우기 (무료 요금제 일시정지 방지)
+무료 Supabase 는 약 7일 동안 접속이 없으면 프로젝트를 일시정지합니다. 이를 막기 위해 두 곳에서 자동으로 접속합니다. (사람이 할 일 없음)
+- **Cloudflare 예약 실행(주)**: `worker/keepalive.js` + `wrangler.jsonc` 의 `triggers.crons` — 2일마다 한국시간 낮 12시.
+  Cloudflare 대시보드 → bamnat-delivery → 설정 → 트리거(Cron) 에서 확인할 수 있습니다.
+- **GitHub Actions(예비)**: `.github/workflows/supabase-keepalive.yml` — 3일마다. 실패하면 GitHub 가 메일로 알려줍니다
+  (= Supabase 가 이미 일시정지된 상태 → 대시보드에서 Restore). 공개 저장소는 60일간 변경이 없으면 GitHub 가 이 예약을 끄므로, 메일이 오면 Actions 화면에서 다시 켜주세요.
+- 이미 일시정지된 프로젝트는 깨우지 못합니다. 그때는 Supabase 대시보드에서 **Restore** 를 한 번 눌러주세요.
 이메일 링크가 정상 동작하려면 파일을 PC에서 직접 여는(`file://`) 방식이 아닌, 이렇게 웹 주소로 배포해서 써야 합니다.
 
 ## 테스트 모드
