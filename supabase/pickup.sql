@@ -19,6 +19,11 @@ create table if not exists public.pickup_requests (
     -- 대납하거나 대납미송을 잡는 경우에는 선입금 안내에 동의해야만 접수됩니다.
     constraint pickup_requests_agree_chk check (agreed or not (prepay or prepay_misong))
 );
+-- 주문자 정보 / 매장 연락처 (처음 버전을 이미 실행했어도 칸만 추가됩니다)
+alter table public.pickup_requests add column if not exists orderer_name  text;  -- 주문자 상호 (대표님 상호/쇼핑몰명)
+alter table public.pickup_requests add column if not exists orderer_phone text;  -- 주문자 연락처
+alter table public.pickup_requests add column if not exists store_phone   text;  -- 매장 연락처
+
 create index if not exists pickup_requests_created_idx on public.pickup_requests (created_at desc);
 create index if not exists pickup_requests_seller_idx on public.pickup_requests (seller_id, created_at desc);
 alter table public.pickup_requests enable row level security;
