@@ -20,7 +20,7 @@
     "SUPABASE_KEY": "sb_publishable_5XM4HoFx4U_0kL-8ET_x-Q_WfvGwFXL",
     "SOLAPI_PF_ID": "KA01PF261019090815900A7vHcGav3ie",
     "SOLAPI_TEMPLATE_ID": "KA01TP261019094837602auq34OnVvQw",
-    "SOLAPI_SENDER": ""
+    "SOLAPI_SENDER": "01054259060"
   },
   // 브랜치 미리보기 사이트(Cloudflare Worker Previews)용 설정.
   // 이 값은 Supabase 자동 깨우기(예약 실행)에만 쓰이고, 미리보기에서는 예약 실행이 돌지 않습니다.
@@ -31,7 +31,7 @@
       "SUPABASE_KEY": "sb_publishable_5XM4HoFx4U_0kL-8ET_x-Q_WfvGwFXL",
       "SOLAPI_PF_ID": "KA01PF261019090815900A7vHcGav3ie",
       "SOLAPI_TEMPLATE_ID": "KA01TP261019094837602auq34OnVvQw",
-      "SOLAPI_SENDER": ""
+      "SOLAPI_SENDER": "01054259060"
     }
   }
 }
