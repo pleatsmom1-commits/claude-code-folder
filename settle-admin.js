@@ -13,6 +13,8 @@ let settleExcelRows = null;       // 엑셀에서 읽은 정산서 (정산일 �
 let settleExcelFileName = '';
 let settleSaved = [];             // 선택한 정산일의 저장된 정산서
 let settleLoadedTab = false;
+let settleChecked = new Set();     // 발송할 업체로 체크한 상호 (비어 있으면 전체 발송)
+let settleCheckedDate = null;
 
 function settleNorm(value) {
     return String(value ?? '').replace(/\s+/g, '').toLowerCase();
@@ -305,6 +307,7 @@ function uploadSettleWorkbook(event) {
 
 async function loadSavedSettlements() {
     const date = document.getElementById('settle-date').value;
+    if (date !== settleCheckedDate) { settleChecked.clear(); settleCheckedDate = date; }
     settleSaved = [];
     if (date && supabaseClient && currentRole === 'admin') {
         const { data, error } = await supabaseClient.from('settlements')
@@ -359,15 +362,11 @@ function renderSettleTable() {
           + (unsaved ? ` · <span class="text-amber-600 font-bold">저장 안 됨 ${unsaved}곳</span>` : ' · <span class="text-emerald-600 font-bold">모두 저장됨</span>')
         : (settleExcelRows ? '이 날짜의 정산서가 엑셀에 없습니다.' : '정산청구서 엑셀을 올리거나, 저장된 정산일을 고르세요.');
     document.getElementById('settle-save-btn').disabled = !settleExcelRows || !unsaved;
-    const sendable = settleSendable(list).length;
-    const sendBtn = document.getElementById('settle-send-btn');
-    sendBtn.disabled = !IS_PRODUCTION || !sendable;
-    sendBtn.title = !IS_PRODUCTION ? '테스트 사이트에서는 실제 거래처에게 보낼 수 없습니다 (시험 발송만 가능)'
-        : sendable ? `아직 안 보낸 ${sendable}곳에 보냅니다` : '보낼 정산서가 없습니다 (저장 전이거나 모두 발송됨)';
     document.getElementById('settle-test-btn').disabled = !list.some(r => r.token && !r.changed);
 
     if (!list.length) {
-        tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-400">표시할 정산서가 없습니다.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-slate-400">표시할 정산서가 없습니다.</td></tr>`;
+        settleUpdateCheckUI(list);
         return;
     }
     tbody.innerHTML = list.map((r, i) => {
@@ -378,8 +377,11 @@ function renderSettleTable() {
             : r.send_status === '실패' ? `<span class="px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 font-bold" title="${escapeHtml(r.send_error || '')}">발송실패</span><div class="text-[10px] text-rose-500 mt-0.5">${escapeHtml(r.send_error || '')}</div>`
             : '<span class="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-bold">링크 생성됨</span>';
         const resultColor = r.result === '청구' ? 'text-rose-600' : 'text-emerald-600';
+        const checkable = settleCheckable(r);
         return `
-        <tr class="hover:bg-slate-50">
+        <tr class="hover:bg-slate-50 ${settleChecked.has(r.company) ? 'bg-amber-50/60' : ''}">
+            <td class="p-2.5"><input type="checkbox" data-company="${escapeHtml(r.company)}" ${checkable ? '' : 'disabled title="저장한 뒤 선택할 수 있습니다"'}
+                ${settleChecked.has(r.company) ? 'checked' : ''} onchange="toggleSettleCheck(this.dataset.company, this.checked)" class="w-4 h-4 align-middle cursor-pointer disabled:cursor-not-allowed"></td>
             <td class="p-2.5 text-slate-400">${i + 1}</td>
             <td class="p-2.5 font-bold">${escapeHtml(r.company)}</td>
             <td class="p-2.5 font-bold ${resultColor}">${escapeHtml(r.result || '')}</td>
@@ -395,6 +397,7 @@ function renderSettleTable() {
             </td>
         </tr>`;
     }).join('');
+    settleUpdateCheckUI(list);
 }
 
 async function saveSettlements() {
@@ -460,11 +463,6 @@ function previewSettle(company) {
 // ---------------------------------------------------------------------
 // 3. 알림톡 발송 (서버: worker/alimtalk.js, 솔라피)
 // ---------------------------------------------------------------------
-// 보낼 수 있는 정산서: 저장됨 + 저장 후 바뀌지 않음 + 아직 안 보냄 + 연락처 있음
-function settleSendable(list) {
-    return list.filter(r => r.token && !r.changed && !r.sent_at && settleContactPhone(r.company));
-}
-
 async function settleSendApi(payload) {
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (!session) throw new Error('로그인이 필요합니다. 다시 로그인해 주세요.');
@@ -490,25 +488,30 @@ function settleResultReport(data) {
 async function sendSettlementsAlimtalk() {
     const date = document.getElementById('settle-date').value;
     const list = settleCurrentList();
-    const targets = settleSendable(list);
-    if (!targets.length) { alert('보낼 정산서가 없습니다. (저장 전이거나, 이미 모두 발송했습니다)'); return; }
-    const noPhone = list.filter(r => r.token && !r.sent_at && !settleContactPhone(r.company)).length;
-    const unsaved = list.filter(r => !r.token || r.changed).length;
-    let msg = `${date} 정산서를 ${targets.length}곳에 알림톡으로 보냅니다.`;
-    if (noPhone) msg += `\n· 연락처 없는 ${noPhone}곳은 건너뜁니다 ([링크 복사]로 따로 보내주세요)`;
-    if (unsaved) msg += `\n· 저장 안 된 ${unsaved}곳은 보내지 않습니다`;
+    const plan = settleSendPlan(list);
+    const targets = [...plan.fresh, ...plan.again];
+    if (!targets.length) {
+        alert(plan.selected ? '체크한 업체 중 보낼 수 있는 곳이 없습니다. (연락처 없음 / 저장 전)' : '보낼 정산서가 없습니다. (저장 전이거나, 이미 모두 발송했습니다)');
+        return;
+    }
+    let msg = plan.selected
+        ? `${date} 정산서를 체크한 ${targets.length}곳에만 알림톡으로 보냅니다.\n(${targets.slice(0, 5).map(r => r.company).join(', ')}${targets.length > 5 ? ` 외 ${targets.length - 5}곳` : ''})`
+        : `${date} 정산서를 ${targets.length}곳 전체에 알림톡으로 보냅니다.`;
+    if (plan.again.length) msg += `\n· 이미 보낸 ${plan.again.length}곳(${plan.again.map(r => r.company).join(', ')})도 다시 보냅니다`;
+    if (plan.noPhone.length) msg += `\n· 연락처 없는 ${plan.noPhone.length}곳은 건너뜁니다 ([링크 복사]로 따로 보내주세요)`;
+    if (plan.unsaved) msg += `\n· 저장 안 된 ${plan.unsaved}곳은 보내지 않습니다`;
     if (!confirm(msg + '\n\n보낼까요?')) return;
 
     const btn = document.getElementById('settle-send-btn');
     btn.disabled = true;
     btn.lastChild.textContent = ' 보내는 중...';
     try {
-        const data = await settleSendApi({ date, companies: targets.map(r => r.company) });
+        const data = await settleSendApi({ date, companies: targets.map(r => r.company), resend: plan.again.length > 0 });
         alert(settleResultReport(data));
+        settleChecked.clear();
     } catch (err) {
         alert('발송하지 못했습니다.\n\n' + err.message);
     } finally {
-        btn.lastChild.textContent = ' 알림톡 발송';
         await loadSavedSettlements();
     }
 }
@@ -528,7 +531,8 @@ async function resendSettlement(company) {
 // 시험 발송: 첫 번째 저장된 정산서 1건을 내 휴대폰으로만 보냄 (거래처에게는 안 감, 발송 기록도 안 남음)
 async function sendSettlementTest() {
     const date = document.getElementById('settle-date').value;
-    const first = settleCurrentList().find(r => r.token && !r.changed);
+    const list = settleCurrentList();
+    const first = list.find(r => settleChecked.has(r.company) && r.token && !r.changed) || list.find(r => r.token && !r.changed);
     if (!first) { alert('먼저 [정산서 저장]을 해 주세요.'); return; }
     const raw = prompt(`시험으로 받을 휴대폰 번호를 입력하세요.\n([${first.company}] 정산서 내용으로 1건만 갑니다. 거래처에게는 가지 않습니다)`, '');
     if (raw === null) return;
@@ -541,4 +545,53 @@ async function sendSettlementTest() {
     } catch (err) {
         alert('시험 발송하지 못했습니다.\n\n' + err.message);
     }
+}
+
+// ---------------------------------------------------------------------
+// 4. 체크박스: 체크한 업체만 발송 (아무것도 체크 안 하면 전체 발송)
+// ---------------------------------------------------------------------
+function settleCheckable(r) { return !!(r.token && !r.changed); }
+
+// 이번에 보낼 대상: 체크가 있으면 체크한 곳(이미 보낸 곳은 다시 보냄), 없으면 아직 안 보낸 전체
+function settleSendPlan(list) {
+    const selected = list.some(r => settleChecked.has(r.company));
+    const pool = selected ? list.filter(r => settleChecked.has(r.company)) : list;
+    const ready = pool.filter(r => settleCheckable(r) && settleContactPhone(r.company));
+    return {
+        selected,
+        fresh: ready.filter(r => !r.sent_at),
+        again: selected ? ready.filter(r => r.sent_at) : [],
+        noPhone: pool.filter(r => settleCheckable(r) && !settleContactPhone(r.company) && (selected || !r.sent_at)),
+        unsaved: pool.filter(r => !settleCheckable(r)).length,
+    };
+}
+
+function toggleSettleCheck(company, checked) {
+    if (checked) settleChecked.add(company); else settleChecked.delete(company);
+    renderSettleTable();
+}
+
+function toggleSettleCheckAll(checked) {
+    settleChecked.clear();
+    if (checked) settleCurrentList().filter(settleCheckable).forEach(r => settleChecked.add(r.company));
+    renderSettleTable();
+}
+
+function settleUpdateCheckUI(list) {
+    const checkable = list.filter(settleCheckable);
+    for (const c of [...settleChecked]) if (!checkable.some(r => r.company === c)) settleChecked.delete(c);
+    const all = document.getElementById('settle-check-all');
+    if (all) {
+        all.checked = checkable.length > 0 && settleChecked.size === checkable.length;
+        all.indeterminate = settleChecked.size > 0 && settleChecked.size < checkable.length;
+        all.disabled = !checkable.length;
+    }
+    const plan = settleSendPlan(list);
+    const count = plan.fresh.length + plan.again.length;
+    const btn = document.getElementById('settle-send-btn');
+    btn.disabled = !IS_PRODUCTION || !count;
+    btn.lastChild.textContent = plan.selected ? ` 선택 ${count}곳 발송` : ` 알림톡 발송 (전체 ${count}곳)`;
+    btn.title = !IS_PRODUCTION ? '테스트 사이트에서는 실제 거래처에게 보낼 수 없습니다 (시험 발송만 가능)'
+        : count ? (plan.selected ? '체크한 업체에만 보냅니다' : '아직 안 보낸 업체 전체에 보냅니다. 일부만 보내려면 왼쪽 칸을 체크하세요')
+        : '보낼 정산서가 없습니다';
 }
