@@ -856,8 +856,11 @@
                             <button id="settle-save-btn" onclick="saveSettlements()" disabled class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold text-xs rounded-lg shadow flex items-center gap-1">
                                 <i data-lucide="link" class="w-3.5 h-3.5"></i> 정산서 저장 (링크 만들기)
                             </button>
-                            <button disabled title="솔라피(발송대행사) 연결 후 사용할 수 있습니다" class="px-3 py-1.5 bg-slate-300 cursor-not-allowed text-white font-bold text-xs rounded-lg flex items-center gap-1">
-                                <i data-lucide="send" class="w-3.5 h-3.5"></i> 알림톡 발송 (준비중)
+                            <button id="settle-test-btn" onclick="sendSettlementTest()" disabled class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 font-bold text-xs rounded-lg shadow-sm flex items-center gap-1">
+                                <i data-lucide="smartphone" class="w-3.5 h-3.5"></i> 시험 발송 (내 번호)
+                            </button>
+                            <button id="settle-send-btn" onclick="sendSettlementsAlimtalk()" disabled class="px-3 py-1.5 bg-amber-400 hover:bg-amber-500 disabled:bg-slate-300 disabled:cursor-not-allowed text-slate-900 font-bold text-xs rounded-lg shadow flex items-center gap-1">
+                                <i data-lucide="send" class="w-3.5 h-3.5"></i> 알림톡 발송
                             </button>
                         </div>
                     </div>
