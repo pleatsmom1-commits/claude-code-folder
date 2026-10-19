@@ -308,7 +308,7 @@ async function loadSavedSettlements() {
     settleSaved = [];
     if (date && supabaseClient && currentRole === 'admin') {
         const { data, error } = await supabaseClient.from('settlements')
-            .select('id, token, company, settle_date, seq, total, result, data, sent_at, send_status')
+            .select('id, token, company, settle_date, seq, total, result, data, sent_at, send_status, send_error')
             .eq('settle_date', date).order('seq');
         if (error) {
             alert('저장된 정산서를 불러오지 못했습니다.\n\n' + dbErrorMessage(error)
@@ -334,11 +334,16 @@ function settleCurrentList() {
                     token: saved ? saved.token : null,
                     changed: saved ? settleStableJson(saved.data) !== settleStableJson(r) : false,
                     sent_at: saved ? saved.sent_at : null,
+                    send_status: saved ? saved.send_status : null,
+                    send_error: saved ? saved.send_error : null,
                 };
             });
         }
     }
-    return settleSaved.map(s => ({ company: s.company, total: s.total, result: s.result, data: s.data, token: s.token, changed: false, sent_at: s.sent_at }));
+    return settleSaved.map(s => ({
+        company: s.company, total: s.total, result: s.result, data: s.data, token: s.token, changed: false,
+        sent_at: s.sent_at, send_status: s.send_status, send_error: s.send_error,
+    }));
 }
 
 function renderSettleTable() {
@@ -354,6 +359,12 @@ function renderSettleTable() {
           + (unsaved ? ` · <span class="text-amber-600 font-bold">저장 안 됨 ${unsaved}곳</span>` : ' · <span class="text-emerald-600 font-bold">모두 저장됨</span>')
         : (settleExcelRows ? '이 날짜의 정산서가 엑셀에 없습니다.' : '정산청구서 엑셀을 올리거나, 저장된 정산일을 고르세요.');
     document.getElementById('settle-save-btn').disabled = !settleExcelRows || !unsaved;
+    const sendable = settleSendable(list).length;
+    const sendBtn = document.getElementById('settle-send-btn');
+    sendBtn.disabled = !IS_PRODUCTION || !sendable;
+    sendBtn.title = !IS_PRODUCTION ? '테스트 사이트에서는 실제 거래처에게 보낼 수 없습니다 (시험 발송만 가능)'
+        : sendable ? `아직 안 보낸 ${sendable}곳에 보냅니다` : '보낼 정산서가 없습니다 (저장 전이거나 모두 발송됨)';
+    document.getElementById('settle-test-btn').disabled = !list.some(r => r.token && !r.changed);
 
     if (!list.length) {
         tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-400">표시할 정산서가 없습니다.</td></tr>`;
@@ -363,7 +374,8 @@ function renderSettleTable() {
         const phone = settleContactPhone(r.company);
         const state = !r.token ? '<span class="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold">저장 전</span>'
             : r.changed ? '<span class="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold">변경됨·다시 저장</span>'
-            : r.sent_at ? '<span class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold">발송완료</span>'
+            : r.sent_at ? `<span class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold" title="${escapeHtml(new Date(r.sent_at).toLocaleString('ko-KR'))}">발송완료</span>`
+            : r.send_status === '실패' ? `<span class="px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 font-bold" title="${escapeHtml(r.send_error || '')}">발송실패</span><div class="text-[10px] text-rose-500 mt-0.5">${escapeHtml(r.send_error || '')}</div>`
             : '<span class="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-bold">링크 생성됨</span>';
         const resultColor = r.result === '청구' ? 'text-rose-600' : 'text-emerald-600';
         return `
@@ -377,7 +389,8 @@ function renderSettleTable() {
             <td class="p-2.5 whitespace-nowrap">
                 ${r.token ? `
                 <a href="${escapeHtml(settleLink(r.token))}" target="_blank" class="px-2 py-1 text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 rounded">보기</a>
-                <button data-company="${escapeHtml(r.company)}" onclick="copySettleMessage(this.dataset.company)" class="px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded">링크 복사</button>`
+                <button data-company="${escapeHtml(r.company)}" onclick="copySettleMessage(this.dataset.company)" class="px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded">링크 복사</button>
+                ${IS_PRODUCTION && !r.changed && phone && (r.sent_at || r.send_status === '실패') ? `<button data-company="${escapeHtml(r.company)}" onclick="resendSettlement(this.dataset.company)" class="px-2 py-1 text-[11px] font-bold text-amber-700 hover:bg-amber-50 rounded">다시 보내기</button>` : ''}`
                 : `<button data-company="${escapeHtml(r.company)}" onclick="previewSettle(this.dataset.company)" class="px-2 py-1 text-[11px] font-bold text-slate-500 hover:bg-slate-100 rounded">미리보기</button>`}
             </td>
         </tr>`;
@@ -442,4 +455,90 @@ function previewSettle(company) {
     if (!r) return;
     try { localStorage.setItem('settlePreview', JSON.stringify({ company, settle_date: r.data.date, data: r.data })); } catch (e) { /* 무시 */ }
     window.open(`${SETTLE_PAGE_PATH}?preview=1`, '_blank');
+}
+
+// ---------------------------------------------------------------------
+// 3. 알림톡 발송 (서버: worker/alimtalk.js, 솔라피)
+// ---------------------------------------------------------------------
+// 보낼 수 있는 정산서: 저장됨 + 저장 후 바뀌지 않음 + 아직 안 보냄 + 연락처 있음
+function settleSendable(list) {
+    return list.filter(r => r.token && !r.changed && !r.sent_at && settleContactPhone(r.company));
+}
+
+async function settleSendApi(payload) {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) throw new Error('로그인이 필요합니다. 다시 로그인해 주세요.');
+    const res = await fetch('/api/settle/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `발송 서버 오류 (HTTP ${res.status})`);
+    return data;
+}
+
+function settleResultReport(data) {
+    const failed = data.results.filter(r => r.status === 'failed');
+    const skipped = data.results.filter(r => r.status === 'skipped');
+    let msg = `발송 접수 ${data.summary.sent}곳`;
+    if (failed.length) msg += `\n\n❌ 실패 ${failed.length}곳\n` + failed.map(r => `- ${r.company}: ${r.message}`).join('\n');
+    if (skipped.length) msg += `\n\n⏭ 건너뜀 ${skipped.length}곳\n` + skipped.map(r => `- ${r.company}: ${r.message}`).join('\n');
+    return msg;
+}
+
+async function sendSettlementsAlimtalk() {
+    const date = document.getElementById('settle-date').value;
+    const list = settleCurrentList();
+    const targets = settleSendable(list);
+    if (!targets.length) { alert('보낼 정산서가 없습니다. (저장 전이거나, 이미 모두 발송했습니다)'); return; }
+    const noPhone = list.filter(r => r.token && !r.sent_at && !settleContactPhone(r.company)).length;
+    const unsaved = list.filter(r => !r.token || r.changed).length;
+    let msg = `${date} 정산서를 ${targets.length}곳에 알림톡으로 보냅니다.`;
+    if (noPhone) msg += `\n· 연락처 없는 ${noPhone}곳은 건너뜁니다 ([링크 복사]로 따로 보내주세요)`;
+    if (unsaved) msg += `\n· 저장 안 된 ${unsaved}곳은 보내지 않습니다`;
+    if (!confirm(msg + '\n\n보낼까요?')) return;
+
+    const btn = document.getElementById('settle-send-btn');
+    btn.disabled = true;
+    btn.lastChild.textContent = ' 보내는 중...';
+    try {
+        const data = await settleSendApi({ date, companies: targets.map(r => r.company) });
+        alert(settleResultReport(data));
+    } catch (err) {
+        alert('발송하지 못했습니다.\n\n' + err.message);
+    } finally {
+        btn.lastChild.textContent = ' 알림톡 발송';
+        await loadSavedSettlements();
+    }
+}
+
+async function resendSettlement(company) {
+    const date = document.getElementById('settle-date').value;
+    if (!confirm(`[${company}]에게 ${date} 정산서를 다시 보낼까요?`)) return;
+    try {
+        const data = await settleSendApi({ date, companies: [company], resend: true });
+        alert(settleResultReport(data));
+    } catch (err) {
+        alert('발송하지 못했습니다.\n\n' + err.message);
+    }
+    await loadSavedSettlements();
+}
+
+// 시험 발송: 첫 번째 저장된 정산서 1건을 내 휴대폰으로만 보냄 (거래처에게는 안 감, 발송 기록도 안 남음)
+async function sendSettlementTest() {
+    const date = document.getElementById('settle-date').value;
+    const first = settleCurrentList().find(r => r.token && !r.changed);
+    if (!first) { alert('먼저 [정산서 저장]을 해 주세요.'); return; }
+    const raw = prompt(`시험으로 받을 휴대폰 번호를 입력하세요.\n([${first.company}] 정산서 내용으로 1건만 갑니다. 거래처에게는 가지 않습니다)`, '');
+    if (raw === null) return;
+    const phone = settlePhone(raw);
+    if (!phone) { alert('휴대폰 번호 형식이 올바르지 않습니다.'); return; }
+    try {
+        const data = await settleSendApi({ date, companies: [first.company], testPhone: phone });
+        const r = data.results[0];
+        alert(r.status === 'sent' ? `시험 발송 접수 완료 (${r.to})\n잠시 후 카톡을 확인해 주세요.` : `시험 발송 실패\n\n${r.message}`);
+    } catch (err) {
+        alert('시험 발송하지 못했습니다.\n\n' + err.message);
+    }
 }

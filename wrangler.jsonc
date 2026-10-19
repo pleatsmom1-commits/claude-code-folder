@@ -13,9 +13,14 @@
     "crons": ["0 3 */2 * *"]
   },
   // index.html 에도 들어 있는 공개용 주소/키 (비밀값 아님)
+  // SOLAPI_*: 정산서 알림톡 발송용 (공개돼도 되는 값). API 키/시크릿은 Cloudflare 대시보드의 "비밀(Secret)"로만 넣습니다.
+  //   SOLAPI_SENDER: 솔라피에 등록한 발신번호 (카톡 실패 시 문자 대체발송에 사용)
   "vars": {
     "SUPABASE_URL": "https://doierphwtctcomrujgem.supabase.co",
-    "SUPABASE_KEY": "sb_publishable_5XM4HoFx4U_0kL-8ET_x-Q_WfvGwFXL"
+    "SUPABASE_KEY": "sb_publishable_5XM4HoFx4U_0kL-8ET_x-Q_WfvGwFXL",
+    "SOLAPI_PF_ID": "KA01PF261019090815900A7vHcGav3ie",
+    "SOLAPI_TEMPLATE_ID": "KA01TP261019094837602auq34OnVvQw",
+    "SOLAPI_SENDER": ""
   },
   // 브랜치 미리보기 사이트(Cloudflare Worker Previews)용 설정.
   // 이 값은 Supabase 자동 깨우기(예약 실행)에만 쓰이고, 미리보기에서는 예약 실행이 돌지 않습니다.
@@ -23,7 +28,10 @@
   "previews": {
     "vars": {
       "SUPABASE_URL": "https://doierphwtctcomrujgem.supabase.co",
-      "SUPABASE_KEY": "sb_publishable_5XM4HoFx4U_0kL-8ET_x-Q_WfvGwFXL"
+      "SUPABASE_KEY": "sb_publishable_5XM4HoFx4U_0kL-8ET_x-Q_WfvGwFXL",
+      "SOLAPI_PF_ID": "KA01PF261019090815900A7vHcGav3ie",
+      "SOLAPI_TEMPLATE_ID": "KA01TP261019094837602auq34OnVvQw",
+      "SOLAPI_SENDER": ""
     }
   }
 }
