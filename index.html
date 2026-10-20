@@ -952,6 +952,44 @@
                         <span id="settle-summary" class="text-slate-600"></span>
                         <span id="settle-file-status" class="text-slate-400"></span>
                     </div>
+                    <!-- 조회: 상태 / 결과 / 연락처 / 상호 검색 / 정렬 → [조회] -->
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-2">
+                        <span class="text-xs font-bold text-slate-600 w-12">검색</span>
+                        <select id="settle-f-status" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
+                            <option value="all">상태 전체</option>
+                            <option value="unsent">미발송 (발송완료 아님)</option>
+                            <option value="sent">발송완료</option>
+                            <option value="ready">링크 생성됨 (발송 전)</option>
+                            <option value="failed">발송실패</option>
+                            <option value="unsaved">저장 전 · 변경됨</option>
+                        </select>
+                        <select id="settle-f-result" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
+                            <option value="all">결과 전체</option>
+                        </select>
+                        <select id="settle-f-phone" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
+                            <option value="all">연락처 전체</option>
+                            <option value="yes">연락처 있음</option>
+                            <option value="no">연락처 없음</option>
+                        </select>
+                        <input type="text" id="settle-f-keyword" onkeydown="if (event.key === 'Enter') runSettleSearch()" placeholder="상호 · 연락처 검색" class="px-3 py-1.5 border rounded-lg text-xs bg-white w-56">
+                        <select id="settle-f-sort" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
+                            <option value="seq">순번순</option>
+                            <option value="company">상호 가나다순</option>
+                            <option value="total_desc">청구금액 큰 순</option>
+                            <option value="total_asc">청구금액 작은 순</option>
+                        </select>
+                        <button type="button" id="btn-settle-search" onclick="runSettleSearch()" class="px-5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-black flex items-center gap-1"><i data-lucide="search" class="w-3.5 h-3.5"></i> 조회</button>
+                        <button type="button" onclick="resetSettleSearch()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-bold">초기화</button>
+                    </div>
+                    <!-- 상태별로 한 번에 체크 -->
+                    <div class="flex flex-wrap items-center gap-2 text-xs">
+                        <span class="font-bold text-slate-600">빠른 체크</span>
+                        <button type="button" id="btn-settle-check-sent" onclick="checkSettleByState('sent')" class="px-3 py-1.5 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-800 font-bold rounded-lg">✔ 발송완료 전체 체크</button>
+                        <button type="button" id="btn-settle-check-unsent" onclick="checkSettleByState('unsent')" class="px-3 py-1.5 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-800 font-bold rounded-lg">✔ 미발송 전체 체크</button>
+                        <button type="button" onclick="toggleSettleCheckAll(false)" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold rounded-lg">체크 해제</button>
+                        <span id="settle-filter-count" class="font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full"></span>
+                        <span class="text-[11px] text-slate-400">아무것도 체크하지 않고 [알림톡 발송]을 누르면 지금 조회된 업체 중 아직 안 보낸 곳에 보냅니다.</span>
+                    </div>
                     <div class="overflow-auto max-h-[60vh] border border-slate-200 rounded-lg">
                         <table class="w-full text-left text-xs">
                             <thead class="bg-slate-800 text-slate-200 font-bold sticky top-0">

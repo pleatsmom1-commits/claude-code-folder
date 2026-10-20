@@ -15,6 +15,9 @@ let settleSaved = [];             // 선택한 정산일의 저장된 정산서
 let settleLoadedTab = false;
 let settleChecked = new Set();     // 발송할 업체로 체크한 상호 (비어 있으면 전체 발송)
 let settleCheckedDate = null;
+// 조회 조건 ([조회] 버튼을 눌렀을 때만 바뀜)
+const SETTLE_QUERY_DEFAULT = { status: 'all', result: 'all', phone: 'all', keyword: '', sort: 'seq' };
+let settleQuery = { ...SETTLE_QUERY_DEFAULT };
 
 function settleNorm(value) {
     return String(value ?? '').replace(/\s+/g, '').toLowerCase();
@@ -366,10 +369,20 @@ function renderSettleTable() {
 
     if (!list.length) {
         tbody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-slate-400">표시할 정산서가 없습니다.</td></tr>`;
+        document.getElementById('settle-filter-count').textContent = '';
         settleUpdateCheckUI(list);
         return;
     }
-    tbody.innerHTML = list.map((r, i) => {
+    settleFillResultOptions(list);
+    const shown = settleFilteredList(list);
+    document.getElementById('settle-filter-count').textContent = `조회 ${shown.length}곳 / 전체 ${list.length}곳`;
+    if (!shown.length) {
+        tbody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-slate-400">조회 조건에 맞는 정산서가 없습니다.</td></tr>`;
+        settleUpdateCheckUI(list);
+        return;
+    }
+    tbody.innerHTML = shown.map(r => {
+        const i = r.__seq - 1;   // 순번은 조회와 상관없이 원래 순서
         const phone = settleContactPhone(r.company);
         const state = !r.token ? '<span class="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold">저장 전</span>'
             : r.changed ? '<span class="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold">변경됨·다시 저장</span>'
@@ -490,12 +503,14 @@ async function sendSettlementsAlimtalk() {
     const list = settleCurrentList();
     const plan = settleSendPlan(list);
     const targets = [...plan.fresh, ...plan.again];
+    const filtered = settleFilteredList(list).length !== list.length;
     if (!targets.length) {
         alert(plan.selected ? '체크한 업체 중 보낼 수 있는 곳이 없습니다. (연락처 없음 / 저장 전)' : '보낼 정산서가 없습니다. (저장 전이거나, 이미 모두 발송했습니다)');
         return;
     }
     let msg = plan.selected
         ? `${date} 정산서를 체크한 ${targets.length}곳에만 알림톡으로 보냅니다.\n(${targets.slice(0, 5).map(r => r.company).join(', ')}${targets.length > 5 ? ` 외 ${targets.length - 5}곳` : ''})`
+        : filtered ? `${date} 정산서를 지금 조회된 업체 중 ${targets.length}곳에 알림톡으로 보냅니다.`
         : `${date} 정산서를 ${targets.length}곳 전체에 알림톡으로 보냅니다.`;
     if (plan.again.length) msg += `\n· 이미 보낸 ${plan.again.length}곳(${plan.again.map(r => r.company).join(', ')})도 다시 보냅니다`;
     if (plan.noPhone.length) msg += `\n· 연락처 없는 ${plan.noPhone.length}곳은 건너뜁니다 ([링크 복사]로 따로 보내주세요)`;
@@ -553,9 +568,10 @@ async function sendSettlementTest() {
 function settleCheckable(r) { return !!(r.token && !r.changed); }
 
 // 이번에 보낼 대상: 체크가 있으면 체크한 곳(이미 보낸 곳은 다시 보냄), 없으면 아직 안 보낸 전체
+// (체크가 없으면 지금 [조회]로 보이는 업체만 대상)
 function settleSendPlan(list) {
     const selected = list.some(r => settleChecked.has(r.company));
-    const pool = selected ? list.filter(r => settleChecked.has(r.company)) : list;
+    const pool = selected ? list.filter(r => settleChecked.has(r.company)) : settleFilteredList(list);
     const ready = pool.filter(r => settleCheckable(r) && settleContactPhone(r.company));
     return {
         selected,
@@ -573,7 +589,82 @@ function toggleSettleCheck(company, checked) {
 
 function toggleSettleCheckAll(checked) {
     settleChecked.clear();
-    if (checked) settleCurrentList().filter(settleCheckable).forEach(r => settleChecked.add(r.company));
+    if (checked) settleFilteredList(settleCurrentList()).filter(settleCheckable).forEach(r => settleChecked.add(r.company));
+    renderSettleTable();
+}
+
+// 빠른 체크: 지금 조회된 업체 중 발송완료(sent) / 미발송(unsent)만 체크
+function checkSettleByState(which) {
+    const rows = settleFilteredList(settleCurrentList()).filter(settleCheckable)
+        .filter(r => (which === 'sent' ? !!r.sent_at : !r.sent_at));
+    settleChecked.clear();
+    rows.forEach(r => settleChecked.add(r.company));
+    renderSettleTable();
+    if (!rows.length) alert(which === 'sent' ? '조회된 업체 중 발송완료된 곳이 없습니다.' : '조회된 업체 중 미발송인 곳이 없습니다. (저장 전인 곳은 먼저 [정산서 저장]을 해주세요)');
+}
+
+// ---------------------------------------------------------------------
+// 5. 조회: 상태 / 결과 / 연락처 / 상호 검색 / 정렬
+// ---------------------------------------------------------------------
+function settleStateKey(r) {
+    if (!r.token || r.changed) return 'unsaved';
+    if (r.sent_at) return 'sent';
+    if (r.send_status === '실패') return 'failed';
+    return 'ready';
+}
+
+function settleFilteredList(list) {
+    const { status, result, phone, keyword, sort } = settleQuery;
+    const kw = (keyword || '').trim().toLowerCase();
+    const digits = kw.replace(/\D/g, '');
+    const rows = list.map((r, i) => ({ ...r, __seq: i + 1 })).filter(r => {
+        const st = settleStateKey(r);
+        if (status === 'unsent' ? st === 'sent' : (status !== 'all' && st !== status)) return false;
+        if (result !== 'all' && (r.result || '') !== result) return false;
+        const p = settleContactPhone(r.company);
+        if (phone === 'yes' && !p) return false;
+        if (phone === 'no' && p) return false;
+        if (kw) {
+            const hit = String(r.company || '').toLowerCase().includes(kw)
+                || (digits.length >= 3 && String(p || '').replace(/\D/g, '').includes(digits));
+            if (!hit) return false;
+        }
+        return true;
+    });
+    if (sort === 'company') rows.sort((a, b) => String(a.company).localeCompare(String(b.company), 'ko'));
+    else if (sort === 'total_desc') rows.sort((a, b) => (Number(b.total) || 0) - (Number(a.total) || 0));
+    else if (sort === 'total_asc') rows.sort((a, b) => (Number(a.total) || 0) - (Number(b.total) || 0));
+    return rows;
+}
+
+// 결과(청구 등) 선택지는 지금 정산일의 값으로 채웁니다.
+function settleFillResultOptions(list) {
+    const sel = document.getElementById('settle-f-result');
+    if (!sel) return;
+    const values = [...new Set(list.map(r => r.result || '').filter(Boolean))].sort();
+    const current = sel.value;
+    sel.innerHTML = '<option value="all">결과 전체</option>' + values.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+    sel.value = values.includes(current) ? current : 'all';
+}
+
+function runSettleSearch() {
+    settleQuery = {
+        status: document.getElementById('settle-f-status').value,
+        result: document.getElementById('settle-f-result').value,
+        phone: document.getElementById('settle-f-phone').value,
+        keyword: document.getElementById('settle-f-keyword').value,
+        sort: document.getElementById('settle-f-sort').value,
+    };
+    renderSettleTable();
+}
+
+function resetSettleSearch() {
+    document.getElementById('settle-f-status').value = 'all';
+    document.getElementById('settle-f-result').value = 'all';
+    document.getElementById('settle-f-phone').value = 'all';
+    document.getElementById('settle-f-keyword').value = '';
+    document.getElementById('settle-f-sort').value = 'seq';
+    settleQuery = { ...SETTLE_QUERY_DEFAULT };
     renderSettleTable();
 }
 
@@ -582,15 +673,18 @@ function settleUpdateCheckUI(list) {
     for (const c of [...settleChecked]) if (!checkable.some(r => r.company === c)) settleChecked.delete(c);
     const all = document.getElementById('settle-check-all');
     if (all) {
-        all.checked = checkable.length > 0 && settleChecked.size === checkable.length;
-        all.indeterminate = settleChecked.size > 0 && settleChecked.size < checkable.length;
-        all.disabled = !checkable.length;
+        const shownCheckable = settleFilteredList(list).filter(settleCheckable);
+        const shownChecked = shownCheckable.filter(r => settleChecked.has(r.company)).length;
+        all.checked = shownCheckable.length > 0 && shownChecked === shownCheckable.length;
+        all.indeterminate = shownChecked > 0 && shownChecked < shownCheckable.length;
+        all.disabled = !shownCheckable.length;
     }
     const plan = settleSendPlan(list);
     const count = plan.fresh.length + plan.again.length;
     const btn = document.getElementById('settle-send-btn');
     btn.disabled = !IS_PRODUCTION || !count;
-    btn.lastChild.textContent = plan.selected ? ` 선택 ${count}곳 발송` : ` 알림톡 발송 (전체 ${count}곳)`;
+    const filtered = settleFilteredList(list).length !== list.length;
+    btn.lastChild.textContent = plan.selected ? ` 선택 ${count}곳 발송` : ` 알림톡 발송 (${filtered ? '조회된' : '전체'} ${count}곳)`;
     btn.title = !IS_PRODUCTION ? '테스트 사이트에서는 실제 거래처에게 보낼 수 없습니다 (시험 발송만 가능)'
         : count ? (plan.selected ? '체크한 업체에만 보냅니다' : '아직 안 보낸 업체 전체에 보냅니다. 일부만 보내려면 왼쪽 칸을 체크하세요')
         : '보낼 정산서가 없습니다';
