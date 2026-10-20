@@ -200,19 +200,15 @@ alter table public.orders add column if not exists keep_memo text;
 alter table public.orders drop constraint if exists orders_keep_request_check;
 alter table public.orders add constraint orders_keep_request_check
     check (keep_request is null or keep_request in ('있음', '없음', '이미접수'));
--- 접수구분: fulfillment = 고객풀필먼트(고객배송대행) / store_post = 매장·사무실 우체국택배 / store_sameday = 매장·사무실 당일택배
+-- 접수구분: fulfillment = 고객풀필먼트(고객배송대행) / store_post = 매장·사무실 우체국택배 / store_sameday = 매장·사무실 당일택배 / keep = 사무실 보관요청
 alter table public.orders add column if not exists order_type text;
 update public.orders set order_type = 'fulfillment' where order_type is null;
 alter table public.orders alter column order_type set default 'fulfillment';
 alter table public.orders alter column order_type set not null;
-do $$
-begin
-    if not exists (select 1 from pg_constraint where conname = 'orders_order_type_check') then
-        alter table public.orders add constraint orders_order_type_check
-            check (order_type in ('fulfillment', 'store_post', 'store_sameday'));
-    end if;
-end;
-$$;
+-- keep = 사무실 보관요청 (보관요청 박스에서 [접수]한 건)
+alter table public.orders drop constraint if exists orders_order_type_check;
+alter table public.orders add constraint orders_order_type_check
+    check (order_type in ('fulfillment', 'store_post', 'store_sameday', 'keep'));
 update public.orders set ship_status = '미출고' where ship_status is null;
 alter table public.orders alter column ship_status set default '미출고';
 alter table public.orders alter column ship_status set not null;
