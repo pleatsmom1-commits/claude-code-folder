@@ -1146,7 +1146,13 @@
             <form onsubmit="handleSignupSubmit(event)" class="space-y-3">
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">상호명 (거래처명) *</label>
-                    <input type="text" id="signup-company" required placeholder="예: 이레앤컴퍼니" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    <div class="flex gap-2">
+                        <input type="text" id="signup-company" required placeholder="예: 이레앤컴퍼니" oninput="onSignupCompanyInput()"
+                            onkeydown="if (event.key === 'Enter') { event.preventDefault(); checkSignupCompany(); }"
+                            class="flex-1 min-w-0 px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                        <button type="button" id="btn-signup-company-check" onclick="checkSignupCompany()" class="shrink-0 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg">중복확인</button>
+                    </div>
+                    <p id="signup-company-status" class="hidden text-[11px] font-bold mt-1"></p>
                     <p class="text-[10px] text-slate-400 mt-1">송화인명이 '밤낮딜리버리(상호명)'으로 자동 입력됩니다. 가입 후 변경은 관리자에게 요청해주세요.</p>
                 </div>
                 <div>
@@ -1493,6 +1499,7 @@
             if (!error) return '';
             if (/Failed to fetch|NetworkError|Load failed|fetch failed/i.test(error.message || '')) return SERVER_UNREACHABLE_MESSAGE;
             if (error.code === '42501') return '권한이 없는 작업입니다. (승인 전/정지 계정이거나, 마감·출고된 주문)';
+            if (error.code === '23505' && /profiles_company_norm_uidx/.test(error.message || '')) return '이미 다른 셀러가 사용 중인 상호명입니다. 다른 상호명으로 바꿔주세요.';
             if (['PGRST205', 'PGRST204', '42P01', '42703'].includes(error.code) || /schema cache|does not exist/i.test(error.message || '')) {
                 return 'DB 설정이 최신이 아닙니다.\n(관리자: Supabase SQL Editor에서 최신 supabase/schema.sql 전체를 실행해주세요)\n\n' + (error.message || '');
             }
@@ -1699,6 +1706,56 @@
             document.getElementById('signup-modal').classList.remove('hidden');
             document.getElementById('signup-modal').classList.add('flex');
         }
+        // 상호명 중복확인: 띄어쓰기·영문 대소문자는 같은 이름으로 봅니다 (DB 함수 company_available, supabase/company_unique.sql)
+        const normCompany = v => String(v || '').replace(/\s/g, '').toLowerCase();
+        let signupCompanyOk = null;   // [중복확인]을 통과한 상호명 (정규화)
+
+        function setSignupCompanyStatus(text, ok) {
+            const el = document.getElementById('signup-company-status');
+            el.textContent = text;
+            el.className = `text-[11px] font-bold mt-1 ${ok ? 'text-emerald-600' : 'text-rose-600'}`;
+            el.classList.toggle('hidden', !text);
+        }
+        function onSignupCompanyInput() {
+            const now = normCompany(document.getElementById('signup-company').value);
+            if (signupCompanyOk !== null && signupCompanyOk !== now) {
+                signupCompanyOk = null;
+                setSignupCompanyStatus('상호명이 바뀌었습니다. [중복확인]을 다시 눌러주세요.', false);
+            }
+        }
+        async function checkSignupCompany() {
+            const company = document.getElementById('signup-company').value.trim();
+            if (!company) {
+                alert('상호명을 먼저 입력해주세요.');
+                return false;
+            }
+            if (/[()]/.test(company)) {
+                alert("상호명에는 괄호를 넣을 수 없습니다. (송화인명이 '밤낮딜리버리(상호명)' 형식으로 만들어집니다)");
+                return false;
+            }
+            if (!supabaseClient) { alert('DB에 연결되지 않았습니다. 잠시 후 다시 시도해주세요.'); return false; }
+            const { data, error } = await supabaseClient.rpc('company_available', { p_company: company });
+            if (error) {
+                // 관리자가 아직 company_unique.sql 을 실행하지 않은 경우: 가입은 막지 않습니다.
+                if (['PGRST202', '42883'].includes(error.code) || /company_available/.test(error.message || '')) {
+                    console.warn('상호명 중복확인 함수 없음 (supabase/company_unique.sql 실행 필요)', error);
+                    signupCompanyOk = normCompany(company);
+                    setSignupCompanyStatus('확인했습니다. 가입을 진행해주세요.', true);
+                    return true;
+                }
+                alert('중복확인 중 오류가 발생했습니다.\n\n' + dbErrorMessage(error));
+                return false;
+            }
+            if (data === true) {
+                signupCompanyOk = normCompany(company);
+                setSignupCompanyStatus(`✅ '${company}'은(는) 사용할 수 있는 상호명입니다.`, true);
+                return true;
+            }
+            signupCompanyOk = null;
+            setSignupCompanyStatus(`⛔ '${company}'은(는) 이미 가입된 상호명입니다. 다른 상호명을 입력해주세요. (본인 상호라면 밤낮딜리버리에 문의해주세요)`, false);
+            return false;
+        }
+
         function closeSignupModal() {
             document.getElementById('signup-modal').classList.add('hidden');
             document.getElementById('signup-modal').classList.remove('flex');
@@ -1721,6 +1778,7 @@
             if (/Invalid login credentials/i.test(msg)) return '이메일 또는 비밀번호가 올바르지 않습니다.';
             if (/Email not confirmed/i.test(msg)) return '이메일 인증이 아직 완료되지 않았습니다. 가입하신 메일함의 인증 링크를 눌러주세요.';
             if (/already registered|already exists/i.test(msg)) return '이미 가입된 이메일입니다. 로그인하거나 비밀번호 찾기를 이용해주세요.';
+            if (/Database error saving new user|profiles_company_norm_uidx/i.test(msg)) return '이미 가입된 상호명입니다. 다른 상호명으로 [중복확인] 후 다시 가입해주세요.';
             if (/Password should be/i.test(msg)) return '비밀번호가 너무 짧거나 단순합니다. 8자 이상으로 입력해주세요.';
             // Supabase 기본 메일 서버는 시간당 발송 수가 매우 적습니다 (가입 인증/비밀번호 재설정 메일)
             if (error && error.code === 'over_email_send_rate_limit' || /email rate limit/i.test(msg)) {
@@ -1749,6 +1807,11 @@
                 alert("상호명에는 괄호를 넣을 수 없습니다. (송화인명이 '밤낮딜리버리(상호명)' 형식으로 만들어집니다)");
                 return;
             }
+            if (signupCompanyOk !== normCompany(company)) {
+                alert('상호명 [중복확인] 버튼을 눌러 사용할 수 있는 상호명인지 먼저 확인해주세요.');
+                document.getElementById('btn-signup-company-check').focus();
+                return;
+            }
 
             const { data, error } = await supabaseClient.auth.signUp({
                 email,
@@ -1765,6 +1828,8 @@
 
             closeSignupModal();
             e.target.reset();
+            signupCompanyOk = null;
+            setSignupCompanyStatus('', true);
             if (data.session) {
                 alert(`회원가입 완료!\n상호명: ${company}`); // 자동으로 로그인됩니다
             } else {
