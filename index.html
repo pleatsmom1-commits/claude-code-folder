@@ -165,9 +165,14 @@
                             <p class="pl-5 text-[10px] font-bold text-rose-600">이미 보관건 내용을 접수한 경우 체크해주세요</p>
                         </div>
                     </div>
-                    <input type="text" id="keep-memo" autocomplete="off" disabled
-                        placeholder="예시) 풀필외 남은재고 킵해주세요, 오늘 사입건 모두 킵해주세요 또는 일부만 킵해주세요"
-                        class="w-full px-2.5 py-1.5 border rounded-lg text-xs bg-white disabled:bg-slate-100 disabled:text-slate-400 placeholder:text-slate-400 focus:outline-amber-500">
+                    <div class="flex items-center gap-2">
+                        <input type="text" id="keep-memo" autocomplete="off" disabled
+                            onkeydown="if (event.key === 'Enter') submitKeepRequest()"
+                            placeholder="예시) 풀필외 남은재고 킵해주세요, 오늘 사입건 모두 킵해주세요 또는 일부만 킵해주세요"
+                            class="flex-1 min-w-0 px-2.5 py-1.5 border rounded-lg text-xs bg-white disabled:bg-slate-100 disabled:text-slate-400 placeholder:text-slate-400 focus:outline-amber-500">
+                        <button type="button" id="btn-keep-submit" onclick="submitKeepRequest()" class="shrink-0 px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs rounded-lg shadow">접수</button>
+                    </div>
+                    <p id="keep-status" class="hidden text-[11px] font-bold"></p>
                 </div>
             </div>
 
@@ -390,9 +395,12 @@
 
                     <!-- Batch Excel Form -->
                     <div id="batch-order-form" class="hidden space-y-4">
-                        <div class="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center bg-slate-50 hover:bg-slate-100/50 transition">
+                        <div id="excel-drop-zone" class="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center bg-slate-50 hover:bg-slate-100/50 transition"
+                            ondragover="event.preventDefault(); this.classList.add('border-emerald-500', 'bg-emerald-50')"
+                            ondragleave="this.classList.remove('border-emerald-500', 'bg-emerald-50')"
+                            ondrop="handleExcelDrop(event)">
                             <i data-lucide="file-spreadsheet" class="w-10 h-10 text-emerald-600 mx-auto mb-2"></i>
-                            <p class="text-sm font-bold text-slate-700">밤낮딜리버리 표준 엑셀 파일(.xlsx, .xls) 선택</p>
+                            <p class="text-sm font-bold text-slate-700">밤낮딜리버리 표준 엑셀 파일(.xlsx, .xls) 선택 또는 <span class="text-emerald-700">이 칸에 끌어다 놓기</span></p>
                             <p class="text-xs text-slate-500 mt-1 mb-4">다운로드 받으신 파일의 <b>2번 시트 ('풀필먼트 엑셀양식')</b>에 작성 후 업로드하세요.</p>
                             <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" class="hidden" onchange="handleFileUpload(event)">
                             <button id="btn-excel-upload" onclick="document.getElementById('excel-file-input').click()" class="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold text-xs rounded-lg shadow">
@@ -441,30 +449,31 @@
                             <input type="date" id="history-from" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
                             <span class="text-xs text-slate-400">~</span>
                             <input type="date" id="history-to" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
-                            <button type="button" onclick="applyHistoryDates()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold">기간 조회</button>
                         </div>
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
                         <span class="text-xs font-bold text-slate-600 w-12">검색</span>
-                        <select id="history-field" onchange="renderSellerTable()" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
+                        <select id="history-field" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
                             <option value="all">전체</option>
                             <option value="recipient">수취인</option>
                             <option value="phone">연락처</option>
                             <option value="address">주소</option>
                             <option value="product">쇼핑몰상품명</option>
                         </select>
-                        <input type="text" id="history-keyword" oninput="renderSellerTable()" placeholder="수취인 · 연락처 · 주소 · 쇼핑몰상품명 검색" class="px-3 py-1.5 border rounded-lg text-xs bg-white w-64">
-                        <select id="history-type" onchange="renderSellerTable()" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
+                        <input type="text" id="history-keyword" onkeydown="if (event.key === 'Enter') runHistorySearch()" placeholder="수취인 · 연락처 · 주소 · 쇼핑몰상품명 검색" class="px-3 py-1.5 border rounded-lg text-xs bg-white w-64">
+                        <select id="history-type" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
                             <option value="all">접수구분 전체</option>
                             <option value="fulfillment">고객풀필먼트</option>
                             <option value="store">매장/사무실 (전체)</option>
                             <option value="store_post">매장 · 우체국택배</option>
                             <option value="store_sameday">매장 · 당일택배</option>
+                            <option value="keep">사무실 보관요청</option>
                         </select>
-                        <select id="history-sort" onchange="renderSellerTable()" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
+                        <select id="history-sort" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
                             <option value="desc">최신순</option>
                             <option value="asc">오래된순 (1번부터)</option>
                         </select>
+                        <button type="button" id="btn-history-search" onclick="runHistorySearch()" class="px-5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-black flex items-center gap-1"><i data-lucide="search" class="w-3.5 h-3.5"></i> 조회</button>
                         <button type="button" onclick="resetHistorySearch()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-bold">초기화</button>
                         <button type="button" onclick="downloadSellerHistoryExcel()" class="ml-auto px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1">
                             <i data-lucide="file-down" class="w-3.5 h-3.5"></i> 조회결과 엑셀
@@ -546,7 +555,7 @@
                     </div>
                     <div>
                         <label for="pk-store-phone" class="block text-sm font-bold text-slate-800 mb-1">3) 매장 연락처 <span class="text-rose-500">*</span></label>
-                        <input id="pk-store-phone" type="tel" required maxlength="30" placeholder="예: 02-123-4567" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                        <input id="pk-store-phone" type="tel" required maxlength="30" placeholder="예: 010-1234-5678" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
                     </div>
                 </div>
                 <div>
@@ -669,6 +678,7 @@
                                 <option value="store">매장/사무실 (전체)</option>
                                 <option value="store_post">매장 · 우체국택배</option>
                                 <option value="store_sameday">매장 · 당일택배</option>
+                                <option value="keep">사무실 보관요청</option>
                             </select>
                             <span class="text-xs font-bold text-slate-600 ml-2">출고:</span>
                             <select id="admin-ship-filter" onchange="renderAdminTable()" class="px-3 py-1.5 border rounded-lg text-xs font-medium focus:outline-none">
@@ -1317,11 +1327,19 @@
             return String(value).trim();
         }
 
-        // 연락처를 010-1234-5678 형식으로 맞춤 ('-' 없이 01012345678 로 적어도 됨)
+        // 연락처를 하이픈(-) 형식으로 맞춤. 띄어쓰기·점(.)·괄호 등은 무시하고 숫자만 봅니다.
+        //  02-123-4567 / 02-1234-5678 (서울), 010-1234-5678 (휴대폰·070 인터넷전화),
+        //  031-123-4567 (지역번호 10자리), 0504-1234-5678 (050 안심번호 12자리), 1588-1234 (대표번호)
+        //  엑셀이 앞자리 0을 지운 경우(1012345678 → 010-1234-5678)와 +82 국가번호도 바로잡습니다.
         function formatPhone(value) {
             const raw = String(value ?? '').trim();
-            const d = raw.replace(/\D/g, '');
-            if (d.startsWith('02') && (d.length === 9 || d.length === 10)) return `02-${d.slice(2, d.length - 4)}-${d.slice(-4)}`;
+            let d = raw.replace(/\D/g, '');
+            if (!d) return raw;
+            if (d.startsWith('82') && (d.length === 11 || d.length === 12)) d = '0' + d.slice(2);
+            if (!d.startsWith('0') && d.length >= 8 && d.length <= 11 && !(d.length === 8 && /^1[5-9]/.test(d))) d = '0' + d;
+            if (d.startsWith('02') && d.length === 9) return `02-${d.slice(2, 5)}-${d.slice(5)}`;
+            if (d.startsWith('02') && d.length === 10) return `02-${d.slice(2, 6)}-${d.slice(6)}`;
+            if (/^050\d/.test(d) && d.length === 12) return `${d.slice(0, 4)}-${d.slice(4, 8)}-${d.slice(8)}`;
             if (d.length === 11) return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
             if (d.length === 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
             if (d.length === 8) return `${d.slice(0, 4)}-${d.slice(4)}`;
@@ -1459,7 +1477,7 @@
                 setupSellerUI();
                 resetKeepRequest(); // 로그인할 때마다 보관요청은 다시 선택
                 switchSellerMode(loadSellerMode());
-                setHistoryPreset('week', false);
+                resetHistorySearch(false); // 기본: 오늘 접수한 모든 내역
                 loadAddressBook();
             }
             lastTimePhase = null;
@@ -1760,12 +1778,7 @@
             document.getElementById('mode-card-fulfillment').className = `mode-card text-left px-4 py-3 rounded-xl border-2 transition ${mode === 'fulfillment' ? on : off}`;
             document.getElementById('store-section').classList.toggle('hidden', mode !== 'store');
             document.getElementById('fulfillment-section').classList.toggle('hidden', mode !== 'fulfillment');
-            // 아래 주문목록도 선택한 접수 종류로 맞춰 보여줍니다.
-            const typeSel = document.getElementById('history-type');
-            if (typeSel) {
-                typeSel.value = mode === 'store' ? (storeType || 'store') : 'fulfillment';
-                if (currentRole === 'seller') renderSellerTable();
-            }
+            // 아래 '내 접수 주문목록'은 접수 종류와 상관없이 모든 접수건을 함께 보여줍니다.
             if (mode === 'store' && !storeType) switchStoreType('store_post');
         }
 
@@ -1778,10 +1791,6 @@
             document.getElementById('store-form-card').classList.remove('hidden');
             document.getElementById('store-form-title').innerText = STORE_TYPE_TITLE[type];
             resetStoreForm();
-            if (sellerMode === 'store') {
-                document.getElementById('history-type').value = type;
-                if (currentRole === 'seller') renderSellerTable();
-            }
             lucide.createIcons();
         }
 
@@ -1869,7 +1878,13 @@
             renderSellerTable();
         }
 
-        // ---------------- 픽업건 중 사무실 보관요청 (모든 택배접수 필수) ----------------
+        // ---------------- 픽업건 중 사무실 보관요청 (모든 택배접수 전에 [접수] 필수) ----------------
+        // 옵션을 고르고 [접수] 버튼까지 눌러야 접수됩니다.
+        //  1. 보관건 있습니다 → 메모와 함께 '보관요청' 건(order_type = keep)으로 접수 목록에 올라갑니다.
+        //  2. 없습니다 / 3. 이미 접수했습니다 → 확인만 하고 목록에는 올라가지 않습니다.
+        // 로그인할 때마다 다시 [접수]해야 택배 접수를 할 수 있습니다.
+        let keepConfirmed = null;   // 이번 로그인에서 [접수]한 선택값 ('있음' / '없음' / '이미접수')
+
         function onKeepRequestChange() {
             const checked = document.querySelector('input[name="keep-request"]:checked');
             const memo = document.getElementById('keep-memo');
@@ -1878,27 +1893,88 @@
             else if (document.activeElement && document.activeElement.name === 'keep-request') memo.focus();
         }
 
-        // 로그인할 때마다 보관요청은 비운 상태로 시작 (매번 직접 선택)
+        function setKeepStatus(text, ok) {
+            const el = document.getElementById('keep-status');
+            el.textContent = text;
+            el.className = `text-[11px] font-bold ${ok ? 'text-emerald-700' : 'text-rose-600'}`;
+            el.classList.toggle('hidden', !text);
+        }
+
+        // 로그인할 때마다 보관요청은 비운 상태로 시작 (매번 직접 선택 + [접수])
         function resetKeepRequest() {
             document.querySelectorAll('input[name="keep-request"]').forEach(r => { r.checked = false; });
             onKeepRequestChange();
+            keepConfirmed = null;
+            setKeepStatus('', false);
         }
 
-        // 선택 확인: 안 골랐거나 '있음'인데 메모가 없으면 안내 후 null
-        function readKeepRequest() {
+        async function submitKeepRequest() {
+            if (!canAddOrders()) {
+                alert('관리자 승인 전이거나 이용이 정지된 계정은 접수할 수 없습니다.');
+                return;
+            }
             const checked = document.querySelector('input[name="keep-request"]:checked');
             if (!checked) {
                 alert('사무실 보관요청 버튼을 체크해주세요.');
-                document.getElementById('keep-request-box').scrollIntoView({ behavior: 'smooth', block: 'center' });
-                return null;
+                return;
+            }
+            const choice = checked.value;
+            const p = getKstParts();
+            if (choice !== '있음') {
+                keepConfirmed = choice;
+                setKeepStatus(`✅ ${p.hh}:${p.mm} 확인 완료 · ${choice === '없음' ? '보관건 없음' : '이미 접수함'} (접수 목록에는 올라가지 않습니다)`, true);
+                alert(choice === '없음' ? '보관건 없음으로 확인되었습니다.' : '이미 접수하신 것으로 확인되었습니다.');
+                return;
             }
             const memo = document.getElementById('keep-memo').value.trim();
-            if (checked.value === '있음' && !memo) {
+            if (!memo) {
                 alert('보관건이 있는 경우 보관요청 메모를 꼭 작성해주세요.\n예시) 풀필외 남은재고 킵해주세요');
                 document.getElementById('keep-memo').focus();
-                return null;
+                return;
             }
-            return { keep_request: checked.value, keep_memo: checked.value === '있음' ? memo : null };
+            const company = currentSellerAccount.company;
+            const newOrder = {
+                id: generateOrderId('ORD-KEEP'),
+                order_type: 'keep',
+                seller_company: company,
+                sender_name: `밤낮딜리버리(${company})`,
+                cs_phone: formatPhone(currentSellerAccount.phone || ''),
+                recipient: company,
+                phone: formatPhone(currentSellerAccount.phone || '') || '-',
+                address: '사무실 보관요청',
+                product: memo,
+                keep_request: '있음',
+                keep_memo: memo,
+                qty: 1,
+                status: '접수대기'
+            };
+            let saved = { ...newOrder, seller_id: currentUserId, created_at: new Date().toISOString() };
+            if (supabaseClient) {
+                const { data, error } = await supabaseClient.from('orders').insert([newOrder]).select();
+                if (error) {
+                    alert('보관요청 저장 중 오류가 발생했습니다.\n\n' + dbErrorMessage(error));
+                    return;
+                }
+                if (data && data[0]) saved = data[0];
+            }
+            ordersMaster.unshift(saved);
+            sortOrdersMaster();
+            keepConfirmed = '있음';
+            document.getElementById('keep-memo').value = '';
+            setKeepStatus(`✅ ${p.hh}:${p.mm} 보관요청 접수 완료 (NO. ${sellerNoLabel(saved)}) · 추가로 있으면 메모를 적고 다시 [접수]`, true);
+            alert(`사무실 보관요청이 접수되었습니다. (NO. ${sellerNoLabel(saved)})`);
+            renderSellerTable();
+        }
+
+        // 택배 접수 전 확인: 이번 로그인에서 보관요청 [접수]를 했는지
+        function readKeepRequest() {
+            if (keepConfirmed) return { keep_request: keepConfirmed, keep_memo: null };
+            const checked = document.querySelector('input[name="keep-request"]:checked');
+            alert(checked
+                ? '[픽업건 중 사무실 보관요청]의 [접수] 버튼을 먼저 눌러주세요.'
+                : '사무실 보관요청 버튼을 체크하고 [접수] 버튼을 눌러주세요.');
+            document.getElementById('keep-request-box').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return null;
         }
 
         // [최근 접수내용 재등록] 고객풀필먼트: 마지막 풀필먼트 접수 내용을 그대로 채웁니다.
@@ -2083,6 +2159,37 @@
             renderSellerTable();
         }
 
+        // 엑셀 파일을 끌어다 놓으면 [엑셀 파일 업로드]를 누른 것과 똑같이 접수합니다.
+        function handleExcelDrop(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('excel-drop-zone').classList.remove('border-emerald-500', 'bg-emerald-50');
+            const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+            if (files.length === 0) return;
+            if (files.length > 1) {
+                alert('엑셀 파일은 한 번에 1개씩 올려주세요.');
+                return;
+            }
+            if (!/\.(xlsx|xls|csv)$/i.test(files[0].name)) {
+                alert('엑셀 파일(.xlsx, .xls)만 올릴 수 있습니다.\n받으신 풀필먼트 일괄접수 엑셀양식에 작성해서 올려주세요.');
+                return;
+            }
+            if (document.getElementById('btn-excel-upload').disabled) {
+                alert('지금은 엑셀 접수를 할 수 없습니다. (관리자 승인 전이거나 이용이 정지된 계정)');
+                return;
+            }
+            handleFileUpload({ target: { files, value: '' } });
+        }
+        // 엑셀 칸 밖에 잘못 놓아도 브라우저가 파일을 열어 화면이 바뀌지 않게 막습니다.
+        window.addEventListener('dragover', e => { if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files')) e.preventDefault(); });
+        window.addEventListener('drop', e => {
+            if (!e.dataTransfer || !e.dataTransfer.files.length) return;
+            e.preventDefault();
+            const zone = document.getElementById('excel-drop-zone');
+            if (zone && zone.offsetParent !== null) handleExcelDrop(e);
+            else alert('엑셀 파일은 [고객풀필먼트 택배접수] → [엑셀 일괄 등록] 화면에 끌어다 놓아주세요.');
+        });
+
         function handleFileUpload(e) {
             if (!canAddOrders()) {
                 alert('관리자 승인 전이거나 이용이 정지된 계정은 주문을 등록할 수 없습니다.');
@@ -2255,6 +2362,10 @@
         function openEditModal(orderId) {
             const order = ordersMaster.find(o => o.id === orderId);
             if (!order) return;
+            if (isKeepOrder(order)) {
+                alert('보관요청 건은 수정할 수 없습니다. 삭제 후 다시 접수해주세요.');
+                return;
+            }
 
             if (currentRole === 'seller' && !canEditOrder(order)) {
                 alert('관리자 마감(접수완료) 또는 출고된 주문은 수정할 수 없습니다.');
@@ -2430,14 +2541,16 @@
         }
 
         // 접수구분
-        const ORDER_TYPE_LABEL = { fulfillment: '풀필먼트', store_post: '매장·우체국', store_sameday: '매장·당일' };
+        const ORDER_TYPE_LABEL = { fulfillment: '풀필먼트', store_post: '매장·우체국', store_sameday: '매장·당일', keep: '보관요청' };
         const ORDER_TYPE_CLASS = {
             fulfillment: 'bg-indigo-50 text-indigo-700 border-indigo-200',
             store_post: 'bg-rose-50 text-rose-700 border-rose-200',
-            store_sameday: 'bg-teal-50 text-teal-700 border-teal-200'
+            store_sameday: 'bg-teal-50 text-teal-700 border-teal-200',
+            keep: 'bg-amber-50 text-amber-800 border-amber-300'
         };
         const orderTypeOf = o => o.order_type || 'fulfillment';
-        const isStoreOrder = o => orderTypeOf(o) !== 'fulfillment';
+        const isKeepOrder = o => orderTypeOf(o) === 'keep';
+        const isStoreOrder = o => orderTypeOf(o) === 'store_post' || orderTypeOf(o) === 'store_sameday';
         function orderTypeBadgeHtml(o) {
             const t = orderTypeOf(o);
             return `<span class="inline-block mt-1 px-1.5 py-0.5 rounded border text-[10px] font-bold whitespace-nowrap ${ORDER_TYPE_CLASS[t] || ''}">${escapeHtml(ORDER_TYPE_LABEL[t] || t)}</span>`;
@@ -2494,9 +2607,10 @@
                 const isExcel = String(o.id).startsWith('ORD-EXCEL-');
                 const id = escapeHtml(o.id);
                 const fullAddress = escapeHtml(`${o.address || ''} ${o.detail_address || ''}`.trim());
+                const keepRow = isKeepOrder(o);
 
                 return `
-                    <tr class="hover:bg-slate-50 transition">
+                    <tr class="hover:bg-slate-50 transition ${keepRow ? 'bg-amber-50/60' : ''}">
                         <td class="p-3 text-center">
                             <input type="checkbox" value="${id}" ${canEdit ? '' : 'disabled'} class="seller-chk-item rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-40">
                         </td>
@@ -2505,13 +2619,13 @@
                             ${id}
                             ${isExcel ? '<span class="ml-1 text-[9px] bg-amber-100 text-amber-800 font-bold px-1 rounded">엑셀</span>' : ''}
                         </td>
-                        <td class="p-3 whitespace-nowrap">${o.tracking_no
+                        <td class="p-3 whitespace-nowrap">${keepRow ? '<span class="text-slate-300">-</span>' : o.tracking_no
                             ? `<span class="block text-[11px] text-slate-600">${escapeHtml(o.courier || '-')}</span><b class="font-mono text-sky-700">${escapeHtml(o.tracking_no)}</b>`
                             : '<span class="text-[10px] text-slate-400">미등록</span>'}</td>
                         <td class="p-3 font-semibold text-slate-900 whitespace-nowrap">${escapeHtml(o.recipient)}</td>
                         <td class="p-3 whitespace-nowrap">${escapeHtml(o.phone)}</td>
                         <td class="p-3 max-w-xs truncate" title="${fullAddress}">${fullAddress}</td>
-                        <td class="p-3 font-medium text-indigo-600 max-w-xs truncate" title="${escapeHtml(o.product)}">${escapeHtml(o.product)}</td>
+                        <td class="p-3 font-medium ${keepRow ? 'text-amber-800' : 'text-indigo-600'} max-w-xs truncate" title="${escapeHtml(o.product)}">${keepRow ? '📦 ' : ''}${escapeHtml(o.product)}</td>
                         <td class="p-3 text-slate-600 whitespace-nowrap">
                             ${o.wholesale_company ? `<span class="font-bold">${escapeHtml(o.wholesale_company)}</span>` : '-'} /
                             ${escapeHtml(o.wholesale_product || '-')}
@@ -2519,11 +2633,11 @@
                         <td class="p-3 min-w-[120px] max-w-xs truncate text-amber-700 font-medium">${escapeHtml(o.bamnat_memo || '-')}</td>
                         <td class="p-3 text-slate-400 whitespace-nowrap">${escapeHtml(formatKstDateTime(o.created_at))}</td>
                         <td class="p-3">${statusBadgeHtml(o.status)}</td>
-                        <td class="p-3 whitespace-nowrap">${shipBadgeHtml(o, groups, false)}</td>
+                        <td class="p-3 whitespace-nowrap">${keepRow ? '<span class="text-slate-300">-</span>' : shipBadgeHtml(o, groups, false)}</td>
                         <td class="p-3 text-center">
                             ${canEdit ? `
                                 <div class="flex items-center justify-center gap-1 whitespace-nowrap">
-                                    <button data-id="${id}" onclick="openEditModal(this.dataset.id)" class="px-2 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold rounded text-[11px]">
+                                    <button data-id="${id}" onclick="openEditModal(this.dataset.id)" ${keepRow ? 'style="display:none"' : ''} class="px-2 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold rounded text-[11px]">
                                         수정
                                     </button>
                                     <button data-id="${id}" onclick="deleteOrder(this.dataset.id)" class="px-2 py-1 bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold rounded text-[11px]">
@@ -2575,35 +2689,54 @@
             });
         }
 
-        function setHistoryPreset(preset, rerender = true) {
-            [historyFrom, historyTo] = presetRange(preset);
-            document.getElementById('history-from').value = historyFrom || '';
-            document.getElementById('history-to').value = historyTo || '';
+        // 셀러 조회 조건: [조회] 버튼(또는 기간 버튼)을 눌렀을 때만 바뀝니다.
+        let historyQuery = { field: 'all', keyword: '', type: 'all', sort: 'desc' };
+
+        // 기간 버튼: 날짜를 채우고 바로 조회
+        function setHistoryPreset(preset, run = true) {
+            const [from, to] = presetRange(preset);
+            document.getElementById('history-from').value = from || '';
+            document.getElementById('history-to').value = to || '';
             markHistoryPreset(preset);
-            if (rerender) renderSellerTable();
+            if (run) runHistorySearch(preset);
+            else { historyFrom = from; historyTo = to; }
         }
 
         function markHistoryPreset(preset) {
             markPresetButtons('.history-preset', preset);
         }
 
-        function applyHistoryDates() {
+        // [조회]: 기간 + 검색어 + 접수구분 + 정렬을 한 번에 적용
+        function runHistorySearch(preset = null) {
             const from = document.getElementById('history-from').value || null;
             const to = document.getElementById('history-to').value || null;
             if (from && to && from > to) {
                 alert('시작일이 종료일보다 늦습니다. 날짜를 확인해주세요.');
                 return;
             }
+            // 날짜를 직접 고친 경우 기간 버튼 표시를 지웁니다.
+            if (!preset) {
+                const hit = ['today', 'yesterday', 'week', 'month', 'year', 'all'].find(k => { const [f, t] = presetRange(k); return (f || null) === from && (t || null) === to; });
+                markHistoryPreset(hit || null);
+            }
             historyFrom = from;
             historyTo = to;
-            markHistoryPreset(null);
+            historyQuery = {
+                field: document.getElementById('history-field').value,
+                keyword: document.getElementById('history-keyword').value,
+                type: document.getElementById('history-type').value,
+                sort: document.getElementById('history-sort').value
+            };
             renderSellerTable();
         }
 
-        function resetHistorySearch() {
+        function resetHistorySearch(run = true) {
             document.getElementById('history-keyword').value = '';
             document.getElementById('history-field').value = 'all';
-            setHistoryPreset('week');
+            document.getElementById('history-type').value = 'all';
+            document.getElementById('history-sort').value = 'desc';
+            historyQuery = { field: 'all', keyword: '', type: 'all', sort: 'desc' };
+            setHistoryPreset('today', run);
         }
 
         // 주문 검색: 항목별 검색 대상 텍스트
@@ -2637,14 +2770,12 @@
 
         // 셀러 주문 목록에 기간 + 검색어 적용
         function getSellerHistoryOrders() {
-            const keyword = document.getElementById('history-keyword').value;
-            const field = document.getElementById('history-field').value;
-            const oldestFirst = document.getElementById('history-sort').value === 'asc';
+            const { keyword, field, type: typeFilter } = historyQuery;
+            const oldestFirst = historyQuery.sort === 'asc';
             const bySellerNo = (a, b) =>
                 ((Number(a.seller_order_no) || 0) - (Number(b.seller_order_no) || 0)) * (oldestFirst ? 1 : -1)
                 || (Number(a.item_no) || 0) - (Number(b.item_no) || 0)
                 || String(a.created_at || '').localeCompare(String(b.created_at || '')) * (oldestFirst ? 1 : -1);
-            const typeFilter = document.getElementById('history-type').value;
             return ordersMaster.filter(o =>
                 o.seller_id === currentUserId
                 && matchesOrderType(o, typeFilter)
@@ -3013,7 +3144,7 @@
             const seen = new Set();
             ordersMaster.forEach(o => {
                 const key = o.order_no ?? o.id;
-                if (seen.has(key)) return;
+                if (seen.has(key) || isKeepOrder(o)) return; // 보관요청은 출고 대상이 아님
                 seen.add(key);
                 summary[orderShipState(o, groups)]++;
             });
@@ -3047,21 +3178,21 @@
                     </td>
                     <td class="p-3 whitespace-nowrap"><span class="px-2 py-1 rounded-lg bg-slate-900 text-white text-[11px] font-black">${escapeHtml(o.seller_company || '-')}</span></td>
                     <td class="p-3 font-bold text-slate-900 whitespace-nowrap">${escapeHtml(o.sender_name || `밤낮딜리버리(${o.seller_company})`)}</td>
-                    <td class="p-3 min-w-[170px]">
+                    <td class="p-3 min-w-[170px]">${isKeepOrder(o) ? '<span class="text-[11px] font-bold text-amber-700">사무실 보관요청</span>' : `
                         <select data-id="${id}" onchange="setTrackingDraft(this.dataset.id, 'courier', this.value)" class="admin-courier courier-select w-full px-2 py-1 border rounded text-[11px] bg-white">${courierOptionsHtml(draftT.courier ?? o.courier)}</select>
                         <input type="text" data-id="${id}" value="${escapeHtml(trackingValue)}" placeholder="송장번호 입력" title="송장번호 입력 후 Enter 를 누르면 바로 출고완료됩니다"
                             oninput="setTrackingDraft(this.dataset.id, 'tracking', this.value)"
                             onkeydown="if (event.key === 'Enter') shipOrder(this.dataset.id)"
-                            class="admin-tracking mt-1 w-full px-2 py-1 border rounded text-[11px] font-mono ${o.tracking_no ? 'bg-sky-50 border-sky-200' : 'bg-white'}">
+                            class="admin-tracking mt-1 w-full px-2 py-1 border rounded text-[11px] font-mono ${o.tracking_no ? 'bg-sky-50 border-sky-200' : 'bg-white'}">`}
                     </td>
                     <td class="p-3 font-semibold whitespace-nowrap">${escapeHtml(o.recipient)}</td>
                     <td class="p-3 whitespace-nowrap">${escapeHtml(o.phone)}</td>
                     <td class="p-3 max-w-xs truncate">${escapeHtml(`${o.address || ''} ${o.detail_address || ''}`.trim())}</td>
-                    <td class="p-3 text-indigo-600 font-medium min-w-[160px]">${escapeHtml(o.product)}</td>
+                    <td class="p-3 ${isKeepOrder(o) ? 'text-amber-800' : 'text-indigo-600'} font-medium min-w-[160px]">${isKeepOrder(o) ? '📦 ' : ''}${escapeHtml(o.product)}</td>
                     <td class="p-3 text-slate-600 whitespace-nowrap">${escapeHtml(o.wholesale_company || '-')} / ${escapeHtml(o.wholesale_product || '-')}</td>
                     <td class="p-3 text-amber-700 font-medium min-w-[120px]">
                         ${escapeHtml(o.bamnat_memo || '-')}
-                        ${o.keep_request === '있음' ? `<span class="block mt-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 text-[10px] font-black">📦 보관요청: ${escapeHtml(o.keep_memo || '')}</span>` : ''}
+                        ${o.keep_request === '있음' && o.keep_memo && !isKeepOrder(o) ? `<span class="block mt-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 text-[10px] font-black">📦 보관요청: ${escapeHtml(o.keep_memo || '')}</span>` : ''}
                     </td>
                     <td class="p-3 text-slate-400 whitespace-nowrap">${escapeHtml(formatKstDateTime(o.created_at))}</td>
                     <td class="p-3">
@@ -3070,7 +3201,7 @@
                             ${o.status === '접수대기' ? `<button data-id="${id}" onclick="acceptOrders([this.dataset.id])" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded text-[11px]">접수</button>` : ''}
                         </div>
                     </td>
-                    <td class="p-3 whitespace-nowrap">${shipBadgeHtml(o, groups, false)}</td>
+                    <td class="p-3 whitespace-nowrap">${isKeepOrder(o) ? '<span class="text-slate-300">-</span>' : shipBadgeHtml(o, groups, false)}</td>
                 </tr>
             `;
             }).join('');
@@ -4012,7 +4143,7 @@
 
         // 셀러: 조회된 내 주문을 원본 양식으로 다운로드
         async function downloadSellerHistoryExcel() {
-            const list = getSellerHistoryOrders();
+            const list = getSellerHistoryOrders().filter(o => !isKeepOrder(o)); // 보관요청은 택배 양식에 맞지 않아 제외
             if (list.length === 0) {
                 alert('다운로드할 주문이 없습니다. 조회 기간/검색어를 확인해주세요.');
                 return;
@@ -4059,7 +4190,7 @@
 
             // 4. 사무실 보관요청건: 같은 셀러 · 같은 날 · 같은 메모는 한 줄로
             const keepMap = new Map();
-            list.filter(o => o.keep_request === '있음').forEach(o => {
+            list.filter(o => o.keep_request === '있음' && o.keep_memo).forEach(o => {
                 const day = o.created_at ? kstDateString(new Date(o.created_at)) : '';
                 const key = `${o.seller_id}|${day}|${o.keep_memo || ''}`;
                 if (!keepMap.has(key)) keepMap.set(key, { company: o.seller_company || '', sender: isStoreOrder(o) ? (o.seller_company || '') : senderCompanyOf(o), memo: o.keep_memo || '', day, orders: [], recipients: new Set() });
