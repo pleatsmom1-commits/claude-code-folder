@@ -11,7 +11,6 @@ const SETTLE_RESULT_MESSAGE = { '청구': '입금 부탁드립니다.', '이월'
 let settleContacts = [];          // [{company, phone, memo}]
 let settleExcelRows = null;       // 엑셀에서 읽은 정산서 (정산일 무관 전체)
 let settleExcelFileName = '';
-let settleExcelDuplicates = new Map(); // 정산일 → [{company, totals}] 같은 날 두 번 이상 나온 상호
 let settleSaved = [];             // 선택한 정산일의 저장된 정산서
 let settleLoadedTab = false;
 let settleChecked = new Set();     // 발송할 업체로 체크한 상호 (비어 있으면 전체 발송)
@@ -284,27 +283,14 @@ function uploadSettleWorkbook(event) {
                 if (settleNorm(head[0]) !== settleNorm('상호(입금자명)') || !String(head[28] || '').includes('결과값')) {
                     throw new Error('정산서DB 시트의 머리글 순서가 예상과 다릅니다. (A열 상호, AC열 결과값)');
                 }
-                // 같은 날짜에 같은 상호가 두 번 있으면(정산서DB에 두 번 기록된 경우) 아래쪽(나중) 줄을 씁니다.
-                // 나중 줄이 앞 줄을 '전일 청구금'으로 포함한 최종 금액인 경우가 대부분이고, 다음 정산의 이월 계산도 나중 줄 기준입니다.
-                const byKey = new Map();
-                settleExcelDuplicates = new Map();
+                settleExcelRows = [];
                 aoa.slice(1).forEach((r, idx) => {
                     if (!String(r[0] || '').trim()) return;
                     const data = settleRowToData(r);
                     if (!data.date) return;
                     data.seq = idx + 1;
-                    const key = data.date + '|' + settleNorm(data.company);
-                    const prev = byKey.get(key);
-                    if (prev) {
-                        const dups = settleExcelDuplicates.get(data.date) || [];
-                        const d = dups.find(x => x.company === data.company);
-                        if (d) d.totals.push(data.total); else dups.push({ company: data.company, totals: [prev.total, data.total] });
-                        settleExcelDuplicates.set(data.date, dups);
-                        data.seq = prev.seq; // 목록 순서는 처음 나온 자리 유지
-                    }
-                    byKey.set(key, data);
+                    settleExcelRows.push(data);
                 });
-                settleExcelRows = [...byKey.values()].sort((a, b) => a.seq - b.seq);
                 settleExcelFileName = file.name;
 
                 const dates = [...new Set(settleExcelRows.map(r => r.date))].sort();
@@ -377,7 +363,6 @@ function renderSettleTable() {
     document.getElementById('settle-summary').innerHTML = list.length
         ? `<b>${escapeHtml(date)}</b> 정산 <b>${list.length}</b>곳 · 연락처 없음 <b class="${noPhone ? 'text-rose-600' : ''}">${noPhone}</b>곳`
           + (unsaved ? ` · <span class="text-amber-600 font-bold">저장 안 됨 ${unsaved}곳</span>` : ' · <span class="text-emerald-600 font-bold">모두 저장됨</span>')
-          + settleDuplicateNotice(date)
         : (settleExcelRows ? '이 날짜의 정산서가 엑셀에 없습니다.' : '정산청구서 엑셀을 올리거나, 저장된 정산일을 고르세요.');
     document.getElementById('settle-save-btn').disabled = !settleExcelRows || !unsaved;
     document.getElementById('settle-test-btn').disabled = !list.some(r => r.token && !r.changed);
@@ -703,12 +688,4 @@ function settleUpdateCheckUI(list) {
     btn.title = !IS_PRODUCTION ? '테스트 사이트에서는 실제 거래처에게 보낼 수 없습니다 (시험 발송만 가능)'
         : count ? (plan.selected ? '체크한 업체에만 보냅니다' : '아직 안 보낸 업체 전체에 보냅니다. 일부만 보내려면 왼쪽 칸을 체크하세요')
         : '보낼 정산서가 없습니다';
-}
-
-// 같은 날 같은 상호가 엑셀에 두 번 이상 있을 때 안내 (마지막 줄 금액을 사용)
-function settleDuplicateNotice(date) {
-    const dups = settleExcelRows ? (settleExcelDuplicates.get(date) || []) : [];
-    if (!dups.length) return '';
-    const text = dups.map(d => `${d.company}(${d.totals.map(settleWon).join(' → ')}원)`).join(', ');
-    return `<div class="mt-1 text-amber-700 font-bold">⚠ 정산서DB에 같은 날 두 번 기록된 상호 ${dups.length}곳: ${escapeHtml(text)} — 마지막 줄 금액으로 저장합니다. 엑셀에서 금액이 맞는지 확인해 주세요.</div>`;
 }
