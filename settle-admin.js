@@ -417,6 +417,11 @@ async function saveSettlements() {
     const date = document.getElementById('settle-date').value;
     const list = settleCurrentList().filter(r => !r.token || r.changed);
     if (!list.length) return;
+
+    // 같은 날 같은 상호가 정산서DB에 두 번 이상 있으면 저장하지 않음 (엑셀에서 고친 뒤 다시 올려야 함)
+    const dupMsg = settleDuplicateMessage(date, settleCurrentList());
+    if (dupMsg) { alert(dupMsg); return; }
+
     if (!confirm(`${date} 정산서 ${list.length}곳을 저장하고 링크를 만듭니다. 계속할까요?`)) return;
 
     const now = new Date().toISOString();
@@ -434,7 +439,9 @@ async function saveSettlements() {
     btn.disabled = true;
     const { error } = await supabaseClient.from('settlements').upsert(payload, { onConflict: 'company,settle_date' });
     if (error) {
-        alert('저장 실패: ' + dbErrorMessage(error));
+        alert(/cannot affect row a second time/i.test(error.message || '')
+            ? (settleDuplicateMessage(date, list) || `저장하지 않았습니다.\n\n정산서DB에 ${date} 같은 상호가 두 번 이상 있습니다.\n엑셀에서 고친 뒤 다시 올려 주세요.`)
+            : '저장 실패: ' + dbErrorMessage(error));
         btn.disabled = false;
         return;
     }
@@ -688,4 +695,18 @@ function settleUpdateCheckUI(list) {
     btn.title = !IS_PRODUCTION ? '테스트 사이트에서는 실제 거래처에게 보낼 수 없습니다 (시험 발송만 가능)'
         : count ? (plan.selected ? '체크한 업체에만 보냅니다' : '아직 안 보낸 업체 전체에 보냅니다. 일부만 보내려면 왼쪽 칸을 체크하세요')
         : '보낼 정산서가 없습니다';
+}
+
+// 같은 정산일에 같은 상호가 두 번 이상 있으면 안내 문구, 없으면 ''
+function settleDuplicateMessage(date, list) {
+    const groups = new Map();
+    for (const r of list) {
+        const key = settleNorm(r.company);
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(r);
+    }
+    const dups = [...groups.values()].filter(g => g.length > 1);
+    if (!dups.length) return '';
+    const lines = dups.map(g => `· ${g[0].company} (${g.length}번: ${g.map(r => settleWon(r.total) + '원').join(' / ')})`);
+    return `저장하지 않았습니다.\n\n정산서DB에 ${date} 같은 상호가 두 번 이상 기록되어 있습니다.\n${lines.join('\n')}\n\n엑셀 정산서DB 시트에서 중복된 줄을 고친 뒤 다시 올려 주세요.\n(아무것도 저장되지 않았습니다)`;
 }
