@@ -386,7 +386,7 @@ function renderSettleTable() {
         const phone = settleContactPhone(r.company);
         const state = !r.token ? '<span class="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold">저장 전</span>'
             : r.changed ? '<span class="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold">변경됨·다시 저장</span>'
-            : r.sent_at ? `<span class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold" title="${escapeHtml(new Date(r.sent_at).toLocaleString('ko-KR'))}">발송완료</span>`
+            : r.sent_at ? `<span class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold" title="${escapeHtml(new Date(r.sent_at).toLocaleString('ko-KR'))}">발송완료</span><div class="text-[10px] text-slate-400 mt-0.5">${escapeHtml(settleSentTime(r.sent_at))}</div>`
             : r.send_status === '실패' ? `<span class="px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 font-bold" title="${escapeHtml(r.send_error || '')}">발송실패</span><div class="text-[10px] text-rose-500 mt-0.5">${escapeHtml(r.send_error || '')}</div>`
             : '<span class="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-bold">링크 생성됨</span>';
         const resultColor = r.result === '청구' ? 'text-rose-600' : 'text-emerald-600';
@@ -483,10 +483,10 @@ function previewSettle(company) {
 // ---------------------------------------------------------------------
 // 3. 알림톡 발송 (서버: worker/alimtalk.js, 솔라피)
 // ---------------------------------------------------------------------
-async function settleSendApi(payload) {
+async function settleSendApi(payload, path = '/api/settle/send') {
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (!session) throw new Error('로그인이 필요합니다. 다시 로그인해 주세요.');
-    const res = await fetch('/api/settle/send', {
+    const res = await fetch(path, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify(payload),
@@ -526,16 +526,39 @@ async function sendSettlementsAlimtalk() {
 
     const btn = document.getElementById('settle-send-btn');
     btn.disabled = true;
-    btn.lastChild.textContent = ' 보내는 중...';
     try {
-        const data = await settleSendApi({ date, companies: targets.map(r => r.company), resend: plan.again.length > 0 });
+        const data = await settleSendInChunks(targets.map(r => r.company), { date, resend: plan.again.length > 0 },
+            (done, total) => { btn.lastChild.textContent = ` 보내는 중 ${done}/${total}`; });
         alert(settleResultReport(data));
         settleChecked.clear();
-    } catch (err) {
-        alert('발송하지 못했습니다.\n\n' + err.message);
     } finally {
         await loadSavedSettlements();
     }
+}
+
+// 여러 곳을 한 번에 보내면 Cloudflare 무료 요금제의 '요청 1번당 외부 연결 50회' 제한에 걸려 중간에 끊기므로,
+// 10곳씩 나눠 보냅니다. 한 묶음이 통째로 실패하면 그 묶음 업체들을 이름과 함께 실패로 표시합니다.
+const SETTLE_SEND_CHUNK = 10;
+async function settleSendInChunks(companies, base, onProgress, path = '/api/settle/send') {
+    const results = [];
+    for (let i = 0; i < companies.length; i += SETTLE_SEND_CHUNK) {
+        const chunk = companies.slice(i, i + SETTLE_SEND_CHUNK);
+        if (onProgress) onProgress(i, companies.length);
+        try {
+            const data = await settleSendApi({ ...base, companies: chunk }, path);
+            results.push(...data.results);
+        } catch (err) {
+            chunk.forEach(company => results.push({ company, status: 'failed', message: err.message }));
+        }
+    }
+    return {
+        results,
+        summary: {
+            sent: results.filter(r => r.status === 'sent').length,
+            failed: results.filter(r => r.status === 'failed').length,
+            skipped: results.filter(r => r.status === 'skipped').length,
+        },
+    };
 }
 
 async function resendSettlement(company) {
@@ -779,20 +802,18 @@ async function sendSettleMessage(isTest) {
         if (!confirm(msg + '\n\n보낼까요?')) return;
     }
     try {
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session) throw new Error('로그인이 필요합니다. 다시 로그인해 주세요.');
-        const res = await fetch('/api/settle/message', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-            body: JSON.stringify(payload),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || `발송 서버 오류 (HTTP ${res.status})`);
-        if (data.test) {
+        if (isTest) {
+            const data = await settleSendApi(payload, '/api/settle/message');
             const r = data.results[0];
             alert(r.status === 'sent' ? `시험 문자 접수 완료 (${r.to})\n잠시 후 휴대폰을 확인해 주세요.` : `시험 문자 실패\n\n${r.message}`);
             return;
         }
+        const send = document.getElementById('settle-msg-send');
+        send.disabled = true;
+        const { companies, ...base } = payload;
+        const data = await settleSendInChunks(companies, base, (done, total) => { send.textContent = `보내는 중 ${done}/${total}`; }, '/api/settle/message');
+        send.textContent = '보내기';
+        send.disabled = false;
         alert(settleResultReport(data).replace('발송 접수', '문자 접수'));
         closeSettleMessage();
         settleChecked.clear();
@@ -800,4 +821,12 @@ async function sendSettleMessage(isTest) {
     } catch (err) {
         alert('문자를 보내지 못했습니다.\n\n' + err.message);
     }
+}
+
+// 발송완료 아래에 보낸 시각 (예: 10/26 15:32) — 다시 보낸 업체를 시각으로 구분할 수 있게
+function settleSentTime(iso) {
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+    const p = n => String(n).padStart(2, '0');
+    return `${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }

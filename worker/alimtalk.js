@@ -88,9 +88,13 @@ export async function handleSettleSend(request, env) {
       const patch = r.status === 'sent'
         ? { sent_at: new Date().toISOString(), send_status: '접수', send_error: null }
         : { send_status: '실패', send_error: r.message };
-      await sb(`/rest/v1/settlements?id=eq.${row.id}`, {
-        method: 'PATCH', body: JSON.stringify(patch), headers: { Prefer: 'return=minimal' },
-      });
+      try {
+        await sb(`/rest/v1/settlements?id=eq.${row.id}`, {
+          method: 'PATCH', body: JSON.stringify(patch), headers: { Prefer: 'return=minimal' },
+        });
+      } catch (e) {
+        results[results.length - 1].message += ' (발송 기록 저장 실패)';
+      }
     }
   }
 
