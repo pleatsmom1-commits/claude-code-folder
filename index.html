@@ -1090,6 +1090,23 @@
 
     </main>
 
+    <!-- MODAL: 정산서 발송 > 바뀐 내용 비교 (settle-admin.js) -->
+    <div id="settle-diff-modal" onclick="if(event.target===this)closeSettleDiff()" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-start p-5 border-b">
+                <div>
+                    <h3 id="settle-diff-title" class="text-lg font-bold text-slate-900">바뀐 내용 비교</h3>
+                    <p id="settle-diff-sub" class="text-xs text-slate-500 mt-0.5"></p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <label class="flex items-center gap-1 text-xs text-slate-600 cursor-pointer"><input type="checkbox" id="settle-diff-only" onchange="renderSettleDiff()" checked> 바뀐 항목만</label>
+                    <button onclick="closeSettleDiff()" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+                </div>
+            </div>
+            <div id="settle-diff-body" class="p-5 overflow-auto text-xs"></div>
+        </div>
+    </div>
+
     <!-- MODAL: 정산서 발송 > 문자 보내기 (settle-admin.js) -->
     <div id="settle-msg-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
         <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-4">

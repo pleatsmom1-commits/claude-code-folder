@@ -423,7 +423,7 @@ function renderSettleTable() {
         const i = r.__seq - 1;   // 순번은 조회와 상관없이 원래 순서
         const phone = settleContactPhone(r.company);
         const state = !r.token ? '<span class="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold">저장 전</span>'
-            : r.changed ? '<span class="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold">변경됨·다시 저장</span>'
+            : r.changed ? `<span class="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold">변경됨·다시 저장</span> <button data-company="${escapeHtml(r.company)}" onclick="openSettleDiffMain(this.dataset.company)" class="ml-1 px-1.5 py-0.5 text-[10px] font-bold text-indigo-600 border border-indigo-200 hover:bg-indigo-50 rounded">비교</button>`
             : r.sent_at ? `<span class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold" title="${escapeHtml(new Date(r.sent_at).toLocaleString('ko-KR'))}">발송완료</span><div class="text-[10px] text-slate-400 mt-0.5">${escapeHtml(settleSentTime(r.sent_at))}</div>`
             : r.stale_sent_at ? `<span class="px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 font-bold" title="이전 정산서를 보낸 뒤 내용이 바뀌어 다시 저장됐습니다. 바뀐 정산서는 아직 안 보냈습니다.">수정됨·미발송</span><div class="text-[10px] text-slate-400 mt-0.5">이전 발송 ${escapeHtml(settleSentTime(r.stale_sent_at))}</div>`
             : r.send_status === '실패' ? `<span class="px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 font-bold" title="${escapeHtml(r.send_error || '')}">발송실패</span><div class="text-[10px] text-rose-500 mt-0.5">${escapeHtml(r.send_error || '')}</div>`
@@ -944,7 +944,7 @@ function settleRoundBadge(company) {
     if (!cur.changed) return `<div class="text-[10px] font-normal text-slate-400 mt-0.5">${maxRound}차 · ${maxRound - 1}차와 동일</div>`;
     if (!prev) return `<div class="text-[10px] font-bold text-orange-600 mt-0.5">${maxRound}차 · 새로 추가</div>`;
     const diff = settleDiffText(prev.data, cur.data, 2);
-    return `<div class="text-[10px] font-bold text-orange-600 mt-0.5" title="${escapeHtml(settleDiffText(prev.data, cur.data, 99))}">${maxRound}차 · ${prev.round}차와 다름${diff ? `<span class="font-normal text-slate-500"> (${escapeHtml(diff)})</span>` : ''}</div>`;
+    return `<div class="text-[10px] font-bold text-orange-600 mt-0.5" title="${escapeHtml(settleDiffText(prev.data, cur.data, 99))}">${maxRound}차 · ${prev.round}차와 다름${diff ? `<span class="font-normal text-slate-500"> (${escapeHtml(diff)})</span>` : ''} <button data-company="${escapeHtml(company)}" onclick="openSettleDiffMain(this.dataset.company)" class="ml-1 px-1.5 py-0.5 text-[10px] font-bold text-indigo-600 border border-indigo-200 hover:bg-indigo-50 rounded">비교</button></div>`;
 }
 
 // 회차 기록이 없는 날짜에 예전에 저장된 정산서가 있으면 1차로 남김 (기능이 생기기 전 저장분)
@@ -1058,7 +1058,7 @@ function renderSettleHistory() {
         const prev = all.filter(o => o.settle_date === v.settle_date && o.company === v.company && o.round < v.round)
             .sort((a, b) => b.round - a.round)[0];
         const change = !prev ? '<span class="text-slate-400">최초</span>'
-            : v.changed ? `<b class="text-orange-600">${prev.round}차와 다름</b><div class="text-[10px] text-slate-500">${escapeHtml(settleDiffText(prev.data, v.data, 4))}</div>`
+            : v.changed ? `<b class="text-orange-600">${prev.round}차와 다름</b> <button data-id="${v.id}" onclick="openSettleDiffHistory(Number(this.dataset.id))" class="ml-1 px-1.5 py-0.5 text-[10px] font-bold text-indigo-600 border border-indigo-200 hover:bg-indigo-50 rounded">비교</button><div class="text-[10px] text-slate-500">${escapeHtml(settleDiffText(prev.data, v.data, 4))}</div>`
             : `<span class="text-slate-400">${prev.round}차와 동일</span>`;
         const resultColor = v.result === '청구' ? 'text-rose-600' : 'text-emerald-600';
         return `<tr class="hover:bg-slate-50 ${v.changed ? '' : 'text-slate-400'}">
@@ -1080,4 +1080,106 @@ function previewSettleVersion(id) {
     if (!v) return;
     try { localStorage.setItem('settlePreview', JSON.stringify({ company: v.company, settle_date: v.settle_date, data: v.data })); } catch (e) { /* 무시 */ }
     window.open(`${SETTLE_PAGE_PATH}?preview=1`, '_blank');
+}
+
+// ---------------------------------------------------------------------
+// 7. 바뀐 내용 상세 비교 창
+// ---------------------------------------------------------------------
+let settleDiffCurrent = null; // { prev, cur, prevLabel, curLabel }
+
+// 메인 표: '변경됨·다시 저장'이면 저장된 정산서 ↔ 새로 올린 엑셀, 아니면 이전 회차 ↔ 최신 회차
+function openSettleDiffMain(company) {
+    const r = settleCurrentList().find(x => x.company === company);
+    if (!r) return;
+    const date = document.getElementById('settle-date').value;
+    if (r.changed) {
+        const saved = settleSaved.find(s => s.company === company);
+        if (!saved) return;
+        const maxRound = settleVersions.length ? Math.max(...settleVersions.map(v => v.round)) : 0;
+        openSettleDiff(company, date, saved.data, r.data,
+            maxRound ? `지금 저장된 ${maxRound}차` : '지금 저장된 정산서', '새로 올린 엑셀 (저장 전)');
+        return;
+    }
+    const mine = settleVersions.filter(v => v.company === company).sort((a, b) => b.round - a.round);
+    const cur = mine[0], prev = mine[1];
+    if (!cur || !prev) { alert('비교할 이전 회차가 없습니다.'); return; }
+    openSettleDiff(company, date, prev.data, cur.data, `${prev.round}차`, `${cur.round}차`);
+}
+
+function openSettleDiffHistory(id) {
+    const v = settleHistoryRows.find(x => x.id === id);
+    if (!v) return;
+    const prev = settleHistoryRows.filter(o => o.settle_date === v.settle_date && o.company === v.company && o.round < v.round)
+        .sort((a, b) => b.round - a.round)[0];
+    if (!prev) { alert('비교할 이전 회차가 없습니다.'); return; }
+    openSettleDiff(v.company, v.settle_date, prev.data, v.data, `${prev.round}차`, `${v.round}차`);
+}
+
+function openSettleDiff(company, date, prev, cur, prevLabel, curLabel) {
+    settleDiffCurrent = { prev: prev || {}, cur: cur || {}, prevLabel, curLabel };
+    document.getElementById('settle-diff-title').textContent = `${company} · 바뀐 내용 비교`;
+    document.getElementById('settle-diff-sub').textContent = `정산일 ${date} · ${prevLabel} → ${curLabel}`;
+    document.getElementById('settle-diff-only').checked = true;
+    renderSettleDiff();
+    const modal = document.getElementById('settle-diff-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeSettleDiff() {
+    const modal = document.getElementById('settle-diff-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+function renderSettleDiff() {
+    if (!settleDiffCurrent) return;
+    const { prev, cur, prevLabel, curLabel } = settleDiffCurrent;
+    const only = document.getElementById('settle-diff-only').checked;
+    const fmt = (v, money) => v == null || v === '' ? '<span class="text-slate-300">없음</span>' : escapeHtml(money ? settleWon(v) : String(v));
+    const changedCls = 'bg-amber-50 font-bold';
+
+    // 1) 정산 항목
+    const items = SETTLE_DIFF_FIELDS.map(([key, label, money]) => ({
+        label, a: fmt(prev[key], money), b: fmt(cur[key], money),
+        changed: settleStableJson(prev[key] ?? null) !== settleStableJson(cur[key] ?? null),
+    })).filter(x => !only || x.changed);
+
+    // 2) 사입내역 (매장 이름 기준)
+    const key = s => String(s.name ?? '').trim();
+    const pm = new Map((prev.stores || []).map(s => [key(s), s]));
+    const cm = new Map((cur.stores || []).map(s => [key(s), s]));
+    const names = [...new Set([...cm.keys(), ...pm.keys()])];
+    const stores = names.map(name => {
+        const a = pm.get(name), b = cm.get(name);
+        const state = !a ? '추가' : !b ? '빠짐' : settleStableJson(a) !== settleStableJson(b) ? '변경' : '';
+        return { name, a, b, state };
+    }).filter(x => !only || x.state);
+    const stateBadge = st => st === '추가' ? '<span class="text-emerald-600 font-bold">추가</span>'
+        : st === '빠짐' ? '<span class="text-rose-600 font-bold">빠짐</span>'
+        : st === '변경' ? '<span class="text-orange-600 font-bold">변경</span>' : '';
+
+    const head = `<thead class="bg-slate-800 text-slate-200"><tr>`;
+    let html = `<h4 class="font-bold text-slate-800 mb-2">정산 항목</h4>`;
+    html += items.length ? `<table class="w-full mb-5 border border-slate-200">${head}
+            <th class="p-2 text-left">항목</th><th class="p-2 text-right">${escapeHtml(prevLabel)}</th><th class="p-2 text-right">${escapeHtml(curLabel)}</th></tr></thead>
+            <tbody class="divide-y divide-slate-100">${items.map(x => `<tr class="${x.changed ? changedCls : ''}">
+                <td class="p-2">${escapeHtml(x.label)}</td><td class="p-2 text-right">${x.a}</td><td class="p-2 text-right">${x.b}</td></tr>`).join('')}</tbody></table>`
+        : `<p class="text-slate-400 mb-5">바뀐 정산 항목이 없습니다.</p>`;
+
+    html += `<h4 class="font-bold text-slate-800 mb-2">사입내역</h4>`;
+    html += stores.length ? `<table class="w-full border border-slate-200">${head}
+            <th class="p-2 text-left">매장명</th><th class="p-2">사입정보 (${escapeHtml(prevLabel)} → ${escapeHtml(curLabel)})</th>
+            <th class="p-2 text-right">대납금액 ${escapeHtml(prevLabel)}</th><th class="p-2 text-right">대납금액 ${escapeHtml(curLabel)}</th><th class="p-2">상태</th></tr></thead>
+            <tbody class="divide-y divide-slate-100">${stores.map(x => {
+                const infoA = x.a ? (x.a.info ?? '') : '', infoB = x.b ? (x.b.info ?? '') : '';
+                return `<tr class="${x.state ? changedCls : ''}">
+                    <td class="p-2">${escapeHtml(x.name || '(매장명 없음)')}</td>
+                    <td class="p-2 text-center">${infoA === infoB ? escapeHtml(infoB) : `${escapeHtml(infoA || '-')} → ${escapeHtml(infoB || '-')}`}</td>
+                    <td class="p-2 text-right">${x.a ? fmt(x.a.amount, true) : '-'}</td>
+                    <td class="p-2 text-right">${x.b ? fmt(x.b.amount, true) : '-'}</td>
+                    <td class="p-2 text-center">${stateBadge(x.state)}</td></tr>`;
+            }).join('')}</tbody></table>`
+        : `<p class="text-slate-400">${only ? '바뀐 사입내역이 없습니다.' : '사입내역이 없습니다.'}</p>`;
+    document.getElementById('settle-diff-body').innerHTML = html;
 }
