@@ -51,7 +51,7 @@ export async function handleSettleSend(request, env) {
     return json({ error: `발송 설정이 아직 끝나지 않았습니다. Cloudflare 설정에 다음 값이 필요합니다: ${missing.join(', ')}` }, 500);
   }
 
-  const sRes = await sb(`/rest/v1/settlements?settle_date=eq.${date}&select=id,token,company,seq,total,result,data,sent_at&order=seq`);
+  const sRes = await sb(`/rest/v1/settlements?settle_date=eq.${date}&select=id,token,company,seq,total,result,data,sent_at,updated_at&order=seq`);
   if (!sRes.ok) return json({ error: '저장된 정산서를 불러오지 못했습니다.' }, 502);
   let rows = await sRes.json();
   if (onlyCompanies) rows = rows.filter(r => onlyCompanies.includes(r.company));
@@ -72,7 +72,7 @@ export async function handleSettleSend(request, env) {
   const queue = [];
   for (const row of rows) {
     const phone = normPhone(phoneBy.get(normName(row.company)));
-    if (row.sent_at && !resend) results.push({ company: row.company, status: 'skipped', message: '이미 발송됨' });
+    if (isSentCurrent(row) && !resend) results.push({ company: row.company, status: 'skipped', message: '이미 발송됨' });
     else if (!phone) results.push({ company: row.company, status: 'skipped', message: '연락처 없음' });
     else queue.push({ row, phone });
   }
@@ -225,6 +225,14 @@ async function solapiSend(env, message) {
   } catch (e) {
     return { status: 'failed', message: '솔라피 연결 실패: ' + e.message };
   }
+}
+
+// 보낸 뒤에 정산서가 다시 저장됐으면(2분 넘게 늦게) 바뀐 정산서는 아직 안 보낸 것으로 봄 (settle-admin.js 와 같은 규칙)
+export function isSentCurrent(row) {
+  if (!row.sent_at) return false;
+  const sent = new Date(row.sent_at).getTime();
+  const updated = row.updated_at ? new Date(row.updated_at).getTime() : NaN;
+  return !(updated && updated - sent > 2 * 60 * 1000);
 }
 
 // 템플릿 변수 (승인된 템플릿과 이름이 같아야 함)
