@@ -15,6 +15,8 @@ let settleSaved = [];             // 선택한 정산일의 저장된 정산서
 let settleLoadedTab = false;
 let settleChecked = new Set();     // 발송할 업체로 체크한 상호 (비어 있으면 전체 발송)
 let settleCheckedDate = null;
+let settleVersions = [];           // 선택한 정산일의 회차 기록 (settlement_versions)
+let settleVersionsReady = true;    // settlement_versions.sql 을 실행하지 않았으면 false (회차 기록 없이 동작)
 // 조회 조건 ([조회] 버튼을 눌렀을 때만 바뀜)
 const SETTLE_QUERY_DEFAULT = { status: 'all', result: 'all', phone: 'all', keyword: '', sort: 'seq' };
 let settleQuery = { ...SETTLE_QUERY_DEFAULT };
@@ -90,6 +92,8 @@ function onSettleTabOpened() {
     if (!dateInput.value) dateInput.value = settleDateKey(new Date());
     fetchSettleContacts();
     loadSavedSettlements();
+    document.getElementById('settle-hist-from').value = settleDateOffset(7);
+    document.getElementById('settle-hist-to').value = settleDateOffset(0);
 }
 
 // ---------------------------------------------------------------------
@@ -322,6 +326,12 @@ async function loadSavedSettlements() {
         } else {
             settleSaved = data.map(settleApplyStale);
         }
+        settleVersions = await settleFetchVersions(date);
+        // 회차 기록이 있으면 더 정확하게: 가장 최근 '바뀐 회차'를 아직 안 보냈으면 미발송
+        if (settleVersions.length) settleSaved = settleSaved.map(s => {
+            const latest = settleVersions.filter(v => v.company === s.company && v.changed).sort((a, b) => b.round - a.round)[0];
+            return latest && latest.round > 1 && s.sent_at && !latest.sent_at ? { ...s, sent_at: null, stale_sent_at: s.sent_at } : s;
+        });
     }
     renderSettleTable();
 }
@@ -398,7 +408,7 @@ function renderSettleTable() {
             <td class="p-2.5"><input type="checkbox" data-company="${escapeHtml(r.company)}" ${checkable ? '' : 'disabled title="저장한 뒤 선택할 수 있습니다"'}
                 ${settleChecked.has(r.company) ? 'checked' : ''} onchange="toggleSettleCheck(this.dataset.company, this.checked)" class="w-4 h-4 align-middle cursor-pointer disabled:cursor-not-allowed"></td>
             <td class="p-2.5 text-slate-400">${i + 1}</td>
-            <td class="p-2.5 font-bold">${escapeHtml(r.company)}</td>
+            <td class="p-2.5 font-bold">${escapeHtml(r.company)}${settleRoundBadge(r.company)}</td>
             <td class="p-2.5 font-bold ${resultColor}">${escapeHtml(r.result || '')}</td>
             <td class="p-2.5 text-right font-bold">${settleWon(r.total)}</td>
             <td class="p-2.5">${phone ? escapeHtml(settlePhoneLabel(phone)) : '<span class="text-rose-500 font-bold">연락처 없음</span>'}</td>
@@ -439,6 +449,8 @@ async function saveSettlements() {
     }));
     const btn = document.getElementById('settle-save-btn');
     btn.disabled = true;
+    // 회차 기록이 아직 없는 날짜에 예전에 저장한 정산서가 있으면, 덮어쓰기 전에 그것을 1차로 남깁니다.
+    await settleRecordBaseline(date);
     const { error } = await supabaseClient.from('settlements').upsert(payload, { onConflict: 'company,settle_date' });
     if (error) {
         alert(/cannot affect row a second time/i.test(error.message || '')
@@ -447,8 +459,10 @@ async function saveSettlements() {
         btn.disabled = false;
         return;
     }
+    const round = await settleRecordRound(date);
     await loadSavedSettlements();
-    alert(`${payload.length}곳 저장 완료. 이제 [보기]로 확인하고 [링크 복사]로 보낼 수 있습니다.`);
+    alert(`${payload.length}곳 저장 완료${round ? ` (${round}차)` : ''}. 이제 [보기]로 확인하고 [링크 복사]로 보낼 수 있습니다.`
+        + (round > 1 ? `\n\n이전 회차와 내용이 같은 업체는 '중복값이라 미전송'으로 기록됩니다.` : ''));
 }
 
 // 연락처가 없거나 직접 보낼 때: 카톡에 바로 붙여넣을 안내문 + 링크 복사
@@ -529,7 +543,7 @@ async function sendSettlementsAlimtalk() {
     const btn = document.getElementById('settle-send-btn');
     btn.disabled = true;
     try {
-        const data = await settleSendInChunks(targets.map(r => r.company), { date, resend: plan.again.length > 0 },
+        const data = await settleSendInChunks(targets.map(r => r.company), { date, resend: plan.again.length > 0 || targets.some(r => r.stale_sent_at) },
             (done, total) => { btn.lastChild.textContent = ` 보내는 중 ${done}/${total}`; });
         alert(settleResultReport(data));
         settleChecked.clear();
@@ -844,4 +858,198 @@ function settleApplyStale(s) {
         return { ...s, sent_at: null, stale_sent_at: s.sent_at };
     }
     return { ...s, stale_sent_at: null };
+}
+
+// ---------------------------------------------------------------------
+// 6. 회차(1차·2차·3차) 기록: supabase/settlement_versions.sql
+// ---------------------------------------------------------------------
+const SETTLE_DIFF_FIELDS = [
+    ['total', '총 청구금액', true], ['result', '결과'], ['serviceTotal', '서비스 비용', true], ['vat', '부가세', true],
+    ['carryOver', '전일 청구금/이월', true], ['paid', '입금액', true], ['prepaid', '대납금액', true],
+    ['pickupStores', '픽업/반납 매장 수'], ['pickupCost', '픽업/반납 비용', true], ['unsentStores', '대납미송 매장 수'],
+    ['unsentCost', '대납미송 비용', true], ['shippingFee', '택배비', true], ['trackingNo', '송장번호'],
+    ['fulfillCount', '풀필 건수'], ['fulfillExtraCount', '풀필 추가 개수'], ['fulfillExtraShipping', '풀필 추가 택배요금', true],
+    ['fulfillCost', '풀필 비용', true], ['etcCost', '기타비용', true], ['etcNote', '기타청구 내용'],
+    ['deliveryType', '택배유형'], ['account', '입금계좌'],
+];
+
+function settleVersionsMissing(error) {
+    return error && (['PGRST205', '42P01'].includes(error.code) || /settlement_versions/i.test(error.message || ''));
+}
+
+async function settleFetchVersions(date) {
+    if (!settleVersionsReady) return [];
+    const { data, error } = await supabaseClient.from('settlement_versions')
+        .select('id, settlement_id, company, settle_date, round, data, total, result, changed, sent_at, send_status, send_error, saved_at')
+        .eq('settle_date', date).order('round');
+    if (error) {
+        if (settleVersionsMissing(error)) settleVersionsReady = false;
+        else console.warn('회차 기록 불러오기 실패:', error);
+        return [];
+    }
+    return data;
+}
+
+// 바뀐 항목 목록 (예: 총 청구금액 7,260 → 8,000)
+function settleDiffText(prev, cur, max = 3) {
+    if (!prev || !cur) return '';
+    const out = [];
+    for (const [key, label, money] of SETTLE_DIFF_FIELDS) {
+        const a = prev[key] ?? null, b = cur[key] ?? null;
+        if (settleStableJson(a) === settleStableJson(b)) continue;
+        const fmt = v => v == null || v === '' ? '없음' : money ? settleWon(v) : String(v);
+        out.push(`${label} ${fmt(a)} → ${fmt(b)}`);
+    }
+    if (settleStableJson(prev.stores || []) !== settleStableJson(cur.stores || [])) out.push('사입내역 변경');
+    if (out.length > max) return out.slice(0, max).join(', ') + ` 외 ${out.length - max}개`;
+    return out.join(', ');
+}
+
+// 메인 표: 상호 아래 "2차 · 1차와 다름" 표시
+function settleRoundBadge(company) {
+    if (!settleVersions.length) return '';
+    const maxRound = Math.max(...settleVersions.map(v => v.round));
+    if (maxRound < 2) return '';
+    const mine = settleVersions.filter(v => v.company === company);
+    const cur = mine.find(v => v.round === maxRound);
+    if (!cur) return '';
+    const prev = mine.filter(v => v.round < maxRound).sort((a, b) => b.round - a.round)[0];
+    if (!cur.changed) return `<div class="text-[10px] font-normal text-slate-400 mt-0.5">${maxRound}차 · ${maxRound - 1}차와 동일</div>`;
+    if (!prev) return `<div class="text-[10px] font-bold text-orange-600 mt-0.5">${maxRound}차 · 새로 추가</div>`;
+    const diff = settleDiffText(prev.data, cur.data, 2);
+    return `<div class="text-[10px] font-bold text-orange-600 mt-0.5" title="${escapeHtml(settleDiffText(prev.data, cur.data, 99))}">${maxRound}차 · ${prev.round}차와 다름${diff ? `<span class="font-normal text-slate-500"> (${escapeHtml(diff)})</span>` : ''}</div>`;
+}
+
+// 회차 기록이 없는 날짜에 예전에 저장된 정산서가 있으면 1차로 남김 (기능이 생기기 전 저장분)
+async function settleRecordBaseline(date) {
+    if (!settleVersionsReady || !settleSaved.length) return;
+    const existing = await settleFetchVersions(date);
+    if (!settleVersionsReady || existing.length) return;
+    const rows = settleSaved.map(s => ({
+        settlement_id: s.id, company: s.company, settle_date: date, round: 1, data: s.data,
+        total: s.total, result: s.result, changed: true,
+        sent_at: s.sent_at || s.stale_sent_at || null, send_status: s.send_status || null, send_error: s.send_error || null,
+        saved_at: s.updated_at || new Date().toISOString(),
+    }));
+    const { error } = await supabaseClient.from('settlement_versions').insert(rows);
+    if (error) console.warn('1차 기록 저장 실패:', error);
+}
+
+// [정산서 저장] 후: 이번 회차 기록. 바뀐 업체는 changed, 같으면 '중복값이라 미전송'. 회차 번호를 돌려줌 (기록 못 하면 0)
+async function settleRecordRound(date) {
+    if (!settleVersionsReady) return 0;
+    const [{ data: saved, error: e1 }, versions] = await Promise.all([
+        supabaseClient.from('settlements').select('id, company').eq('settle_date', date),
+        settleFetchVersions(date),
+    ]);
+    if (e1 || !settleVersionsReady) return 0;
+    const idBy = new Map((saved || []).map(s => [s.company, s.id]));
+    const latestBy = new Map();
+    for (const v of versions) {
+        const cur = latestBy.get(v.company);
+        if (!cur || v.round > cur.round) latestBy.set(v.company, v);
+    }
+    const round = versions.length ? Math.max(...versions.map(v => v.round)) + 1 : 1;
+    const now = new Date().toISOString();
+    const rows = settleCurrentList().filter(r => idBy.has(r.company)).map(r => {
+        const prev = latestBy.get(r.company);
+        const changed = !prev || settleStableJson(prev.data) !== settleStableJson(r.data);
+        return {
+            settlement_id: idBy.get(r.company), company: r.company, settle_date: date, round,
+            data: r.data, total: Number.isFinite(Number(r.total)) ? Number(r.total) : null, result: r.result,
+            changed, send_status: changed ? null : '중복값이라 미전송', saved_at: now,
+        };
+    });
+    if (!rows.length) return 0;
+    const { error } = await supabaseClient.from('settlement_versions').insert(rows);
+    if (error) {
+        if (settleVersionsMissing(error)) settleVersionsReady = false;
+        console.warn('회차 기록 저장 실패:', error);
+        return 0;
+    }
+    return round;
+}
+
+// ---- 기간 조회 (회차별 기록)
+function settleDateOffset(days) {
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    return settleDateKey(d);
+}
+
+function setSettleHistoryPreset(days) {
+    document.getElementById('settle-hist-from').value = settleDateOffset(days);
+    document.getElementById('settle-hist-to').value = settleDateOffset(0);
+    loadSettleHistory();
+}
+
+let settleHistoryRows = [];
+
+function settleHistoryState(v, all) {
+    if (!v.changed) return { key: 'dup', html: '<span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-bold">중복값이라 미전송</span>' };
+    if (v.send_status === '실패') return { key: 'failed', html: `<span class="px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 font-bold">발송실패</span><div class="text-[10px] text-rose-500 mt-0.5">${escapeHtml(v.send_error || '')}</div>` };
+    if (v.sent_at) return { key: 'sent', html: `<span class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold">발송완료</span><div class="text-[10px] text-slate-400 mt-0.5">${escapeHtml(settleSentTime(v.sent_at))}</div>` };
+    const replaced = all.some(o => o.settle_date === v.settle_date && o.company === v.company && o.round > v.round && o.changed);
+    return { key: 'unsent', html: `<span class="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold">미발송</span>${replaced ? '<div class="text-[10px] text-slate-400 mt-0.5">다음 회차로 대체됨</div>' : ''}` };
+}
+
+async function loadSettleHistory() {
+    const fromEl = document.getElementById('settle-hist-from');
+    const toEl = document.getElementById('settle-hist-to');
+    if (!fromEl.value || !toEl.value) { fromEl.value = settleDateOffset(7); toEl.value = settleDateOffset(0); }
+    const from = fromEl.value <= toEl.value ? fromEl.value : toEl.value;
+    const to = fromEl.value <= toEl.value ? toEl.value : fromEl.value;
+    const tbody = document.getElementById('settle-history-list');
+    tbody.innerHTML = '<tr><td colspan="8" class="p-6 text-center text-slate-400">불러오는 중...</td></tr>';
+    const { data, error } = await fetchAllRows(() => supabaseClient.from('settlement_versions')
+        .select('id, company, settle_date, round, data, total, result, changed, sent_at, send_status, send_error, saved_at')
+        .gte('settle_date', from).lte('settle_date', to)
+        .order('settle_date', { ascending: false }).order('round', { ascending: false }).order('company'));
+    if (error) {
+        tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-rose-500">${settleVersionsMissing(error)
+            ? '회차 기록 기능을 쓰려면 Supabase SQL Editor에서 supabase/settlement_versions.sql 을 한 번 실행해 주세요.'
+            : escapeHtml('불러오지 못했습니다: ' + dbErrorMessage(error))}</td></tr>`;
+        return;
+    }
+    settleHistoryRows = data;
+    renderSettleHistory();
+}
+
+function renderSettleHistory() {
+    const keyword = settleNorm(document.getElementById('settle-hist-keyword').value);
+    const stateFilter = document.getElementById('settle-hist-state').value;
+    const onlyChanged = document.getElementById('settle-hist-changed').checked;
+    const all = settleHistoryRows;
+    const list = all.filter(v => (!keyword || settleNorm(v.company).includes(keyword))
+        && (!onlyChanged || (v.changed && v.round > 1))
+        && (!stateFilter || settleHistoryState(v, all).key === stateFilter));
+    document.getElementById('settle-hist-count').textContent = `${list.length}건`;
+    const tbody = document.getElementById('settle-history-list');
+    if (!list.length) { tbody.innerHTML = '<tr><td colspan="8" class="p-6 text-center text-slate-400">조회된 기록이 없습니다.</td></tr>'; return; }
+    tbody.innerHTML = list.map(v => {
+        const prev = all.filter(o => o.settle_date === v.settle_date && o.company === v.company && o.round < v.round)
+            .sort((a, b) => b.round - a.round)[0];
+        const change = !prev ? '<span class="text-slate-400">최초</span>'
+            : v.changed ? `<b class="text-orange-600">${prev.round}차와 다름</b><div class="text-[10px] text-slate-500">${escapeHtml(settleDiffText(prev.data, v.data, 4))}</div>`
+            : `<span class="text-slate-400">${prev.round}차와 동일</span>`;
+        const resultColor = v.result === '청구' ? 'text-rose-600' : 'text-emerald-600';
+        return `<tr class="hover:bg-slate-50 ${v.changed ? '' : 'text-slate-400'}">
+            <td class="p-2.5 whitespace-nowrap">${escapeHtml(v.settle_date)}</td>
+            <td class="p-2.5 font-bold whitespace-nowrap">${v.round}차</td>
+            <td class="p-2.5 font-bold">${escapeHtml(v.company)}</td>
+            <td class="p-2.5 font-bold ${resultColor}">${escapeHtml(v.result || '')}</td>
+            <td class="p-2.5 text-right font-bold">${settleWon(v.total)}</td>
+            <td class="p-2.5">${change}</td>
+            <td class="p-2.5 whitespace-nowrap">${settleHistoryState(v, all).html}</td>
+            <td class="p-2.5"><button data-id="${v.id}" onclick="previewSettleVersion(Number(this.dataset.id))" class="px-2 py-1 text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 rounded">보기</button></td>
+        </tr>`;
+    }).join('');
+}
+
+// 회차 기록의 정산서 화면 (그 회차 내용 그대로)
+function previewSettleVersion(id) {
+    const v = settleHistoryRows.find(x => x.id === id);
+    if (!v) return;
+    try { localStorage.setItem('settlePreview', JSON.stringify({ company: v.company, settle_date: v.settle_date, data: v.data })); } catch (e) { /* 무시 */ }
+    window.open(`${SETTLE_PAGE_PATH}?preview=1`, '_blank');
 }

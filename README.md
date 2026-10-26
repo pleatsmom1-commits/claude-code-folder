@@ -9,6 +9,7 @@
 | `settle-admin.js` | 관리자 > 정산서 발송 탭 기능 |
 | `settle.html` | 거래처가 링크로 여는 정산서 화면 (로그인 없음) |
 | `supabase/settlement.sql` | 정산서 발송용 테이블. schema.sql 다음에 한 번 실행 |
+| `supabase/settlement_versions.sql` | 정산서 회차(1차·2차·3차) 기록. settlement.sql 다음에 한 번 실행 |
 
 ## 접수 시간 안내 (한국 시간 기준)
 
