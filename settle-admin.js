@@ -928,7 +928,8 @@ async function settleRecordBaseline(date) {
     const rows = settleSaved.map(s => ({
         settlement_id: s.id, company: s.company, settle_date: date, round: 1, data: s.data,
         total: s.total, result: s.result, changed: true,
-        sent_at: s.sent_at || s.stale_sent_at || null, send_status: s.send_status || null, send_error: s.send_error || null,
+        // 보낸 뒤 내용이 바뀐(stale) 정산서는 지금 내용이 발송된 게 아니므로 미발송으로 기록
+        sent_at: s.sent_at || null, send_status: s.sent_at ? (s.send_status || null) : null, send_error: s.send_error || null,
         saved_at: s.updated_at || new Date().toISOString(),
     }));
     const { error } = await supabaseClient.from('settlement_versions').insert(rows);
