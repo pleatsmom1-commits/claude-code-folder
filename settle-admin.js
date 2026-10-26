@@ -710,3 +710,94 @@ function settleDuplicateMessage(date, list) {
     const lines = dups.map(g => `· ${g[0].company} (${g.length}번: ${g.map(r => settleWon(r.total) + '원').join(' / ')})`);
     return `저장하지 않았습니다.\n\n정산서DB에 ${date} 같은 상호가 두 번 이상 기록되어 있습니다.\n${lines.join('\n')}\n\n엑셀 정산서DB 시트에서 중복된 줄을 고친 뒤 다시 올려 주세요.\n(아무것도 저장되지 않았습니다)`;
 }
+
+// ---------------------------------------------------------------------
+// 5. 문자 보내기: 체크한 업체에 직접 쓴 문자 (정정·긴급 안내용, 서버: /api/settle/message)
+// ---------------------------------------------------------------------
+function settleMessageTargets() {
+    return settleCurrentList().filter(r => settleChecked.has(r.company));
+}
+
+function openSettleMessage() {
+    const targets = settleMessageTargets();
+    if (!targets.length) { alert('문자 보낼 업체를 표 왼쪽 칸에서 먼저 체크해 주세요.'); return; }
+    const box = document.getElementById('settle-msg-text');
+    if (!box.value.trim()) box.value = '[밤낮딜리버리] {상호}님, ';
+    document.getElementById('settle-msg-count').textContent = targets.length;
+    document.getElementById('settle-msg-targets').textContent = targets
+        .map(r => r.company + (settleContactPhone(r.company) ? '' : ' (연락처 없음)')).join(', ');
+    const send = document.getElementById('settle-msg-send');
+    send.disabled = !IS_PRODUCTION;
+    send.title = IS_PRODUCTION ? '' : '테스트 사이트에서는 거래처에게 보낼 수 없습니다 (내 번호로 시험만 가능)';
+    const modal = document.getElementById('settle-msg-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    updateSettleMessageInfo();
+    box.focus();
+}
+
+function closeSettleMessage() {
+    const modal = document.getElementById('settle-msg-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+// 문자 길이: 한글 2바이트 기준 90바이트까지 단문(SMS), 넘으면 장문(LMS)
+function settleMessageBytes(text) {
+    let n = 0;
+    for (const ch of text) n += ch.charCodeAt(0) > 0x7f ? 2 : 1;
+    return n;
+}
+
+function updateSettleMessageInfo() {
+    const first = settleMessageTargets()[0];
+    let sample = document.getElementById('settle-msg-text').value.replace(/\{상호\}/g, first ? first.company : '');
+    if (document.getElementById('settle-msg-link').checked) sample += `\n\n정산서 보기: ${location.origin}${SETTLE_PAGE_PATH}?t=` + 'x'.repeat(32);
+    const bytes = settleMessageBytes(sample);
+    document.getElementById('settle-msg-bytes').textContent = `${bytes}바이트 · ${bytes <= 90 ? '단문(SMS)' : '장문(LMS)'}`;
+}
+
+async function sendSettleMessage(isTest) {
+    const date = document.getElementById('settle-date').value;
+    const targets = settleMessageTargets();
+    const text = document.getElementById('settle-msg-text').value.trim();
+    const includeLink = document.getElementById('settle-msg-link').checked;
+    if (!targets.length) { alert('문자 보낼 업체를 체크해 주세요.'); return; }
+    if (!text || text === '[밤낮딜리버리] {상호}님,') { alert('보낼 내용을 입력해 주세요.'); return; }
+
+    const payload = { date, companies: targets.map(r => r.company), text, includeLink };
+    if (isTest) {
+        const raw = prompt(`시험으로 받을 휴대폰 번호를 입력하세요.\n([${targets[0].company}] 기준 내용으로 1건만 갑니다. 거래처에게는 가지 않습니다)`, '');
+        if (raw === null) return;
+        const phone = settlePhone(raw);
+        if (!phone) { alert('휴대폰 번호 형식이 올바르지 않습니다.'); return; }
+        payload.testPhone = phone;
+    } else {
+        const noPhone = targets.filter(r => !settleContactPhone(r.company)).length;
+        let msg = `체크한 ${targets.length}곳에 문자를 보냅니다.\n(${targets.slice(0, 5).map(r => r.company).join(', ')}${targets.length > 5 ? ` 외 ${targets.length - 5}곳` : ''})`;
+        if (noPhone) msg += `\n· 연락처 없는 ${noPhone}곳은 건너뜁니다`;
+        if (!confirm(msg + '\n\n보낼까요?')) return;
+    }
+    try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) throw new Error('로그인이 필요합니다. 다시 로그인해 주세요.');
+        const res = await fetch('/api/settle/message', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify(payload),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `발송 서버 오류 (HTTP ${res.status})`);
+        if (data.test) {
+            const r = data.results[0];
+            alert(r.status === 'sent' ? `시험 문자 접수 완료 (${r.to})\n잠시 후 휴대폰을 확인해 주세요.` : `시험 문자 실패\n\n${r.message}`);
+            return;
+        }
+        alert(settleResultReport(data).replace('발송 접수', '문자 접수'));
+        closeSettleMessage();
+        settleChecked.clear();
+        renderSettleTable();
+    } catch (err) {
+        alert('문자를 보내지 못했습니다.\n\n' + err.message);
+    }
+}
