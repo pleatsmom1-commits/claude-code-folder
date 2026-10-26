@@ -341,7 +341,7 @@ function uploadSettleWorkbook(event) {
 
 async function loadSavedSettlements() {
     const date = document.getElementById('settle-date').value;
-    if (date !== settleCheckedDate) { settleChecked.clear(); settleCheckedDate = date; }
+    if (date !== settleCheckedDate) { settleChecked.clear(); settleRoundChecked.clear(); settleRoundView = 'latest'; settleCheckedDate = date; }
     settleSaved = [];
     if (date && supabaseClient && currentRole === 'admin') {
         const { data, error } = await supabaseClient.from('settlements')
@@ -393,6 +393,8 @@ function settleCurrentList() {
 function renderSettleTable() {
     const tbody = document.getElementById('settle-list');
     if (!tbody) return;
+    settleFillRoundOptions();
+    if (settleRoundView !== 'latest') { renderSettleRoundTable(tbody); return; }
     const list = settleCurrentList();
     const date = document.getElementById('settle-date').value;
     const unsaved = list.filter(r => !r.token || r.changed).length;
@@ -662,6 +664,12 @@ function toggleSettleCheck(company, checked) {
 }
 
 function toggleSettleCheckAll(checked) {
+    if (settleRoundView !== 'latest') {
+        settleRoundChecked.clear();
+        if (checked) settleRoundRows().filter(v => !v.sent_at).forEach(v => settleRoundChecked.add(v.id));
+        renderSettleTable();
+        return;
+    }
     settleChecked.clear();
     if (checked) settleFilteredList(settleCurrentList()).filter(settleCheckable).forEach(r => settleChecked.add(r.company));
     renderSettleTable();
@@ -942,7 +950,7 @@ function settleRoundBadge(company) {
     const cur = mine.find(v => v.round === maxRound);
     if (!cur) return '';
     const prev = mine.filter(v => v.round < maxRound).sort((a, b) => b.round - a.round)[0];
-    if (!cur.changed) return `<div class="text-[10px] font-normal text-slate-400 mt-0.5">${maxRound}차 · ${maxRound - 1}차와 동일</div>`;
+    if (!cur.changed) return '';  // 바뀌지 않은 업체는 표시하지 않음 (차수를 골라 보면 '동일'로 나옴)
     if (!prev) return `<div class="text-[10px] font-bold text-orange-600 mt-0.5">${maxRound}차 · 새로 추가</div>`;
     const diff = settleDiffText(prev.data, cur.data, 2);
     return `<div class="text-[10px] font-bold text-orange-600 mt-0.5" title="${escapeHtml(settleDiffText(prev.data, cur.data, 99))}">${maxRound}차 · ${prev.round}차와 다름${diff ? `<span class="font-normal text-slate-500"> (${escapeHtml(diff)})</span>` : ''} <button data-company="${escapeHtml(company)}" onclick="openSettleDiffMain(this.dataset.company)" class="ml-1 px-1.5 py-0.5 text-[10px] font-bold text-indigo-600 border border-indigo-200 hover:bg-indigo-50 rounded">비교</button></div>`;
@@ -1048,8 +1056,16 @@ function renderSettleHistory() {
     const keyword = settleNorm(document.getElementById('settle-hist-keyword').value);
     const stateFilter = document.getElementById('settle-hist-state').value;
     const onlyChanged = document.getElementById('settle-hist-changed').checked;
+    const roundFilter = Number(document.getElementById('settle-hist-round').value) || 0;
     const all = settleHistoryRows;
+    const roundSel = document.getElementById('settle-hist-round');
+    const maxR = all.length ? Math.max(...all.map(v => v.round)) : 0;
+    if (roundSel.options.length !== maxR + 1) {
+        roundSel.innerHTML = '<option value="">차수 전체</option>' + Array.from({ length: maxR }, (_, i) => `<option value="${i + 1}">${i + 1}차</option>`).join('');
+        roundSel.value = roundFilter && roundFilter <= maxR ? String(roundFilter) : '';
+    }
     const list = all.filter(v => (!keyword || settleNorm(v.company).includes(keyword))
+        && (!roundFilter || v.round === roundFilter)
         && (!onlyChanged || (v.changed && v.round > 1))
         && (!stateFilter || settleHistoryState(v, all).key === stateFilter));
     document.getElementById('settle-hist-count').textContent = `${list.length}건`;
@@ -1070,7 +1086,7 @@ function renderSettleHistory() {
             <td class="p-2.5 text-right font-bold">${settleWon(v.total)}</td>
             <td class="p-2.5">${change}</td>
             <td class="p-2.5 whitespace-nowrap">${settleHistoryState(v, all).html}</td>
-            <td class="p-2.5"><button data-id="${v.id}" onclick="previewSettleVersion(Number(this.dataset.id))" class="px-2 py-1 text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 rounded">보기</button></td>
+            <td class="p-2.5 whitespace-nowrap"><button data-id="${v.id}" onclick="previewSettleVersion(Number(this.dataset.id))" class="px-2 py-1 text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 rounded">보기</button>${v.sent_at ? '' : `<button data-id="${v.id}" onclick="deleteSettleVersions([Number(this.dataset.id)])" class="px-2 py-1 text-[11px] font-bold text-rose-500 hover:bg-rose-50 rounded" title="아직 안 보낸 기록이라 삭제할 수 있습니다">삭제</button>`}</td>
         </tr>`;
     }).join('');
 }
@@ -1197,6 +1213,11 @@ function settleDeletable(r) {
 }
 
 function deleteCheckedSettlements() {
+    if (settleRoundView !== 'latest') {
+        if (!settleRoundChecked.size) { alert('삭제할 기록을 표 왼쪽 칸에서 체크해 주세요.'); return; }
+        deleteSettleVersions([...settleRoundChecked]);
+        return;
+    }
     const companies = settleCurrentList().filter(r => settleChecked.has(r.company)).map(r => r.company);
     if (!companies.length) { alert('삭제할 정산서를 표 왼쪽 칸에서 체크해 주세요.'); return; }
     deleteSettlements(companies);
@@ -1220,4 +1241,178 @@ async function deleteSettlements(companies) {
     ok.forEach(r => settleChecked.delete(r.company));
     await loadSavedSettlements();
     alert(`${ids.length}곳 삭제 완료` + (blocked.length ? `\n(이미 보낸 ${blocked.length}곳은 그대로 두었습니다)` : ''));
+}
+
+// ---------------------------------------------------------------------
+// 9. 차수별 보기 (메인 표) + 회차 기록 삭제
+//    - 차수를 고르면 그 회차에 접수된 기록만 보여줌 (기본: 바뀐 것만, '동일(중복) 건도 보기'로 전부)
+//    - 아직 안 보낸 기록은 삭제 가능. 업체의 가장 최근 회차를 지우면 정산서가 바로 이전 회차 내용으로 돌아가고,
+//      남은 회차가 없으면 그 업체 정산서도 삭제. 지운 뒤 남은 회차들의 '이전과 다름/동일'을 다시 계산.
+// ---------------------------------------------------------------------
+let settleRoundView = 'latest';
+let settleRoundChecked = new Set();   // 차수 보기에서 체크한 기록 id
+
+function settleFillRoundOptions() {
+    const sel = document.getElementById('settle-round-view');
+    if (!sel) return;
+    const rounds = [...new Set(settleVersions.map(v => v.round))].sort((a, b) => a - b);
+    if (settleRoundView !== 'latest' && !rounds.includes(Number(settleRoundView))) settleRoundView = 'latest';
+    sel.innerHTML = '<option value="latest">최신 (업체별 마지막)</option>' + rounds.map(r => {
+        const changed = settleVersions.filter(v => v.round === r && v.changed).length;
+        return `<option value="${r}">${r}차 (접수 ${changed}곳)</option>`;
+    }).join('');
+    sel.value = String(settleRoundView);
+    const dupWrap = document.getElementById('settle-round-dup-wrap');
+    dupWrap.classList.toggle('hidden', settleRoundView === 'latest');
+    dupWrap.classList.toggle('flex', settleRoundView !== 'latest');
+}
+
+function settleRoundViewChanged() {
+    settleRoundView = document.getElementById('settle-round-view').value;
+    settleRoundChecked.clear();
+    document.getElementById('settle-round-dup').checked = false;  // 차수를 바꾸면 기본(바뀐 것만)으로
+    renderSettleTable();
+}
+
+function settleRoundRows() {
+    const round = Number(settleRoundView);
+    const showDup = document.getElementById('settle-round-dup').checked;
+    return settleVersions.filter(v => v.round === round && (showDup || v.changed))
+        .sort((a, b) => (Number(a.data && a.data.seq) || 0) - (Number(b.data && b.data.seq) || 0));
+}
+
+function renderSettleRoundTable(tbody) {
+    const round = Number(settleRoundView);
+    const date = document.getElementById('settle-date').value;
+    const all = settleVersions.filter(v => v.round === round);
+    const rows = settleRoundRows();
+    const dup = all.filter(v => !v.changed).length;
+    document.getElementById('settle-summary').innerHTML =
+        `<b>${escapeHtml(date)}</b> <b>${round}차</b> · 접수(바뀐 것) <b>${all.length - dup}</b>곳 · 동일(중복) ${dup}곳`
+        + ` <span class="text-slate-400">· 발송은 [차수: 최신]에서 합니다</span>`;
+    document.getElementById('settle-filter-count').textContent = `${rows.length}건`;
+    for (const id of [...settleRoundChecked]) if (!rows.some(v => v.id === id && !v.sent_at)) settleRoundChecked.delete(id);
+
+    if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-slate-400">${round}차에 바뀐 정산서가 없습니다. ('동일(중복) 건도 보기'를 켜면 전부 보입니다)</td></tr>`;
+    } else {
+        tbody.innerHTML = rows.map(v => {
+            const prev = settleVersions.filter(o => o.company === v.company && o.round < v.round).sort((a, b) => b.round - a.round)[0];
+            const change = !prev ? '' : v.changed
+                ? `<div class="text-[10px] font-bold text-orange-600 mt-0.5">${prev.round}차와 다름 <span class="font-normal text-slate-500">(${escapeHtml(settleDiffText(prev.data, v.data, 2))})</span> <button data-id="${v.id}" onclick="openSettleDiffVersion(Number(this.dataset.id))" class="ml-1 px-1.5 py-0.5 text-[10px] font-bold text-indigo-600 border border-indigo-200 hover:bg-indigo-50 rounded">비교</button></div>`
+                : `<div class="text-[10px] text-slate-400 mt-0.5">${prev.round}차와 동일</div>`;
+            const phone = settleContactPhone(v.company);
+            const resultColor = v.result === '청구' ? 'text-rose-600' : 'text-emerald-600';
+            const canDel = !v.sent_at;
+            return `<tr class="hover:bg-slate-50 ${settleRoundChecked.has(v.id) ? 'bg-amber-50/60' : ''} ${v.changed ? '' : 'text-slate-400'}">
+                <td class="p-2.5"><input type="checkbox" data-id="${v.id}" ${canDel ? '' : 'disabled title="이미 보낸 기록은 삭제할 수 없습니다"'} ${settleRoundChecked.has(v.id) ? 'checked' : ''}
+                    onchange="toggleSettleRoundCheck(Number(this.dataset.id), this.checked)" class="w-4 h-4 align-middle cursor-pointer disabled:cursor-not-allowed"></td>
+                <td class="p-2.5 text-slate-400">${escapeHtml(String((v.data && v.data.seq) || ''))}</td>
+                <td class="p-2.5 font-bold">${escapeHtml(v.company)}${change}</td>
+                <td class="p-2.5 font-bold ${resultColor}">${escapeHtml(v.result || '')}</td>
+                <td class="p-2.5 text-right font-bold">${settleWon(v.total)}</td>
+                <td class="p-2.5">${phone ? escapeHtml(settlePhoneLabel(phone)) : '<span class="text-rose-500 font-bold">연락처 없음</span>'}</td>
+                <td class="p-2.5">${settleHistoryState(v, settleVersions).html}</td>
+                <td class="p-2.5 whitespace-nowrap">
+                    <button data-id="${v.id}" onclick="previewSettleRoundVersion(Number(this.dataset.id))" class="px-2 py-1 text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 rounded">보기</button>
+                    ${canDel ? `<button data-id="${v.id}" onclick="deleteSettleVersions([Number(this.dataset.id)])" class="px-2 py-1 text-[11px] font-bold text-rose-500 hover:bg-rose-50 rounded" title="아직 안 보낸 기록이라 삭제할 수 있습니다">삭제</button>` : ''}
+                </td></tr>`;
+        }).join('');
+    }
+    // 차수 보기에서는 발송 버튼 잠금, 전체 체크는 삭제용
+    const all2 = document.getElementById('settle-check-all');
+    const deletable = rows.filter(v => !v.sent_at);
+    all2.checked = deletable.length > 0 && deletable.every(v => settleRoundChecked.has(v.id));
+    all2.indeterminate = settleRoundChecked.size > 0 && !all2.checked;
+    all2.disabled = !deletable.length;
+    const btn = document.getElementById('settle-send-btn');
+    btn.disabled = true;
+    btn.lastChild.textContent = ' 알림톡 발송';
+    btn.title = "발송은 [차수: 최신 (업체별 마지막)]에서 합니다";
+    document.getElementById('settle-save-btn').disabled = true;
+}
+
+function toggleSettleRoundCheck(id, checked) {
+    if (checked) settleRoundChecked.add(id); else settleRoundChecked.delete(id);
+    renderSettleTable();
+}
+
+function previewSettleRoundVersion(id) {
+    const v = settleVersions.find(x => x.id === id);
+    if (!v) return;
+    try { localStorage.setItem('settlePreview', JSON.stringify({ company: v.company, settle_date: v.settle_date, data: v.data })); } catch (e) { /* 무시 */ }
+    window.open(`${SETTLE_PAGE_PATH}?preview=1`, '_blank');
+}
+
+function openSettleDiffVersion(id) {
+    const v = settleVersions.find(x => x.id === id);
+    if (!v) return;
+    const prev = settleVersions.filter(o => o.company === v.company && o.round < v.round).sort((a, b) => b.round - a.round)[0];
+    if (!prev) { alert('비교할 이전 회차가 없습니다.'); return; }
+    openSettleDiff(v.company, v.settle_date, prev.data, v.data, `${prev.round}차`, `${v.round}차`);
+}
+
+// 회차 기록 삭제 (아직 안 보낸 것만). ids: settlement_versions.id
+async function deleteSettleVersions(ids) {
+    const { data: targets, error: e0 } = await supabaseClient.from('settlement_versions')
+        .select('id, settlement_id, company, settle_date, round, changed, sent_at').in('id', ids);
+    if (e0) { alert('기록을 불러오지 못했습니다: ' + dbErrorMessage(e0)); return; }
+    const ok = targets.filter(v => !v.sent_at);
+    const blocked = targets.filter(v => v.sent_at);
+    if (!ok.length) { alert('삭제할 수 있는 기록이 없습니다.\n\n이미 거래처에 보낸 기록은 삭제할 수 없습니다.'); return; }
+    const names = ok.slice(0, 8).map(v => `${v.company} ${v.round}차${v.changed ? '' : '(중복)'}`).join(', ');
+    let msg = `회차 기록 ${ok.length}건을 삭제합니다.\n(${names}${ok.length > 8 ? ` 외 ${ok.length - 8}건` : ''})\n\n`
+        + '· 업체의 가장 최근 회차를 지우면 정산서가 바로 이전 회차 내용으로 돌아갑니다.\n'
+        + '· 1차까지 모두 지우면 그 업체 정산서도 삭제됩니다.';
+    if (blocked.length) msg += `\n\n이미 보낸 ${blocked.length}건은 삭제하지 않습니다.`;
+    if (!confirm(msg + '\n\n삭제할까요?')) return;
+
+    const { error: e1 } = await supabaseClient.from('settlement_versions').delete().in('id', ok.map(v => v.id));
+    if (e1) { alert('삭제 실패: ' + dbErrorMessage(e1)); return; }
+
+    // 업체별로 남은 회차 정리
+    const groups = new Map();
+    for (const v of ok) groups.set(`${v.settle_date}|${v.company}`, v);
+    let reverted = 0, removed = 0;
+    for (const v of groups.values()) {
+        const { data: rest } = await supabaseClient.from('settlement_versions')
+            .select('id, round, data, total, result, changed, sent_at, send_status, saved_at')
+            .eq('settle_date', v.settle_date).eq('company', v.company).order('round');
+        const { data: sRows } = await supabaseClient.from('settlements')
+            .select('id, data, sent_at').eq('id', v.settlement_id);
+        const settlement = (sRows || [])[0];
+        if (!rest || !rest.length) {
+            if (settlement && !settlement.sent_at) {
+                await supabaseClient.from('settlements').delete().eq('id', settlement.id);
+                removed++;
+            }
+            continue;
+        }
+        // 남은 회차의 '이전과 다름/동일' 다시 계산
+        let prev = null;
+        for (const r of rest) {
+            const changed = !prev || settleContentKey(prev.data) !== settleContentKey(r.data);
+            if (changed !== r.changed) {
+                const patch = { changed };
+                if (!r.sent_at) patch.send_status = changed ? null : '중복값이라 미전송';
+                await supabaseClient.from('settlement_versions').update(patch).eq('id', r.id);
+            }
+            prev = r;
+        }
+        // 정산서 내용을 남은 가장 최근 회차로 맞춤
+        const latest = rest[rest.length - 1];
+        if (settlement && settleContentKey(settlement.data) !== settleContentKey(latest.data)) {
+            await supabaseClient.from('settlements').update({
+                data: latest.data, total: latest.total, result: latest.result, updated_at: latest.saved_at,
+            }).eq('id', settlement.id);
+            reverted++;
+        }
+    }
+    settleRoundChecked.clear();
+    await loadSavedSettlements();
+    if (settleHistoryRows.length) loadSettleHistory();
+    alert(`${ok.length}건 삭제 완료`
+        + (reverted ? `\n· ${reverted}곳은 정산서가 이전 회차 내용으로 돌아갔습니다.` : '')
+        + (removed ? `\n· ${removed}곳은 남은 회차가 없어 정산서도 삭제됐습니다.` : '')
+        + (blocked.length ? `\n· 이미 보낸 ${blocked.length}건은 그대로 두었습니다.` : ''));
 }
