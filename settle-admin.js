@@ -77,6 +77,33 @@ function settleStableJson(value) {
     return JSON.stringify(value ?? null);
 }
 
+// 정산서 내용 비교용: 엑셀에서 몇 번째 줄이었는지(seq)는 내용이 아니므로 뺍니다.
+// 금액뿐 아니라 사입내역·송장번호·택배비·기타청구 내용 등 정산서에 보이는 모든 값이 하나라도 다르면 '바뀜'입니다.
+function settleContentKey(data) {
+    if (!data || typeof data !== 'object') return settleStableJson(data);
+    const { seq, ...rest } = data;
+    return settleStableJson(rest);
+}
+
+// 사입내역(매장별) 바뀐 점: 추가/빠짐/금액·사입정보 변경
+function settleStoresDiff(prev, cur) {
+    const key = s => String(s.name ?? '').trim();
+    const pm = new Map(prev.map(s => [key(s), s]));
+    const cm = new Map(cur.map(s => [key(s), s]));
+    const out = [];
+    for (const [name, s] of cm) {
+        const o = pm.get(name);
+        if (!o) out.push(`사입 추가: ${name || '(매장명 없음)'}`);
+        else if (settleStableJson(o) !== settleStableJson(s)) {
+            out.push(Number(o.amount) !== Number(s.amount)
+                ? `${name} 대납 ${settleWon(o.amount)} → ${settleWon(s.amount)}`
+                : `${name} 사입정보 ${o.info ?? ''} → ${s.info ?? ''}`);
+        }
+    }
+    for (const name of pm.keys()) if (!cm.has(name)) out.push(`사입 빠짐: ${name || '(매장명 없음)'}`);
+    return out;
+}
+
 function settleShortDate(key) {
     const [, m, d] = String(key || '').split('-');
     return m && d ? `${m}/${d}` : key;
@@ -348,7 +375,7 @@ function settleCurrentList() {
                 return {
                     company: r.company, total: r.total, result: r.result, data: r,
                     token: saved ? saved.token : null,
-                    changed: saved ? settleStableJson(saved.data) !== settleStableJson(r) : false,
+                    changed: saved ? settleContentKey(saved.data) !== settleContentKey(r) : false,
                     sent_at: saved ? saved.sent_at : null,
                     send_status: saved ? saved.send_status : null,
                     send_error: saved ? saved.send_error : null,
@@ -900,7 +927,7 @@ function settleDiffText(prev, cur, max = 3) {
         const fmt = v => v == null || v === '' ? '없음' : money ? settleWon(v) : String(v);
         out.push(`${label} ${fmt(a)} → ${fmt(b)}`);
     }
-    if (settleStableJson(prev.stores || []) !== settleStableJson(cur.stores || [])) out.push('사입내역 변경');
+    out.push(...settleStoresDiff(prev.stores || [], cur.stores || []));
     if (out.length > max) return out.slice(0, max).join(', ') + ` 외 ${out.length - max}개`;
     return out.join(', ');
 }
@@ -954,7 +981,7 @@ async function settleRecordRound(date) {
     const now = new Date().toISOString();
     const rows = settleCurrentList().filter(r => idBy.has(r.company)).map(r => {
         const prev = latestBy.get(r.company);
-        const changed = !prev || settleStableJson(prev.data) !== settleStableJson(r.data);
+        const changed = !prev || settleContentKey(prev.data) !== settleContentKey(r.data);
         return {
             settlement_id: idBy.get(r.company), company: r.company, settle_date: date, round,
             data: r.data, total: Number.isFinite(Number(r.total)) ? Number(r.total) : null, result: r.result,
