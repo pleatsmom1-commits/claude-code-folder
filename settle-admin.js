@@ -444,6 +444,7 @@ function renderSettleTable() {
                 ${r.token ? `
                 <a href="${escapeHtml(settleLink(r.token))}" target="_blank" class="px-2 py-1 text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 rounded">보기</a>
                 <button data-company="${escapeHtml(r.company)}" onclick="copySettleMessage(this.dataset.company)" class="px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded">링크 복사</button>
+                ${settleDeletable(r) ? `<button data-company="${escapeHtml(r.company)}" onclick="deleteSettlements([this.dataset.company])" class="px-2 py-1 text-[11px] font-bold text-rose-500 hover:bg-rose-50 rounded" title="아직 안 보낸 정산서라 삭제할 수 있습니다">삭제</button>` : ''}
                 ${IS_PRODUCTION && !r.changed && phone && (r.sent_at || r.send_status === '실패') ? `<button data-company="${escapeHtml(r.company)}" onclick="resendSettlement(this.dataset.company)" class="px-2 py-1 text-[11px] font-bold text-amber-700 hover:bg-amber-50 rounded">다시 보내기</button>` : ''}`
                 : `<button data-company="${escapeHtml(r.company)}" onclick="previewSettle(this.dataset.company)" class="px-2 py-1 text-[11px] font-bold text-slate-500 hover:bg-slate-100 rounded">미리보기</button>`}
             </td>
@@ -1182,4 +1183,41 @@ function renderSettleDiff() {
             }).join('')}</tbody></table>`
         : `<p class="text-slate-400">${only ? '바뀐 사입내역이 없습니다.' : '사입내역이 없습니다.'}</p>`;
     document.getElementById('settle-diff-body').innerHTML = html;
+}
+
+// ---------------------------------------------------------------------
+// 8. 정산서 삭제: 아직 거래처에 한 번도 보내지 않은 정산서만
+//    (한 번이라도 보냈으면 거래처 카톡의 [정산서 보기] 링크가 깨지므로 막음)
+//    회차 기록(settlement_versions)도 함께 지워집니다. 엑셀은 그대로라 다시 올려 저장하면 다시 생깁니다.
+// ---------------------------------------------------------------------
+function settleDeletable(r) {
+    if (!r.token) return false;                       // 저장 전(엑셀에만 있음)은 지울 것이 없음
+    if (r.sent_at || r.stale_sent_at) return false;   // 한 번이라도 보냄
+    return !settleVersions.some(v => v.company === r.company && v.sent_at);
+}
+
+function deleteCheckedSettlements() {
+    const companies = settleCurrentList().filter(r => settleChecked.has(r.company)).map(r => r.company);
+    if (!companies.length) { alert('삭제할 정산서를 표 왼쪽 칸에서 체크해 주세요.'); return; }
+    deleteSettlements(companies);
+}
+
+async function deleteSettlements(companies) {
+    const date = document.getElementById('settle-date').value;
+    const list = settleCurrentList().filter(r => companies.includes(r.company));
+    const ok = list.filter(settleDeletable);
+    const blocked = list.filter(r => r.token && !settleDeletable(r));
+    if (!ok.length) {
+        alert('삭제할 수 있는 정산서가 없습니다.\n\n이미 거래처에 보낸 정산서는 삭제할 수 없습니다. (거래처가 받은 링크가 깨지기 때문)\n잘못 보냈다면 엑셀을 고쳐 다시 저장한 뒤 다시 보내 주세요.');
+        return;
+    }
+    let msg = `${date} 정산서 ${ok.length}곳을 삭제합니다.\n(${ok.slice(0, 8).map(r => r.company).join(', ')}${ok.length > 8 ? ` 외 ${ok.length - 8}곳` : ''})\n\n· 회차 기록도 함께 지워집니다.\n· 엑셀은 그대로라, 같은 엑셀을 다시 올려 [정산서 저장]을 누르면 다시 생깁니다.`;
+    if (blocked.length) msg += `\n\n이미 보낸 ${blocked.length}곳(${blocked.map(r => r.company).join(', ')})은 삭제하지 않습니다.`;
+    if (!confirm(msg + '\n\n삭제할까요?')) return;
+    const ids = ok.map(r => (settleSaved.find(s => s.company === r.company) || {}).id).filter(Boolean);
+    const { error } = await supabaseClient.from('settlements').delete().in('id', ids);
+    if (error) { alert('삭제 실패: ' + dbErrorMessage(error)); return; }
+    ok.forEach(r => settleChecked.delete(r.company));
+    await loadSavedSettlements();
+    alert(`${ids.length}곳 삭제 완료` + (blocked.length ? `\n(이미 보낸 ${blocked.length}곳은 그대로 두었습니다)` : ''));
 }
