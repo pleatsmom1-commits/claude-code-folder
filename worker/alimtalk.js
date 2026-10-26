@@ -106,7 +106,7 @@ export async function handleSettleSend(request, env) {
 
 // 알림톡 1건 접수. 카톡을 못 받으면 솔라피가 문자로 대신 보냄.
 async function sendOne(env, to, row) {
-  const message = {
+  return solapiSend(env, {
     to,
     from: normPhone(env.SOLAPI_SENDER),
     kakaoOptions: {
@@ -115,7 +115,97 @@ async function sendOne(env, to, row) {
       disableSms: false,
       variables: templateVariables(row),
     },
+  });
+}
+
+// =====================================================================
+// 체크한 업체에 직접 쓴 문자 보내기 (관리자 화면 [문자 보내기] → POST /api/settle/message)
+//  - 알림톡은 승인된 템플릿만 보낼 수 있어서, 자유 문구는 문자(SMS/LMS)로 보냅니다. 길이에 따라 솔라피가 단문/장문을 고릅니다.
+//  - 문구 안의 {상호} 는 업체 이름으로 바뀝니다. includeLink 면 그 업체 정산서 링크를 끝에 붙입니다.
+//  - 발송 기록은 DB 에 남기지 않습니다 (결과는 화면에만 표시).
+// =====================================================================
+export async function handleSettleMessage(request, env) {
+  if (request.method !== 'POST') return json({ error: 'POST 요청만 받습니다.' }, 405);
+  const userToken = (request.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '').trim();
+  if (!userToken) return json({ error: '로그인이 필요합니다.' }, 401);
+  const sb = (path, init = {}) => fetch(`${env.SUPABASE_URL}${path}`, {
+    ...init,
+    headers: { apikey: env.SUPABASE_KEY, Authorization: `Bearer ${userToken}`, 'Content-Type': 'application/json', ...(init.headers || {}) },
+  });
+  const adminRes = await sb('/rest/v1/rpc/is_admin', { method: 'POST', body: '{}' });
+  if (!adminRes.ok || (await adminRes.json()) !== true) {
+    return json({ error: '관리자 계정만 보낼 수 있습니다. 다시 로그인해 주세요.' }, 403);
+  }
+
+  let body;
+  try { body = await request.json(); } catch { return json({ error: '요청 형식이 올바르지 않습니다.' }, 400); }
+  const date = String(body.date || '');
+  const companies = Array.isArray(body.companies) ? [...new Set(body.companies.map(String))] : [];
+  const text = String(body.text || '').trim();
+  const includeLink = body.includeLink === true;
+  const testPhone = body.testPhone ? normPhone(body.testPhone) : null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ error: '정산일이 올바르지 않습니다.' }, 400);
+  if (!companies.length) return json({ error: '문자 보낼 업체를 체크해 주세요.' }, 400);
+  if (!text) return json({ error: '보낼 내용을 입력해 주세요.' }, 400);
+  if (text.length > 1000) return json({ error: '내용이 너무 깁니다. (1,000자 이내)' }, 400);
+  if (body.testPhone && !testPhone) return json({ error: '시험으로 받을 휴대폰 번호가 올바르지 않습니다.' }, 400);
+
+  const url = new URL(request.url);
+  if (!PRODUCTION_HOSTS.includes(url.hostname) && !testPhone) {
+    return json({ error: '테스트 사이트에서는 거래처에게 보낼 수 없습니다. [내 번호로 시험]으로 내 번호에만 보내 보세요.' }, 403);
+  }
+  const missing = ['SOLAPI_API_KEY', 'SOLAPI_API_SECRET', 'SOLAPI_SENDER'].filter(k => !env[k]);
+  if (missing.length) return json({ error: `발송 설정이 아직 끝나지 않았습니다. Cloudflare 설정에 다음 값이 필요합니다: ${missing.join(', ')}` }, 500);
+
+  const tokenBy = new Map();
+  if (includeLink) {
+    const sRes = await sb(`/rest/v1/settlements?settle_date=eq.${date}&select=company,token`);
+    if (!sRes.ok) return json({ error: '정산서 링크를 불러오지 못했습니다.' }, 502);
+    for (const s of await sRes.json()) tokenBy.set(s.company, s.token);
+  }
+  const buildText = company => {
+    let t = text.replace(/\{상호\}/g, company);
+    const token = tokenBy.get(company);
+    if (includeLink && token) t += `\n\n정산서 보기: ${url.origin}/settle?t=${token}`;
+    return t;
   };
+  const from = normPhone(env.SOLAPI_SENDER);
+
+  if (testPhone) {
+    const company = companies[0];
+    const r = await solapiSend(env, { to: testPhone, from, text: buildText(company) });
+    return json({ test: true, results: [{ company, to: maskPhone(testPhone), ...r }] });
+  }
+
+  const cRes = await sb('/rest/v1/settle_contacts?select=company,phone');
+  if (!cRes.ok) return json({ error: '거래처 연락처를 불러오지 못했습니다.' }, 502);
+  const phoneBy = new Map((await cRes.json()).map(c => [normName(c.company), c.phone]));
+
+  const results = [];
+  const queue = [];
+  for (const company of companies) {
+    const phone = normPhone(phoneBy.get(normName(company)));
+    if (!phone) results.push({ company, status: 'skipped', message: '연락처 없음' });
+    else if (includeLink && !tokenBy.get(company)) results.push({ company, status: 'skipped', message: '저장된 정산서 링크 없음' });
+    else queue.push({ company, phone });
+  }
+  for (let i = 0; i < queue.length; i += 5) {
+    const batch = queue.slice(i, i + 5);
+    const sent = await Promise.all(batch.map(q => solapiSend(env, { to: q.phone, from, text: buildText(q.company) })));
+    batch.forEach((q, j) => results.push({ company: q.company, to: maskPhone(q.phone), ...sent[j] }));
+  }
+  return json({
+    results,
+    summary: {
+      sent: results.filter(r => r.status === 'sent').length,
+      failed: results.filter(r => r.status === 'failed').length,
+      skipped: results.filter(r => r.status === 'skipped').length,
+    },
+  });
+}
+
+// 솔라피 메시지 1건 접수 (알림톡·문자 공통)
+async function solapiSend(env, message) {
   try {
     const res = await fetch(`${env.SOLAPI_BASE_URL || 'https://api.solapi.com'}/messages/v4/send`, {
       method: 'POST',
