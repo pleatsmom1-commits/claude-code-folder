@@ -314,13 +314,13 @@ async function loadSavedSettlements() {
     settleSaved = [];
     if (date && supabaseClient && currentRole === 'admin') {
         const { data, error } = await supabaseClient.from('settlements')
-            .select('id, token, company, settle_date, seq, total, result, data, sent_at, send_status, send_error')
+            .select('id, token, company, settle_date, seq, total, result, data, sent_at, send_status, send_error, updated_at')
             .eq('settle_date', date).order('seq');
         if (error) {
             alert('저장된 정산서를 불러오지 못했습니다.\n\n' + dbErrorMessage(error)
                 + '\n\n(Supabase에서 supabase/settlement.sql 을 실행했는지 확인해주세요)');
         } else {
-            settleSaved = data;
+            settleSaved = data.map(settleApplyStale);
         }
     }
     renderSettleTable();
@@ -342,13 +342,14 @@ function settleCurrentList() {
                     sent_at: saved ? saved.sent_at : null,
                     send_status: saved ? saved.send_status : null,
                     send_error: saved ? saved.send_error : null,
+                    stale_sent_at: saved ? saved.stale_sent_at : null,
                 };
             });
         }
     }
     return settleSaved.map(s => ({
         company: s.company, total: s.total, result: s.result, data: s.data, token: s.token, changed: false,
-        sent_at: s.sent_at, send_status: s.send_status, send_error: s.send_error,
+        sent_at: s.sent_at, send_status: s.send_status, send_error: s.send_error, stale_sent_at: s.stale_sent_at,
     }));
 }
 
@@ -387,6 +388,7 @@ function renderSettleTable() {
         const state = !r.token ? '<span class="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold">저장 전</span>'
             : r.changed ? '<span class="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold">변경됨·다시 저장</span>'
             : r.sent_at ? `<span class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold" title="${escapeHtml(new Date(r.sent_at).toLocaleString('ko-KR'))}">발송완료</span><div class="text-[10px] text-slate-400 mt-0.5">${escapeHtml(settleSentTime(r.sent_at))}</div>`
+            : r.stale_sent_at ? `<span class="px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 font-bold" title="이전 정산서를 보낸 뒤 내용이 바뀌어 다시 저장됐습니다. 바뀐 정산서는 아직 안 보냈습니다.">수정됨·미발송</span><div class="text-[10px] text-slate-400 mt-0.5">이전 발송 ${escapeHtml(settleSentTime(r.stale_sent_at))}</div>`
             : r.send_status === '실패' ? `<span class="px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 font-bold" title="${escapeHtml(r.send_error || '')}">발송실패</span><div class="text-[10px] text-rose-500 mt-0.5">${escapeHtml(r.send_error || '')}</div>`
             : '<span class="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-bold">링크 생성됨</span>';
         const resultColor = r.result === '청구' ? 'text-rose-600' : 'text-emerald-600';
@@ -829,4 +831,17 @@ function settleSentTime(iso) {
     if (isNaN(d)) return '';
     const p = n => String(n).padStart(2, '0');
     return `${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+// 보낸 뒤에 정산서 내용이 바뀌어 다시 저장됐으면(저장 시각이 발송 시각보다 2분 넘게 늦으면) '아직 안 보냄'으로 봅니다.
+// 바뀐 정산서는 거래처가 받지 못했으므로 발송완료로 보이면 안 되고, 다음 [알림톡 발송]에 다시 포함돼야 합니다.
+// (컴퓨터와 서버 시계 차이를 감안해 2분 여유)  ※ 같은 규칙이 worker/alimtalk.js 에도 있습니다.
+const SETTLE_STALE_MARGIN_MS = 2 * 60 * 1000;
+function settleApplyStale(s) {
+    const sent = s.sent_at ? new Date(s.sent_at).getTime() : NaN;
+    const updated = s.updated_at ? new Date(s.updated_at).getTime() : NaN;
+    if (sent && updated && updated - sent > SETTLE_STALE_MARGIN_MS) {
+        return { ...s, sent_at: null, stale_sent_at: s.sent_at };
+    }
+    return { ...s, stale_sent_at: null };
 }
