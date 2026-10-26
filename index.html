@@ -941,6 +941,9 @@
                             <button id="settle-test-btn" onclick="sendSettlementTest()" disabled class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 font-bold text-xs rounded-lg shadow-sm flex items-center gap-1">
                                 <i data-lucide="smartphone" class="w-3.5 h-3.5"></i> 시험 발송 (내 번호)
                             </button>
+                            <button id="settle-del-btn" onclick="deleteCheckedSettlements()" class="px-3 py-1.5 bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 font-bold text-xs rounded-lg shadow-sm flex items-center gap-1" title="체크한 정산서 중 아직 안 보낸 것만 삭제합니다">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> 선택 삭제
+                            </button>
                             <button id="settle-msg-btn" onclick="openSettleMessage()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm flex items-center gap-1" title="체크한 업체에 직접 쓴 문자를 보냅니다 (정정·긴급 안내용)">
                                 <i data-lucide="message-square" class="w-3.5 h-3.5"></i> 문자 보내기
                             </button>
