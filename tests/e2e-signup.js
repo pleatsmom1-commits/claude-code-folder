@@ -145,6 +145,27 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.fill('#signup-phone', '1234');
   await page.click('#signup-modal button[type=submit]'); await page.waitForTimeout(300);
   check('bad phone -> blocked', lastDialog().includes('연락처') && signupCalls().length === 0, lastDialog());
+  // 세금계산서 정보 블록 (선택 입력, 필수표시 없음)
+  const taxText = await page.textContent('#signup-modal');
+  check('tax block heading shown', taxText.includes('세금계산서 발행을 위한 정보'));
+  const taxLabels = await page.$$eval('#signup-modal label', ls => ls.map(l => l.textContent.trim()));
+  check('tax fields without required star', ['사업자등록번호', '상호(법인명)', '대표자명', '세금계산서 받을 이메일주소'].every(t => taxLabels.includes(t)), taxLabels.join(' | '));
+  const taxBlockBelow = await page.evaluate(() => document.getElementById('signup-biz-no').getBoundingClientRect().top > document.getElementById('signup-detail-address').getBoundingClientRect().top);
+  check('tax block placed below 회원가입 정보', taxBlockBelow);
+  await page.fill('#signup-phone', '010.9999.8888');
+  await page.fill('#signup-pw', 'abcdefg!'); await page.fill('#signup-pw-confirm', 'abcdefg!');
+  await page.fill('#signup-biz-no', '123-45-67890');
+  await page.click('#signup-modal button[type=submit]'); await page.waitForTimeout(300);
+  check('invalid 사업자번호 -> blocked', lastDialog().includes('사업자등록번호가 올바르지') && signupCalls().length === 0, lastDialog());
+  await page.fill('#signup-biz-no', '2208162517'); await page.locator('#signup-biz-no').blur();
+  check('사업자번호 auto-format', (await page.inputValue('#signup-biz-no')) === '220-81-62517');
+  await page.fill('#signup-tax-email', 'tax@');
+  await page.click('#signup-modal button[type=submit]'); await page.waitForTimeout(300);
+  check('invalid tax email -> blocked', signupCalls().length === 0 && (lastDialog().includes('이메일주소 형식') || !(await page.$eval('#signup-tax-email', e => e.checkValidity()))), lastDialog());
+  await page.fill('#signup-tax-email', 'tax@corp');
+  await page.click('#signup-modal button[type=submit]'); await page.waitForTimeout(300);
+  check('tax email without domain dot -> blocked by site check', lastDialog().includes('이메일주소 형식') && signupCalls().length === 0, lastDialog());
+  await page.fill('#signup-tax-email', 'tax@corp.com'); await page.fill('#signup-biz-name', '(주)신규'); await page.fill('#signup-biz-ceo', '박대표');
   // 특수문자 비밀번호 + 정상 입력 → 가입
   await page.fill('#signup-phone', '010.9999.8888');
   await page.fill('#signup-pw', 'abcdefg!'); await page.fill('#signup-pw-confirm', 'abcdefg!');
@@ -153,7 +174,17 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   const meta = sc && sc.body && sc.body.data;
   check('signup sent with special-char password', !!sc && sc.body.password === 'abcdefg!', JSON.stringify(sc && sc.body && sc.body.password));
   check('signup metadata has name/phone(formatted)/address', meta && meta.name === '박대표' && meta.phone === '010-9999-8888' && meta.zipcode === '04572' && meta.address === '서울 중구 청계천로 400' && meta.detail_address === '3층 301호', JSON.stringify(meta));
+  check('signup metadata has tax info', meta && meta.biz_no === '220-81-62517' && meta.biz_name === '(주)신규' && meta.biz_ceo === '박대표' && meta.tax_email === 'tax@corp.com', JSON.stringify(meta));
   check('signup modal closed after success', !(await vis('#signup-modal')));
+  // 세금계산서 정보는 비워도 가입 가능
+  await page.click('button:has-text("회원가입하기")'); await page.waitForTimeout(200);
+  await page.fill('#signup-company', '빈세금샵'); await page.click('#btn-signup-company-check'); await page.waitForTimeout(300);
+  await page.fill('#signup-email', 'new2@x.com'); await page.fill('#signup-name', '최'); await page.fill('#signup-phone', '01077776666');
+  await page.fill('#signup-pw', 'abcdefg2'); await page.fill('#signup-pw-confirm', 'abcdefg2');
+  await page.evaluate(() => { document.getElementById('signup-zipcode').value = '04572'; document.getElementById('signup-address').value = '서울 1'; });
+  await page.click('#signup-modal button[type=submit]'); await page.waitForTimeout(600);
+  const sc2 = signupCalls()[1];
+  check('signup without tax info is allowed', !!sc2 && sc2.body.data.biz_no === null && sc2.body.data.tax_email === null, JSON.stringify(sc2 && sc2.body.data));
 
   // ---------- 3. 셀러 로그인 · 주문 화면 · 내정보 주소 ----------
   await page.fill('#login-email', 'seller@x.com'); await page.fill('#login-pw', 'password1');
@@ -164,7 +195,10 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   check('mypage shows address fields', (await vis('#mypage-zipcode')) && (await vis('#mypage-detail-address')) && (await page.textContent('#mypage-account')).includes('미등록'));
   await page.evaluate(() => { document.getElementById('mypage-zipcode').value = '06000'; document.getElementById('mypage-address').value = '서울 강남구 1'; });
   await page.fill('#mypage-detail-address', '2층');
+  check('mypage shows tax block (empty)', (await vis('#mypage-biz-no')) && (await page.textContent('#mypage-account')).includes('세금계산서 정보'));
+  await page.fill('#mypage-biz-no', '1248100998'); await page.fill('#mypage-biz-name', '애플샵(주)'); await page.fill('#mypage-biz-ceo', '김사장'); await page.fill('#mypage-tax-email', 'bill@apple.com');
   await page.click('#mypage-modal button:has-text("정보 저장")'); await page.waitForTimeout(500);
+  check('mypage saves tax info', users['seller@x.com'].profile.biz_no === '124-81-00998' && users['seller@x.com'].profile.tax_email === 'bill@apple.com' && users['seller@x.com'].profile.biz_ceo === '김사장', JSON.stringify(users['seller@x.com'].profile));
   check('mypage saves address', users['seller@x.com'].profile.address === '서울 강남구 1' && users['seller@x.com'].profile.zipcode === '06000' && users['seller@x.com'].profile.detail_address === '2층', JSON.stringify(users['seller@x.com'].profile));
   // 내정보 비밀번호 변경 규칙
   await page.fill('#mypage-current-pw', 'password1'); await page.fill('#mypage-new-pw', 'newpassword'); await page.fill('#mypage-new-pw-confirm', 'newpassword');
@@ -185,14 +219,19 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   const sellerHead = await page.textContent('#admin-sellers-panel thead');
   const sellerRow = (await page.locator('#seller-admin-list tr', { hasText: '애플샵' }).textContent()).replace(/\s+/g, ' ');
   check('seller list shows address column + value', sellerHead.includes('매장 · 사무실 주소') && sellerRow.includes('서울 강남구 1') && sellerRow.includes('2층'), sellerRow);
+  check('seller list shows 세금계산서 정보', sellerHead.includes('세금계산서 정보') && sellerRow.includes('124-81-00998') && sellerRow.includes('bill@apple.com'), sellerRow);
+  await page.fill('#seller-search', '1248100998'); await page.waitForTimeout(200);
+  check('seller search by 사업자번호 digits', (await page.locator('#seller-admin-list tr').count()) === 1);
   await page.fill('#seller-search', '강남구'); await page.waitForTimeout(200);
   check('seller search by address', (await page.locator('#seller-admin-list tr').count()) === 1);
   await page.fill('#seller-search', ''); await page.waitForTimeout(200);
   await page.locator('#seller-admin-list tr', { hasText: '애플샵' }).locator('button', { hasText: '정보수정' }).click(); await page.waitForTimeout(300);
   check('seller edit modal prefilled address', (await page.inputValue('#seller-edit-address')) === '서울 강남구 1' && (await page.inputValue('#seller-edit-detail-address')) === '2층');
+  check('seller edit modal prefilled tax info', (await page.inputValue('#seller-edit-biz-no')) === '124-81-00998' && (await page.inputValue('#seller-edit-tax-email')) === 'bill@apple.com');
+  await page.fill('#seller-edit-tax-email', 'new-bill@apple.com');
   await page.fill('#seller-edit-detail-address', '3층');
   await page.click('#seller-edit-modal button[type=submit]'); await page.waitForTimeout(500);
-  check('admin saves seller address', users['seller@x.com'].profile.detail_address === '3층', lastDialog());
+  check('admin saves seller address + tax email', users['seller@x.com'].profile.detail_address === '3층' && users['seller@x.com'].profile.tax_email === 'new-bill@apple.com', lastDialog());
   await page.screenshot({ path: path.join(__dirname, 'out', 'shot-sellers.png') });
 
   // 회원가입 화면 캡처

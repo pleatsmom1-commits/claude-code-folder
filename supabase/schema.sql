@@ -56,10 +56,14 @@ from auth.users u
 where not exists (select 1 from public.profiles p where p.id = u.id);
 
 -- 회원가입 시 프로필 자동 생성 (role 은 항상 seller, 상태는 승인 대기로 시작)
--- (매장·사무실 주소 칸은 supabase/profile_address.sql 과 같습니다. 이 파일을 다시 실행해도 주소 저장이 유지되도록 함께 둡니다)
+-- (주소·세금계산서 칸은 supabase/profile_address.sql, profile_tax.sql 과 같습니다. 이 파일을 다시 실행해도 저장이 유지되도록 함께 둡니다)
 alter table public.profiles add column if not exists zipcode        text;
 alter table public.profiles add column if not exists address        text;
 alter table public.profiles add column if not exists detail_address text;
+alter table public.profiles add column if not exists biz_no         text;  -- 사업자등록번호 (000-00-00000)
+alter table public.profiles add column if not exists biz_name       text;  -- 상호(법인명)
+alter table public.profiles add column if not exists biz_ceo        text;  -- 대표자명 (사업자등록증상)
+alter table public.profiles add column if not exists tax_email      text;  -- 세금계산서 받을 이메일
 
 create or replace function public.handle_new_user()
 returns trigger
@@ -68,7 +72,8 @@ security definer
 set search_path = public
 as $$
 begin
-    insert into public.profiles (id, email, company, name, phone, zipcode, address, detail_address)
+    insert into public.profiles (id, email, company, name, phone, zipcode, address, detail_address,
+                                 biz_no, biz_name, biz_ceo, tax_email)
     values (
         new.id,
         new.email,
@@ -77,7 +82,11 @@ begin
         nullif(trim(new.raw_user_meta_data->>'phone'), ''),
         nullif(trim(new.raw_user_meta_data->>'zipcode'), ''),
         nullif(trim(new.raw_user_meta_data->>'address'), ''),
-        nullif(trim(new.raw_user_meta_data->>'detail_address'), '')
+        nullif(trim(new.raw_user_meta_data->>'detail_address'), ''),
+        nullif(trim(new.raw_user_meta_data->>'biz_no'), ''),
+        nullif(trim(new.raw_user_meta_data->>'biz_name'), ''),
+        nullif(trim(new.raw_user_meta_data->>'biz_ceo'), ''),
+        nullif(trim(new.raw_user_meta_data->>'tax_email'), '')
     );
     return new;
 end;
