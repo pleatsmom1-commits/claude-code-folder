@@ -63,6 +63,11 @@ function makeWorkbook(file) {
     ['가나샵', '', '', '', '', '', '', '', '', '', '', ''],
     ['가나샵', '', '', '', '', '', '', '', new Date(Date.UTC(2026, 1, 24)), '재고출고', '고객다', ''],
   ]), '가나샵');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ['거래처명', '도매업체명', '도매상품명', '컬러', '사이즈', '잔여재고', '불량수량', '재고위치', '재고생성일', '재고출고일', '기타(반품고객명)', '', '상품명 다른거'],
+    ['사아샵', '도매S', '114', '검정', '', 11, '', 'C-1', new Date(Date.UTC(2026, 9, 8)), '', '', '', '메모용'],
+    ['사아샵', '도매S', '119', '블랙', '', 3, 1, 'C-2', new Date(Date.UTC(2026, 9, 7)), '', '', '', ''],
+  ]), '사아샵');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['', ...H.slice(1)],
     ['다라상회', '도매가', '목걸이A', '', '', '', 1, '가-4', 45981, '', '', 'o'],
     ['마바상회', '도매나', '긴팔티B', '', '크림', '', 3, '가-4', '2026-09-28', '', '', 'o'],
@@ -163,7 +168,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   check('preview lists 가나샵 / 다라상회 / 마바상회, not 종료샵', ['가나샵', '다라상회', '마바상회'].every(c => upText.includes(c)) && !upText.includes('종료샵'), upText);
   check('preview says 가나샵 will be replaced', upText.includes('1줄 → 교체'), upText);
   await page.click('#stock-upload-confirm'); await page.waitForTimeout(1500);
-  check('upload saved alert', lastDialog().includes('3곳을 저장'), lastDialog());
+  check('upload saved alert', lastDialog().includes('4곳을 저장'), lastDialog());
   const din = stockOf('가나샵');
   check('가나샵 replaced: 6 rows (incl. product-less return), old row gone, blank row skipped', din.length === 6 && !din.some(r => r.wholesale_product === '지워질상품'), JSON.stringify(din.map(r => r.wholesale_product)));
   const byName = n => tables.stock_items.find(r => r.wholesale_product === n) || {};
@@ -172,6 +177,8 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
     && byName('출고된상품').stocked_on === '2026-09-01' && byName('출고된상품').shipped_on === '2026-09-15'
     && byName('목걸이A').stocked_on === '2025-11-20' && byName('긴팔티B').stocked_on === '2026-09-28',
     JSON.stringify(tables.stock_items.map(r => [r.wholesale_product, r.stocked_on, r.shipped_on])));
+  const sa = tables.stock_items.filter(r => r.company === '사아샵');
+  check('잔여재고 column read as 수량, 불량수량 -> memo', sa.length === 2 && sa.find(r => r.wholesale_product === '114').quantity === 11 && sa.find(r => r.wholesale_product === '119').memo === '불량 1개', JSON.stringify(sa));
   check('기타업체들 rows use 거래처명 column', byName('목걸이A').company === '다라상회' && byName('긴팔티B').company === '마바상회' && byName('긴팔티B').quantity === 3);
   check('shipped text "10/28출고" -> date + note', byName('텍스트출고').shipped_on === '2026-10-28' && byName('텍스트출고').shipped_note === '10/28출고', JSON.stringify(byName('텍스트출고')));
   check('"…보관" text stays 보관중 with memo', !byName('보관메모').shipped_on && !byName('보관메모').shipped_note && byName('보관메모').memo.includes('보관'), JSON.stringify(byName('보관메모')));

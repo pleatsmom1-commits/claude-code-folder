@@ -14,7 +14,7 @@ const STOCK_COLUMNS = [
     { key: 'retail_product',    label: '소매상품명',       aliases: ['소매상품명', '소매상품', '쇼핑몰상품명', '상품명'] },
     { key: 'color',             label: '컬러',             aliases: ['컬러', '색상', '칼라'] },
     { key: 'size',              label: '사이즈',           aliases: ['사이즈', '크기'] },
-    { key: 'quantity',          label: '수량',             aliases: ['수량', '수량(개)', '재고수량'] },
+    { key: 'quantity',          label: '수량',             aliases: ['수량', '수량(개)', '재고수량', '잔여재고', '잔여수량'] },
     { key: 'location',          label: '재고위치',         aliases: ['재고위치', '위치', '보관위치'] },
     { key: 'stocked_on',        label: '재고생성일',       aliases: ['재고생성일', '입고일', '생성일'] },
     { key: 'shipped_on',        label: '재고출고일',       aliases: ['재고출고일', '출고일'] },
@@ -393,15 +393,18 @@ function stockSheetUsesCompanyColumn(sheetName) {
 function parseStockSheet(sheetName, rows) {
     const headerIdx = rows.slice(0, 10).findIndex(r => {
         const cells = (r || []).map(c => String(c ?? '').replace(/\s+/g, ''));
-        return cells.includes('수량') && cells.some(c => c.startsWith('도매') || c.includes('상품명'));
+        const qtyNames = STOCK_COLUMNS.find(c => c.key === 'quantity').aliases;
+        return cells.some(c => qtyNames.includes(c)) && cells.some(c => c.startsWith('도매') || c.includes('상품명'));
     });
-    if (headerIdx < 0) return { error: '머리줄(수량·상품명)을 찾지 못함' };
+    if (headerIdx < 0) return { error: '머리줄(수량/잔여재고·상품명)을 찾지 못함' };
     const header = rows[headerIdx].map(c => String(c ?? '').replace(/\s+/g, ''));
     const col = {};
     for (const c of STOCK_COLUMNS) {
         const idx = header.findIndex(h => c.aliases.some(a => h === a.replace(/\s+/g, '')));
         if (idx >= 0) col[c.key] = idx;
     }
+    // 더블샵 탭처럼 불량수량 칸이 있으면 메모에 남깁니다.
+    const defectIdx = header.findIndex(h => h === '불량수량' || h === '불량');
     // 기타업체들 탭처럼 첫 칸 머리줄이 비어 있으면 그 칸을 거래처명으로 봅니다.
     if (col.company == null && header[0] === '') col.company = 0;
     const useColumn = stockSheetUsesCompanyColumn(sheetName);
@@ -427,6 +430,8 @@ function parseStockSheet(sheetName, rows) {
             label: text(r, 'label'),
         };
         Object.assign(item, stockParseShipped(cell(r, 'shipped_on'), item.stocked_on));
+        const defect = defectIdx >= 0 ? String(r[defectIdx] ?? '').trim() : '';
+        if (defect && defect !== '0') item.memo = [item.memo, `불량 ${defect}개`].filter(Boolean).join(' · ');
         // 상품명이 없어도 반품고객명·재고생성일이 있으면 반품 기록이라 올립니다. 아무것도 없는 줄(도매처 주소 목록 등)만 뺍니다.
         const hasInfo = item.wholesale_product || item.retail_product || item.customer || item.stocked_on;
         if (!item.company || !hasInfo) { blank++; continue; }
