@@ -69,6 +69,9 @@
 
 ## 셀러 화면 기능
 
+- **회원가입 필수 항목**: 상호명·이메일·비밀번호·**대표자명·연락처·매장/사무실 주소**(주소 검색 + 상세주소).
+  주소는 셀러 프로필에 저장되어 내정보·관리자 셀러 관리(목록·엑셀·정보수정)에서 보고 고칠 수 있습니다 (`supabase/profile_address.sql`).
+- **비밀번호 규칙**: 8자 이상 + 숫자 또는 특수문자 1개 이상 (회원가입·내정보 변경·비밀번호 재설정 모두 적용).
 - **회원가입 상호명 [중복확인]**: 이미 가입된 상호명(띄어쓰기·영문 대소문자 무시)은 쓸 수 없고, [중복확인]을 통과해야 가입됩니다.
   DB 에서도 같은 상호명이 두 번 생기지 않게 막습니다 (`supabase/company_unique.sql`). 관리자가 셀러 상호를 바꿀 때도 같은 규칙이 적용됩니다.
 
@@ -191,3 +194,7 @@ Cloudflare **Workers & Pages → bamnat-delivery** 가 이 저장소의 `claude/
 
 테스트 DB 를 쓰려면 Supabase 에 테스트용 프로젝트를 하나 더 만들고, `schema.sql` → `settlement.sql` 을 실행한 뒤
 `config.js` 의 `TEST_SUPABASE` 에 그 프로젝트 주소와 publishable 키를 넣습니다.
+
+## 화면 자동 점검 (개발용)
+`tests/` 폴더: 가짜 Supabase 로 실제 화면을 열어 확인합니다. `cd tests && npm install && node e2e-signup.js`
+(사이트에는 올라가지 않습니다 — `.assetsignore`)

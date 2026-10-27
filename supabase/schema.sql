@@ -56,6 +56,11 @@ from auth.users u
 where not exists (select 1 from public.profiles p where p.id = u.id);
 
 -- 회원가입 시 프로필 자동 생성 (role 은 항상 seller, 상태는 승인 대기로 시작)
+-- (매장·사무실 주소 칸은 supabase/profile_address.sql 과 같습니다. 이 파일을 다시 실행해도 주소 저장이 유지되도록 함께 둡니다)
+alter table public.profiles add column if not exists zipcode        text;
+alter table public.profiles add column if not exists address        text;
+alter table public.profiles add column if not exists detail_address text;
+
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -63,13 +68,16 @@ security definer
 set search_path = public
 as $$
 begin
-    insert into public.profiles (id, email, company, name, phone)
+    insert into public.profiles (id, email, company, name, phone, zipcode, address, detail_address)
     values (
         new.id,
         new.email,
         coalesce(nullif(trim(new.raw_user_meta_data->>'company'), ''), '미등록'),
         nullif(trim(new.raw_user_meta_data->>'name'), ''),
-        nullif(trim(new.raw_user_meta_data->>'phone'), '')
+        nullif(trim(new.raw_user_meta_data->>'phone'), ''),
+        nullif(trim(new.raw_user_meta_data->>'zipcode'), ''),
+        nullif(trim(new.raw_user_meta_data->>'address'), ''),
+        nullif(trim(new.raw_user_meta_data->>'detail_address'), '')
     );
     return new;
 end;
