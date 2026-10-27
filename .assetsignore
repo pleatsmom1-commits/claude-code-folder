@@ -8,3 +8,5 @@ node_modules
 worker
 정산서자동화
 CLAUDE.md
+tests
+.gitignore

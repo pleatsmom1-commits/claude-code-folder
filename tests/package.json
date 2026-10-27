@@ -1,0 +1,12 @@
+{
+  "name": "bamnat-tests",
+  "private": true,
+  "description": "밤낮딜리버리 화면 자동 점검 (Playwright + 가짜 Supabase). 사용: cd tests && npm install && node e2e-signup.js",
+  "dependencies": {
+    "@supabase/supabase-js": "^2",
+    "@tailwindcss/browser": "^4",
+    "jszip": "3.10.1",
+    "lucide": "*",
+    "xlsx-js-style": "1.2.0"
+  }
+}
