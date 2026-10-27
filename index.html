@@ -820,6 +820,7 @@
                                     <th class="p-3">대표자</th>
                                     <th class="p-3">연락처</th>
                                     <th class="p-3">매장 · 사무실 주소</th>
+                                    <th class="p-3">세금계산서 정보</th>
                                     <th class="p-3">이메일(로그인)</th>
                                     <th class="p-3">가입일</th>
                                     <th class="p-3 text-center">주문 (대기/전체)</th>
@@ -1289,6 +1290,32 @@
                     <input type="text" id="signup-detail-address" placeholder="상세주소 (층, 호수, 매장명 등)" class="mt-2 w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
                 </div>
 
+                <!-- 세금계산서 발행을 위한 정보 (선택 입력) -->
+                <div class="mt-1 border border-sky-200 bg-sky-50/60 rounded-xl p-3 space-y-2">
+                    <div>
+                        <h4 class="text-xs font-black text-sky-900">🧾 세금계산서 발행을 위한 정보</h4>
+                        <p class="text-[10px] text-slate-500">세금계산서를 받으실 경우에만 적어주세요. 가입 후 [내정보]에서도 입력·수정할 수 있습니다.</p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">사업자등록번호</label>
+                            <input type="text" id="signup-biz-no" inputmode="numeric" maxlength="12" onblur="formatBizNoInput(this)" placeholder="000-00-00000" class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">상호(법인명)</label>
+                            <input type="text" id="signup-biz-name" placeholder="사업자등록증상 상호" class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">대표자명</label>
+                            <input type="text" id="signup-biz-ceo" placeholder="사업자등록증상 대표자" class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">세금계산서 받을 이메일주소</label>
+                            <input type="email" id="signup-tax-email" placeholder="tax@email.com" class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-indigo-500">
+                        </div>
+                    </div>
+                </div>
+
                 <div class="pt-3 flex gap-2">
                     <button type="button" onclick="closeSignupModal()" class="flex-1 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-lg text-xs hover:bg-slate-200">
                         취소
@@ -1352,6 +1379,32 @@
                     <input type="text" id="mypage-detail-address" placeholder="상세주소 (층, 호수, 매장명 등)" class="mt-2 w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
                 </div>
 
+                <!-- 세금계산서 발행을 위한 정보 (선택 입력) -->
+                <div class="mt-1 border border-sky-200 bg-sky-50/60 rounded-xl p-3 space-y-2">
+                    <div>
+                        <h4 class="text-xs font-black text-sky-900">🧾 세금계산서 발행을 위한 정보</h4>
+                        <p class="text-[10px] text-slate-500">세금계산서를 받으실 경우 사업자등록증과 똑같이 적어주세요.</p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">사업자등록번호</label>
+                            <input type="text" id="mypage-biz-no" inputmode="numeric" maxlength="12" onblur="formatBizNoInput(this)" placeholder="000-00-00000" class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">상호(법인명)</label>
+                            <input type="text" id="mypage-biz-name" placeholder="사업자등록증상 상호" class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">대표자명</label>
+                            <input type="text" id="mypage-biz-ceo" placeholder="사업자등록증상 대표자" class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">세금계산서 받을 이메일주소</label>
+                            <input type="email" id="mypage-tax-email" placeholder="tax@email.com" class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-indigo-500">
+                        </div>
+                    </div>
+                </div>
+
                 <button type="submit" class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs">정보 저장</button>
             </form>
 
@@ -1397,7 +1450,7 @@
 
     <!-- MODAL: SELLER EDIT (관리자) -->
     <div id="seller-edit-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-slate-100">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-slate-100 max-h-[92vh] overflow-y-auto">
             <div class="flex justify-between items-center border-b border-slate-100 pb-3">
                 <div>
                     <h3 class="font-bold text-slate-900 text-base">셀러 정보 수정</h3>
@@ -1432,6 +1485,32 @@
                     </div>
                     <input type="text" id="seller-edit-address" readonly placeholder="기본주소 (주소 검색 시 자동입력)" onclick="execDaumPostcodeFor('seller-edit')" class="mt-2 w-full px-3 py-2 border rounded-lg text-sm bg-slate-50 cursor-pointer">
                     <input type="text" id="seller-edit-detail-address" placeholder="상세주소 (층, 호수, 매장명 등)" class="mt-2 w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                </div>
+
+                <!-- 세금계산서 발행을 위한 정보 (선택 입력) -->
+                <div class="mt-1 border border-sky-200 bg-sky-50/60 rounded-xl p-3 space-y-2">
+                    <div>
+                        <h4 class="text-xs font-black text-sky-900">🧾 세금계산서 발행을 위한 정보</h4>
+                        <p class="text-[10px] text-slate-500">셀러가 입력한 세금계산서 발행 정보입니다.</p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">사업자등록번호</label>
+                            <input type="text" id="seller-edit-biz-no" inputmode="numeric" maxlength="12" onblur="formatBizNoInput(this)" placeholder="000-00-00000" class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">상호(법인명)</label>
+                            <input type="text" id="seller-edit-biz-name" placeholder="사업자등록증상 상호" class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">대표자명</label>
+                            <input type="text" id="seller-edit-biz-ceo" placeholder="사업자등록증상 대표자" class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">세금계산서 받을 이메일주소</label>
+                            <input type="email" id="seller-edit-tax-email" placeholder="tax@email.com" class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-indigo-500">
+                        </div>
+                    </div>
                 </div>
 
                 <div>
@@ -1904,6 +1983,48 @@
                 detail_address: document.getElementById(`${prefix}-detail-address`).value.trim() || null
             };
         }
+        // 세금계산서 발행 정보 (profiles.biz_no / biz_name / biz_ceo / tax_email) — 모두 선택 입력
+        function formatBizNo(v) {
+            const d = String(v || '').replace(/\D/g, '');
+            return d.length === 10 ? `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}` : String(v || '').trim();
+        }
+        function formatBizNoInput(el) { if (el.value.trim()) el.value = formatBizNo(el.value); }
+        // 사업자등록번호 끝자리 검증(국세청 계산식)으로 오타를 잡습니다.
+        function isValidBizNo(v) {
+            const d = String(v || '').replace(/\D/g, '');
+            if (!/^\d{10}$/.test(d)) return false;
+            const w = [1, 3, 7, 1, 3, 7, 1, 3, 5];
+            let sum = w.reduce((acc, k, i) => acc + k * Number(d[i]), 0);
+            sum += Math.floor((Number(d[8]) * 5) / 10);
+            return (10 - (sum % 10)) % 10 === Number(d[9]);
+        }
+        // 입력값 읽기 + 형식 확인 (틀리면 안내 후 null)
+        function readTaxInfo(prefix) {
+            const val = id => document.getElementById(`${prefix}-${id}`).value.trim();
+            const bizNo = val('biz-no');
+            const email = val('tax-email');
+            if (bizNo && !isValidBizNo(bizNo)) {
+                alert('사업자등록번호가 올바르지 않습니다. 숫자 10자리를 다시 확인해주세요.\n예) 123-45-67890\n(세금계산서 정보는 비워두셔도 됩니다)');
+                document.getElementById(`${prefix}-biz-no`).focus();
+                return null;
+            }
+            if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                alert('세금계산서 받을 이메일주소 형식이 올바르지 않습니다.\n예) tax@email.com');
+                document.getElementById(`${prefix}-tax-email`).focus();
+                return null;
+            }
+            return { biz_no: bizNo ? formatBizNo(bizNo) : null, biz_name: val('biz-name') || null, biz_ceo: val('biz-ceo') || null, tax_email: email || null };
+        }
+        function fillTaxInfo(prefix, p) {
+            document.getElementById(`${prefix}-biz-no`).value = p.biz_no || '';
+            document.getElementById(`${prefix}-biz-name`).value = p.biz_name || '';
+            document.getElementById(`${prefix}-biz-ceo`).value = p.biz_ceo || '';
+            document.getElementById(`${prefix}-tax-email`).value = p.tax_email || '';
+        }
+        function taxInfoSummary(p) {
+            return [p.biz_no, p.biz_name, p.biz_ceo, p.tax_email].filter(Boolean).join(' · ');
+        }
+
         function profileAddress(p) {
             return [p.zipcode ? `(${p.zipcode})` : '', p.address || '', p.detail_address || ''].filter(Boolean).join(' ');
         }
@@ -1969,6 +2090,8 @@
                 alert('매장 · 사무실 주소를 [주소 검색] 버튼으로 입력해주세요.');
                 return;
             }
+            const tax = readTaxInfo('signup');
+            if (!tax) return;
             if (/[()]/.test(company)) {
                 alert("상호명에는 괄호를 넣을 수 없습니다. (송화인명이 '밤낮딜리버리(상호명)' 형식으로 만들어집니다)");
                 return;
@@ -1983,7 +2106,7 @@
                 email,
                 password: pw,
                 options: {
-                    data: { company, name, phone: formatPhone(phone), ...addr }, // 프로필은 DB 트리거가 자동으로 만듭니다 (supabase/profile_address.sql)
+                    data: { company, name, phone: formatPhone(phone), ...addr, ...tax }, // 프로필은 DB 트리거가 자동으로 만듭니다 (supabase/profile_tax.sql)
                     emailRedirectTo: getAppUrl()
                 }
             });
@@ -3196,6 +3319,7 @@
                 ['상호명', a.company || '-'],
                 ['기본 송화인명', `밤낮딜리버리(${a.company || ''})`],
                 ['매장·사무실 주소', profileAddress(a) || '미등록 (아래에서 입력해주세요)'],
+                ['세금계산서 정보', taxInfoSummary(a) || '미등록 (필요하면 아래에서 입력해주세요)'],
                 ['계정 상태', statusLabel],
                 ['가입일', formatKstDateTime(a.created_at) || '-'],
                 ['접수 주문', `${myCount}건`]
@@ -3207,6 +3331,7 @@
             document.getElementById('mypage-zipcode').value = a.zipcode || '';
             document.getElementById('mypage-address').value = a.address || '';
             document.getElementById('mypage-detail-address').value = a.detail_address || '';
+            fillTaxInfo('mypage', a);
             document.getElementById('mypage-address-count').innerText = `저장된 주소 ${addressBook.length}개`;
             document.getElementById('mypage-modal').classList.remove('hidden');
             document.getElementById('mypage-modal').classList.add('flex');
@@ -3226,7 +3351,9 @@
                 alert('연락처를 확인해주세요.\n예) 010-1234-5678');
                 return;
             }
-            const { data, error } = await supabaseClient.from('profiles').update({ name, phone, ...readProfileAddress('mypage') }).eq('id', currentUserId).select();
+            const tax = readTaxInfo('mypage');
+            if (!tax) return;
+            const { data, error } = await supabaseClient.from('profiles').update({ name, phone, ...readProfileAddress('mypage'), ...tax }).eq('id', currentUserId).select();
             if (error || !data || data.length === 0) {
                 alert('정보 저장에 실패했습니다.\n\n' + (error ? dbErrorMessage(error) : '권한이 없습니다. (관리자: 최신 schema.sql 실행 필요)'));
                 return;
@@ -4366,7 +4493,7 @@
             let list = sellerProfiles;
             if (statusFilter !== 'ALL') list = list.filter(p => (p.status || 'approved') === statusFilter);
             if (keyword) {
-                list = list.filter(p => [p.company, p.name, p.email, p.phone, profileAddress(p)].some(v => String(v || '').toLowerCase().includes(keyword)));
+                list = list.filter(p => [p.company, p.name, p.email, p.phone, profileAddress(p), p.biz_no, String(p.biz_no || '').replace(/\D/g, ''), p.biz_name, p.tax_email].some(v => String(v || '').toLowerCase().includes(keyword)));
             }
             // 승인대기를 맨 위로
             list = [...list].sort((a, b) => (a.status === 'pending' ? 0 : 1) - (b.status === 'pending' ? 0 : 1));
@@ -4374,7 +4501,7 @@
             document.getElementById('seller-admin-count').innerText = `총 ${list.length}명`;
 
             if (list.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="9" class="text-center py-6 text-slate-400">해당하는 셀러가 없습니다.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="10" class="text-center py-6 text-slate-400">해당하는 셀러가 없습니다.</td></tr>`;
                 return;
             }
 
@@ -4400,6 +4527,9 @@
                         <td class="p-3">${escapeHtml(p.name || '-')}</td>
                         <td class="p-3">${escapeHtml(p.phone || '-')}</td>
                         <td class="p-3 max-w-xs truncate" title="${escapeHtml(profileAddress(p))}">${escapeHtml(profileAddress(p) || '-')}</td>
+                        <td class="p-3 text-[11px] min-w-[160px]">${p.biz_no || p.tax_email
+                            ? `<div class="font-mono font-bold">${escapeHtml(p.biz_no || '-')}</div><div>${escapeHtml([p.biz_name, p.biz_ceo].filter(Boolean).join(' / ') || '-')}</div><div class="text-sky-700">${escapeHtml(p.tax_email || '')}</div>`
+                            : '<span class="text-slate-300">미등록</span>'}</td>
                         <td class="p-3 text-slate-600">${escapeHtml(p.email || '-')}</td>
                         <td class="p-3 text-slate-400 whitespace-nowrap">${escapeHtml(formatKstDateTime(p.created_at))}</td>
                         <td class="p-3 text-center font-mono">${c.pending} / ${c.total}</td>
@@ -4447,6 +4577,7 @@
             document.getElementById('seller-edit-zipcode').value = p.zipcode || '';
             document.getElementById('seller-edit-address').value = p.address || '';
             document.getElementById('seller-edit-detail-address').value = p.detail_address || '';
+            fillTaxInfo('seller-edit', p);
             document.getElementById('seller-edit-status').value = p.status || 'approved';
             document.getElementById('seller-edit-modal').classList.remove('hidden');
             document.getElementById('seller-edit-modal').classList.add('flex');
@@ -4467,11 +4598,14 @@
                 alert("상호명에는 괄호를 넣을 수 없습니다. (송화인명이 '밤낮딜리버리(상호명)' 형식으로 만들어집니다)");
                 return;
             }
+            const tax = readTaxInfo('seller-edit');
+            if (!tax) return;
             const ok = await updateSellerProfile(id, {
                 company,
                 name: document.getElementById('seller-edit-name').value.trim() || null,
                 phone: formatPhone(document.getElementById('seller-edit-phone').value.trim()) || null,
                 ...readProfileAddress('seller-edit'),
+                ...tax,
                 status: document.getElementById('seller-edit-status').value
             });
             if (ok) {
@@ -4491,12 +4625,16 @@
                 '연락처': p.phone || '',
                 '우편번호': p.zipcode || '',
                 '매장·사무실 주소': profileAddress(p),
+                '사업자등록번호': p.biz_no || '',
+                '상호(법인명)': p.biz_name || '',
+                '대표자명(사업자)': p.biz_ceo || '',
+                '세금계산서 이메일': p.tax_email || '',
                 '이메일': p.email || '',
                 '가입일': formatKstDateTime(p.created_at),
                 '전체 주문수': counts[p.id] || 0
             }));
             const ws = XLSX.utils.json_to_sheet(rows);
-            ws['!cols'] = [{ wch: 8 }, { wch: 18 }, { wch: 26 }, { wch: 10 }, { wch: 16 }, { wch: 8 }, { wch: 40 }, { wch: 28 }, { wch: 18 }, { wch: 10 }];
+            ws['!cols'] = [{ wch: 8 }, { wch: 18 }, { wch: 26 }, { wch: 10 }, { wch: 16 }, { wch: 8 }, { wch: 40 }, { wch: 14 }, { wch: 20 }, { wch: 12 }, { wch: 28 }, { wch: 28 }, { wch: 18 }, { wch: 10 }];
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "셀러목록");
             const p = getKstParts();
