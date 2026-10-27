@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>밤낮딜리버리 재고 확인</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<style>
+    :root {
+        --bg: #f1f5f9; --card: #ffffff; --line: #e2e8f0; --text: #0f172a; --sub: #64748b;
+        --head: #1e293b; --accent: #059669; --accent-bg: #d1fae5;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; font-size: 15px; line-height: 1.5; }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 16px 16px 40px; }
+    .brand { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0 14px; }
+    .brand b { font-size: 16px; }
+    .brand a { font-size: 13px; color: var(--sub); text-decoration: none; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+    .hero { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+    .hero .company { font-size: 20px; font-weight: 800; }
+    .hero .date { color: var(--sub); font-size: 13px; }
+    .stats { display: flex; gap: 10px; }
+    .stat { background: var(--accent-bg); color: var(--accent); border-radius: 10px; padding: 8px 14px; text-align: center; min-width: 88px; }
+    .stat.gray { background: #f1f5f9; color: var(--sub); }
+    .stat b { display: block; font-size: 20px; }
+    .stat span { font-size: 12px; font-weight: 700; }
+    .tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .tabs { display: flex; background: #e2e8f0; border-radius: 10px; padding: 3px; }
+    .tabs button { border: 0; background: transparent; padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; color: var(--sub); cursor: pointer; }
+    .tabs button.on { background: #fff; color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+    input[type=search] { flex: 1; min-width: 160px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 14px; }
+    .btn { border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 700; color: var(--text); cursor: pointer; white-space: nowrap; text-decoration: none; display: inline-block; }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .count { font-size: 13px; color: var(--sub); margin: 10px 2px 6px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; font-size: 12px; color: var(--sub); font-weight: 700; padding: 8px 6px; border-bottom: 2px solid var(--line); white-space: nowrap; position: sticky; top: 0; background: #fff; }
+    td { padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    td.num { text-align: right; font-weight: 800; }
+    td.nowrap { white-space: nowrap; }
+    .table-box { overflow: auto; max-height: 70vh; }
+    .sub { color: var(--sub); font-size: 12px; }
+    .shipped { color: var(--sub); }
+    .state { text-align: center; padding: 60px 16px; color: var(--sub); }
+    .preview-bar { background: #fef3c7; color: #92400e; text-align: center; padding: 8px; font-size: 13px; font-weight: 700; }
+    .note { font-size: 12px; color: var(--sub); margin: 10px 2px 0; }
+    .foot { text-align: center; font-size: 12px; color: var(--sub); margin-top: 18px; }
+    /* 휴대폰: 표 대신 카드처럼 한 줄씩 */
+    @media (max-width: 640px) {
+        thead { display: none; }
+        table, tbody, tr, td { display: block; width: 100%; }
+        tr { border-bottom: 1px solid var(--line); padding: 10px 2px; }
+        td { border: 0; padding: 1px 0; }
+        td:empty { display: none; }
+        td.small { display: inline-block; width: auto; margin-right: 12px; }
+        td.small:empty { display: none; }
+        td.num { text-align: left; }
+        td[data-label]::before { content: attr(data-label) " "; color: var(--sub); font-size: 12px; font-weight: 400; }
+        .table-box { max-height: none; }
+    }
+</style>
+</head>
+<body>
+<div id="preview-bar" class="preview-bar" hidden>관리자 미리보기 화면입니다 (업체에게 보이는 모양)</div>
+<div class="wrap">
+    <div class="brand"><b>밤낮딜리버리 재고 확인</b><a href="/">← 주문접수 화면</a></div>
+    <div id="app"><div class="state">재고를 불러오는 중입니다...</div></div>
+    <div class="foot">문의: 밤낮딜리버리 카카오톡 채널</div>
+</div>
+
+<script src="config.js"></script>
+<script>
+    // DB 주소/키는 config.js (공개용 값). 업체는 로그인한 계정의 상호와 같은 재고만 보입니다 (DB 에서 막음).
+    const COLUMNS = 'id,company,wholesale_company,wholesale_product,retail_product,color,size,quantity,location,stocked_on,shipped_on,shipped_note,customer';
+    let items = [];
+    let company = '';
+    let view = 'kept';
+
+    function esc(value) {
+        return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    function norm(value) { return String(value ?? '').replace(/\s+/g, '').toLowerCase(); }
+    function shortDate(key) { return key ? String(key).slice(2).replace(/-/g, '.') : ''; }
+    function today() {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+    function isShipped(r) { return !!(r.shipped_on || r.shipped_note); }
+    function shippedLabel(r) { return [shortDate(r.shipped_on), r.shipped_note].filter(Boolean).join(' '); }
+    function showState(html) { document.getElementById('app').innerHTML = `<div class="card state">${html}</div>`; }
+
+    async function fetchAll(client, build) {
+        let all = [];
+        for (let from = 0; ; from += 1000) {
+            const { data, error } = await build().range(from, from + 999);
+            if (error) return { data: null, error };
+            all = all.concat(data || []);
+            if (!data || data.length < 1000) break;
+        }
+        return { data: all, error: null };
+    }
+
+    async function init() {
+        if (!window.supabase) { showState('화면을 불러오지 못했습니다. 새로고침해주세요.'); return; }
+        const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const { data: { session } } = await client.auth.getSession();
+        if (!session) {
+            showState('로그인 후 재고를 확인할 수 있습니다.<br><br><a class="btn primary" href="/">로그인하러 가기</a>');
+            return;
+        }
+        const { data: profile, error: pErr } = await client.from('profiles')
+            .select('company,role,status').eq('id', session.user.id).single();
+        if (pErr || !profile) { showState('계정 정보를 불러오지 못했습니다.<br>다시 로그인해주세요.<br><br><a class="btn" href="/">주문접수 화면</a>'); return; }
+
+        const params = new URLSearchParams(location.search);
+        let query = () => client.from('stock_items').select(COLUMNS).order('stocked_on', { ascending: false, nullsFirst: false }).order('id', { ascending: false });
+        if (profile.role === 'admin') {
+            company = params.get('company') || '';
+            if (!company) { showState('관리자는 [재고관리] 탭에서 업체를 고른 뒤 [업체 화면 미리보기]로 열어주세요.<br><br><a class="btn" href="/">주문접수 화면</a>'); return; }
+            document.getElementById('preview-bar').hidden = false;
+        } else {
+            if (profile.status !== 'approved') { showState('관리자 승인 후 재고를 확인할 수 있습니다.'); return; }
+            company = profile.company;
+        }
+        const { data, error } = await fetchAll(client, query);
+        if (error) { showState('재고를 불러오지 못했습니다.<br>잠시 후 다시 시도해주세요.<br><span class="sub">' + esc(error.message) + '</span>'); return; }
+        // 관리자 미리보기는 고른 업체만, 셀러는 DB 가 이미 자기 상호만 돌려줍니다.
+        items = data.filter(r => norm(r.company) === norm(company));
+        document.title = `${company} 재고`;
+        render();
+    }
+
+    function filtered() {
+        const q = norm(document.getElementById('q') ? document.getElementById('q').value : '');
+        return items.filter(r => (view === 'kept' ? !isShipped(r) : isShipped(r))
+            && (!q || norm([r.wholesale_company, r.wholesale_product, r.retail_product, r.color, r.size, r.location, r.customer].join('|')).includes(q)));
+    }
+
+    function render() {
+        const kept = items.filter(r => !isShipped(r));
+        const keptQty = kept.reduce((n, r) => n + (Number(r.quantity) || 0), 0);
+        document.getElementById('app').innerHTML = `
+        <div class="card hero">
+            <div>
+                <div class="company">${esc(company)}</div>
+                <div class="date">${today()} 기준</div>
+            </div>
+            <div class="stats">
+                <div class="stat"><b>${kept.length.toLocaleString('ko-KR')}</b><span>보관중 (건)</span></div>
+                <div class="stat"><b>${keptQty.toLocaleString('ko-KR')}</b><span>보관 수량 (개)</span></div>
+                <div class="stat gray"><b>${(items.length - kept.length).toLocaleString('ko-KR')}</b><span>출고됨 (건)</span></div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="tools">
+                <div class="tabs">
+                    <button id="tab-kept" onclick="setView('kept')">보관중 재고</button>
+                    <button id="tab-shipped" onclick="setView('shipped')">출고 내역</button>
+                </div>
+                <input type="search" id="q" oninput="renderList()" placeholder="상품명 · 도매처 · 고객명 검색">
+                <button class="btn" onclick="downloadExcel()">엑셀 다운로드</button>
+            </div>
+            <div class="count" id="count"></div>
+            <div class="table-box">
+                <table>
+                    <thead><tr>
+                        <th>도매업체명</th><th>도매상품명</th><th>소매상품명</th><th>컬러</th><th>사이즈</th>
+                        <th style="text-align:right">수량</th><th>재고위치</th><th>재고생성일</th><th id="th-shipped">재고출고일</th><th>반품고객명</th>
+                    </tr></thead>
+                    <tbody id="list"></tbody>
+                </table>
+            </div>
+            <p class="note">* 반품재고는 늦게 입고되면 당일 재고에 바로 반영되지 않을 수 있습니다.<br>* 같은 상품이라도 입고일·고객이 다르면 따로 표시됩니다.</p>
+        </div>`;
+        renderList();
+    }
+
+    function setView(v) { view = v; renderList(); }
+
+    function renderList() {
+        document.getElementById('tab-kept').className = view === 'kept' ? 'on' : '';
+        document.getElementById('tab-shipped').className = view === 'shipped' ? 'on' : '';
+        document.getElementById('th-shipped').hidden = view === 'kept';
+        const list = filtered();
+        document.getElementById('count').textContent = `${list.length.toLocaleString('ko-KR')}건`;
+        const tbody = document.getElementById('list');
+        if (!list.length) {
+            tbody.innerHTML = `<tr><td colspan="10" class="state" style="padding:40px 0">${view === 'kept' ? '보관중인 재고가 없습니다.' : '출고 내역이 없습니다.'}</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = list.map(r => `
+            <tr class="${isShipped(r) ? 'shipped' : ''}">
+                <td class="nowrap" data-label="도매">${esc(r.wholesale_company)}</td>
+                <td data-label="도매상품">${esc(r.wholesale_product)}</td>
+                <td data-label="소매상품">${esc(r.retail_product)}</td>
+                <td class="nowrap small" data-label="컬러">${esc(r.color)}</td>
+                <td class="nowrap small" data-label="사이즈">${esc(r.size)}</td>
+                <td class="num small" data-label="수량">${esc(String(r.quantity ?? ''))}</td>
+                <td class="nowrap small" data-label="위치">${esc(r.location)}</td>
+                <td class="nowrap small" data-label="입고">${shortDate(r.stocked_on)}</td>
+                ${view === 'kept' ? '' : `<td class="nowrap small" data-label="출고">${esc(shippedLabel(r))}</td>`}
+                <td class="nowrap small" data-label="고객">${esc(r.customer)}</td>
+            </tr>`).join('');
+    }
+
+    function downloadExcel() {
+        const list = filtered();
+        if (!list.length) { alert('다운로드할 재고가 없습니다.'); return; }
+        const header = ['거래처명', '도매업체명', '도매상품명', '소매상품명', '컬러', '사이즈', '수량', '재고위치', '재고생성일', '재고출고일', '기타(반품고객명)'];
+        const rows = list.map(r => [company, r.wholesale_company, r.wholesale_product, r.retail_product, r.color, r.size,
+            Number(r.quantity), r.location, r.stocked_on || '', [r.shipped_on, r.shipped_note].filter(Boolean).join(' '), r.customer]);
+        const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+        ws['!cols'] = [12, 12, 18, 30, 8, 8, 6, 10, 11, 11, 14].map(wch => ({ wch }));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, view === 'kept' ? '보관중 재고' : '출고 내역');
+        XLSX.writeFile(wb, `${company}_재고_${today()}.xlsx`);
+    }
+
+    init();
+</script>
+</body>
+</html>
