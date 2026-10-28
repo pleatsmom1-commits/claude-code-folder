@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>밤낮딜리버리 운송장 안내</title>
+<style>
+    :root {
+        --bg: #f1f5f9; --card: #ffffff; --line: #e2e8f0; --text: #0f172a; --sub: #64748b;
+        --head: #1e293b; --accent: #4f46e5; --red: #e11d48; --green: #059669; --orange: #ea580c;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; font-size: 15px; line-height: 1.5; }
+    .wrap { max-width: 720px; margin: 0 auto; padding: 16px 16px 40px; }
+    .brand { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 14px; }
+    .brand b { font-size: 16px; }
+    .brand span { font-size: 12px; color: var(--sub); }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-bottom: 12px; }
+    .hero { text-align: center; }
+    .hero .company { font-size: 20px; font-weight: 800; }
+    .hero .date { color: var(--sub); font-size: 13px; margin-top: 2px; }
+    .stats { display: flex; justify-content: center; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+    .stat { background: var(--bg); border-radius: 10px; padding: 8px 14px; min-width: 96px; }
+    .stat .n { font-size: 24px; font-weight: 800; }
+    .stat .l { font-size: 12px; color: var(--sub); }
+    .stat.orange .n { color: var(--orange); }
+    .btns { display: flex; gap: 6px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+    .btn { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 7px 12px; font-size: 13px; font-weight: 700; color: var(--text); cursor: pointer; white-space: nowrap; }
+    h2 { font-size: 15px; margin: 0 0 10px; display: flex; align-items: center; gap: 6px; }
+    h2::before { content: ""; width: 4px; height: 15px; border-radius: 2px; background: var(--accent); }
+    .parcel { border-top: 1px solid var(--line); padding: 10px 0; }
+    .parcel:first-of-type { border-top: none; padding-top: 0; }
+    .parcel .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .parcel .who { font-weight: 800; }
+    .parcel .no { font-family: ui-monospace, Menlo, monospace; font-weight: 800; color: var(--accent); cursor: pointer; }
+    .parcel ul { margin: 4px 0 0; padding-left: 18px; color: #334155; font-size: 13px; }
+    .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; margin-left: 4px; vertical-align: 1px; }
+    .badge.orange { background: #ffedd5; color: var(--orange); }
+    .badge.gray { background: #e2e8f0; color: #475569; }
+    .badge.red { background: #ffe4e6; color: var(--red); }
+    .note { font-size: 13px; color: var(--sub); margin: 8px 0 0; }
+    .state { text-align: center; padding: 60px 16px; color: var(--sub); }
+    .preview-bar { background: #fef3c7; color: #92400e; text-align: center; padding: 8px; font-size: 13px; font-weight: 700; }
+    .foot { text-align: center; font-size: 12px; color: var(--sub); margin-top: 18px; }
+</style>
+</head>
+<body>
+<div id="preview-bar" class="preview-bar" hidden>관리자 미리보기 화면입니다 (업체에게 보이는 모양)</div>
+<div class="wrap">
+    <div class="brand"><b>밤낮딜리버리 운송장 안내</b><span id="brand-date"></span></div>
+    <div id="app"><div class="state">운송장 정보를 불러오는 중입니다...</div></div>
+    <div class="foot">문의: 밤낮딜리버리 카카오톡 채널</div>
+</div>
+<script src="config.js"></script>
+<script>
+    // DB 주소/키는 config.js (공개용 값). 운송장 정보는 정확한 링크(token)로만 조회됩니다.
+    function esc(value) {
+        return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    function dateLabel(key) {
+        const m = String(key || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+        return m ? `${m[1]}년 ${Number(m[2])}월 ${Number(m[3])}일` : esc(key);
+    }
+    async function copyText(value, btn, doneLabel = '복사됨') {
+        try { await navigator.clipboard.writeText(value); if (btn) { const t = btn.textContent; btn.textContent = doneLabel; setTimeout(() => { btn.textContent = t; }, 1500); } }
+        catch (e) { prompt('아래 내용을 복사하세요', value); }
+    }
+
+    // 같은 송장번호끼리 묶기 (미출고 상품은 따로)
+    function groupItems(items) {
+        const parcels = new Map();
+        const unshipped = [];
+        for (const it of items) {
+            if (!it.tracking) { unshipped.push(it); continue; }
+            if (!parcels.has(it.tracking)) parcels.set(it.tracking, { tracking: it.tracking, recipient: it.recipient, partial: false, store: !!it.store, products: [], fee: 0 });
+            const p = parcels.get(it.tracking);
+            p.products.push(it.product);
+            if (it.state === '부분출고') p.partial = true;
+            p.fee += Number(it.fee) || 0;
+        }
+        return { parcels: [...parcels.values()], unshipped };
+    }
+
+    function render(s) {
+        const items = Array.isArray(s.items) ? s.items : [];
+        const { parcels, unshipped } = groupItems(items);
+        const fee = Number(s.extra_fee) || 0;
+        document.getElementById('brand-date').textContent = s.ship_date || '';
+        document.title = `${s.company} ${s.ship_date || ''} 운송장 안내`;
+        let html = `
+        <div class="card hero">
+            <div class="company">${esc(s.company)}</div>
+            <div class="date">${dateLabel(s.ship_date)} 출고</div>
+            <div class="stats">
+                <div class="stat"><div class="n">${parcels.length}</div><div class="l">출고건수 (송장)</div></div>
+                ${unshipped.length ? `<div class="stat orange"><div class="n">${unshipped.length}</div><div class="l">미출고 상품</div></div>` : ''}
+                ${fee ? `<div class="stat"><div class="n">${fee.toLocaleString('ko-KR')}</div><div class="l">부피추가비용(원)</div></div>` : ''}
+            </div>
+            <div class="btns">
+                <button class="btn" id="copy-all">받는분 · 송장번호 전체 복사</button>
+                <button class="btn" id="dl-csv">엑셀(CSV)로 받기</button>
+            </div>
+        </div>
+        <div class="card">
+            <h2>출고된 운송장 ${parcels.length}건</h2>
+            ${parcels.length ? parcels.map(p => `
+            <div class="parcel">
+                <div class="top">
+                    <span class="who">${esc(p.recipient)}${p.store ? '<span class="badge gray">매장 발송</span>' : ''}${p.partial ? '<span class="badge orange">부분출고</span>' : ''}${p.fee ? `<span class="badge red">부피추가 ${p.fee.toLocaleString('ko-KR')}원</span>` : ''}</span>
+                    <span class="no" data-copy="${esc(p.tracking)}" title="눌러서 복사">${esc(p.tracking)}</span>
+                </div>
+                <ul>${p.products.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+            </div>`).join('') : '<div class="note">출고된 운송장이 없습니다.</div>'}
+            <p class="note">* 송장번호를 누르면 복사됩니다. 같은 송장으로 함께 나간 상품은 한 건으로 셉니다.</p>
+        </div>`;
+        if (unshipped.length) {
+            html += `
+        <div class="card">
+            <h2>미출고 상품 ${unshipped.length}개</h2>
+            ${unshipped.map(it => `
+            <div class="parcel">
+                <div class="top"><span class="who">${esc(it.recipient)}</span><span class="badge orange">미출고</span></div>
+                <ul><li>${esc(it.product)}</li></ul>
+            </div>`).join('')}
+            <p class="note">* 미출고 상품은 출고되는 대로 다시 안내드립니다.</p>
+        </div>`;
+        }
+        document.getElementById('app').innerHTML = html;
+
+        document.querySelectorAll('.no[data-copy]').forEach(el => { el.onclick = () => copyText(el.dataset.copy); });
+        const allLines = parcels.map(p => `${p.recipient}\t${p.tracking}`).join('\n');
+        document.getElementById('copy-all').onclick = e => copyText(allLines, e.target);
+        document.getElementById('dl-csv').onclick = () => {
+            const cell = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+            const lines = [['받는분', '운송장번호', '상태', '상품명', '부피추가비용'].map(cell).join(',')]
+                .concat(items.map(it => [it.recipient, it.tracking || '', it.state, it.product, it.fee || ''].map(cell).join(',')));
+            const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `${s.company}_운송장_${s.ship_date || ''}.csv`;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        };
+    }
+
+    function showState(message) {
+        document.getElementById('app').innerHTML = `<div class="state">${message}</div>`;
+    }
+
+    async function load() {
+        const params = new URLSearchParams(location.search);
+        if (params.has('preview')) {
+            document.getElementById('preview-bar').hidden = false;
+            try {
+                const s = JSON.parse(localStorage.getItem('shipPreview') || 'null');
+                if (s) return render(s);
+            } catch (e) { /* 아래 안내로 */ }
+            return showState('미리보기 정보를 찾지 못했습니다. 관리자 화면에서 다시 열어주세요.');
+        }
+
+        const token = (params.get('t') || '').trim();
+        if (!/^[0-9a-f]{24,}$/i.test(token)) return showState('운송장 안내 주소가 올바르지 않습니다.<br>받으신 링크를 다시 눌러주세요.');
+        try {
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_shipment`, {
+                method: 'POST',
+                headers: { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ p_token: token }),
+            });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const s = await res.json();
+            if (!s) return showState('운송장 정보를 찾을 수 없습니다.<br>링크가 만료되었거나 잘못되었습니다.');
+            render(s);
+        } catch (e) {
+            showState('운송장 정보를 불러오지 못했습니다.<br>잠시 후 다시 시도해주세요.');
+        }
+    }
+    load();
+</script>
+</body>
+</html>
