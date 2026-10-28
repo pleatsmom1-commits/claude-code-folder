@@ -174,55 +174,73 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   const listText = (await page.textContent('#ship-list')).replace(/\s+/g, ' ');
   check('companies split by 송화인 괄호 / 매장발송', ['르아더스', '눈타이드', '럭스걸', '무드투문'].every(c => listText.includes(c)) && !listText.includes('유어피치'), listText);
   check('summary counts', (await page.textContent('#ship-summary')).includes('업체 4곳'), await page.textContent('#ship-summary'));
-  check('unsaved rows cannot be checked', await page.locator('#ship-list input[type=checkbox]:not([disabled])').count() === 0);
-  await page.click('#ship-save-btn'); await page.waitForTimeout(800);
-  check('saved 4 companies', tables.shipments.length === 4 && lastDialog().includes('4곳 저장'), lastDialog());
-  const lux = ship('럭스걸');
-  check('럭스걸 출고 3건 (같은 송장 1건), 상품 4개, 부피추가 1000', lux && lux.parcel_count === 3 && lux.items.length === 4 && Number(lux.extra_fee) === 1000, JSON.stringify(lux && { p: lux.parcel_count, n: lux.items.length, f: lux.extra_fee }));
-  const mood = ship('무드투문');
-  check('무드투문 출고 2건, 미출고 1개, 부분출고 표시', mood && mood.parcel_count === 2 && mood.unshipped_count === 1 && mood.items.filter(i => i.state === '부분출고').length === 2, JSON.stringify(mood && mood.items));
-  check('number cell read as full tracking number', lux.items.some(i => i.tracking === '6082251369516'));
-  check('매장발송 rows marked store; 유어피치(눈타이드) → 눈타이드', ship('르아더스').items[0].store === true && ship('눈타이드').items.length === 2 && ship('눈타이드').items[0].store === true);
-  check('token made', tables.shipments.every(s => /^[0-9a-f]{32}$/.test(s.token)));
-
-  // 체크해서 일부만: 테스트 사이트에서는 업체 발송이 막히고 시험 발송만
-  await page.locator('#ship-list tr', { hasText: '럭스걸' }).locator('input[type=checkbox]').check(); await page.waitForTimeout(200);
-  check('checked count shown', (await page.textContent('#ship-checked-count')).includes('1곳'));
-  await page.click('#ship-send-btn'); await page.waitForTimeout(300);
-  check('test site blocks real send', lastDialog().includes('테스트 사이트') && !apiCalls.length, lastDialog());
-  promptAnswer = '010-5425-9060';
-  await page.click('#admin-ship-panel button:has-text("시험 발송 (내 번호)")'); await page.waitForTimeout(500);
-  const t = apiCalls.find(c => c.path === '/api/ship/send');
-  check('test send uses checked company + my phone', t && t.body.companies[0] === '럭스걸' && t.body.testPhone === '01054259060' && t.body.date === '2026-10-28', JSON.stringify(t));
-  check('test send alert', lastDialog().includes('시험 발송 접수 완료'), lastDialog());
-
-  // 단톡방용 문구 복사
+  const FULL = await page.evaluate(() => SHIP_FULL_FEATURES);
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-  await page.locator('#ship-list tr', { hasText: '럭스걸' }).locator('button:has-text("단톡방용 문구 복사")').click(); await page.waitForTimeout(300);
-  const clip = await page.evaluate(() => navigator.clipboard.readText().catch(() => ''));
-  check('copy message has 출고건수 + link', clip.includes('럭스걸님, 10월 28일 운송장정보가 전달되었습니다') && clip.includes('출고건수: 3건') && clip.includes('/ship?t=' + lux.token), clip);
+  if (!FULL) {
+    // 간단 복사 도우미: 저장·발송 버튼 없이 업체별 [송장 목록 복사]만
+    check('simple mode: 저장·발송·체크 숨김', !(await vis('#ship-save-btn')) && !(await vis('#ship-send-btn')) && !(await page.locator('#ship-list input[type=checkbox]').first().isVisible()));
+    check('simple mode: no DB calls for shipments', !requests.some(r => r.path === '/rest/v1/shipments'));
+    const g = await page.evaluate(() => Object.fromEntries(Object.values(shipExcel).map(x => [x.company, x])));
+    check('럭스걸 출고 3건 (같은 송장 1건), 상품 4개, 부피추가 1000', g['럭스걸'].parcel_count === 3 && g['럭스걸'].items.length === 4 && g['럭스걸'].extra_fee === 1000);
+    check('무드투문 출고 2건, 미출고 1개', g['무드투문'].parcel_count === 2 && g['무드투문'].unshipped_count === 1);
+    check('number cell read as full tracking number', g['럭스걸'].items.some(i => i.tracking === '6082251369516'));
+    check('유어피치(눈타이드) → 눈타이드', g['눈타이드'].items.length === 2 && g['눈타이드'].items[0].store === true);
+    await page.locator('#ship-list tr', { hasText: '무드투문' }).locator('button:has-text("송장 목록 복사")').click(); await page.waitForTimeout(300);
+    const clip2 = await page.evaluate(() => navigator.clipboard.readText().catch(() => ''));
+    check('송장 목록 복사: 지금 카톡 모양 (받는분 탭 송장 탭 상품) + 출고건수', clip2.includes('무드투문님 10/28 운송장정보 전달드립니다. 출고건수 2건 (미출고 1개)') && clip2.includes('고객마\t미출고\t(합)티셔츠 cream') && clip2.includes('고객마\t6082251369522/부출\t(합)삭스') && clip2.includes('고객바\t6082251369472\t티셔츠'), clip2);
+    check('copy alert', lastDialog().includes('[무드투문] 송장 목록 4줄 (출고 2건)'), lastDialog());
+    await page.screenshot({ path: path.join(__dirname, 'out', 'shot-ship-simple.png') });
+  } else {
+    check('unsaved rows cannot be checked', await page.locator('#ship-list input[type=checkbox]:not([disabled])').count() === 0);
+    await page.click('#ship-save-btn'); await page.waitForTimeout(800);
+    check('saved 4 companies', tables.shipments.length === 4 && lastDialog().includes('4곳 저장'), lastDialog());
+    const lux = ship('럭스걸');
+    check('럭스걸 출고 3건 (같은 송장 1건), 상품 4개, 부피추가 1000', lux && lux.parcel_count === 3 && lux.items.length === 4 && Number(lux.extra_fee) === 1000, JSON.stringify(lux && { p: lux.parcel_count, n: lux.items.length, f: lux.extra_fee }));
+    const mood = ship('무드투문');
+    check('무드투문 출고 2건, 미출고 1개, 부분출고 표시', mood && mood.parcel_count === 2 && mood.unshipped_count === 1 && mood.items.filter(i => i.state === '부분출고').length === 2, JSON.stringify(mood && mood.items));
+    check('number cell read as full tracking number', lux.items.some(i => i.tracking === '6082251369516'));
+    check('매장발송 rows marked store; 유어피치(눈타이드) → 눈타이드', ship('르아더스').items[0].store === true && ship('눈타이드').items.length === 2 && ship('눈타이드').items[0].store === true);
+    check('token made', tables.shipments.every(s => /^[0-9a-f]{32}$/.test(s.token)));
 
-  await page.locator('#ship-list tr', { hasText: '무드투문' }).locator('button:has-text("송장 목록 복사")').click(); await page.waitForTimeout(300);
-  const clip2 = await page.evaluate(() => navigator.clipboard.readText().catch(() => ''));
-  check('송장 목록 복사: 지금 카톡 모양 (받는분 탭 송장 탭 상품) + 출고건수', clip2.includes('무드투문님 10/28 운송장정보 전달드립니다. 출고건수 2건 (미출고 1개)') && clip2.includes('고객마\t미출고\t(합)티셔츠 cream') && clip2.includes('고객마\t6082251369522/부출\t(합)삭스') && clip2.includes('고객바\t6082251369472\t티셔츠'), clip2);
-  // 다시 올리기: 같은 내용이면 저장할 것 없음, 바뀐 업체만 '바뀜'
-  lux.sent_at = new Date(Date.now() - 10 * 60 * 1000).toISOString(); lux.updated_at = new Date(Date.now() - 20 * 60 * 1000).toISOString();
-  await page.fill('#ship-date', '2026-10-28'); await page.dispatchEvent('#ship-date', 'change'); await page.waitForTimeout(400);
-  await page.setInputFiles('#ship-file-input', xlsxFile); await page.waitForTimeout(800);
-  check('same excel again -> nothing to save', await page.isDisabled('#ship-save-btn'));
-  check('럭스걸 shows 발송완료', (await page.locator('#ship-list tr', { hasText: '럭스걸' }).textContent()).includes('발송완료'));
-  await page.screenshot({ path: path.join(__dirname, 'out', 'shot-ship-admin.png') });
+    // 체크해서 일부만: 테스트 사이트에서는 업체 발송이 막히고 시험 발송만
+    await page.locator('#ship-list tr', { hasText: '럭스걸' }).locator('input[type=checkbox]').check(); await page.waitForTimeout(200);
+    check('checked count shown', (await page.textContent('#ship-checked-count')).includes('1곳'));
+    await page.click('#ship-send-btn'); await page.waitForTimeout(300);
+    check('test site blocks real send', lastDialog().includes('테스트 사이트') && !apiCalls.length, lastDialog());
+    promptAnswer = '010-5425-9060';
+    await page.click('#admin-ship-panel button:has-text("시험 발송 (내 번호)")'); await page.waitForTimeout(500);
+    const t = apiCalls.find(c => c.path === '/api/ship/send');
+    check('test send uses checked company + my phone', t && t.body.companies[0] === '럭스걸' && t.body.testPhone === '01054259060' && t.body.date === '2026-10-28', JSON.stringify(t));
+    check('test send alert', lastDialog().includes('시험 발송 접수 완료'), lastDialog());
 
-  // 업체 화면
-  const sp = await context.newPage();
-  sp.on('pageerror', e => { pageErrors.push('ship.html: ' + e.message); });
-  await sp.goto(SHIP_PAGE + '?t=' + mood.token); await sp.waitForTimeout(800);
-  const shipText = (await sp.textContent('#app')).replace(/\s+/g, ' ');
-  check('ship page shows 출고 2 + 미출고 1 + 부분출고', shipText.includes('출고된 운송장 2건') && shipText.includes('미출고 상품 1개') && shipText.includes('부분출고') && shipText.includes('6082251369522'), shipText.slice(0, 300));
-  await sp.setViewportSize({ width: 390, height: 844 });
-  await sp.screenshot({ path: path.join(__dirname, 'out', 'shot-ship-page.png'), fullPage: true });
-  await sp.goto(SHIP_PAGE + '?t=zzz'); await sp.waitForTimeout(300);
-  check('bad token message', (await sp.textContent('#app')).includes('올바르지 않습니다'));
+    // 단톡방용 문구 복사
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.locator('#ship-list tr', { hasText: '럭스걸' }).locator('button:has-text("단톡방용 문구 복사")').click(); await page.waitForTimeout(300);
+    const clip = await page.evaluate(() => navigator.clipboard.readText().catch(() => ''));
+    check('copy message has 출고건수 + link', clip.includes('럭스걸님, 10월 28일 운송장정보가 전달되었습니다') && clip.includes('출고건수: 3건') && clip.includes('/ship?t=' + lux.token), clip);
+
+    await page.locator('#ship-list tr', { hasText: '무드투문' }).locator('button:has-text("송장 목록 복사")').click(); await page.waitForTimeout(300);
+    const clip2 = await page.evaluate(() => navigator.clipboard.readText().catch(() => ''));
+    check('송장 목록 복사: 지금 카톡 모양 (받는분 탭 송장 탭 상품) + 출고건수', clip2.includes('무드투문님 10/28 운송장정보 전달드립니다. 출고건수 2건 (미출고 1개)') && clip2.includes('고객마\t미출고\t(합)티셔츠 cream') && clip2.includes('고객마\t6082251369522/부출\t(합)삭스') && clip2.includes('고객바\t6082251369472\t티셔츠'), clip2);
+    // 다시 올리기: 같은 내용이면 저장할 것 없음, 바뀐 업체만 '바뀜'
+    lux.sent_at = new Date(Date.now() - 10 * 60 * 1000).toISOString(); lux.updated_at = new Date(Date.now() - 20 * 60 * 1000).toISOString();
+    await page.fill('#ship-date', '2026-10-28'); await page.dispatchEvent('#ship-date', 'change'); await page.waitForTimeout(400);
+    await page.setInputFiles('#ship-file-input', xlsxFile); await page.waitForTimeout(800);
+    check('same excel again -> nothing to save', await page.isDisabled('#ship-save-btn'));
+    check('럭스걸 shows 발송완료', (await page.locator('#ship-list tr', { hasText: '럭스걸' }).textContent()).includes('발송완료'));
+    await page.screenshot({ path: path.join(__dirname, 'out', 'shot-ship-admin.png') });
+
+    // 업체 화면
+    const sp = await context.newPage();
+    sp.on('pageerror', e => { pageErrors.push('ship.html: ' + e.message); });
+    await sp.goto(SHIP_PAGE + '?t=' + mood.token); await sp.waitForTimeout(800);
+    const shipText = (await sp.textContent('#app')).replace(/\s+/g, ' ');
+    check('ship page shows 출고 2 + 미출고 1 + 부분출고', shipText.includes('출고된 운송장 2건') && shipText.includes('미출고 상품 1개') && shipText.includes('부분출고') && shipText.includes('6082251369522'), shipText.slice(0, 300));
+    await sp.setViewportSize({ width: 390, height: 844 });
+    await sp.screenshot({ path: path.join(__dirname, 'out', 'shot-ship-page.png'), fullPage: true });
+    await sp.goto(SHIP_PAGE + '?t=zzz'); await sp.waitForTimeout(300);
+    check('bad token message', (await sp.textContent('#app')).includes('올바르지 않습니다'));
+  }
 
   // 실제 송장 엑셀 (선택)
   const real = process.argv[2];
