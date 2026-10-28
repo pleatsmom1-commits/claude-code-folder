@@ -964,6 +964,11 @@
                     <div class="flex gap-3 items-center flex-wrap text-xs">
                         <label class="font-bold text-slate-600">정산일</label>
                         <input type="date" id="settle-date" onchange="loadSavedSettlements()" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
+                        <label class="font-bold text-slate-600 ml-1">차수</label>
+                        <select id="settle-round-view" onchange="settleRoundViewChanged()" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
+                            <option value="latest">최신 (업체별 마지막)</option>
+                        </select>
+                        <label id="settle-round-dup-wrap" class="hidden items-center gap-1 text-slate-600 cursor-pointer"><input type="checkbox" id="settle-round-dup" onchange="renderSettleTable()"> 동일(중복) 건도 보기</label>
                         <span id="settle-summary" class="text-slate-600"></span>
                         <span id="settle-file-status" class="text-slate-400"></span>
                     </div>
@@ -1036,6 +1041,9 @@
                         <input type="date" id="settle-hist-from" class="px-2 py-1.5 border rounded-lg bg-white"> ~
                         <input type="date" id="settle-hist-to" class="px-2 py-1.5 border rounded-lg bg-white">
                         <input type="text" id="settle-hist-keyword" placeholder="상호 검색" oninput="renderSettleHistory()" class="px-2 py-1.5 border rounded-lg bg-white w-32">
+                        <select id="settle-hist-round" onchange="renderSettleHistory()" class="px-2 py-1.5 border rounded-lg bg-white">
+                            <option value="">차수 전체</option>
+                        </select>
                         <select id="settle-hist-state" onchange="renderSettleHistory()" class="px-2 py-1.5 border rounded-lg bg-white">
                             <option value="">발송 상태 전체</option>
                             <option value="sent">발송완료</option>
