@@ -18,6 +18,7 @@ const LIB = {
 const ids = { seller: '00000000-0000-0000-0000-00000000000a', admin: '00000000-0000-0000-0000-0000000000ad' };
 const users = {
   'seller@x.com': { id: ids.seller, pw: 'password1', profile: { id: ids.seller, email: 'seller@x.com', company: '애플샵', name: '김', phone: '010-1111-2222', role: 'seller', status: 'approved', created_at: '2026-09-01T00:00:00Z' } },
+  'wait@x.com': { id: '00000000-0000-0000-0000-0000000000c1', pw: 'waitpass1', profile: { id: '00000000-0000-0000-0000-0000000000c1', email: 'wait@x.com', company: '대기샵', name: '이', phone: '010-3333-4444', role: 'seller', status: 'pending', created_at: '2026-10-28T00:00:00Z' } },
   'admin@x.com': { id: ids.admin, pw: 'adminpass1', profile: { id: ids.admin, email: 'admin@x.com', company: '밤낮', name: '관리', phone: '', role: 'admin', status: 'approved', created_at: '2026-08-01T00:00:00Z' } },
 };
 const tables = {
@@ -26,6 +27,7 @@ const tables = {
   address_book: [], pickup_requests: [], settlements: [], settle_contacts: [],
 };
 const requests = [];
+const apiCalls = []; // 사이트 서버(/api/...)로 보낸 요청 (회원가입·승인 알림 문자)
 
 const b64url = o => Buffer.from(JSON.stringify(o)).toString('base64url');
 const tokenFor = u => b64url({ alg: 'HS256', typ: 'JWT' }) + '.' + b64url({ sub: u.id, email: u.profile.email, exp: Math.floor(Date.now() / 1000) + 3600, role: 'authenticated', aud: 'authenticated' }) + '.sig';
@@ -107,6 +109,18 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
 
   const page = await context.newPage();
   const pageErrors = [];
+  // file:// 화면에서는 /api/... 요청을 가로챌 수 없어, 화면 안의 fetch 를 바꿔 기록합니다
+  await page.exposeFunction('__apiCall', c => { apiCalls.push(c); });
+  await page.addInitScript(() => {
+    const orig = window.fetch;
+    window.fetch = (input, init = {}) => {
+      const u = String(input);
+      if (!u.startsWith('/api/')) return orig(input, init);
+      const h = init.headers || {};
+      window.__apiCall({ path: u, body: JSON.parse(init.body || '{}'), auth: h.Authorization || '' });
+      return Promise.resolve(new Response(JSON.stringify({ status: 'sent', message: '접수됨', to: '010-****-4444' }), { headers: { 'Content-Type': 'application/json' } }));
+    };
+  });
   page.on('pageerror', e => { pageErrors.push(e.message); console.log('PAGE ERROR:', e.message); });
   page.on('dialog', async d => { dialogs.push(d.message()); if (d.type() === 'prompt') await d.accept(promptAnswer); else await d.accept(); });
   const lastDialog = () => dialogs[dialogs.length - 1] || '';
@@ -176,6 +190,8 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   check('signup metadata has name/phone(formatted)/address', meta && meta.name === '박대표' && meta.phone === '010-9999-8888' && meta.zipcode === '04572' && meta.address === '서울 중구 청계천로 400' && meta.detail_address === '3층 301호', JSON.stringify(meta));
   check('signup metadata has tax info', meta && meta.biz_no === '220-81-62517' && meta.biz_name === '(주)신규' && meta.biz_ceo === '박대표' && meta.tax_email === 'tax@corp.com', JSON.stringify(meta));
   check('signup modal closed after success', !(await vis('#signup-modal')));
+  const sn = apiCalls.find(c => c.path === '/api/signup/notify');
+  check('signup -> 대표님 알림 요청', !!sn && sn.body.email === signupCalls()[0].body.email, JSON.stringify(apiCalls));
   // 세금계산서 정보는 비워도 가입 가능
   await page.click('button:has-text("회원가입하기")'); await page.waitForTimeout(200);
   await page.fill('#signup-company', '빈세금샵'); await page.click('#btn-signup-company-check'); await page.waitForTimeout(300);
@@ -220,6 +236,14 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   const sellerRow = (await page.locator('#seller-admin-list tr', { hasText: '애플샵' }).textContent()).replace(/\s+/g, ' ');
   check('seller list shows address column + value', sellerHead.includes('매장 · 사무실 주소') && sellerRow.includes('서울 강남구 1') && sellerRow.includes('2층'), sellerRow);
   check('seller list shows 세금계산서 정보', sellerHead.includes('세금계산서 정보') && sellerRow.includes('124-81-00998') && sellerRow.includes('bill@apple.com'), sellerRow);
+  const approveRow = page.locator('#seller-admin-list tr', { hasText: '대기샵' });
+  await approveRow.locator('button:has-text("승인")').click(); await page.waitForTimeout(600);
+  const ap = apiCalls.find(c => c.path === '/api/seller/approved');
+  check('approve pending seller -> 승인 문자 요청', users['wait@x.com'].profile.status === 'approved' && !!ap && ap.body.sellerId === users['wait@x.com'].id && ap.auth.startsWith('Bearer ') && ap.auth.length > 20, JSON.stringify(ap));
+  check('approve alert mentions 승인 문자', lastDialog().includes('승인 문자를 보냈습니다'), lastDialog());
+  await approveRow.locator('button:has-text("정지")').click(); await page.waitForTimeout(400);
+  await approveRow.locator('button:has-text("정지해제")').click(); await page.waitForTimeout(400);
+  check('정지해제 does not send 승인 문자 again', apiCalls.filter(c => c.path === '/api/seller/approved').length === 1 && !lastDialog().includes('승인 문자'), lastDialog());
   await page.fill('#seller-search', '1248100998'); await page.waitForTimeout(200);
   check('seller search by 사업자번호 digits', (await page.locator('#seller-admin-list tr').count()) === 1);
   await page.fill('#seller-search', '강남구'); await page.waitForTimeout(200);

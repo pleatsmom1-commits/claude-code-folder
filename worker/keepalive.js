@@ -1,13 +1,17 @@
 // 밤낮딜리버리 사이트 + Supabase 자동 깨우기
-// - fetch: 사이트 파일(index.html)을 그대로 보여줍니다. /api/settle/send 는 정산서 알림톡 발송(worker/alimtalk.js).
+// - fetch: 사이트 파일(index.html)을 그대로 보여줍니다. /api/settle/send 는 정산서 알림톡 발송(worker/alimtalk.js),
+//   /api/signup/notify · /api/seller/approved 는 회원가입·승인 알림 문자(worker/notify.js).
 // - scheduled: 정해진 시간마다 Supabase 에 한 번 접속해, 무료 요금제의 '7일 미사용 일시정지'를 막습니다.
 import { handleSettleSend, handleSettleMessage } from './alimtalk.js';
+import { handleSignupNotify, handleSellerApproved } from './notify.js';
 
 export default {
   async fetch(request, env) {
     const path = new URL(request.url).pathname;
     if (path === '/api/settle/send') return handleSettleSend(request, env);
     if (path === '/api/settle/message') return handleSettleMessage(request, env);
+    if (path === '/api/signup/notify') return handleSignupNotify(request, env);
+    if (path === '/api/seller/approved') return handleSellerApproved(request, env);
     return env.ASSETS.fetch(request);
   },
 

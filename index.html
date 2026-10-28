@@ -2278,6 +2278,7 @@
                 return;
             }
 
+            notifySignup(email);
             closeSignupModal();
             e.target.reset();
             signupCompanyOk = null;
@@ -2287,6 +2288,32 @@
             } else {
                 alert(`회원가입 신청 완료!\n\n${email} 로 인증 메일을 보냈습니다.\n메일의 링크를 눌러 인증한 뒤 로그인해주세요.`);
                 document.getElementById('login-email').value = email;
+            }
+        }
+
+        // 새 회원가입을 대표님 휴대폰으로 알림 (worker/notify.js). 실패해도 가입에는 영향 없음
+        function notifySignup(email) {
+            fetch('/api/signup/notify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+            }).catch(() => {});
+        }
+
+        // 승인한 셀러에게 "승인되었습니다" 문자 (worker/notify.js). 결과 문구를 돌려줍니다
+        async function notifySellerApproved(id) {
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                const res = await fetch('/api/seller/approved', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
+                    body: JSON.stringify({ sellerId: id })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (data.status === 'sent') return data.test ? `(테스트 사이트라 셀러 대신 대표님 휴대폰 ${data.to} 으로 승인 문자를 보냈습니다.)` : `셀러(${data.to})에게 승인 문자를 보냈습니다.`;
+                return `⚠️ 승인 문자는 보내지 못했습니다: ${data.message || data.error || `HTTP ${res.status}`}`;
+            } catch (err) {
+                return '⚠️ 승인 문자는 보내지 못했습니다: ' + err.message;
             }
         }
 
@@ -4726,12 +4753,15 @@
             const messages = {
                 approved: p.status === 'suspended'
                     ? `[${p.company}] 셀러의 이용 정지를 해제할까요?`
-                    : `[${p.company}] 셀러의 가입을 승인할까요?\n승인하면 바로 주문 접수가 가능합니다.`,
+                    : `[${p.company}] 셀러의 가입을 승인할까요?\n승인하면 바로 주문 접수가 가능하고, 셀러에게 승인 문자가 갑니다.`,
                 suspended: `[${p.company}] 셀러를 이용 정지할까요?\n정지하면 주문 등록·수정·삭제가 막힙니다. (기존 주문은 유지)`
             };
             if (!confirm(messages[status])) return;
+            const wasPending = p.status === 'pending';
             if (await updateSellerProfile(id, { status })) {
-                alert(status === 'approved' ? '처리되었습니다. 셀러가 새로고침하면 바로 주문할 수 있습니다.' : '이용 정지되었습니다.');
+                if (status !== 'approved') { alert('이용 정지되었습니다.'); return; }
+                const sms = wasPending ? '\n\n' + await notifySellerApproved(id) : '';
+                alert('처리되었습니다. 셀러가 새로고침하면 바로 주문할 수 있습니다.' + sms);
             }
         }
 
