@@ -136,7 +136,6 @@ async function loadSavedShipments() {
     const { data, error } = await supabaseClient.from('shipments').select('*').eq('ship_date', date).order('company');
     if (error) {
         shipReady = false;
-        document.getElementById('ship-summary').innerHTML = '<span class="text-rose-600 font-bold">운송장 저장 표가 없습니다. Supabase 에서 shipping.sql 을 먼저 실행해 주세요.</span>';
         renderShipTable();
         return;
     }
@@ -181,11 +180,11 @@ function renderShipTable() {
     const parcels = list.reduce((s, r) => s + (r.parcel_count || 0), 0);
     const unshipped = list.reduce((s, r) => s + (r.unshipped_count || 0), 0);
     const sent = list.filter(r => r.sent_at && !r.changed).length;
-    if (shipReady) {
-        document.getElementById('ship-summary').innerHTML = list.length
+    {
+        document.getElementById('ship-summary').innerHTML = (shipReady ? '' : '<span class="text-slate-400">([송장 목록 복사]는 바로 쓸 수 있습니다. 저장·발송은 shipping.sql 실행 후) </span>') + (list.length
             ? `<b>${escapeHtml(date)}</b> 업체 <b>${list.length}</b>곳 · 출고 <b>${parcels}</b>건 · 미출고 <b class="${unshipped ? 'text-orange-600' : ''}">${unshipped}</b>개 · 발송완료 <b class="text-emerald-600">${sent}</b>곳`
               + (unsaved ? ` · <span class="text-amber-600 font-bold">저장 안 됨 ${unsaved}곳</span>` : '')
-            : '송장 엑셀을 올리거나, 저장된 출고일을 고르세요.';
+            : '송장 엑셀을 올리거나, 저장된 출고일을 고르세요.');
     }
     document.getElementById('ship-save-btn').disabled = !shipReady || !unsaved;
     document.getElementById('ship-checked-count').textContent = shipChecked.size ? `체크 ${shipChecked.size}곳` : '';
