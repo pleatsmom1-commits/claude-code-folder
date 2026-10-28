@@ -214,6 +214,7 @@ function renderShipTable() {
             <td class="p-2.5">${shipStateHtml(r)}</td>
             <td class="p-2.5 whitespace-nowrap">
                 <button data-company="${c}" onclick="previewShip(this.dataset.company)" class="px-2 py-1 text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 rounded">보기</button>
+                <button data-company="${c}" onclick="copyShipList(this.dataset.company)" class="px-2 py-1 text-[11px] font-bold text-white bg-slate-700 hover:bg-slate-800 rounded" title="지금 카톡에 붙여넣는 모양(받는분 · 송장번호 · 상품명)으로 복사합니다. 저장하지 않아도 됩니다">송장 목록 복사</button>
                 ${checkable ? `<button data-company="${c}" onclick="copyShipMessage(this.dataset.company)" class="px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded" title="단톡방에 붙여넣을 안내문과 링크를 복사합니다">단톡방용 문구 복사</button>` : ''}
             </td>
         </tr>`;
@@ -267,6 +268,27 @@ function shipMessageText(r) {
         '',
         `운송장 확인: ${shipLink(r.token)}`,
     ].join('\n');
+}
+
+// 지금 카톡에 붙여넣는 모양 그대로: 받는분 · 송장번호 · 상품명 (엑셀에서 복사한 것처럼 탭으로 구분) + 맨 위 출고건수
+function shipListText(r) {
+    const [, m, d] = String(document.getElementById('ship-date').value || '').split('-');
+    const head = `[밤낮딜리버리] ${r.company}님${m ? ` ${Number(m)}/${Number(d)}` : ''} 운송장정보 전달드립니다. 출고건수 ${r.parcel_count || 0}건`
+        + (r.unshipped_count ? ` (미출고 ${r.unshipped_count}개)` : '');
+    const lines = (r.items || []).map(x => [x.recipient, x.tracking ? x.tracking + (x.state === '부분출고' ? '/부출' : '') : '미출고', x.product].join('\t'));
+    return [head, '', ...lines].join('\n');
+}
+
+async function copyShipList(company) {
+    const r = shipCurrentList().find(x => x.company === company);
+    if (!r) return;
+    const text = shipListText(r);
+    try {
+        await navigator.clipboard.writeText(text);
+        alert(`[${company}] 송장 목록 ${(r.items || []).length}줄 (출고 ${r.parcel_count || 0}건)을 복사했습니다. 카톡에 붙여넣으세요.`);
+    } catch (e) {
+        prompt('아래 내용을 복사하세요 (Ctrl+C)', text);
+    }
 }
 
 async function copyShipMessage(company) {
