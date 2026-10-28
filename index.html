@@ -478,7 +478,7 @@
                             <option value="접수대기">접수대기</option>
                             <option value="접수완료">접수완료</option>
                         </select>
-                        <select id="history-ship" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
+                        <select id="history-ship" class="ship-ui px-2 py-1.5 border rounded-lg text-xs bg-white">
                             <option value="all">출고상태 전체</option>
                             <option value="미출고">미출고</option>
                             <option value="부분출고">부분출고</option>
@@ -505,7 +505,7 @@
                                 </th>
                                 <th class="p-3 whitespace-nowrap">NO.</th>
                                 <th class="p-3 whitespace-nowrap">접수번호</th>
-                                <th class="p-3 whitespace-nowrap">운송장정보<span class="block text-[10px] font-normal text-slate-400">택배사 / 송장번호</span></th>
+                                <th class="ship-ui p-3 whitespace-nowrap">운송장정보<span class="block text-[10px] font-normal text-slate-400">택배사 / 송장번호</span></th>
                                 <th class="p-3 whitespace-nowrap">수화인(받는사람)</th>
                                 <th class="p-3 whitespace-nowrap">연락처</th>
                                 <th class="p-3 whitespace-nowrap">주소</th>
@@ -514,7 +514,7 @@
                                 <th class="p-3 whitespace-nowrap">밤낮 전달메세지</th>
                                 <th class="p-3 whitespace-nowrap">접수일시</th>
                                 <th class="p-3 whitespace-nowrap">상태</th>
-                                <th class="p-3 whitespace-nowrap">출고</th>
+                                <th class="ship-ui p-3 whitespace-nowrap">출고</th>
                                 <th class="p-3 whitespace-nowrap text-center">관리</th>
                             </tr>
                         </thead>
@@ -651,6 +651,9 @@
                     사입 픽업요청
                     <span id="admin-pickup-badge" class="hidden px-1.5 py-0.5 bg-orange-500 text-white text-[10px] rounded-full"></span>
                 </button>
+                <button id="admin-tab-ship" onclick="switchAdminTab('ship')" class="px-5 py-2.5 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center gap-1.5">
+                    운송장 전송
+                </button>
                 <button id="admin-tab-stock" onclick="switchAdminTab('stock')" class="px-5 py-2.5 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center gap-1.5">
                     재고관리
                 </button>
@@ -668,7 +671,7 @@
                     <button onclick="downloadMasterExcel()" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow transition flex items-center gap-1.5">
                         <i data-lucide="file-down" class="w-4 h-4"></i> 엑셀 다운로드 (현재 필터 기준)
                     </button>
-                    <div class="flex items-center gap-1 bg-sky-50 border border-sky-200 rounded-lg px-2">
+                    <div class="ship-ui flex items-center gap-1 bg-sky-50 border border-sky-200 rounded-lg px-2">
                         <span class="text-[11px] font-bold text-sky-800 whitespace-nowrap">기본 택배사</span>
                         <select id="tracking-upload-courier" class="courier-select py-1.5 text-xs font-bold bg-transparent focus:outline-none"></select>
                         <input type="file" id="tracking-file-input" accept=".xlsx,.xls,.csv" class="hidden" onchange="handleTrackingUpload(event)">
@@ -676,7 +679,7 @@
                             <i data-lucide="upload" class="w-4 h-4"></i> 송장번호 업로드
                         </button>
                     </div>
-                    <button onclick="openCourierModal()" class="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm flex items-center gap-1.5">
+                    <button onclick="openCourierModal()" class="ship-ui px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm flex items-center gap-1.5">
                         <i data-lucide="truck" class="w-4 h-4"></i> 택배사 관리
                     </button>
                 </div>
@@ -698,8 +701,8 @@
                                 <option value="store_sameday">매장 · 당일택배</option>
                                 <option value="keep">사무실 보관요청</option>
                             </select>
-                            <span class="text-xs font-bold text-slate-600 ml-2">출고:</span>
-                            <select id="admin-ship-filter" class="px-3 py-1.5 border rounded-lg text-xs font-medium focus:outline-none">
+                            <span class="ship-ui text-xs font-bold text-slate-600 ml-2">출고:</span>
+                            <select id="admin-ship-filter" class="ship-ui px-3 py-1.5 border rounded-lg text-xs font-medium focus:outline-none">
                                 <option value="ALL">전체</option>
                                 <option value="NOT_DONE">미출고 + 부분출고</option>
                                 <option value="미출고">미출고</option>
@@ -715,11 +718,11 @@
                             <span id="admin-order-count" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full">총 0건</span>
                         </div>
                         <div class="flex gap-2 items-center">
-                            <span id="admin-ship-summary" class="text-[11px] text-slate-500"></span>
+                            <span id="admin-ship-summary" class="ship-ui text-[11px] text-slate-500"></span>
                             <button onclick="acceptSelectedOrders()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm">선택 접수</button>
                             <button onclick="revertAcceptSelectedOrders()" class="px-3 py-1.5 bg-white border border-emerald-300 hover:bg-emerald-50 text-emerald-700 font-bold text-xs rounded-lg shadow-sm" title="접수완료 → 접수대기로 되돌립니다">선택 접수취소</button>
-                            <button onclick="shipSelectedOrders()" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg shadow-sm">선택 출고완료</button>
-                            <button onclick="setShipStatusForSelected('미출고')" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg shadow-sm">선택 출고취소</button>
+                            <button onclick="shipSelectedOrders()" class="ship-ui px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg shadow-sm">선택 출고완료</button>
+                            <button onclick="setShipStatusForSelected('미출고')" class="ship-ui px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg shadow-sm">선택 출고취소</button>
                             <button onclick="editSelectedAdminOrder()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-sm">선택수정</button>
                         </div>
                     </div>
@@ -753,10 +756,10 @@
                                 <option value="address">주소</option>
                                 <option value="product">쇼핑몰상품명</option>
                                 <option value="wholesale">도매처 / 도매상품</option>
-                                <option value="tracking">송장번호</option>
+                                <option value="tracking" class="ship-ui">송장번호</option>
                                 <option value="memo">밤낮 전달메세지 / 보관요청</option>
                             </select>
-                            <input type="text" id="admin-keyword" onkeydown="if (event.key === 'Enter') runAdminSearch()" placeholder="상호 · 수취인 · 연락처 · 주소 · 상품명 · 송장번호 검색" class="px-3 py-1.5 border rounded-lg text-xs bg-white w-72">
+                            <input type="text" id="admin-keyword" onkeydown="if (event.key === 'Enter') runAdminSearch()" placeholder="상호 · 수취인 · 연락처 · 주소 · 상품명 검색" class="px-3 py-1.5 border rounded-lg text-xs bg-white w-72">
                             <select id="admin-sort" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
                                 <option value="desc">최신순</option>
                                 <option value="asc">오래된순 (1번부터)</option>
@@ -776,7 +779,7 @@
                                     <th class="p-3 whitespace-nowrap">NO.</th>
                                     <th class="p-3 whitespace-nowrap">셀러 가입상호</th>
                                     <th class="p-3 whitespace-nowrap">송화인(거래처)</th>
-                                    <th class="p-3 whitespace-nowrap">운송장정보<span class="block text-[10px] font-normal text-slate-400">택배사 / 송장번호</span></th>
+                                    <th class="ship-ui p-3 whitespace-nowrap">운송장정보<span class="block text-[10px] font-normal text-slate-400">택배사 / 송장번호</span></th>
                                     <th class="p-3 whitespace-nowrap">수화인(받는사람)</th>
                                     <th class="p-3 whitespace-nowrap">연락처</th>
                                     <th class="p-3 whitespace-nowrap">배송지 주소</th>
@@ -785,7 +788,7 @@
                                     <th class="p-3 whitespace-nowrap">밤낮 전달메세지</th>
                                     <th class="p-3 whitespace-nowrap">접수시간</th>
                                     <th class="p-3 whitespace-nowrap">상태</th>
-                                    <th class="p-3 whitespace-nowrap">출고</th>
+                                    <th class="ship-ui p-3 whitespace-nowrap">출고</th>
                                 </tr>
                             </thead>
                             <tbody id="admin-order-list" class="divide-y divide-slate-100 text-slate-700"></tbody>
@@ -1108,6 +1111,67 @@
             </div>
 
             <!-- 3-5. 재고관리 (스크립트: stock-admin.js) -->
+            <!-- 운송장 전송: 송장 엑셀 → 업체별 운송장 저장 → 체크한 업체에 안내 발송 (ship-admin.js) -->
+            <div id="admin-ship-panel" class="hidden space-y-4">
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
+                    <div class="flex justify-between items-start flex-wrap gap-3">
+                        <div>
+                            <h3 class="font-bold text-slate-900">업체별 운송장 전송</h3>
+                            <p class="text-xs text-slate-500 mt-0.5">출고/미출고/부분출고 송장 엑셀(송화인 · 수화인명 · 운송장번호 · 상품명 · 부피추가비용)을 올리면 송화인 괄호 안 상호별로 나눕니다.
+                                저장하면 업체마다 운송장 확인 링크가 만들어지고, <b>체크한 업체만</b> 골라 안내를 보낼 수 있습니다. 출고건수는 같은 송장번호를 1건으로 셉니다.</p>
+                        </div>
+                        <div class="flex gap-2 flex-wrap">
+                            <label class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow flex items-center gap-1 cursor-pointer">
+                                <i data-lucide="file-up" class="w-3.5 h-3.5"></i> 송장 엑셀 선택
+                                <input type="file" id="ship-file-input" accept=".xlsx,.xls,.xlsm,.csv" onchange="uploadShipWorkbook(event)" class="hidden">
+                            </label>
+                            <button id="ship-save-btn" onclick="saveShipments()" disabled class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold text-xs rounded-lg shadow flex items-center gap-1">
+                                <i data-lucide="save" class="w-3.5 h-3.5"></i> 저장 (링크 만들기)
+                            </button>
+                            <button onclick="sendShipTest()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm flex items-center gap-1">
+                                <i data-lucide="smartphone" class="w-3.5 h-3.5"></i> 시험 발송 (내 번호)
+                            </button>
+                            <button id="ship-send-btn" onclick="sendShipments()" class="px-3 py-1.5 bg-amber-400 hover:bg-amber-500 disabled:bg-slate-300 text-slate-900 font-bold text-xs rounded-lg shadow flex items-center gap-1">
+                                <i data-lucide="send" class="w-3.5 h-3.5"></i> 선택 업체 발송</button>
+                        </div>
+                    </div>
+                    <div class="flex gap-3 items-center flex-wrap text-xs">
+                        <label class="font-bold text-slate-600">출고일</label>
+                        <input type="date" id="ship-date" onchange="loadSavedShipments()" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
+                        <span id="ship-summary" class="text-slate-600"></span>
+                        <span id="ship-file-status" class="text-slate-400"></span>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2 text-xs">
+                        <span class="font-bold text-slate-600">빠른 체크</span>
+                        <button type="button" onclick="checkShipByState('unsent')" class="px-3 py-1.5 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-800 font-bold rounded-lg">✔ 미발송 전체 체크</button>
+                        <button type="button" onclick="checkShipByState('all')" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold rounded-lg">✔ 저장된 업체 전체 체크</button>
+                        <button type="button" onclick="clearShipChecks()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold rounded-lg">체크 해제</button>
+                        <span id="ship-checked-count" class="font-bold text-amber-700"></span>
+                    </div>
+                    <div id="ship-warnings" class="text-xs text-amber-700"></div>
+                    <div class="overflow-auto max-h-[70vh] border border-slate-200 rounded-lg">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-100 text-slate-600 font-bold sticky top-0">
+                                <tr>
+                                    <th class="p-2.5 w-8"></th>
+                                    <th class="p-2.5">상호</th>
+                                    <th class="p-2.5 text-right whitespace-nowrap">출고건수<span class="block text-[10px] font-normal">(송장 기준)</span></th>
+                                    <th class="p-2.5 text-right">상품</th>
+                                    <th class="p-2.5 text-right">미출고</th>
+                                    <th class="p-2.5 text-right">부분출고</th>
+                                    <th class="p-2.5 text-right whitespace-nowrap">부피추가</th>
+                                    <th class="p-2.5">연락처</th>
+                                    <th class="p-2.5">상태</th>
+                                    <th class="p-2.5">관리</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ship-list" class="divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+                    <p class="text-[11px] text-slate-500">* 연락처는 [정산서 발송] 탭의 거래처 연락처를 같이 씁니다 (없으면 회원가입 연락처). 연락처가 없거나 단톡방으로 보낼 업체는 [단톡방용 문구 복사]를 눌러 붙여넣으세요.</p>
+                </div>
+            </div>
+
             <div id="admin-stock-panel" class="hidden space-y-4">
                 <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
                     <div class="flex justify-between items-start flex-wrap gap-3">
@@ -1736,6 +1800,11 @@
         let addressBook = [];            // 셀러: 자주 쓰는 주소록
         let historyFrom = null;          // 셀러: 주문 조회 시작일 (YYYY-MM-DD, 한국시간) / null = 제한 없음
         let historyTo = null;
+
+        // 주문별 운송장 입력·표시(택배사/송장번호/출고상태). 2026-10-28 대표님 요청으로 숨김:
+        // 운송장은 송장 엑셀을 올려 업체별로 전송하는 방식으로 바꿉니다. 다시 쓰려면 true 로 바꾸면 됩니다.
+        const SHOW_SHIPPING_UI = false;
+        if (!SHOW_SHIPPING_UI) document.head.insertAdjacentHTML('beforeend', '<style>.ship-ui{display:none!important}</style>');
 
         const SELLER_STATUS_LABEL = { pending: '승인대기', approved: '승인', suspended: '정지' };
         const SELLER_STATUS_CLASS = {
@@ -3278,7 +3347,7 @@
                             ${id}
                             ${isExcel ? '<span class="ml-1 text-[9px] bg-amber-100 text-amber-800 font-bold px-1 rounded">엑셀</span>' : ''}
                         </td>
-                        <td class="p-3 whitespace-nowrap">${keepRow ? '<span class="text-slate-300">-</span>' : o.tracking_no
+                        <td class="ship-ui p-3 whitespace-nowrap">${keepRow ? '<span class="text-slate-300">-</span>' : o.tracking_no
                             ? `<span class="block text-[11px] text-slate-600">${escapeHtml(o.courier || '-')}</span><b class="font-mono text-sky-700">${escapeHtml(o.tracking_no)}</b>`
                             : '<span class="text-[10px] text-slate-400">미등록</span>'}</td>
                         <td class="p-3 font-semibold text-slate-900 whitespace-nowrap">${escapeHtml(o.recipient)}</td>
@@ -3292,7 +3361,7 @@
                         <td class="p-3 min-w-[120px] max-w-xs truncate text-amber-700 font-medium">${escapeHtml(o.bamnat_memo || '-')}</td>
                         <td class="p-3 text-slate-400 whitespace-nowrap">${escapeHtml(formatKstDateTime(o.created_at))}</td>
                         <td class="p-3">${statusBadgeHtml(o.status)}</td>
-                        <td class="p-3 whitespace-nowrap">${keepRow ? '<span class="text-slate-300">-</span>' : shipBadgeHtml(o, groups, false)}</td>
+                        <td class="ship-ui p-3 whitespace-nowrap">${keepRow ? '<span class="text-slate-300">-</span>' : shipBadgeHtml(o, groups, false)}</td>
                         <td class="p-3 text-center">
                             ${canEdit ? `
                                 <div class="flex items-center justify-center gap-1 whitespace-nowrap">
@@ -3861,7 +3930,7 @@
             tbody.innerHTML = filtered.map(o => {
                 const id = escapeHtml(o.id);
                 const state = orderShipState(o, groups);
-                const rowBg = state === '부분출고' ? 'bg-orange-50/70' : state === '출고완료' ? 'bg-slate-50 text-slate-400' : '';
+                const rowBg = !SHOW_SHIPPING_UI ? '' : state === '부분출고' ? 'bg-orange-50/70' : state === '출고완료' ? 'bg-slate-50 text-slate-400' : '';
                 const newGroup = o.order_no !== prevNo;
                 prevNo = o.order_no;
                 const draftT = trackingDrafts[o.id] || {};
@@ -3876,7 +3945,7 @@
                     </td>
                     <td class="p-3 whitespace-nowrap"><span class="px-2 py-1 rounded-lg bg-slate-900 text-white text-[11px] font-black">${escapeHtml(o.seller_company || '-')}</span></td>
                     <td class="p-3 font-bold text-slate-900 whitespace-nowrap">${escapeHtml(o.sender_name || `밤낮딜리버리(${o.seller_company})`)}</td>
-                    <td class="p-3 min-w-[170px]">${isKeepOrder(o) ? '<span class="text-[11px] font-bold text-amber-700">사무실 보관요청</span>' : `
+                    <td class="ship-ui p-3 min-w-[170px]">${isKeepOrder(o) ? '<span class="text-[11px] font-bold text-amber-700">사무실 보관요청</span>' : `
                         <select data-id="${id}" onchange="setTrackingDraft(this.dataset.id, 'courier', this.value)" class="admin-courier courier-select w-full px-2 py-1 border rounded text-[11px] bg-white">${courierOptionsHtml(draftT.courier ?? o.courier)}</select>
                         <input type="text" data-id="${id}" value="${escapeHtml(trackingValue)}" placeholder="송장번호 입력" title="송장번호 입력 후 Enter 를 누르면 바로 출고완료됩니다"
                             oninput="setTrackingDraft(this.dataset.id, 'tracking', this.value)"
@@ -3899,7 +3968,7 @@
                             ${o.status === '접수대기' ? `<button data-id="${id}" onclick="acceptOrders([this.dataset.id])" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded text-[11px]">접수</button>` : ''}
                         </div>
                     </td>
-                    <td class="p-3 whitespace-nowrap">${isKeepOrder(o) ? '<span class="text-slate-300">-</span>' : shipBadgeHtml(o, groups, false)}</td>
+                    <td class="ship-ui p-3 whitespace-nowrap">${isKeepOrder(o) ? '<span class="text-slate-300">-</span>' : shipBadgeHtml(o, groups, false)}</td>
                 </tr>
             `;
             }).join('');
@@ -4635,6 +4704,8 @@
             document.getElementById('admin-tab-settle').className = tab === 'settle' ? on : off;
             document.getElementById('admin-tab-pickup').className = tab === 'pickup' ? on : off;
             document.getElementById('admin-tab-stock').className = tab === 'stock' ? on : off;
+            document.getElementById('admin-tab-ship').className = tab === 'ship' ? on : off;
+            document.getElementById('admin-ship-panel').classList.toggle('hidden', tab !== 'ship');
             document.getElementById('admin-orders-panel').classList.toggle('hidden', tab !== 'orders');
             document.getElementById('admin-sellers-panel').classList.toggle('hidden', tab !== 'sellers');
             document.getElementById('admin-settle-panel').classList.toggle('hidden', tab !== 'settle');
@@ -4643,6 +4714,7 @@
             if (tab === 'settle') onSettleTabOpened();
             if (tab === 'pickup') fetchAdminPickupRequests();
             if (tab === 'stock') onStockTabOpened();
+            if (tab === 'ship') onShipTabOpened();
         }
 
         async function fetchSellersFromDB() {
@@ -5031,8 +5103,10 @@
             }
             try {
                 const groups = getOrderGroups();
-                const rows = list.map(o => [...orderToTemplateRow(o, groups, true), o.status || '', o.ship_status || '미출고', o.courier || '', o.tracking_no || '', formatKstDateTime(o.created_at), ORDER_TYPE_LABEL[orderTypeOf(o)] || '']);
-                const zip = await buildFilledTemplate(rows, ['처리상태', '출고상태', '택배사', '송장번호', '접수일시', '접수구분'], [10, 10, 16, 18, 18, 12]);
+                const rows = list.map(o => [...orderToTemplateRow(o, groups, true), o.status || '', ...(SHOW_SHIPPING_UI ? [o.ship_status || '미출고', o.courier || '', o.tracking_no || ''] : []), formatKstDateTime(o.created_at), ORDER_TYPE_LABEL[orderTypeOf(o)] || '']);
+                const zip = SHOW_SHIPPING_UI
+                    ? await buildFilledTemplate(rows, ['처리상태', '출고상태', '택배사', '송장번호', '접수일시', '접수구분'], [10, 10, 16, 18, 18, 12])
+                    : await buildFilledTemplate(rows, ['처리상태', '접수일시', '접수구분'], [10, 18, 12]);
                 const p = getKstParts();
                 await saveZipAsXlsx(zip, `밤낮딜리버리_내주문_${historyFrom || '전체'}~${historyTo || `${p.y}-${p.m}-${p.d}`}.xlsx`);
             } catch (err) {
@@ -5050,17 +5124,20 @@
             const post = list.filter(o => orderTypeOf(o) === 'store_post');
             const sameday = list.filter(o => orderTypeOf(o) === 'store_sameday');
 
-            const extraHeaders = ['상품 출고상태', '주문 출고상태', '택배사', '송장번호', '셀러 가입상호', '접수일시', '처리상태', '사무실 보관요청', '보관요청 메모'];
-            const extraWidths = [14, 18, 16, 18, 16, 18, 12, 14, 36];
+            const shipHeaders = SHOW_SHIPPING_UI ? ['상품 출고상태', '주문 출고상태', '택배사', '송장번호'] : [];
+            const extraHeaders = [...shipHeaders, '셀러 가입상호', '접수일시', '처리상태', '사무실 보관요청', '보관요청 메모'];
+            const extraWidths = [...(SHOW_SHIPPING_UI ? [14, 18, 16, 18] : []), 16, 18, 12, 14, 36];
             const formRows = arr => arr.map(o => {
                 const state = orderShipState(o, groups);
                 const g = groups[o.order_no];
                 return [
                     ...orderToTemplateRow(o, groups),
-                    o.ship_status || '미출고',
-                    state === '부분출고' ? `부분출고 (${g.shipped}/${g.total})` : state,
-                    o.courier || '',
-                    o.tracking_no || '',
+                    ...(SHOW_SHIPPING_UI ? [
+                        o.ship_status || '미출고',
+                        state === '부분출고' ? `부분출고 (${g.shipped}/${g.total})` : state,
+                        o.courier || '',
+                        o.tracking_no || ''
+                    ] : []),
                     o.seller_company || '',
                     formatKstDateTime(o.created_at),
                     o.status || '',
@@ -5153,6 +5230,8 @@
     </script>
     <!-- 관리자 > 정산서 발송 -->
     <script src="settle-admin.js"></script>
+    <!-- 관리자 > 운송장 전송 -->
+    <script src="ship-admin.js"></script>
     <script src="stock-admin.js"></script>
     <!-- 밤낮딜리버리 풀필먼트 엑셀양식 원본 파일 (2026, 1번 작성안내 + 2번 엑셀양식). 양식을 바꾸려면 이 값을 새 파일로 교체하세요. -->
     <script>
