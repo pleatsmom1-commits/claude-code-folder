@@ -5,7 +5,7 @@
 //  - 테스트 사이트(미리보기 주소)에서는 "내 번호로 시험 발송"만 됩니다.
 // =====================================================================
 
-const PRODUCTION_HOSTS = [
+export const PRODUCTION_HOSTS = [
   'bamnat-delivery.bamnat.workers.dev',
   'bamnat-delivery.pleatsmom1.workers.dev',
 ];
@@ -209,7 +209,7 @@ export async function handleSettleMessage(request, env) {
 }
 
 // 솔라피 메시지 1건 접수 (알림톡·문자 공통)
-async function solapiSend(env, message) {
+export async function solapiSend(env, message) {
   try {
     const res = await fetch(`${env.SOLAPI_BASE_URL || 'https://api.solapi.com'}/messages/v4/send`, {
       method: 'POST',
@@ -276,14 +276,14 @@ function randomHex(bytes) {
 
 function normName(v) { return String(v ?? '').replace(/\s+/g, '').toLowerCase(); }
 
-function normPhone(v) {
+export function normPhone(v) {
   const d = String(v ?? '').replace(/\D/g, '');
   return /^0\d{8,10}$/.test(d) ? d : null;
 }
 
-function maskPhone(p) { return p ? `${p.slice(0, 3)}-****-${p.slice(-4)}` : ''; }
+export function maskPhone(p) { return p ? `${p.slice(0, 3)}-****-${p.slice(-4)}` : ''; }
 
-function json(data, status = 200) {
+export function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
   });
