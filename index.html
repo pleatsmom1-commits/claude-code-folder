@@ -1118,20 +1118,21 @@
                         <div>
                             <h3 class="font-bold text-slate-900">업체별 운송장 전송</h3>
                             <p class="text-xs text-slate-500 mt-0.5">출고/미출고/부분출고 송장 엑셀(송화인 · 수화인명 · 운송장번호 · 상품명 · 부피추가비용)을 올리면 송화인 괄호 안 상호별로 나눕니다.
-                                저장하면 업체마다 운송장 확인 링크가 만들어지고, <b>체크한 업체만</b> 골라 안내를 보낼 수 있습니다. 출고건수는 같은 송장번호를 1건으로 셉니다.</p>
+                                업체마다 <b>[송장 목록 복사]</b>를 눌러 카톡방에 붙여넣으세요. 출고건수는 같은 송장번호를 1건으로 셉니다. 송장이 추가되면 엑셀을 고쳐 다시 올리면 됩니다.</p>
+                            <p class="ship-full text-xs text-slate-500 mt-0.5">저장하면 업체마다 운송장 확인 링크가 만들어지고, <b>체크한 업체만</b> 골라 안내를 보낼 수 있습니다. 출고건수는 같은 송장번호를 1건으로 셉니다.</p>
                         </div>
                         <div class="flex gap-2 flex-wrap">
                             <label class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow flex items-center gap-1 cursor-pointer">
                                 <i data-lucide="file-up" class="w-3.5 h-3.5"></i> 송장 엑셀 선택
                                 <input type="file" id="ship-file-input" accept=".xlsx,.xls,.xlsm,.csv" onchange="uploadShipWorkbook(event)" class="hidden">
                             </label>
-                            <button id="ship-save-btn" onclick="saveShipments()" disabled class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold text-xs rounded-lg shadow flex items-center gap-1">
+                            <button id="ship-save-btn" onclick="saveShipments()" disabled class="ship-full px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold text-xs rounded-lg shadow flex items-center gap-1">
                                 <i data-lucide="save" class="w-3.5 h-3.5"></i> 저장 (링크 만들기)
                             </button>
-                            <button onclick="sendShipTest()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm flex items-center gap-1">
+                            <button onclick="sendShipTest()" class="ship-full px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm flex items-center gap-1">
                                 <i data-lucide="smartphone" class="w-3.5 h-3.5"></i> 시험 발송 (내 번호)
                             </button>
-                            <button id="ship-send-btn" onclick="sendShipments()" class="px-3 py-1.5 bg-amber-400 hover:bg-amber-500 disabled:bg-slate-300 text-slate-900 font-bold text-xs rounded-lg shadow flex items-center gap-1">
+                            <button id="ship-send-btn" onclick="sendShipments()" class="ship-full px-3 py-1.5 bg-amber-400 hover:bg-amber-500 disabled:bg-slate-300 text-slate-900 font-bold text-xs rounded-lg shadow flex items-center gap-1">
                                 <i data-lucide="send" class="w-3.5 h-3.5"></i> 선택 업체 발송</button>
                         </div>
                     </div>
@@ -1141,7 +1142,7 @@
                         <span id="ship-summary" class="text-slate-600"></span>
                         <span id="ship-file-status" class="text-slate-400"></span>
                     </div>
-                    <div class="flex flex-wrap items-center gap-2 text-xs">
+                    <div class="ship-full flex flex-wrap items-center gap-2 text-xs">
                         <span class="font-bold text-slate-600">빠른 체크</span>
                         <button type="button" onclick="checkShipByState('unsent')" class="px-3 py-1.5 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-800 font-bold rounded-lg">✔ 미발송 전체 체크</button>
                         <button type="button" onclick="checkShipByState('all')" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold rounded-lg">✔ 저장된 업체 전체 체크</button>
@@ -1153,22 +1154,22 @@
                         <table class="w-full text-left text-xs">
                             <thead class="bg-slate-100 text-slate-600 font-bold sticky top-0">
                                 <tr>
-                                    <th class="p-2.5 w-8"></th>
+                                    <th class="ship-full p-2.5 w-8"></th>
                                     <th class="p-2.5">상호</th>
                                     <th class="p-2.5 text-right whitespace-nowrap">출고건수<span class="block text-[10px] font-normal">(송장 기준)</span></th>
                                     <th class="p-2.5 text-right">상품</th>
                                     <th class="p-2.5 text-right">미출고</th>
                                     <th class="p-2.5 text-right">부분출고</th>
                                     <th class="p-2.5 text-right whitespace-nowrap">부피추가</th>
-                                    <th class="p-2.5">연락처</th>
-                                    <th class="p-2.5">상태</th>
-                                    <th class="p-2.5">관리</th>
+                                    <th class="ship-full p-2.5">연락처</th>
+                                    <th class="ship-full p-2.5">상태</th>
+                                    <th class="p-2.5">복사</th>
                                 </tr>
                             </thead>
                             <tbody id="ship-list" class="divide-y divide-slate-100"></tbody>
                         </table>
                     </div>
-                    <p class="text-[11px] text-slate-500">* 연락처는 [정산서 발송] 탭의 거래처 연락처를 같이 씁니다 (없으면 회원가입 연락처). 연락처가 없거나 단톡방으로 보낼 업체는 [단톡방용 문구 복사]를 눌러 붙여넣으세요.</p>
+                    <p class="ship-full text-[11px] text-slate-500">* 연락처는 [정산서 발송] 탭의 거래처 연락처를 같이 씁니다 (없으면 회원가입 연락처). 연락처가 없거나 단톡방으로 보낼 업체는 [단톡방용 문구 복사]를 눌러 붙여넣으세요.</p>
                 </div>
             </div>
 
