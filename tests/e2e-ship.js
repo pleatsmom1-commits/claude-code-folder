@@ -202,6 +202,9 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   const clip = await page.evaluate(() => navigator.clipboard.readText().catch(() => ''));
   check('copy message has 출고건수 + link', clip.includes('럭스걸님, 10월 28일 운송장정보가 전달되었습니다') && clip.includes('출고건수: 3건') && clip.includes('/ship?t=' + lux.token), clip);
 
+  await page.locator('#ship-list tr', { hasText: '무드투문' }).locator('button:has-text("송장 목록 복사")').click(); await page.waitForTimeout(300);
+  const clip2 = await page.evaluate(() => navigator.clipboard.readText().catch(() => ''));
+  check('송장 목록 복사: 지금 카톡 모양 (받는분 탭 송장 탭 상품) + 출고건수', clip2.includes('무드투문님 10/28 운송장정보 전달드립니다. 출고건수 2건 (미출고 1개)') && clip2.includes('고객마\t미출고\t(합)티셔츠 cream') && clip2.includes('고객마\t6082251369522/부출\t(합)삭스') && clip2.includes('고객바\t6082251369472\t티셔츠'), clip2);
   // 다시 올리기: 같은 내용이면 저장할 것 없음, 바뀐 업체만 '바뀜'
   lux.sent_at = new Date(Date.now() - 10 * 60 * 1000).toISOString(); lux.updated_at = new Date(Date.now() - 20 * 60 * 1000).toISOString();
   await page.fill('#ship-date', '2026-10-28'); await page.dispatchEvent('#ship-date', 'change'); await page.waitForTimeout(400);
