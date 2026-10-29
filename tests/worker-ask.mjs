@@ -21,3 +21,10 @@ status = 500; r = await handleAsk(req({ messages: [{ role: 'user', content: 'q' 
 status = 200; reply = { stop_reason: 'end_turn', content: [{ type: 'text', text: 'ok' }] };
 let codes = []; for (let i = 0; i < 10; i++) codes.push((await handleAsk(req({ messages: [{ role: 'user', content: 'q' }] }, undefined, '9.9.9.9'), env)).status);
 ok(codes.slice(0, 8).every(c => c === 200) && codes[8] === 429, 'rate limit after 8/min');
+// 홈페이지(www.bamnatdelivery.com)에서 온 질문은 허용 + CORS 헤더
+r = await handleAsk(req({ messages: [{ role: 'user', content: 'q' }] }, 'https://www.bamnatdelivery.com', '6.6.6.6'), env);
+ok(r.status === 200 && r.headers.get('Access-Control-Allow-Origin') === 'https://www.bamnatdelivery.com', 'homepage origin allowed + CORS');
+r = await handleAsk(new Request('https://x/api/ask', { method: 'OPTIONS', headers: { Origin: 'http://bamnatdelivery.com' } }), env);
+ok(r.status === 204 && r.headers.get('Access-Control-Allow-Methods').includes('POST'), 'preflight ok');
+r = await handleAsk(req({ messages: [{ role: 'user', content: 'q' }] }, 'https://evil.com', '7.7.7.7'), env);
+ok(r.status === 403 && !r.headers.get('Access-Control-Allow-Origin'), 'other origin no CORS');

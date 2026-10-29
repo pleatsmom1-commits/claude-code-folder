@@ -1,10 +1,13 @@
 // =====================================================================
 // "궁금한 점 물어보기" AI 상담창 (오른쪽 아래 버튼)
 //  - 질문을 /api/ask (worker/ask.js) 로 보내고 답을 보여 줍니다.
+//  - 홈페이지(www.bamnatdelivery.com)에도 아래 한 줄로 붙일 수 있습니다. 질문은 이 파일을 올린 사이트로 보냅니다.
+//      <script src="https://bamnat-delivery.bamnat.workers.dev/chat.js" defer></script>
 //  - 대화 내용은 이 브라우저 화면에만 있고, 창을 새로 고치면 사라집니다 (DB 에 저장하지 않음).
 // =====================================================================
 (function () {
     const KAKAO = 'http://pf.kakao.com/_yWhKb/chat';
+    const API = new URL('/api/ask', document.currentScript ? document.currentScript.src : location.href).href;
     const history = [];
 
     const css = document.createElement('style');
@@ -80,7 +83,7 @@
         const wait = add('답변을 준비하고 있어요…', 'ai');
         let answer;
         try {
-            const res = await fetch('/api/ask', {
+            const res = await fetch(API, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ messages: history }),

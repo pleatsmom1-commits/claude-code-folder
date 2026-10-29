@@ -31,6 +31,7 @@ const ok = (c, m, x = '') => { console.log(c ? 'PASS ' : 'FAIL ', m, x ? ' -- ' 
       const f = path.join(ROOT, new URL(u).pathname === '/' ? 'index.html' : new URL(u).pathname);
       if (fs.existsSync(f)) return route.fulfill({ body: fs.readFileSync(f), contentType: f.endsWith('.js') ? 'application/javascript' : 'text/html' });
     }
+    if (u === 'http://www.bamnatdelivery.com/') return route.fulfill({ contentType: 'text/html', body: '<html><body><h1>밤낮딜리버리 홈</h1><script src="http://site.test/chat.js" defer></script></body></html>' });
     if (u.includes('supabase.co')) return route.fulfill({ contentType: 'application/json', body: '[]' });
     return route.abort();
   });
@@ -52,6 +53,14 @@ const ok = (c, m, x = '') => { console.log(c ? 'PASS ' : 'FAIL ', m, x ? ' -- ' 
   ok(box.x >= 0 && box.x + box.width <= 390, 'fits phone width');
   await page.click('#bn-chat header button');
   ok(!(await page.isVisible('#bn-chat')), 'chat closes');
+  // 홈페이지에 한 줄로 붙였을 때: 질문이 상담창 파일을 올린 사이트(/api/ask)로 가는지
+  await page.goto('http://www.bamnatdelivery.com/');
+  await page.waitForSelector('#bn-chat-btn');
+  await page.click('#bn-chat-btn');
+  await page.fill('#bn-chat textarea', '풀필먼트 요금?');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('#bn-chat .bn-ai >> text=1,800원');
+  ok(asked.length === 3, 'homepage embed asks the site API');
   ok(errors.length === 0, 'no page script errors', errors.join(' | '));
   await browser.close();
 })();

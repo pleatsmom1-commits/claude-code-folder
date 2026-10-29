@@ -3,6 +3,7 @@
 //  - 사이트의 "궁금한 점 물어보기" 창(chat.js)에서 질문을 받아, 밤낮딜리버리 안내 자료(knowledge.js)만으로 답합니다.
 //  - Claude API 키는 Cloudflare 대시보드의 "비밀(Secret)" ANTHROPIC_API_KEY 로만 넣습니다.
 //  - 모델을 바꾸려면 Cloudflare 변수 AI_MODEL 을 넣습니다 (기본: claude-opus-5-5).
+//  - 홈페이지(www.bamnatdelivery.com)에 붙인 상담창도 이 주소로 질문합니다 (HOMEPAGE_ORIGINS 만 허용).
 //  - Cloudflare 배포에 별도 설치(npm) 과정이 없어서, 다른 worker 파일처럼 fetch 로 직접 호출합니다.
 // =====================================================================
 import { KNOWLEDGE } from './knowledge.js';
@@ -27,6 +28,14 @@ const SYSTEM = `당신은 "밤낮딜리버리"(동대문 사입대행·풀필먼
 ${KNOWLEDGE}
 </안내자료>`;
 
+// 이 사이트 말고 질문을 받아도 되는 곳: 밤낮딜리버리 홈페이지
+const HOMEPAGE_ORIGINS = [
+  'https://www.bamnatdelivery.com', 'http://www.bamnatdelivery.com',
+  'https://bamnatdelivery.com', 'http://bamnatdelivery.com',
+  'https://bamnatdelivery.cafe24.com', 'http://bamnatdelivery.cafe24.com',
+  'https://m.bamnatdelivery.com', 'http://m.bamnatdelivery.com',
+];
+
 const hits = new Map();
 function tooMany(ip) {
   const now = Date.now();
@@ -38,10 +47,23 @@ function tooMany(ip) {
 }
 
 export async function handleAsk(request, env) {
-  if (request.method !== 'POST') return json({ error: 'POST 요청만 받습니다.' }, 405);
-  // 다른 사이트에서 이 주소를 몰래 불러 쓰지 못하게, 같은 사이트에서 온 요청만 받습니다.
+  // 다른 사이트에서 이 주소를 몰래 불러 쓰지 못하게, 이 사이트와 밤낮딜리버리 홈페이지에서 온 요청만 받습니다.
   const origin = request.headers.get('Origin');
-  if (origin && origin !== new URL(request.url).origin) return json({ error: '허용되지 않은 요청입니다.' }, 403);
+  const fromHomepage = HOMEPAGE_ORIGINS.includes(origin);
+  if (origin && origin !== new URL(request.url).origin && !fromHomepage) return json({ error: '허용되지 않은 요청입니다.' }, 403);
+  const res = await answer(request, env);
+  if (fromHomepage) {
+    res.headers.set('Access-Control-Allow-Origin', origin);
+    res.headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.headers.set('Access-Control-Allow-Headers', 'Content-Type');
+    res.headers.set('Vary', 'Origin');
+  }
+  return res;
+}
+
+async function answer(request, env) {
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204 });
+  if (request.method !== 'POST') return json({ error: 'POST 요청만 받습니다.' }, 405);
   if (!env.ANTHROPIC_API_KEY) return json({ error: 'AI 상담이 아직 준비 중입니다. 카카오톡 bamnatdelivery 또는 010-5425-9060으로 문의해 주세요.' }, 503);
   if (tooMany(request.headers.get('CF-Connecting-IP') || 'local')) {
     return json({ error: '질문이 너무 많아요. 잠시 후 다시 시도해 주세요.' }, 429);
