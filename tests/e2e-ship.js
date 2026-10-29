@@ -52,7 +52,7 @@ function applyFilters(rows, url) {
 
 
 // 대표님 송장 엑셀과 같은 모양 (가짜 이름)
-function makeWorkbook(file) {
+function makeWorkbook(file, extra = []) {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
     ['송화인', '수화인명', '운송장번호', '상품명', '부피추가비용'],
@@ -67,6 +67,7 @@ function makeWorkbook(file) {
     ['밤낮딜리버리(무드투문)', '고객마', '6082251369522/부출', '(합)티셔츠 mint', ''],
     ['밤낮딜리버리(무드투문)', '고객마', '6082251369522/부출', '(합)삭스', ''],
     ['밤낮딜리버리(무드투문)', '고객바', '6082251369472', '티셔츠', ''],
+    ...extra,
     ['', '', '', '', ''],
   ]), 'Sheet1');
   XLSX.writeFile(wb, file);
@@ -130,6 +131,8 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
         }
         return json(201, list);
       }
+      if (method === 'PATCH') { const rows = applyFilters(tables.shipments, url); rows.forEach(r => Object.assign(r, body)); return json(200, rows); }
+      if (method === 'DELETE') { const rows = applyFilters(tables.shipments, url); tables.shipments = tables.shipments.filter(r => !rows.includes(r)); return json(200, rows); }
     }
     const table = url.pathname.replace('/rest/v1/', '');
     if (tables[table]) {
@@ -179,8 +182,8 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   if (!FULL) {
     // 간단 복사 도우미: 저장·발송 버튼 없이 업체별 [송장 목록 복사]만
     check('simple mode: 저장·발송·체크 숨김', !(await vis('#ship-save-btn')) && !(await vis('#ship-send-btn')) && !(await page.locator('#ship-list input[type=checkbox]').first().isVisible()));
-    check('simple mode: no DB calls for shipments', !requests.some(r => r.path === '/rest/v1/shipments'));
-    const g = await page.evaluate(() => Object.fromEntries(Object.values(shipExcel).map(x => [x.company, x])));
+    const g = Object.fromEntries(tables.shipments.map(x => [x.company, x]));
+    check('upload auto-saves 4 companies for the date (Excel order kept)', tables.shipments.length === 4 && tables.shipments.every(x => x.ship_date === '2026-10-28' && !x.copied_at) && tables.shipments.sort((a, b) => a.seq - b.seq).map(x => x.company).join(',') === '르아더스,눈타이드,럭스걸,무드투문', JSON.stringify(tables.shipments.map(x => [x.company, x.seq])));
     check('럭스걸 출고 3건 (같은 송장 1건), 상품 4개, 부피추가 1000', g['럭스걸'].parcel_count === 3 && g['럭스걸'].items.length === 4 && g['럭스걸'].extra_fee === 1000);
     check('무드투문 출고 2건, 미출고 1개', g['무드투문'].parcel_count === 2 && g['무드투문'].unshipped_count === 1);
     check('number cell read as full tracking number', g['럭스걸'].items.some(i => i.tracking === '6082251369516'));
@@ -189,7 +192,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
     const clip2 = await page.evaluate(() => navigator.clipboard.readText().catch(() => ''));
     check('송장 목록 복사: 지금 카톡 모양 (받는분 탭 송장 탭 상품) + 출고건수', clip2.startsWith('무드투문님 10/28 운송장정보 전달드립니다.\n총 출고건수 2건 ( 이중 부분출고건수 1건 )\n\n') && clip2.includes('고객마\t미출고\t(합)티셔츠 cream') && clip2.includes('고객마\t6082251369522/부출\t(합)삭스') && clip2.includes('고객바\t6082251369472\t티셔츠'), clip2);
     check('row copy marks ✔ + shows copied line (no popup)', (await page.textContent('#ship-next-last')).includes('무드투문') && (await page.locator('#ship-list tr', { hasText: '무드투문' }).locator('.ship-done-chk').isChecked()));
-    // 다음 업체 복사: 엑셀 순서 (눈타이드 → 럭스걸 → 무드투문(이미 완료) …), 르아더스는 매장발송 첫 줄이라 맨 앞
+    check('copy saved to DB (copied_at)', !!g['무드투문'].copied_at);
     const order = await page.evaluate(() => shipCurrentList().map(r => r.company));
     check('table follows Excel order', order.join(',') === '르아더스,눈타이드,럭스걸,무드투문', order.join(','));
     check('next shows first company + progress', (await page.textContent('#ship-next-name')) === '르아더스' && (await page.textContent('#ship-next-progress')).includes('4곳 중 1곳 완료'));
@@ -203,20 +206,40 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
     check('no 부분출고 → 총 출고건수만', c3.startsWith('럭스걸님 10/28 운송장정보 전달드립니다.\n총 출고건수 3건\n\n'), c3.split('\n').slice(0, 2).join(' / '));
     check('럭스걸 copied, then 순서 끝 with 눈타이드 미뤄둠', c3.includes('럭스걸님') && (await page.textContent('#ship-next-name')) === '순서 끝' && (await page.textContent('#ship-next-info')).includes('눈타이드') && (await page.isDisabled('#ship-next-btn')));
     await page.screenshot({ path: path.join(__dirname, 'out', 'shot-ship-next.png') });
+
+    // 다른 컴퓨터/새로고침: 엑셀을 다시 올리지 않고 출고일 + [조회]만으로 다시 보임
+    await page.evaluate(() => Object.keys(localStorage).filter(k => !k.startsWith('sb-')).forEach(k => localStorage.removeItem(k)));
     await page.reload(); await page.waitForTimeout(1500);
     await page.click('#admin-tab-ship'); await page.waitForTimeout(300);
-    await page.fill('#ship-date', '2026-10-28'); await page.dispatchEvent('#ship-date', 'change');
-    await page.setInputFiles('#ship-file-input', xlsxFile); await page.waitForTimeout(800);
-    check('done marks survive refresh (same date)', (await page.textContent('#ship-next-progress')).includes('4곳 중 3곳 완료') && (await page.textContent('#ship-next-name')) === '눈타이드');
-    await page.click('button:has-text("처음부터 다시")'); await page.waitForTimeout(200);
-    check('처음부터 다시 clears marks', (await page.textContent('#ship-next-progress')).includes('4곳 중 0곳 완료'));
-    await page.click('#ship-next-btn'); await page.waitForTimeout(200);
+    await page.fill('#ship-date', '2026-10-27'); await page.dispatchEvent('#ship-date', 'change'); await page.waitForTimeout(300);
+    check('다른 날짜 → 비어 있음', (await page.textContent('#ship-list')).includes('표시할 운송장이 없습니다'));
+    await page.fill('#ship-date', '2026-10-28'); await page.click('#ship-search-btn'); await page.waitForTimeout(500);
+    check('[조회] → 저장된 목록 + 복사 표시 다시 보임 (엑셀 없이)', (await page.textContent('#ship-next-progress')).includes('4곳 중 3곳 완료') && (await page.textContent('#ship-next-name')) === '눈타이드' && (await page.textContent('#ship-summary')).includes('복사완료 3곳'), await page.textContent('#ship-summary'));
+    await page.selectOption('#ship-filter', 'done'); await page.waitForTimeout(300);
+    let rows = (await page.textContent('#ship-list')).replace(/\s+/g, ' ');
+    check('복사완료 업체만 조회', rows.includes('럭스걸') && rows.includes('무드투문') && rows.includes('르아더스') && !rows.includes('눈타이드'), rows.slice(0, 200));
+    await page.selectOption('#ship-filter', 'todo'); await page.waitForTimeout(300);
+    rows = (await page.textContent('#ship-list')).replace(/\s+/g, ' ');
+    check('미복사 업체만 조회', rows.includes('눈타이드') && !rows.includes('럭스걸'), rows.slice(0, 200));
+    await page.selectOption('#ship-filter', 'all'); await page.waitForTimeout(300);
+    await page.locator('#ship-list tr', { hasText: '럭스걸' }).locator('button:has-text("송장 목록 복사")').click(); await page.waitForTimeout(300);
+    c3 = await page.evaluate(() => navigator.clipboard.readText());
+    check('조회한 목록에서도 다시 복사 가능', c3.startsWith('럭스걸님 10/28') && c3.includes('6082251369516'), c3.split('\n')[0]);
+
+    // 송장 추가 후 다시 올리기: 그대로인 업체는 복사 표시 유지, 바뀐 업체만 표시 해제
+    makeWorkbook(xlsxFile, [['밤낮딜리버리(럭스걸)', '고객추가', '6082251369999', '추가 상품', '']]);
+    await page.setInputFiles('#ship-file-input', xlsxFile); await page.waitForTimeout(1000);
+    check('re-upload: still 4 rows, 럭스걸 updated', tables.shipments.length === 4 && ship('럭스걸').items.length === 5 && ship('럭스걸').parcel_count === 4);
+    check('re-upload: 바뀐 럭스걸만 복사 표시 해제 + 알림', !ship('럭스걸').copied_at && !!ship('무드투문').copied_at && !!ship('르아더스').copied_at && lastDialog().includes('럭스걸'), lastDialog());
+    makeWorkbook(xlsxFile);
+
     const chk = page.locator('#ship-list tr', { hasText: '르아더스' }).locator('.ship-done-chk');
-    check('복사함 checkbox checked after copy', await chk.isChecked());
-    await chk.uncheck(); await page.waitForTimeout(200);
-    check('uncheck → 복사 표시 해제, next back to 르아더스', !(await chk.isChecked()) && (await page.textContent('#ship-next-name')) === '르아더스' && (await page.textContent('#ship-next-progress')).includes('4곳 중 0곳'));
-    await page.click('#ship-clear-btn'); await page.waitForTimeout(300);
-    check('전체 삭제 → 목록·다음 상자 비움', (await page.textContent('#ship-list')).includes('표시할 운송장이 없습니다') && !(await vis('#ship-next')) && !(await vis('#ship-clear-btn')));
+    await chk.uncheck(); await page.waitForTimeout(300);
+    check('uncheck → 복사 표시 해제 (DB 도)', !(await chk.isChecked()) && !ship('르아더스').copied_at && (await page.textContent('#ship-next-name')) === '르아더스');
+    await page.click('button:has-text("처음부터 다시")'); await page.waitForTimeout(300);
+    check('처음부터 다시 clears marks (DB 도)', (await page.textContent('#ship-next-progress')).includes('4곳 중 0곳 완료') && tables.shipments.every(x => !x.copied_at));
+    await page.click('#ship-clear-btn'); await page.waitForTimeout(400);
+    check('전체 삭제 → 그 날짜 저장분 삭제, 목록 비움', tables.shipments.length === 0 && (await page.textContent('#ship-list')).includes('표시할 운송장이 없습니다') && !(await vis('#ship-next')) && !(await vis('#ship-clear-btn')));
     await page.screenshot({ path: path.join(__dirname, 'out', 'shot-ship-simple.png') });
   } else {
     check('unsaved rows cannot be checked', await page.locator('#ship-list input[type=checkbox]:not([disabled])').count() === 0);
@@ -274,7 +297,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   const real = process.argv[2];
   if (real) {
     await page.setInputFiles('#ship-file-input', real); await page.waitForTimeout(1000);
-    const groups = await page.evaluate(() => Object.values(shipExcel).map(g => `${g.company}: 출고 ${g.parcel_count}건 / 상품 ${g.items.length} / 미출고 ${g.unshipped_count} / 부분 ${g.partial_count} / 부피 ${g.extra_fee}`));
+    const groups = await page.evaluate(() => shipCurrentList().map(g => `${g.company}: 출고 ${g.parcel_count}건 / 상품 ${g.items.length} / 미출고 ${g.unshipped_count} / 부분 ${g.partial_count} / 부피 ${g.extra_fee}`));
     console.log('\n[실제 엑셀]', await page.evaluate(() => shipExcelWarnings), '\n' + groups.join('\n'));
   }
 
