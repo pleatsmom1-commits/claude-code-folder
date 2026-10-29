@@ -371,7 +371,7 @@ function shipListText(r) {
     const partial = r.partial_count || 0;
     const head = [
         `${r.company}님${m ? ` ${Number(m)}/${Number(d)}` : ''} 운송장정보 전달드립니다.`,
-        `총 출고건수 ${r.parcel_count || 0}건` + (partial ? ` ( 이중 부분출고건수 ${partial}건 )` : ''),
+        `총 출고된 송장건수 ${r.parcel_count || 0}건` + (partial ? ` ( 이중 부분출고송장건수 ${partial}건 )` : ''),
     ].join('\n');
     const lines = (r.items || []).map(x => [x.recipient, x.tracking ? x.tracking + (x.state === '부분출고' ? '/부출' : '') : '미출고', x.product].join('\t'));
     return [head, '', ...lines].join('\n');
