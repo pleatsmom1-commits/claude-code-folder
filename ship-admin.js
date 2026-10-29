@@ -124,6 +124,7 @@ function uploadShipWorkbook(event) {
             shipExcelFileName = file.name;
             document.getElementById('ship-file-status').textContent = `"${file.name}" · ${parsed.rows}줄 · 업체 ${Object.keys(shipExcel).length}곳`;
             shipChecked.clear();
+            shipLoadDone(); shipSkipped.clear(); shipLastCopied = null;
             renderShipTable();
             if (parsed.warnings.length) alert('확인이 필요한 줄이 있습니다.\n\n' + parsed.warnings.slice(0, 12).join('\n') + (parsed.warnings.length > 12 ? `\n… 외 ${parsed.warnings.length - 12}줄` : ''));
         } catch (err) {
@@ -137,6 +138,7 @@ function uploadShipWorkbook(event) {
 async function loadSavedShipments() {
     const date = document.getElementById('ship-date').value;
     shipSaved = [];
+    shipLoadDone();
     if (!SHIP_FULL_FEATURES) { renderShipTable(); return; }
     if (!supabaseClient || !date) { renderShipTable(); return; }
     const { data, error } = await supabaseClient.from('shipments').select('*').eq('ship_date', date).order('company');
@@ -163,7 +165,8 @@ function shipCurrentList() {
         }
     }
     for (const s of saved.values()) list.push({ ...s, partial_count: shipCounts(s.items || []).partial_count, saved: s, changed: false, notInExcel: !!shipExcel });
-    return list.sort((a, b) => a.company.localeCompare(b.company, 'ko'));
+    // 복사 도우미만 쓸 때는 엑셀에 적힌 순서 그대로 (그 순서대로 카톡에 보내므로)
+    return SHIP_FULL_FEATURES ? list.sort((a, b) => a.company.localeCompare(b.company, 'ko')) : list;
 }
 
 function shipStateHtml(r) {
@@ -197,6 +200,7 @@ function renderShipTable() {
     document.getElementById('ship-warnings').innerHTML = shipExcelWarnings.length
         ? `⚠️ 확인이 필요한 줄 ${shipExcelWarnings.length}개: ${shipExcelWarnings.slice(0, 5).map(escapeHtml).join(' / ')}${shipExcelWarnings.length > 5 ? ' …' : ''}` : '';
 
+    renderShipNext(list);
     if (!list.length) {
         tbody.innerHTML = '<tr><td colspan="10" class="p-8 text-center text-slate-400">표시할 운송장이 없습니다.</td></tr>';
         return;
@@ -206,10 +210,10 @@ function renderShipTable() {
         const checkable = shipCheckable(r);
         const c = escapeHtml(r.company);
         return `
-        <tr class="hover:bg-slate-50 ${shipChecked.has(r.company) ? 'bg-amber-50/60' : ''}">
+        <tr class="hover:bg-slate-50 ${shipChecked.has(r.company) ? 'bg-amber-50/60' : ''} ${shipDone.has(r.company) ? 'text-slate-400' : ''}">
             <td class="ship-full p-2.5"><input type="checkbox" data-company="${c}" ${checkable ? '' : 'disabled title="저장한 뒤 선택할 수 있습니다"'} ${shipChecked.has(r.company) ? 'checked' : ''}
                 onchange="toggleShipCheck(this.dataset.company, this.checked)" class="w-4 h-4 align-middle cursor-pointer disabled:cursor-not-allowed"></td>
-            <td class="p-2.5 font-bold">${c}${r.notInExcel ? '<span class="ml-1 text-[10px] text-slate-400 font-normal">(이번 엑셀에 없음)</span>' : ''}</td>
+            <td class="p-2.5 font-bold">${shipDone.has(r.company) ? '<span class="text-emerald-600">✔</span> ' : shipSkipped.has(r.company) ? '<span class="text-[10px] text-amber-600 font-bold">⏸ 나중에</span> ' : ''}${c}${r.notInExcel ? '<span class="ml-1 text-[10px] text-slate-400 font-normal">(이번 엑셀에 없음)</span>' : ''}</td>
             <td class="p-2.5 text-right font-black text-indigo-700">${r.parcel_count || 0}건</td>
             <td class="p-2.5 text-right">${(r.items || []).length}개</td>
             <td class="p-2.5 text-right ${r.unshipped_count ? 'text-orange-600 font-bold' : 'text-slate-300'}">${r.unshipped_count || 0}</td>
@@ -290,10 +294,73 @@ async function copyShipList(company) {
     const text = shipListText(r);
     try {
         await navigator.clipboard.writeText(text);
-        alert(`[${company}] 송장 목록 ${(r.items || []).length}줄 (출고 ${r.parcel_count || 0}건)을 복사했습니다. 카톡에 붙여넣으세요.`);
     } catch (e) {
         prompt('아래 내용을 복사하세요 (Ctrl+C)', text);
     }
+    shipMarkDone(company);
+    shipLastCopied = { company, lines: (r.items || []).length, parcels: r.parcel_count || 0 };
+    renderShipTable();
+}
+
+// ---------------------------------------------------------------------
+// [다음 업체 복사]: 엑셀 순서대로 아직 안 보낸 업체를 하나씩 복사 (보낸 업체는 ✔, 새로고침해도 이 컴퓨터에 남음)
+// ---------------------------------------------------------------------
+let shipDone = new Set();
+let shipSkipped = new Set();   // [나중에] 누른 업체: 순서에서만 빠지고, 목록의 [송장 목록 복사]로 언제든 보낼 수 있음
+let shipLastCopied = null;
+function shipDoneKey() { return 'shipDone:' + (document.getElementById('ship-date').value || ''); }
+function shipLoadDone() {
+    try { shipDone = new Set(JSON.parse(localStorage.getItem(shipDoneKey()) || '[]')); } catch (e) { shipDone = new Set(); }
+}
+function shipSaveDone() {
+    try { localStorage.setItem(shipDoneKey(), JSON.stringify([...shipDone])); } catch (e) { /* 무시 */ }
+}
+function shipMarkDone(company) { shipDone.add(company); shipSkipped.delete(company); shipSaveDone(); }
+
+function shipNextTarget(list = shipCurrentList()) {
+    return list.find(r => !shipDone.has(r.company) && !shipSkipped.has(r.company)) || null;
+}
+
+function renderShipNext(list) {
+    const box = document.getElementById('ship-next');
+    if (!box) return;
+    if (!shipExcel || !list.length) { box.classList.add('hidden'); return; }
+    box.classList.remove('hidden');
+    const next = shipNextTarget(list);
+    const done = list.filter(r => shipDone.has(r.company)).length;
+    document.getElementById('ship-next-progress').textContent = `${list.length}곳 중 ${done}곳 완료`;
+    document.getElementById('ship-next-last').innerHTML = shipLastCopied
+        ? `✔ <b>${escapeHtml(shipLastCopied.company)}</b> 복사됨 (${shipLastCopied.lines}줄 · 출고 ${shipLastCopied.parcels}건) → 카톡방에 붙여넣으세요` : '';
+    const btn = document.getElementById('ship-next-btn');
+    if (next) {
+        document.getElementById('ship-next-name').textContent = next.company;
+        document.getElementById('ship-next-info').textContent = `출고 ${next.parcel_count || 0}건` + (next.unshipped_count ? ` · 미출고 ${next.unshipped_count}개` : '');
+        btn.disabled = false;
+    } else {
+        const later = list.filter(r => !shipDone.has(r.company) && shipSkipped.has(r.company));
+        document.getElementById('ship-next-name').textContent = later.length ? '순서 끝' : '모두 완료 🎉';
+        document.getElementById('ship-next-info').textContent = later.length ? `나중에로 미뤄둔 ${later.length}곳: ${later.map(r => r.company).join(', ')} (목록에서 [송장 목록 복사])` : '';
+        btn.disabled = true;
+    }
+}
+
+function copyNextShip() {
+    const next = shipNextTarget();
+    if (next) copyShipList(next.company);
+}
+
+function skipNextShip() {
+    const next = shipNextTarget();
+    if (!next) return;
+    shipSkipped.add(next.company);
+    shipLastCopied = null;
+    renderShipTable();
+}
+
+function resetShipDone() {
+    if (!confirm('완료(✔) 표시를 모두 지우고 처음 업체부터 다시 할까요?')) return;
+    shipDone.clear(); shipSkipped.clear(); shipSaveDone(); shipLastCopied = null;
+    renderShipTable();
 }
 
 async function copyShipMessage(company) {

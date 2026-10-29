@@ -188,7 +188,27 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
     await page.locator('#ship-list tr', { hasText: '무드투문' }).locator('button:has-text("송장 목록 복사")').click(); await page.waitForTimeout(300);
     const clip2 = await page.evaluate(() => navigator.clipboard.readText().catch(() => ''));
     check('송장 목록 복사: 지금 카톡 모양 (받는분 탭 송장 탭 상품) + 출고건수', clip2.includes('무드투문님 10/28 운송장정보 전달드립니다. 출고건수 2건 (미출고 1개)') && clip2.includes('고객마\t미출고\t(합)티셔츠 cream') && clip2.includes('고객마\t6082251369522/부출\t(합)삭스') && clip2.includes('고객바\t6082251369472\t티셔츠'), clip2);
-    check('copy alert', lastDialog().includes('[무드투문] 송장 목록 4줄 (출고 2건)'), lastDialog());
+    check('row copy marks ✔ + shows copied line (no popup)', (await page.textContent('#ship-next-last')).includes('무드투문') && (await page.locator('#ship-list tr', { hasText: '무드투문' }).textContent()).includes('✔'));
+    // 다음 업체 복사: 엑셀 순서 (눈타이드 → 럭스걸 → 무드투문(이미 완료) …), 르아더스는 매장발송 첫 줄이라 맨 앞
+    const order = await page.evaluate(() => shipCurrentList().map(r => r.company));
+    check('table follows Excel order', order.join(',') === '르아더스,눈타이드,럭스걸,무드투문', order.join(','));
+    check('next shows first company + progress', (await page.textContent('#ship-next-name')) === '르아더스' && (await page.textContent('#ship-next-progress')).includes('4곳 중 1곳 완료'));
+    await page.click('#ship-next-btn'); await page.waitForTimeout(300);
+    let c3 = await page.evaluate(() => navigator.clipboard.readText());
+    check('다음 업체 복사 → 르아더스 copied, next = 눈타이드', c3.includes('르아더스님') && (await page.textContent('#ship-next-name')) === '눈타이드', c3.split('\n')[0]);
+    await page.click('button:has-text("나중에")'); await page.waitForTimeout(200);
+    check('나중에 → 눈타이드 skipped, next = 럭스걸', (await page.textContent('#ship-next-name')) === '럭스걸' && (await page.locator('#ship-list tr', { hasText: '눈타이드' }).textContent()).includes('나중에'));
+    await page.click('#ship-next-btn'); await page.waitForTimeout(300);
+    c3 = await page.evaluate(() => navigator.clipboard.readText());
+    check('럭스걸 copied, then 순서 끝 with 눈타이드 미뤄둠', c3.includes('럭스걸님') && (await page.textContent('#ship-next-name')) === '순서 끝' && (await page.textContent('#ship-next-info')).includes('눈타이드') && (await page.isDisabled('#ship-next-btn')));
+    await page.screenshot({ path: path.join(__dirname, 'out', 'shot-ship-next.png') });
+    await page.reload(); await page.waitForTimeout(1500);
+    await page.click('#admin-tab-ship'); await page.waitForTimeout(300);
+    await page.fill('#ship-date', '2026-10-28'); await page.dispatchEvent('#ship-date', 'change');
+    await page.setInputFiles('#ship-file-input', xlsxFile); await page.waitForTimeout(800);
+    check('done marks survive refresh (same date)', (await page.textContent('#ship-next-progress')).includes('4곳 중 3곳 완료') && (await page.textContent('#ship-next-name')) === '눈타이드');
+    await page.click('button:has-text("처음부터 다시")'); await page.waitForTimeout(200);
+    check('처음부터 다시 clears marks', (await page.textContent('#ship-next-progress')).includes('4곳 중 0곳 완료'));
     await page.screenshot({ path: path.join(__dirname, 'out', 'shot-ship-simple.png') });
   } else {
     check('unsaved rows cannot be checked', await page.locator('#ship-list input[type=checkbox]:not([disabled])').count() === 0);
