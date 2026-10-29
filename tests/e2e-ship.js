@@ -192,7 +192,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
     check('매장발송(유어피치(눈타이드)) 줄은 눈타이드에 안 들어감', g['눈타이드'].items.length === 1 && !g['눈타이드'].items[0].store);
     await page.locator('#ship-list tr', { hasText: '무드투문' }).locator('button:has-text("송장 목록 복사")').click(); await page.waitForTimeout(300);
     const clip2 = await page.evaluate(() => navigator.clipboard.readText().catch(() => ''));
-    check('송장 목록 복사: 지금 카톡 모양 (받는분 탭 송장 탭 상품) + 출고건수', clip2.startsWith('무드투문님 10/28 운송장정보 전달드립니다.\n총 출고된 송장건수 2건 ( 이중 부분출고송장건수 1건 )\n\n오늘의 정산서는 모든 출고가 마무리 되는대로 바로 보내드리겠습니다.\n고맙습니다.\n\n') && clip2.includes('고객마\t미출고\t(합)티셔츠 cream') && clip2.includes('고객마\t6082251369522/부출\t(합)삭스') && clip2.includes('고객바\t6082251369472\t티셔츠'), clip2);
+    check('송장 목록 복사: 지금 카톡 모양 (받는분 탭 송장 탭 상품) + 출고건수', clip2.startsWith('무드투문님 10/28 운송장정보 전달드립니다.\n\n총 출고된 송장건수 : 2건 ( 이중 부분출고송장건수 : 1건)\n\n') && clip2.includes('고객마\t미출고\t(합)티셔츠 cream') && clip2.includes('고객마\t6082251369522/부출\t(합)삭스') && clip2.includes('고객바\t6082251369472\t티셔츠') && clip2.endsWith('티셔츠\n\n오늘의 정산서는 모든 출고가 마무리 되는대로 바로 보내드리겠습니다. 고맙습니다.'), clip2);
     check('row copy marks ✔ + shows copied line (no popup)', (await page.textContent('#ship-next-last')).includes('무드투문') && (await page.locator('#ship-list tr', { hasText: '무드투문' }).locator('.ship-done-chk').isChecked()));
     check('copy saved to DB (copied_at)', !!g['무드투문'].copied_at);
     const order = await page.evaluate(() => shipCurrentList().map(r => r.company));
@@ -205,7 +205,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
     check('나중에 → 눈타이드 skipped, next = 럭스걸', (await page.textContent('#ship-next-name')) === '럭스걸' && (await page.locator('#ship-list tr', { hasText: '눈타이드' }).textContent()).includes('나중에'));
     await page.click('#ship-next-btn'); await page.waitForTimeout(300);
     c3 = await page.evaluate(() => navigator.clipboard.readText());
-    check('no 부분출고 → 총 출고건수만', c3.startsWith('럭스걸님 10/28 운송장정보 전달드립니다.\n총 출고된 송장건수 3건\n\n오늘의 정산서는 모든 출고가 마무리 되는대로 바로 보내드리겠습니다.\n고맙습니다.\n\n'), c3.split('\n').slice(0, 2).join(' / '));
+    check('no 부분출고 → 총 출고건수만', c3.startsWith('럭스걸님 10/28 운송장정보 전달드립니다.\n\n총 출고된 송장건수 : 3건\n\n'), c3.split('\n').slice(0, 2).join(' / '));
     check('럭스걸 copied, then 순서 끝 with 눈타이드 미뤄둠', c3.includes('럭스걸님') && (await page.textContent('#ship-next-name')) === '순서 끝' && (await page.textContent('#ship-next-info')).includes('눈타이드') && (await page.isDisabled('#ship-next-btn')));
     await page.screenshot({ path: path.join(__dirname, 'out', 'shot-ship-next.png') });
 
@@ -274,7 +274,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
     check('v6 형식: 파일 상태에 미출고 시트 반영 표시', (await page.textContent('#ship-file-status')).includes("'미출고송장' 시트 미출고 송장 1개 반영"), await page.textContent('#ship-file-status'));
     await page.locator('#ship-list tr', { hasText: '럭스걸' }).locator('button:has-text("송장 목록 복사")').click(); await page.waitForTimeout(300);
     const c6 = await page.evaluate(() => navigator.clipboard.readText());
-    check('v6 형식: 복사 내용에 미출고 표시', c6.includes('고객나\t미출고\t(합)슬랙스') && c6.includes('고객다\t6082251300003\t셔츠') && c6.includes("총 출고된 송장건수 2건"), c6);
+    check('v6 형식: 복사 내용에 미출고 표시', c6.includes('고객나\t미출고\t(합)슬랙스') && c6.includes('고객다\t6082251300003\t셔츠') && c6.includes("총 출고된 송장건수 : 2건"), c6);
   } else {
     check('unsaved rows cannot be checked', await page.locator('#ship-list input[type=checkbox]:not([disabled])').count() === 0);
     await page.click('#ship-save-btn'); await page.waitForTimeout(800);
@@ -306,7 +306,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
 
     await page.locator('#ship-list tr', { hasText: '무드투문' }).locator('button:has-text("송장 목록 복사")').click(); await page.waitForTimeout(300);
     const clip2 = await page.evaluate(() => navigator.clipboard.readText().catch(() => ''));
-    check('송장 목록 복사: 지금 카톡 모양 (받는분 탭 송장 탭 상품) + 출고건수', clip2.startsWith('무드투문님 10/28 운송장정보 전달드립니다.\n총 출고된 송장건수 2건 ( 이중 부분출고송장건수 1건 )\n\n오늘의 정산서는 모든 출고가 마무리 되는대로 바로 보내드리겠습니다.\n고맙습니다.\n\n') && clip2.includes('고객마\t미출고\t(합)티셔츠 cream') && clip2.includes('고객마\t6082251369522/부출\t(합)삭스') && clip2.includes('고객바\t6082251369472\t티셔츠'), clip2);
+    check('송장 목록 복사: 지금 카톡 모양 (받는분 탭 송장 탭 상품) + 출고건수', clip2.startsWith('무드투문님 10/28 운송장정보 전달드립니다.\n\n총 출고된 송장건수 : 2건 ( 이중 부분출고송장건수 : 1건)\n\n') && clip2.includes('고객마\t미출고\t(합)티셔츠 cream') && clip2.includes('고객마\t6082251369522/부출\t(합)삭스') && clip2.includes('고객바\t6082251369472\t티셔츠') && clip2.endsWith('티셔츠\n\n오늘의 정산서는 모든 출고가 마무리 되는대로 바로 보내드리겠습니다. 고맙습니다.'), clip2);
     // 다시 올리기: 같은 내용이면 저장할 것 없음, 바뀐 업체만 '바뀜'
     lux.sent_at = new Date(Date.now() - 10 * 60 * 1000).toISOString(); lux.updated_at = new Date(Date.now() - 20 * 60 * 1000).toISOString();
     await page.fill('#ship-date', '2026-10-28'); await page.dispatchEvent('#ship-date', 'change'); await page.waitForTimeout(400);
