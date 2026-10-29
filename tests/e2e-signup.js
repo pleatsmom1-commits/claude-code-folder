@@ -183,12 +183,27 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   // 특수문자 비밀번호 + 정상 입력 → 가입
   await page.fill('#signup-phone', '010.9999.8888');
   await page.fill('#signup-pw', 'abcdefg!'); await page.fill('#signup-pw-confirm', 'abcdefg!');
+  // 개인정보 동의
+  const consentText = await page.textContent('#signup-modal');
+  check('consent block: 필수 개인정보 + 선택 세금계산서', consentText.includes('(필수) 개인정보 수집·이용 동의') && consentText.includes('(선택) 세금계산서 발행 정보 수집·이용 동의'));
+  check('consent detail hidden until 내용 보기', !(await vis('#signup-agree-privacy-detail')));
+  await page.click('#signup-modal button:has-text("내용 보기") >> nth=0'); await page.waitForTimeout(100);
+  const detail = await page.textContent('#signup-agree-privacy-detail');
+  check('consent detail shows 항목·목적·보유기간·거부권', (await vis('#signup-agree-privacy-detail')) && ['수집 항목', '이용 목적', '보유 기간', '거부'].every(w => detail.includes(w)), detail);
+  await page.click('#signup-modal button[type=submit]'); await page.waitForTimeout(300);
+  check('no privacy consent -> blocked', lastDialog().includes('개인정보 수집·이용에 동의') && signupCalls().length === 0, lastDialog());
+  await page.check('#signup-agree-privacy');
+  await page.click('#signup-modal button[type=submit]'); await page.waitForTimeout(300);
+  check('tax info without tax consent -> blocked', lastDialog().includes('세금계산서 발행 정보 수집·이용에 동의') && signupCalls().length === 0, lastDialog());
+  await page.check('#signup-agree-all');
+  check('전체 동의 checks both', await page.isChecked('#signup-agree-privacy') && await page.isChecked('#signup-agree-tax'));
   await page.click('#signup-modal button[type=submit]'); await page.waitForTimeout(600);
   const sc = signupCalls()[0];
   const meta = sc && sc.body && sc.body.data;
   check('signup sent with special-char password', !!sc && sc.body.password === 'abcdefg!', JSON.stringify(sc && sc.body && sc.body.password));
   check('signup metadata has name/phone(formatted)/address', meta && meta.name === '박대표' && meta.phone === '010-9999-8888' && meta.zipcode === '04572' && meta.address === '서울 중구 청계천로 400' && meta.detail_address === '3층 301호', JSON.stringify(meta));
   check('signup metadata has tax info', meta && meta.biz_no === '220-81-62517' && meta.biz_name === '(주)신규' && meta.biz_ceo === '박대표' && meta.tax_email === 'tax@corp.com', JSON.stringify(meta));
+  check('signup metadata has consent record', meta && !!meta.privacy_agreed_at && meta.privacy_terms_version === '2026-10-29' && !!meta.tax_agreed_at, JSON.stringify(meta));
   check('signup modal closed after success', !(await vis('#signup-modal')));
   const sn = apiCalls.find(c => c.path === '/api/signup/notify');
   check('signup -> 대표님 알림 요청', !!sn && sn.body.email === signupCalls()[0].body.email, JSON.stringify(apiCalls));
@@ -198,9 +213,12 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.fill('#signup-email', 'new2@x.com'); await page.fill('#signup-name', '최'); await page.fill('#signup-phone', '01077776666');
   await page.fill('#signup-pw', 'abcdefg2'); await page.fill('#signup-pw-confirm', 'abcdefg2');
   await page.evaluate(() => { document.getElementById('signup-zipcode').value = '04572'; document.getElementById('signup-address').value = '서울 1'; });
+  check('consent boxes cleared after previous signup', !(await page.isChecked('#signup-agree-privacy')) && !(await page.isChecked('#signup-agree-tax')));
+  await page.check('#signup-agree-privacy');
   await page.click('#signup-modal button[type=submit]'); await page.waitForTimeout(600);
   const sc2 = signupCalls()[1];
-  check('signup without tax info is allowed', !!sc2 && sc2.body.data.biz_no === null && sc2.body.data.tax_email === null, JSON.stringify(sc2 && sc2.body.data));
+  check('signup without tax info is allowed (필수 동의만)', !!sc2 && sc2.body.data.biz_no === null && sc2.body.data.tax_email === null, JSON.stringify(sc2 && sc2.body.data));
+  check('no tax info -> tax_agreed_at empty', !!sc2 && !!sc2.body.data.privacy_agreed_at && sc2.body.data.tax_agreed_at === null, JSON.stringify(sc2 && sc2.body.data));
 
   // ---------- 3. 셀러 로그인 · 주문 화면 · 내정보 주소 ----------
   await page.fill('#login-email', 'seller@x.com'); await page.fill('#login-pw', 'password1');
@@ -215,7 +233,12 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.fill('#mypage-detail-address', '2층');
   check('mypage shows tax block (empty)', (await vis('#mypage-biz-no')) && (await page.textContent('#mypage-account')).includes('세금계산서 정보'));
   await page.fill('#mypage-biz-no', '1248100998'); await page.fill('#mypage-biz-name', '애플샵(주)'); await page.fill('#mypage-biz-ceo', '김사장'); await page.fill('#mypage-tax-email', 'bill@apple.com');
+  check('mypage tax consent shown when no tax info yet', await vis('#mypage-agree-tax'));
   await page.click('#mypage-modal button:has-text("정보 저장")'); await page.waitForTimeout(500);
+  check('mypage new tax info without consent -> blocked', lastDialog().includes('세금계산서 발행 정보 수집·이용 동의') && !users['seller@x.com'].profile.biz_no, lastDialog());
+  await page.check('#mypage-agree-tax');
+  await page.click('#mypage-modal button:has-text("정보 저장")'); await page.waitForTimeout(500);
+  check('mypage tax consent hidden once tax info saved', !(await vis('#mypage-agree-tax')));
   check('mypage saves tax info', users['seller@x.com'].profile.biz_no === '124-81-00998' && users['seller@x.com'].profile.tax_email === 'bill@apple.com' && users['seller@x.com'].profile.biz_ceo === '김사장', JSON.stringify(users['seller@x.com'].profile));
   check('mypage saves address', users['seller@x.com'].profile.address === '서울 강남구 1' && users['seller@x.com'].profile.zipcode === '06000' && users['seller@x.com'].profile.detail_address === '2층', JSON.stringify(users['seller@x.com'].profile));
   // 내정보 비밀번호 변경 규칙
