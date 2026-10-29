@@ -1141,6 +1141,8 @@
                         <input type="date" id="ship-date" onchange="loadSavedShipments()" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
                         <span id="ship-summary" class="text-slate-600"></span>
                         <span id="ship-file-status" class="text-slate-400"></span>
+                        <button type="button" id="ship-clear-btn" onclick="clearShipUpload()" class="hidden ml-auto px-3 py-1.5 bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 font-bold rounded-lg flex items-center gap-1" title="올린 엑셀 내용과 복사 표시를 모두 지웁니다">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> 전체 삭제</button>
                     </div>
                     <div class="ship-full flex flex-wrap items-center gap-2 text-xs">
                         <span class="font-bold text-slate-600">빠른 체크</span>
@@ -1169,6 +1171,7 @@
                             <thead class="bg-slate-100 text-slate-600 font-bold sticky top-0">
                                 <tr>
                                     <th class="ship-full p-2.5 w-8"></th>
+                                    <th class="p-2.5 whitespace-nowrap text-center w-14" title="복사한 업체는 체크됩니다. 체크를 풀면 복사 표시가 지워집니다">복사함</th>
                                     <th class="p-2.5">상호</th>
                                     <th class="p-2.5 text-right whitespace-nowrap">출고건수<span class="block text-[10px] font-normal">(송장 기준)</span></th>
                                     <th class="p-2.5 text-right">상품</th>
