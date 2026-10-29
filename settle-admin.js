@@ -500,15 +500,30 @@ async function copySettleMessage(company) {
     const r = settleCurrentList().find(x => x.company === company);
     if (!r || !r.token) return;
     const d = r.data || {};
+    await settleCopyText(company, d.date || document.getElementById('settle-date').value, r.result, r.total, d.account, r.token);
+}
+
+// 기록 조회 표의 [링크 복사]: 그 날짜·업체의 정산서 링크(지금 저장된 최신 내용)를 다시 복사
+async function copySettleHistoryLink(id) {
+    const v = settleHistoryRows.find(x => x.id === id);
+    if (!v) return;
+    const { data, error } = await supabaseClient.from('settlements')
+        .select('token, total, result, data').eq('company', v.company).eq('settle_date', v.settle_date).maybeSingle();
+    if (error) { alert('정산서 링크를 불러오지 못했습니다.\n\n' + dbErrorMessage(error)); return; }
+    if (!data || !data.token) { alert(`[${v.company}] ${v.settle_date} 정산서가 삭제되어 링크가 없습니다.`); return; }
+    await settleCopyText(v.company, v.settle_date, data.result, data.total, (data.data || {}).account, data.token);
+}
+
+async function settleCopyText(company, date, result, total, account, token) {
     const lines = [
         `[밤낮딜리버리 정산 안내]`,
-        `${company}님, ${settleShortDate(d.date || document.getElementById('settle-date').value)} 정산서를 안내드립니다.`,
+        `${company}님, ${settleShortDate(date)} 정산서를 안내드립니다.`,
         ``,
-        `■ 정산결과: ${r.result || ''}`,
-        `■ 청구금액: ${settleWon(r.total)}원`,
-        d.account ? `■ 입금계좌: ${d.account}` : null,
+        `■ 정산결과: ${result || ''}`,
+        `■ 청구금액: ${settleWon(total)}원`,
+        account ? `■ 입금계좌: ${account}` : null,
         ``,
-        `상세 정산서: ${settleLink(r.token)}`,
+        `상세 정산서: ${settleLink(token)}`,
     ].filter(x => x !== null);
     try {
         await navigator.clipboard.writeText(lines.join('\n'));
@@ -1086,7 +1101,7 @@ function renderSettleHistory() {
             <td class="p-2.5 text-right font-bold">${settleWon(v.total)}</td>
             <td class="p-2.5">${change}</td>
             <td class="p-2.5 whitespace-nowrap">${settleHistoryState(v, all).html}</td>
-            <td class="p-2.5 whitespace-nowrap"><button data-id="${v.id}" onclick="previewSettleVersion(Number(this.dataset.id))" class="px-2 py-1 text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 rounded">보기</button>${v.sent_at ? '' : `<button data-id="${v.id}" onclick="deleteSettleVersions([Number(this.dataset.id)])" class="px-2 py-1 text-[11px] font-bold text-rose-500 hover:bg-rose-50 rounded" title="아직 안 보낸 기록이라 삭제할 수 있습니다">삭제</button>`}</td>
+            <td class="p-2.5 whitespace-nowrap"><button data-id="${v.id}" onclick="previewSettleVersion(Number(this.dataset.id))" class="px-2 py-1 text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 rounded">보기</button><button data-id="${v.id}" onclick="copySettleHistoryLink(Number(this.dataset.id))" class="px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded" title="이 날짜 정산서 링크(지금 저장된 최신 내용)를 안내문과 함께 복사합니다">링크 복사</button>${v.sent_at ? '' : `<button data-id="${v.id}" onclick="deleteSettleVersions([Number(this.dataset.id)])" class="px-2 py-1 text-[11px] font-bold text-rose-500 hover:bg-rose-50 rounded" title="아직 안 보낸 기록이라 삭제할 수 있습니다">삭제</button>`}</td>
         </tr>`;
     }).join('');
 }
