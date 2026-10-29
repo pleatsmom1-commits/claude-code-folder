@@ -377,13 +377,13 @@ function shipListText(r) {
     const partial = r.partial_count || 0;
     const head = [
         `${r.company}님${m ? ` ${Number(m)}/${Number(d)}` : ''} 운송장정보 전달드립니다.`,
-        `총 출고된 송장건수 ${r.parcel_count || 0}건` + (partial ? ` ( 이중 부분출고송장건수 ${partial}건 )` : ''),
         '',
-        '오늘의 정산서는 모든 출고가 마무리 되는대로 바로 보내드리겠습니다.',
-        '고맙습니다.',
+        `총 출고된 송장건수 : ${r.parcel_count || 0}건` + (partial ? ` ( 이중 부분출고송장건수 ${partial}건 )` : ''),
     ].join('\n');
+    const tail = '오늘의 정산서는 모든 출고가 마무리 되는대로 바로 보내드리겠습니다. 고맙습니다.';
     const lines = (r.items || []).map(x => [x.recipient, x.tracking ? x.tracking + (x.state === '부분출고' ? '/부출' : '') : '미출고', x.product].join('\t'));
-    return [head, '', ...lines].join('\n');
+    // 대표님 모양 (2026-10-29): 인사 → 빈 줄 → 출고 송장건수 → 빈 줄 → 송장 목록 → 빈 줄 → 정산서 안내 한 줄
+    return [head, '', ...lines, '', tail].join('\n');
 }
 
 async function copyShipList(company) {
