@@ -1149,7 +1149,9 @@
                             <i data-lucide="search" class="w-3.5 h-3.5"></i> 조회</button>
                         <span id="ship-summary" class="text-slate-600"></span>
                         <span id="ship-file-status" class="text-slate-400"></span>
-                        <button type="button" id="ship-clear-btn" onclick="clearShipUpload()" class="hidden ml-auto px-3 py-1.5 bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 font-bold rounded-lg flex items-center gap-1" title="올린 엑셀 내용과 복사 표시를 모두 지웁니다">
+                        <button type="button" id="ship-checkall-btn" onclick="toggleAllShipDone()" class="hidden ml-auto px-3 py-1.5 bg-white border border-emerald-300 hover:bg-emerald-50 text-emerald-700 font-bold rounded-lg flex items-center gap-1" title="목록의 모든 업체를 복사완료로 체크합니다 (다 체크돼 있으면 모두 해제)">
+                            <i data-lucide="check-square" class="w-3.5 h-3.5"></i> <span id="ship-checkall-label">전체 체크</span></button>
+                        <button type="button" id="ship-clear-btn" onclick="clearShipUpload()" class="hidden px-3 py-1.5 bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 font-bold rounded-lg flex items-center gap-1" title="올린 엑셀 내용과 복사 표시를 모두 지웁니다">
                             <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> 전체 삭제</button>
                     </div>
                     <div class="ship-full flex flex-wrap items-center gap-2 text-xs">
