@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>밤낮딜리버리 재고 출고</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+<div id="page-header" class="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex justify-between items-center gap-2">
+    <div class="flex items-center gap-3">
+        <div class="bg-indigo-600 text-white p-2 rounded-lg font-black tracking-wider text-sm">밤낮</div>
+        <div>
+            <h1 class="font-bold text-lg leading-tight text-slate-900">재고 출고 · 주문할 상품</h1>
+            <p class="text-xs text-slate-500">풀필먼트 주문 ↔ 새 재고표</p>
+        </div>
+    </div>
+    <a href="/" class="text-xs text-slate-500 hover:text-slate-800">← 주문접수 화면</a>
+</div>
+
+<main class="max-w-7xl mx-auto p-4 sm:p-6 space-y-4">
+    <div id="state" class="bg-white rounded-xl border border-slate-200 p-10 text-center text-slate-500">불러오는 중입니다...</div>
+
+    <div id="app" class="hidden space-y-4">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+            <div class="flex flex-wrap items-end gap-3">
+                <div>
+                    <h2 class="font-bold text-slate-900">풀필먼트 주문 불러오기</h2>
+                    <p class="text-xs text-slate-500 mt-0.5">접수일 기간의 <b>미출고</b> 풀필먼트 주문을 <b>먼저 들어온 순서</b>대로 상품화 재고에 맞춰 봅니다. 불량·미상품화 재고는 출고 계산에서 뺍니다.</p>
+                </div>
+                <label class="text-xs space-y-1 ml-auto"><span class="font-bold text-slate-600 block">접수일 부터</span><input type="date" id="f-from" class="px-2 py-1.5 border rounded-lg"></label>
+                <label class="text-xs space-y-1"><span class="font-bold text-slate-600 block">까지</span><input type="date" id="f-to" class="px-2 py-1.5 border rounded-lg"></label>
+                <button onclick="loadOrders()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow">불러오기</button>
+            </div>
+            <div id="stats" class="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center"></div>
+        </div>
+
+        <!-- 확인 필요: 상품을 못 찾은 / 후보가 여러 개인 주문 -->
+        <div id="check-box" class="hidden bg-white rounded-xl shadow-sm border border-rose-200 p-5 space-y-3">
+            <div>
+                <h2 class="font-bold text-rose-700">상품 확인이 필요한 주문 <span id="check-count"></span></h2>
+                <p class="text-xs text-slate-500 mt-0.5">주문 상품명으로 상품관리의 상품을 찾지 못했거나 여러 개가 맞습니다. 맞는 상품을 고르면 <b>다음부터 같은 상품명은 자동으로</b> 찾습니다.
+                    상품관리에 없는 상품은 <a href="/products" target="_blank" class="text-indigo-600 font-bold">상품관리</a>에서 먼저 등록해주세요. (못 찾은 주문은 '주문해야 할 상품'에 들어갑니다)</p>
+            </div>
+            <div class="overflow-auto border border-slate-200 rounded-lg">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-slate-50 text-slate-500"><tr><th class="p-2">주문</th><th class="p-2">거래처</th><th class="p-2">주문 상품명</th><th class="p-2">도매처 · 도매상품명</th><th class="p-2 text-right">수량</th><th class="p-2">맞는 상품 고르기</th></tr></thead>
+                    <tbody id="check-list" class="divide-y divide-slate-100"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 재고출고가능 리스트 -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+            <div class="flex justify-between items-start flex-wrap gap-3">
+                <div>
+                    <h2 class="font-bold text-emerald-700">재고출고가능 리스트 <span id="pick-count"></span></h2>
+                    <p class="text-xs text-slate-500 mt-0.5">재고에서 바로 나갈 수 있는 주문입니다(위치순). 실제로 챙긴 줄만 체크하고 <b>[출고확정]</b>을 누르면 그만큼 상품화 재고가 빠집니다. 체크를 뺀 줄은 <b>미출고</b>로 남고 재고도 그대로입니다.</p>
+                </div>
+                <div class="flex gap-2 flex-wrap">
+                    <button onclick="printList('pick')" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 font-bold text-xs rounded-lg">인쇄</button>
+                    <button onclick="excelList('pick')" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 font-bold text-xs rounded-lg">엑셀</button>
+                    <button onclick="copyList('pick')" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 font-bold text-xs rounded-lg">텍스트 복사</button>
+                    <button id="pick-btn" onclick="confirmPick()" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-bold text-xs rounded-lg shadow">출고확정</button>
+                </div>
+            </div>
+            <div class="overflow-auto max-h-[60vh] border border-slate-200 rounded-lg">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-slate-800 text-slate-200 font-bold sticky top-0">
+                        <tr><th class="p-2"><input type="checkbox" id="pick-all" checked onchange="document.querySelectorAll('.pick-check').forEach(c => { c.checked = this.checked; }); updatePickBtn()"></th>
+                            <th class="p-2">위치</th><th class="p-2">상품코드</th><th class="p-2">거래처</th><th class="p-2">주문 상품명</th><th class="p-2">도매처</th><th class="p-2">도매상품명</th><th class="p-2">컬러</th><th class="p-2">사이즈</th><th class="p-2 text-right">수량</th><th class="p-2">주문 · 받는분</th></tr>
+                    </thead>
+                    <tbody id="pick-list" class="divide-y divide-slate-100"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 주문해야 할 상품 -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+            <div class="flex justify-between items-start flex-wrap gap-3">
+                <div>
+                    <h2 class="font-bold text-amber-700">주문해야 할 상품 <span id="buy-count"></span></h2>
+                    <p class="text-xs text-slate-500 mt-0.5">재고가 없거나 모자라는 주문을 상품마다 모았습니다(도매처순). 먼저 들어온 주문부터 재고를 배정한 뒤 남은 수량입니다.</p>
+                </div>
+                <div class="flex gap-2 flex-wrap">
+                    <button onclick="printList('buy')" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 font-bold text-xs rounded-lg">인쇄</button>
+                    <button onclick="excelList('buy')" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 font-bold text-xs rounded-lg">엑셀</button>
+                    <button onclick="copyList('buy')" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 font-bold text-xs rounded-lg">텍스트 복사</button>
+                </div>
+            </div>
+            <div class="overflow-auto max-h-[60vh] border border-slate-200 rounded-lg">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-slate-800 text-slate-200 font-bold sticky top-0">
+                        <tr><th class="p-2">도매처</th><th class="p-2">도매상품명</th><th class="p-2">컬러</th><th class="p-2">사이즈</th><th class="p-2">플랫폼 상품명</th><th class="p-2">거래처</th>
+                            <th class="p-2 text-right">주문</th><th class="p-2 text-right">재고</th><th class="p-2 text-right">주문할 수량</th><th class="p-2">비고</th></tr>
+                    </thead>
+                    <tbody id="buy-list" class="divide-y divide-slate-100"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 이미 출고확정한 주문 -->
+        <details id="picked-box" class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+            <summary class="font-bold text-slate-700 cursor-pointer">이미 출고확정한 주문 <span id="picked-count"></span></summary>
+            <div class="overflow-auto max-h-[50vh] border border-slate-200 rounded-lg mt-3">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-slate-50 text-slate-500"><tr><th class="p-2">확정 시각</th><th class="p-2">상품코드</th><th class="p-2">거래처</th><th class="p-2">주문 상품명</th><th class="p-2 text-right">수량</th><th class="p-2">주문 · 받는분</th><th class="p-2"></th></tr></thead>
+                    <tbody id="picked-list" class="divide-y divide-slate-100"></tbody>
+                </table>
+            </div>
+        </details>
+    </div>
+</main>
+
+<script>
+    // 관리자 전용. 주문은 읽기만 하고(출고 상태는 바꾸지 않음), 재고는 DB 함수 inventory_pick / inventory_unpick 으로만 바뀝니다.
+    let client = null;
+    let products = [], byId = new Map(), inv = new Map(), aliases = new Map(), orders = [], picks = new Map();
+    let result = { pick: [], buy: [], check: [], picked: [] };
+    const embed = new URLSearchParams(location.search).has('embed');
+
+    function esc(v) {
+        return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    function norm(v) { return String(v ?? '').replace(/\s+/g, '').toLowerCase(); }
+    function fmt(n) { return Number(n || 0).toLocaleString('ko-KR'); }
+    function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+    function fmtTime(iso) { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; }
+    function namesText(list) { return (list || []).map(n => (n.platform ? `${n.platform}: ` : '') + n.name).join(' / '); }
+    function orderNo(o) { return o.order_no ? `${o.order_no}${o.item_no ? '-' + o.item_no : ''}` : String(o.id).slice(-6); }
+    function showState(html) {
+        document.getElementById('state').innerHTML = html;
+        document.getElementById('state').classList.remove('hidden');
+        document.getElementById('app').classList.add('hidden');
+    }
+    function errorMessage(error) {
+        if (!error) return '';
+        if (error.code === '42501') return '권한이 없는 작업입니다.';
+        if (['PGRST205', 'PGRST202', '42P01', '42883'].includes(error.code)) return 'DB 설정이 최신이 아닙니다.\n(Supabase SQL Editor에서 supabase/inventory_orders.sql 을 실행해주세요)';
+        return error.message || String(error);
+    }
+    async function fetchAll(build) {
+        let all = [];
+        for (let from = 0; ; from += 1000) {
+            const { data, error } = await build().range(from, from + 999);
+            if (error) return { data: null, error };
+            all = all.concat(data || []);
+            if (!data || data.length < 1000) break;
+        }
+        return { data: all, error: null };
+    }
+
+    async function init() {
+        if (embed) document.getElementById('page-header').classList.add('hidden');
+        if (!window.supabase) { showState('화면을 불러오지 못했습니다. 새로고침해주세요.'); return; }
+        client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const { data: { session } } = await client.auth.getSession();
+        if (!session) { showState('로그인 후 이용할 수 있습니다.<br><br><a class="text-indigo-600 font-bold" href="/">로그인하러 가기</a>'); return; }
+        const { data: profile } = await client.from('profiles').select('role').eq('id', session.user.id).single();
+        if (!profile || profile.role !== 'admin') { showState('관리자만 쓸 수 있는 화면입니다.'); return; }
+        // 기본: 어제 ~ 오늘 접수분
+        const t = new Date(), y = new Date(Date.now() - 86400000);
+        document.getElementById('f-from').value = ymd(y);
+        document.getElementById('f-to').value = ymd(t);
+        await loadOrders();
+    }
+
+    async function loadOrders() {
+        const from = document.getElementById('f-from').value, to = document.getElementById('f-to').value;
+        if (!from || !to) { alert('접수일 기간을 골라주세요.'); return; }
+        const start = new Date(from + 'T00:00:00').toISOString(), end = new Date(new Date(to + 'T00:00:00').getTime() + 86400000).toISOString();
+        const [p, i, a, o] = await Promise.all([
+            fetchAll(() => client.from('products').select('*').is('deleted_at', null).order('id')),
+            fetchAll(() => client.from('inventory').select('*').order('product_id')),
+            fetchAll(() => client.from('product_aliases').select('*').order('id')),
+            fetchAll(() => client.from('orders').select('id,seller_company,recipient,product,wholesale_company,wholesale_product,qty,order_no,item_no,created_at,order_type,ship_status')
+                .eq('order_type', 'fulfillment').eq('ship_status', '미출고').gte('created_at', start).lt('created_at', end)
+                .order('created_at').order('item_no')),
+        ]);
+        const error = p.error || i.error || a.error || o.error;
+        if (error) { showState('불러오지 못했습니다.<br><span class="text-xs">' + esc(errorMessage(error)) + '</span>'); return; }
+        products = p.data;
+        byId = new Map(products.map(x => [x.id, x]));
+        inv = new Map(i.data.map(r => [r.product_id, r]));
+        aliases = new Map(a.data.map(r => [norm(r.company) + '|' + norm(r.alias), r]));
+        orders = o.data;
+        picks = new Map();
+        const ids = orders.map(x => x.id);
+        for (let k = 0; k < ids.length; k += 200) {
+            const { data, error: e } = await client.from('order_stock_picks').select('*').in('order_id', ids.slice(k, k + 200));
+            if (e) { showState('불러오지 못했습니다.<br><span class="text-xs">' + esc(errorMessage(e)) + '</span>'); return; }
+            data.forEach(r => picks.set(r.order_id, r));
+        }
+        document.getElementById('state').classList.add('hidden');
+        document.getElementById('app').classList.remove('hidden');
+        compute();
+        render();
+    }
+
+    // -----------------------------------------------------------------
+    // 주문 상품명 → 상품 찾기
+    //   1) 관리자가 짝지어 둔 이름  2) 상품코드  3) 쇼핑몰상품명이 똑같음  4) 도매처·도매상품명  5) 쇼핑몰상품명이 들어 있음
+    //   여러 개면 주문 상품명에 들어 있는 컬러·사이즈로 좁힙니다.
+    // -----------------------------------------------------------------
+    function matchOrder(o) {
+        const company = norm(o.seller_company);
+        const text = norm(o.product);
+        const alias = aliases.get(company + '|' + text);
+        if (alias && byId.has(alias.product_id)) return { product: byId.get(alias.product_id), how: '지정' };
+        const mine = products.filter(p => norm(p.company) === company);
+        const code = (String(o.product || '').toUpperCase().match(/P\d{6}/) || [])[0];
+        if (code) { const p = mine.find(x => x.code === code); if (p) return { product: p, how: '상품코드' }; }
+        const narrow = list => {
+            if (list.length <= 1) return list;
+            // 컬러가 주문 상품명에 들어 있는 것만 → 그다음 사이즈 (주문서에 사이즈가 없으면 컬러만으로)
+            for (const f of ['color', 'size']) {
+                const hit = list.filter(p => p[f] && text.includes(norm(p[f])));
+                if (hit.length) list = hit;
+            }
+            return list;
+        };
+        const steps = [
+            mine.filter(p => (p.mall_names || []).some(n => norm(n.name) === text)),
+            o.wholesale_product ? mine.filter(p => norm(p.wholesale_product) === norm(o.wholesale_product)
+                && (!o.wholesale_company || norm(p.wholesale_company) === norm(o.wholesale_company))) : [],
+            mine.filter(p => (p.mall_names || []).some(n => norm(n.name) && (text.includes(norm(n.name)) || norm(n.name).includes(text)))),
+        ];
+        for (const s of steps) {
+            const list = narrow(s);
+            if (list.length === 1) return { product: list[0], how: '자동' };
+            if (list.length > 1) return { candidates: list };
+        }
+        return { candidates: [] };
+    }
+
+    function compute() {
+        const avail = new Map([...inv.values()].map(r => [r.product_id, r.qty_a]));
+        const pick = [], check = [], picked = [];
+        const short = new Map();   // key → 주문해야 할 상품 줄
+        const addShort = (key, base, o, need, stock, note) => {
+            const s = short.get(key) || { ...base, ordered: 0, stock, need: 0, companies: new Set(), orders: [], note };
+            s.ordered += o.qty || 1; s.need += need; s.companies.add(o.seller_company); s.orders.push(orderNo(o));
+            short.set(key, s);
+        };
+        for (const o of orders) {
+            const qty = Math.max(1, o.qty || 1);
+            if (picks.has(o.id)) { picked.push({ o, pick: picks.get(o.id), product: byId.get(picks.get(o.id).product_id) }); continue; }
+            const m = matchOrder(o);
+            if (!m.product) {
+                check.push({ o, candidates: m.candidates });
+                if (!m.candidates.length) {
+                    addShort('order|' + norm(o.seller_company) + '|' + norm(o.product) + '|' + norm(o.wholesale_product), {
+                        wholesale_company: o.wholesale_company || '', wholesale_product: o.wholesale_product || '', color: '', size: '', mall: o.product,
+                    }, o, qty, 0, '상품관리에서 못 찾음');
+                }
+                continue;
+            }
+            const p = m.product;
+            const left = avail.get(p.id) || 0;
+            if (left >= qty) {
+                avail.set(p.id, left - qty);
+                pick.push({ o, product: p, qty, how: m.how });
+            } else {
+                // 먼저 들어온 주문이 남은 재고를 잡고, 모자란 만큼 주문합니다.
+                avail.set(p.id, 0);
+                const r = inv.get(p.id);
+                const notes = [];
+                if (left > 0) notes.push(`재고 ${left}개는 이 주문에 배정`);
+                if (r && r.qty_b) notes.push(`미상품화 ${r.qty_b}개 있음 (라벨 작업하면 출고 가능)`);
+                addShort('product|' + p.id, {
+                    product: p, wholesale_company: p.wholesale_company, wholesale_product: p.wholesale_product, color: p.color, size: p.size,
+                    mall: namesText(p.mall_names) || o.product,
+                }, o, qty - left, r ? r.qty_a : 0, notes.join(' · '));
+            }
+        }
+        pick.sort((x, y) => String(inv.get(x.product.id)?.location || '힣').localeCompare(String(inv.get(y.product.id)?.location || '힣'), 'ko')
+            || x.product.code.localeCompare(y.product.code));
+        const buy = [...short.values()].map(s => ({ ...s, companies: [...s.companies].join(', ') }))
+            .sort((x, y) => String(x.wholesale_company || '힣').localeCompare(String(y.wholesale_company || '힣'), 'ko') || String(x.wholesale_product).localeCompare(String(y.wholesale_product), 'ko'));
+        result = { pick, buy, check, picked };
+    }
+
+    function render() {
+        const r = result;
+        const box = (label, value, color) => `<div class="bg-${color}-50 border border-${color}-100 rounded-lg p-2"><div class="text-lg font-black text-${color}-700">${fmt(value)}</div><div class="text-[11px] text-slate-500">${label}</div></div>`;
+        document.getElementById('stats').innerHTML = box('불러온 주문', orders.length, 'slate') + box('재고출고가능', r.pick.length, 'emerald')
+            + box('주문해야 할 상품', r.buy.length, 'amber') + box('상품 확인 필요', r.check.length, 'rose') + box('이미 출고확정', r.picked.length, 'indigo');
+
+        document.getElementById('check-box').classList.toggle('hidden', !r.check.length);
+        document.getElementById('check-count').textContent = `(${r.check.length}건)`;
+        document.getElementById('check-list').innerHTML = r.check.map((c, idx) => {
+            const o = c.o;
+            const list = c.candidates.length ? c.candidates : products.filter(p => norm(p.company) === norm(o.seller_company));
+            return `<tr><td class="p-2 whitespace-nowrap">${esc(orderNo(o))}</td><td class="p-2 whitespace-nowrap font-bold">${esc(o.seller_company)}</td><td class="p-2">${esc(o.product)}</td>
+                <td class="p-2">${esc([o.wholesale_company, o.wholesale_product].filter(Boolean).join(' · '))}</td><td class="p-2 text-right">${o.qty || 1}</td>
+                <td class="p-2"><select onchange="setAlias(${idx}, this.value)" class="px-2 py-1 border rounded max-w-[320px]">
+                    <option value="">${c.candidates.length ? `후보 ${c.candidates.length}개 중 고르기` : list.length ? '못 찾음 · 이 거래처 상품에서 고르기' : '이 거래처 상품이 상품관리에 없음'}</option>
+                    ${list.map(p => `<option value="${p.id}">${esc(p.code)} ${esc(p.wholesale_company)} ${esc(p.wholesale_product)} ${esc(p.color)} ${esc(p.size)} · ${esc(namesText(p.mall_names))}</option>`).join('')}
+                </select></td></tr>`;
+        }).join('');
+
+        document.getElementById('pick-count').textContent = `(${r.pick.length}건)`;
+        document.getElementById('pick-all').checked = true;
+        document.getElementById('pick-list').innerHTML = r.pick.map((x, idx) => {
+            const p = x.product, i = inv.get(p.id);
+            return `<tr class="hover:bg-slate-50"><td class="p-2"><input type="checkbox" class="pick-check" data-idx="${idx}" checked onchange="updatePickBtn()"></td>
+                <td class="p-2 font-bold whitespace-nowrap">${esc(i?.location)}</td><td class="p-2 font-mono font-bold text-indigo-700 whitespace-nowrap">${esc(p.code)}</td>
+                <td class="p-2 whitespace-nowrap">${esc(x.o.seller_company)}</td><td class="p-2">${esc(x.o.product)}</td>
+                <td class="p-2 whitespace-nowrap">${esc(p.wholesale_company)}</td><td class="p-2">${esc(p.wholesale_product)}</td><td class="p-2 whitespace-nowrap">${esc(p.color)}</td><td class="p-2 whitespace-nowrap">${esc(p.size)}</td>
+                <td class="p-2 text-right font-bold">${x.qty}</td><td class="p-2 whitespace-nowrap">${esc(orderNo(x.o))} ${esc(x.o.recipient)}</td></tr>`;
+        }).join('') || '<tr><td colspan="11" class="p-6 text-center text-slate-400">재고에서 바로 나갈 수 있는 주문이 없습니다.</td></tr>';
+        updatePickBtn();
+
+        document.getElementById('buy-count').textContent = `(${r.buy.length}개 상품 · ${fmt(r.buy.reduce((s, b) => s + b.need, 0))}개)`;
+        document.getElementById('buy-list').innerHTML = r.buy.map(b => `<tr>
+                <td class="p-2 whitespace-nowrap font-bold">${esc(b.wholesale_company)}</td><td class="p-2">${esc(b.wholesale_product)}</td><td class="p-2 whitespace-nowrap">${esc(b.color)}</td><td class="p-2 whitespace-nowrap">${esc(b.size)}</td>
+                <td class="p-2">${esc(b.mall)}</td><td class="p-2">${esc(b.companies)}</td><td class="p-2 text-right">${b.ordered}</td><td class="p-2 text-right">${b.stock}</td>
+                <td class="p-2 text-right font-black text-amber-700">${b.need}</td><td class="p-2 text-slate-500">${esc(b.note)}</td></tr>`).join('')
+            || '<tr><td colspan="10" class="p-6 text-center text-slate-400">주문해야 할 상품이 없습니다.</td></tr>';
+
+        document.getElementById('picked-count').textContent = `(${r.picked.length}건)`;
+        document.getElementById('picked-list').innerHTML = r.picked.map(x => `<tr>
+                <td class="p-2 whitespace-nowrap">${fmtTime(x.pick.picked_at)}</td><td class="p-2 font-mono">${esc(x.product?.code || '')}</td><td class="p-2">${esc(x.o.seller_company)}</td>
+                <td class="p-2">${esc(x.o.product)}</td><td class="p-2 text-right">${x.pick.qty}</td><td class="p-2 whitespace-nowrap">${esc(orderNo(x.o))} ${esc(x.o.recipient)}</td>
+                <td class="p-2"><button onclick="unpick('${esc(x.o.id)}')" class="px-2 py-1 text-[11px] text-rose-600 hover:bg-rose-50 rounded font-bold">되돌리기</button></td></tr>`).join('')
+            || '<tr><td colspan="7" class="p-4 text-center text-slate-400">없습니다.</td></tr>';
+    }
+
+    function checkedPicks() { return [...document.querySelectorAll('.pick-check:checked')].map(c => result.pick[Number(c.dataset.idx)]); }
+    function updatePickBtn() {
+        const n = document.querySelectorAll('.pick-check:checked').length;
+        const btn = document.getElementById('pick-btn');
+        btn.textContent = `출고확정 (${n}건)`;
+        btn.disabled = !n;
+    }
+
+    async function setAlias(idx, value) {
+        if (!value) return;
+        const c = result.check[idx];
+        const p = byId.get(Number(value));
+        const key = norm(c.o.seller_company) + '|' + norm(c.o.product);
+        const old = aliases.get(key);
+        const { data, error } = old
+            ? await client.from('product_aliases').update({ product_id: p.id }).eq('id', old.id).select().single()
+            : await client.from('product_aliases').insert({ company: c.o.seller_company, alias: c.o.product, product_id: p.id }).select().single();
+        if (error) { alert('저장하지 못했습니다.\n\n' + errorMessage(error)); return; }
+        aliases.set(key, data);
+        compute();
+        render();
+    }
+
+    async function confirmPick() {
+        const list = checkedPicks();
+        if (!list.length) return;
+        const total = list.reduce((s, x) => s + x.qty, 0);
+        if (!confirm(`체크한 ${list.length}건 (${total}개)을 출고확정합니다.\n상품화 재고에서 빠집니다. 체크하지 않은 ${result.pick.length - list.length}건은 미출고로 남습니다.`)) return;
+        const btn = document.getElementById('pick-btn');
+        btn.disabled = true;
+        const items = list.map(x => ({ order_id: x.o.id, product_id: x.product.id, qty: x.qty, note: `${orderNo(x.o)} ${x.o.recipient || ''}`.trim() }));
+        const { data, error } = await client.rpc('inventory_pick', { p_items: items });
+        if (error) { alert('출고확정하지 못했습니다. (아무것도 빠지지 않았습니다)\n\n' + errorMessage(error)); btn.disabled = false; return; }
+        alert(`출고확정했습니다. ${data}건`);
+        await loadOrders();
+    }
+
+    async function unpick(orderId) {
+        if (!confirm('이 주문의 출고확정을 되돌립니다. 수량이 다시 상품화 재고로 들어갑니다.')) return;
+        const { error } = await client.rpc('inventory_unpick', { p_order_id: orderId });
+        if (error) { alert('되돌리지 못했습니다.\n\n' + errorMessage(error)); return; }
+        await loadOrders();
+    }
+
+    // -----------------------------------------------------------------
+    // 인쇄 · 엑셀 · 텍스트 복사
+    // -----------------------------------------------------------------
+    function table(kind) {
+        if (kind === 'pick') {
+            const rows = checkedPicks().length ? checkedPicks() : result.pick;
+            return { title: '재고출고가능 리스트', header: ['위치', '상품코드', '거래처', '주문 상품명', '도매처', '도매상품명', '컬러', '사이즈', '수량', '주문', '받는분'],
+                rows: rows.map(x => [inv.get(x.product.id)?.location || '', x.product.code, x.o.seller_company, x.o.product, x.product.wholesale_company, x.product.wholesale_product, x.product.color, x.product.size, x.qty, orderNo(x.o), x.o.recipient || '']) };
+        }
+        return { title: '주문해야 할 상품', header: ['도매처', '도매상품명', '컬러', '사이즈', '플랫폼 상품명', '거래처', '주문', '재고', '주문할 수량', '비고'],
+            rows: result.buy.map(b => [b.wholesale_company, b.wholesale_product, b.color, b.size, b.mall, b.companies, b.ordered, b.stock, b.need, b.note]) };
+    }
+    function stamp() { return `${document.getElementById('f-from').value} ~ ${document.getElementById('f-to').value} 접수분`; }
+    function printList(kind) {
+        const t = table(kind);
+        if (!t.rows.length) { alert('인쇄할 줄이 없습니다.'); return; }
+        const w = window.open('', '_blank');
+        if (!w) { alert('팝업이 막혀 있습니다. 브라우저에서 팝업을 허용해주세요.'); return; }
+        w.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>${esc(t.title)}</title>
+            <style>body{font-family:"Malgun Gothic",sans-serif;font-size:12px;margin:16px}h1{font-size:16px;margin:0 0 4px}p{margin:0 0 10px;color:#555}
+            table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:4px 6px;text-align:left}th{background:#eee}td.chk{width:18px}</style></head><body>
+            <h1>${esc(t.title)}</h1><p>${esc(stamp())} · 인쇄 ${esc(new Date().toLocaleString('ko-KR'))}</p>
+            <table><thead><tr>${kind === 'pick' ? '<th>✔</th>' : ''}${t.header.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>
+            <tbody>${t.rows.map(r => `<tr>${kind === 'pick' ? '<td class="chk"></td>' : ''}${r.map(v => `<td>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table>
+            <script>window.onload = () => window.print();<\/script></body></html>`);
+        w.document.close();
+    }
+    function excelList(kind) {
+        const t = table(kind);
+        if (!t.rows.length) { alert('받을 줄이 없습니다.'); return; }
+        const ws = XLSX.utils.aoa_to_sheet([t.header, ...t.rows]);
+        ws['!cols'] = t.header.map(h => ({ wch: ['주문 상품명', '플랫폼 상품명', '도매상품명', '비고'].includes(h) ? 26 : 11 }));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, t.title);
+        XLSX.writeFile(wb, `${t.title}_${document.getElementById('f-to').value}.xlsx`);
+    }
+    async function copyList(kind) {
+        let text;
+        if (kind === 'pick') {
+            const rows = checkedPicks().length ? checkedPicks() : result.pick;
+            text = `[재고출고가능 ${rows.length}건] ${stamp()}\n` + rows.map(x =>
+                `${inv.get(x.product.id)?.location || '-'} | ${x.product.code} | ${x.product.wholesale_company} ${x.product.wholesale_product} ${x.product.color} ${x.product.size}`.replace(/\s+/g, ' ').trim()
+                + ` x${x.qty} | ${x.o.seller_company} ${orderNo(x.o)} ${x.o.recipient || ''}`.trimEnd()).join('\n');
+        } else {
+            const groups = new Map();
+            result.buy.forEach(b => { const k = b.wholesale_company || '(도매처 없음)'; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(b); });
+            text = `[주문해야 할 상품] ${stamp()}\n` + [...groups.entries()].map(([k, list]) => `\n■ ${k}\n` + list.map(b =>
+                `- ${[b.wholesale_product || b.mall, b.color, b.size].filter(Boolean).join(' ')} x${b.need}` + ` (${b.companies})` + (b.note ? ` ※${b.note}` : '')).join('\n')).join('\n');
+        }
+        if (!(kind === 'pick' ? result.pick.length : result.buy.length)) { alert('복사할 줄이 없습니다.'); return; }
+        try { await navigator.clipboard.writeText(text); alert('복사했습니다. 카톡 등에 붙여넣으세요.'); }
+        catch { prompt('아래 내용을 복사하세요 (Ctrl+C)', text); }
+    }
+
+    init();
+</script>
+</body>
+</html>
