@@ -17,11 +17,13 @@ const SHIP_STORE_SENDER = '밤낮딜리버리';   // 송화인이 이 이름뿐�
 
 let shipExcel = null;          // 엑셀에서 읽은 업체별 묶음 { company: {company, items, ...} }
 let shipExcelFileName = '';
+let shipExcelGroups = null;    // 방금 올린 엑셀 (저장 전)
 let shipExcelWarnings = [];
 let shipSaved = [];            // 선택한 출고일에 저장된 운송장 (shipments)
 let shipChecked = new Set();
 let shipLoadedTab = false;
-let shipReady = true;          // shipping.sql 을 실행하지 않았으면 false
+let shipReady = true;          // shipping.sql 을 실행하지 않았으면 false (그때는 올린 엑셀을 이 화면에만 들고 있음)
+let shipFilter = 'all';        // 조회: all / done(복사완료) / todo(미복사)
 
 function shipLink(token) { return `${location.origin}${SHIP_PAGE_PATH}?t=${token}`; }
 
@@ -30,8 +32,7 @@ function onShipTabOpened() {
     shipLoadedTab = true;
     const dateInput = document.getElementById('ship-date');
     if (!dateInput.value) dateInput.value = settleDateKey(new Date());
-    if (!SHIP_FULL_FEATURES) { renderShipTable(); return; }
-    if (!settleContacts.length) fetchSettleContacts().then(renderShipTable);
+    if (SHIP_FULL_FEATURES && !settleContacts.length) fetchSettleContacts().then(renderShipTable);
     loadSavedShipments();
 }
 
@@ -120,12 +121,14 @@ function uploadShipWorkbook(event) {
             const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
             const parsed = shipParseRows(aoa);
             shipExcel = parsed.groups;
+            shipExcelGroups = parsed.groups;
             shipExcelWarnings = parsed.warnings;
             shipExcelFileName = file.name;
             document.getElementById('ship-file-status').textContent = `"${file.name}" · ${parsed.rows}줄 · 업체 ${Object.keys(shipExcel).length}곳`;
             shipChecked.clear();
-            shipLoadDone(); shipSkipped.clear(); shipLastCopied = null;
-            renderShipTable();
+            shipSkipped.clear(); shipLastCopied = null;
+            if (!SHIP_FULL_FEATURES) shipAutoSave();   // 올리자마자 출고일로 저장 → 나중에 [조회]로 다시 볼 수 있음
+            else renderShipTable();
             if (parsed.warnings.length) alert('확인이 필요한 줄이 있습니다.\n\n' + parsed.warnings.slice(0, 12).join('\n') + (parsed.warnings.length > 12 ? `\n… 외 ${parsed.warnings.length - 12}줄` : ''));
         } catch (err) {
             shipExcel = null;
@@ -139,7 +142,6 @@ async function loadSavedShipments() {
     const date = document.getElementById('ship-date').value;
     shipSaved = [];
     shipLoadDone();
-    if (!SHIP_FULL_FEATURES) { renderShipTable(); return; }
     if (!supabaseClient || !date) { renderShipTable(); return; }
     const { data, error } = await supabaseClient.from('shipments').select('*').eq('ship_date', date).order('company');
     if (error) {
@@ -149,7 +151,56 @@ async function loadSavedShipments() {
     }
     shipReady = true;
     shipSaved = (data || []).map(settleApplyStale);
+    if (!SHIP_FULL_FEATURES) {
+        shipDone = new Set(shipSaved.filter(x => x.copied_at).map(x => x.company));
+        if (shipSaved.length) shipExcel = null;   // 저장된 것을 보여줌 (엑셀은 이미 저장됨)
+    }
     renderShipTable();
+}
+
+// [조회]: 고른 출고일에 저장된 송장 목록을 다시 불러오기 (복사완료 / 미복사로 골라 보기)
+function runShipSearch() {
+    shipFilter = document.getElementById('ship-filter').value;
+    if (shipReady) {   // 저장이 안 되는 상태(shipping.sql 미실행)면 올린 엑셀을 화면에 그대로 둠
+        shipExcel = null; shipExcelWarnings = []; shipSkipped.clear(); shipLastCopied = null;
+        document.getElementById('ship-file-status').textContent = '';
+    }
+    loadSavedShipments();
+}
+
+// 복사 도우미: 올린 엑셀을 출고일로 저장. 내용이 그대로인 업체는 복사 표시를 유지하고,
+// 바뀐 업체(추가 송장 등)는 복사 표시를 지워 다시 보내도록 합니다.
+async function shipAutoSave() {
+    const date = document.getElementById('ship-date').value;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { alert('출고일을 먼저 고른 뒤 엑셀을 다시 올려 주세요.'); renderShipTable(); return; }
+    await loadSavedShipments();
+    if (!shipReady || !shipExcelGroups) { shipExcel = shipExcelGroups; renderShipTable(); return; }
+    const saved = new Map(shipSaved.map(x => [x.company, x]));
+    const now = new Date().toISOString();
+    const groups = Object.values(shipExcelGroups);
+    const payload = groups.map((g, i) => {
+        const old = saved.get(g.company);
+        const same = old && settleStableJson(old.items) === settleStableJson(g.items);
+        return {
+            token: (old && old.token) || settleRandomToken(),
+            company: g.company, ship_date: date, seq: i + 1,
+            items: g.items, parcel_count: g.parcel_count, unshipped_count: g.unshipped_count, extra_fee: g.extra_fee,
+            copied_at: same ? old.copied_at : null,
+            ...(same ? {} : { updated_at: now }),
+        };
+    });
+    const changed = groups.filter(g => { const o = saved.get(g.company); return o && settleStableJson(o.items) !== settleStableJson(g.items); });
+    const { error } = await supabaseClient.from('shipments').upsert(payload, { onConflict: 'company,ship_date' });
+    if (error) { shipExcel = shipExcelGroups; alert('저장하지 못했습니다 (이 화면에서만 보입니다).\n\n' + dbErrorMessage(error)); renderShipTable(); return; }
+    shipExcelGroups = null;
+    await loadSavedShipments();
+    const changedDone = changed.filter(g => saved.get(g.company).copied_at);
+    if (changedDone.length) alert(`이미 복사했던 업체 중 송장이 바뀐 ${changedDone.length}곳은 복사 표시를 지웠습니다. 다시 보내 주세요.\n\n${changedDone.map(g => g.company).join(', ')}`);
+}
+
+// 저장된 날짜의 업체 순서: 엑셀 순서(seq)
+function shipSavedOrder(list) {
+    return [...list].sort((a, b) => (a.seq ?? 1e9) - (b.seq ?? 1e9) || a.company.localeCompare(b.company, 'ko'));
 }
 
 // 엑셀(이번에 올린 것) + 저장된 것을 합친 목록
@@ -164,9 +215,10 @@ function shipCurrentList() {
             saved.delete(g.company);
         }
     }
-    for (const s of saved.values()) list.push({ ...s, partial_count: shipCounts(s.items || []).partial_count, saved: s, changed: false, notInExcel: !!shipExcel });
+    for (const s of saved.values()) list.push({ ...s, partial_count: shipCounts(s.items || []).partial_count, saved: s, changed: false, notInExcel: !!shipExcel && SHIP_FULL_FEATURES });
     // 복사 도우미만 쓸 때는 엑셀에 적힌 순서 그대로 (그 순서대로 카톡에 보내므로)
-    return SHIP_FULL_FEATURES ? list.sort((a, b) => a.company.localeCompare(b.company, 'ko')) : list;
+    if (SHIP_FULL_FEATURES) return list.sort((a, b) => a.company.localeCompare(b.company, 'ko'));
+    return shipExcel ? list : shipSavedOrder(list);
 }
 
 function shipStateHtml(r) {
@@ -201,12 +253,18 @@ function renderShipTable() {
         ? `⚠️ 확인이 필요한 줄 ${shipExcelWarnings.length}개: ${shipExcelWarnings.slice(0, 5).map(escapeHtml).join(' / ')}${shipExcelWarnings.length > 5 ? ' …' : ''}` : '';
 
     renderShipNext(list);
-    document.getElementById('ship-clear-btn').classList.toggle('hidden', !shipExcel);
-    if (!list.length) {
-        tbody.innerHTML = '<tr><td colspan="11" class="p-8 text-center text-slate-400">표시할 운송장이 없습니다.</td></tr>';
+    document.getElementById('ship-clear-btn').classList.toggle('hidden', !list.length);
+    const doneCount = list.filter(r => shipDone.has(r.company)).length;
+    if (!SHIP_FULL_FEATURES && list.length) {
+        document.getElementById('ship-summary').innerHTML += ` · 복사완료 <b class="text-emerald-600">${doneCount}</b>곳`
+            + (shipReady ? '' : ' <span class="text-rose-600 font-bold">· 저장 안 됨 (Supabase 에서 shipping.sql 실행 필요)</span>');
+    }
+    const shown = SHIP_FULL_FEATURES ? list : list.filter(r => shipFilter === 'all' || (shipFilter === 'done') === shipDone.has(r.company));
+    if (!shown.length) {
+        tbody.innerHTML = `<tr><td colspan="11" class="p-8 text-center text-slate-400">${list.length ? '조회 조건에 맞는 업체가 없습니다.' : '표시할 운송장이 없습니다. 송장 엑셀을 올리거나 출고일을 고르고 [조회]를 누르세요.'}</td></tr>`;
         return;
     }
-    tbody.innerHTML = list.map(r => {
+    tbody.innerHTML = shown.map(r => {
         const phone = shipContactPhone(r.company);
         const checkable = shipCheckable(r);
         const c = escapeHtml(r.company);
@@ -322,18 +380,34 @@ function shipLoadDone() {
 function shipSaveDone() {
     try { localStorage.setItem(shipDoneKey(), JSON.stringify([...shipDone])); } catch (e) { /* 무시 */ }
 }
+// 복사 표시를 DB(copied_at)에 남깁니다. 표가 없으면 이 컴퓨터에만 남깁니다.
+async function shipSaveCopied(companies, copied) {
+    shipSaveDone();
+    if (!shipReady || shipExcel || !supabaseClient) return;
+    const date = document.getElementById('ship-date').value;
+    const copied_at = copied ? new Date().toISOString() : null;
+    const { error } = await supabaseClient.from('shipments').update({ copied_at }).eq('ship_date', date).in('company', companies);
+    if (error) { alert('복사 표시를 저장하지 못했습니다.\n\n' + dbErrorMessage(error)); return; }
+    shipSaved.forEach(x => { if (companies.includes(x.company)) x.copied_at = copied_at; });
+}
 function toggleShipDone(company, checked) {
     if (checked) shipMarkDone(company);
-    else { shipDone.delete(company); shipSaveDone(); }
+    else { shipDone.delete(company); shipSaveCopied([company], false); }
     if (shipLastCopied && shipLastCopied.company === company && !checked) shipLastCopied = null;
     renderShipTable();
 }
 
-// 올린 엑셀과 복사 표시를 모두 지우기 (다른 엑셀을 다시 올릴 때)
-function clearShipUpload() {
-    if (!shipExcel) return;
-    if (!confirm('올린 송장 엑셀 내용과 복사 표시를 모두 지울까요?\n(엑셀 파일 자체는 그대로입니다. 다시 올리면 됩니다)')) return;
-    shipExcel = null;
+// 이 출고일의 송장 목록과 복사 표시를 모두 지우기 (잘못 올렸을 때)
+async function clearShipUpload() {
+    const date = document.getElementById('ship-date').value;
+    if (!shipCurrentList().length) return;
+    if (!confirm(`${date} 송장 목록과 복사 표시를 모두 지울까요?\n(엑셀 파일 자체는 그대로입니다. 다시 올리면 됩니다)`)) return;
+    if (shipReady && supabaseClient && shipSaved.length) {
+        const { error } = await supabaseClient.from('shipments').delete().eq('ship_date', date);
+        if (error) { alert('지우지 못했습니다.\n\n' + dbErrorMessage(error)); return; }
+        shipSaved = [];
+    }
+    shipExcel = null; shipExcelGroups = null;
     shipExcelFileName = '';
     shipExcelWarnings = [];
     shipChecked.clear();
@@ -342,7 +416,7 @@ function clearShipUpload() {
     renderShipTable();
 }
 
-function shipMarkDone(company) { shipDone.add(company); shipSkipped.delete(company); shipSaveDone(); }
+function shipMarkDone(company) { shipDone.add(company); shipSkipped.delete(company); shipSaveCopied([company], true); }
 
 function shipNextTarget(list = shipCurrentList()) {
     return list.find(r => !shipDone.has(r.company) && !shipSkipped.has(r.company)) || null;
@@ -351,7 +425,7 @@ function shipNextTarget(list = shipCurrentList()) {
 function renderShipNext(list) {
     const box = document.getElementById('ship-next');
     if (!box) return;
-    if (!shipExcel || !list.length) { box.classList.add('hidden'); return; }
+    if (!list.length) { box.classList.add('hidden'); return; }
     box.classList.remove('hidden');
     const next = shipNextTarget(list);
     const done = list.filter(r => shipDone.has(r.company)).length;
@@ -385,8 +459,10 @@ function skipNextShip() {
 }
 
 function resetShipDone() {
-    if (!confirm('완료(✔) 표시를 모두 지우고 처음 업체부터 다시 할까요?')) return;
-    shipDone.clear(); shipSkipped.clear(); shipSaveDone(); shipLastCopied = null;
+    if (!confirm('복사 표시를 모두 지우고 처음 업체부터 다시 할까요?')) return;
+    const all = [...shipDone];
+    shipDone.clear(); shipSkipped.clear(); shipLastCopied = null;
+    if (all.length) shipSaveCopied(all, false); else shipSaveDone();
     renderShipTable();
 }
 

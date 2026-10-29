@@ -1118,7 +1118,8 @@
                         <div>
                             <h3 class="font-bold text-slate-900">업체별 운송장 전송</h3>
                             <p class="text-xs text-slate-500 mt-0.5">출고/미출고/부분출고 송장 엑셀(송화인 · 수화인명 · 운송장번호 · 상품명 · 부피추가비용)을 올리면 송화인 괄호 안 상호별로 나눕니다.
-                                업체마다 <b>[송장 목록 복사]</b>를 눌러 카톡방에 붙여넣으세요. 출고건수는 같은 송장번호를 1건으로 셉니다. 송장이 추가되면 엑셀을 고쳐 다시 올리면 됩니다.</p>
+                                업체마다 <b>[송장 목록 복사]</b>를 눌러 카톡방에 붙여넣으세요. 출고건수는 같은 송장번호를 1건으로 셉니다. 송장이 추가되면 엑셀을 고쳐 다시 올리면 됩니다.<br>
+                                올린 엑셀은 <b>출고일별로 저장</b>됩니다. 출고일을 고르고 <b>[조회]</b>를 누르면 다시 보이고, 복사완료/미복사 업체만 골라 볼 수 있습니다.</p>
                             <p class="ship-full text-xs text-slate-500 mt-0.5">저장하면 업체마다 운송장 확인 링크가 만들어지고, <b>체크한 업체만</b> 골라 안내를 보낼 수 있습니다. 출고건수는 같은 송장번호를 1건으로 셉니다.</p>
                         </div>
                         <div class="flex gap-2 flex-wrap">
@@ -1138,7 +1139,14 @@
                     </div>
                     <div class="flex gap-3 items-center flex-wrap text-xs">
                         <label class="font-bold text-slate-600">출고일</label>
-                        <input type="date" id="ship-date" onchange="loadSavedShipments()" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
+                        <input type="date" id="ship-date" onchange="runShipSearch()" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
+                        <select id="ship-filter" onchange="runShipSearch()" class="px-2 py-1.5 border rounded-lg text-xs bg-white" title="복사한 업체만 / 아직 안 한 업체만 골라 보기">
+                            <option value="all">전체 업체</option>
+                            <option value="done">복사완료 업체</option>
+                            <option value="todo">미복사 업체</option>
+                        </select>
+                        <button type="button" id="ship-search-btn" onclick="runShipSearch()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg flex items-center gap-1" title="이 출고일에 올렸던 송장 목록을 다시 불러옵니다">
+                            <i data-lucide="search" class="w-3.5 h-3.5"></i> 조회</button>
                         <span id="ship-summary" class="text-slate-600"></span>
                         <span id="ship-file-status" class="text-slate-400"></span>
                         <button type="button" id="ship-clear-btn" onclick="clearShipUpload()" class="hidden ml-auto px-3 py-1.5 bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 font-bold rounded-lg flex items-center gap-1" title="올린 엑셀 내용과 복사 표시를 모두 지웁니다">
