@@ -469,11 +469,13 @@ function renderShipNext(list) {
     if (next) {
         document.getElementById('ship-next-name').textContent = next.company;
         document.getElementById('ship-next-info').textContent = `출고 ${next.parcel_count || 0}건` + (next.unshipped_count ? ` · 미출고 ${next.unshipped_count}개` : '');
+        btn.textContent = `📋 ${next.company} 풀필송장번호 복사`;
         btn.disabled = false;
     } else {
         const later = list.filter(r => !shipDone.has(r.company) && shipSkipped.has(r.company));
         document.getElementById('ship-next-name').textContent = later.length ? '순서 끝' : '모두 완료 🎉';
         document.getElementById('ship-next-info').textContent = later.length ? `나중에로 미뤄둔 ${later.length}곳: ${later.map(r => r.company).join(', ')} (목록에서 [송장 목록 복사])` : '';
+        btn.textContent = '📋 복사할 업체 없음';
         btn.disabled = true;
     }
 }

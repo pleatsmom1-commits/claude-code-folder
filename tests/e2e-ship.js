@@ -197,6 +197,8 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
     check('copy saved to DB (copied_at)', !!g['무드투문'].copied_at);
     const order = await page.evaluate(() => shipCurrentList().map(r => r.company));
     check('table follows Excel order', order.join(',') === '르아더스,눈타이드,럭스걸,무드투문', order.join(','));
+    check('버튼 문구 = [르아더스 풀필송장번호 복사]', (await page.textContent('#ship-next-btn')).trim() === '📋 르아더스 풀필송장번호 복사', await page.textContent('#ship-next-btn'));
+    await page.setViewportSize({ width: 1830, height: 1000 }); await page.screenshot({ path: path.join(__dirname, 'out', 'shot-ship-btnlabel.png'), clip: { x: 0, y: 380, width: 1830, height: 330 } }); await page.setViewportSize({ width: 1400, height: 900 });
     check('next shows first company + progress', (await page.textContent('#ship-next-name')) === '르아더스' && (await page.textContent('#ship-next-progress')).includes('4곳 중 1곳 완료'));
     await page.click('#ship-next-btn'); await page.waitForTimeout(300);
     let c3 = await page.evaluate(() => navigator.clipboard.readText());
