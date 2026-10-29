@@ -282,6 +282,8 @@ function renderShipTable() {
 
     renderShipNext(list);
     document.getElementById('ship-clear-btn').classList.toggle('hidden', !list.length);
+    document.getElementById('ship-checkall-btn').classList.toggle('hidden', !list.length || SHIP_FULL_FEATURES);
+    document.getElementById('ship-checkall-label').textContent = list.length && list.every(r => shipDone.has(r.company)) ? '전체 체크 해제' : '전체 체크';
     const doneCount = list.filter(r => shipDone.has(r.company)).length;
     if (!SHIP_FULL_FEATURES && list.length) {
         document.getElementById('ship-summary').innerHTML += ` · 복사완료 <b class="text-emerald-600">${doneCount}</b>곳`
@@ -486,6 +488,22 @@ function skipNextShip() {
     if (!next) return;
     shipSkipped.add(next.company);
     shipLastCopied = null;
+    renderShipTable();
+}
+
+// [전체 체크]: 목록의 모든 업체를 복사완료로 (모두 체크돼 있으면 모두 해제)
+function toggleAllShipDone() {
+    const list = shipCurrentList().map(r => r.company);
+    if (!list.length) return;
+    if (list.every(c => shipDone.has(c))) {
+        if (!confirm('모든 업체의 복사완료 체크를 해제할까요?')) return;
+        list.forEach(c => shipDone.delete(c));
+        shipSaveCopied(list, false);
+    } else {
+        const todo = list.filter(c => !shipDone.has(c));
+        todo.forEach(c => { shipDone.add(c); shipSkipped.delete(c); });
+        shipSaveCopied(todo, true);
+    }
     renderShipTable();
 }
 
