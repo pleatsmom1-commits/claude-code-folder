@@ -167,6 +167,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.fill('#login-email', 'admin@x.com'); await page.fill('#login-pw', 'adminpass1');
   await page.click('#btn-login'); await page.waitForTimeout(1500);
   check('admin dashboard shown', await page.isVisible('#admin-dashboard'));
+  await page.click('#admin-group-stock'); await page.waitForTimeout(300);
   await page.click('#admin-tab-products'); await page.waitForTimeout(2000);
   const frame = page.frame({ url: /products\.html\?embed=1/ });
   check('products tab loads products.html in frame', !!frame && await page.isVisible('#admin-products-panel'));
@@ -175,8 +176,9 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
     const t = await frame.textContent('#list');
     check('admin frame lists all companies', t.includes('꽃니트') && t.includes('목걸이') && t.includes('다라상회'), t.slice(0, 200));
   }
-  await page.click('#admin-tab-orders');
-  await page.click('#admin-tab-products'); await page.waitForTimeout(300);
+  await page.click('#admin-group-order');
+  await page.click('#admin-group-stock'); await page.waitForTimeout(300);
+  check('group remembers last tab (상품관리)', await page.isVisible('#admin-products-panel'));
   check('frame not reloaded on reopen', page.frames().filter(f => /products\.html/.test(f.url())).length === 1);
 
   // ---------- 2. 관리자: products.html 단독 화면 ----------
