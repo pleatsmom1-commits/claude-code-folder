@@ -1,0 +1,23 @@
+// 문의 AI 답변(worker/ask.js) 점검. 사용: node tests/worker-ask.mjs
+const W = new URL('..', import.meta.url).href.replace(/\/$/, '');
+const { handleAsk } = await import(W + '/worker/ask.js');
+let last, reply = { stop_reason: 'end_turn', content: [{ type: 'text', text: '픽업비는 매장당 1,800원입니다.' }] }, status = 200;
+globalThis.fetch = async (url, init) => { last = { url: String(url), headers: init.headers, body: JSON.parse(init.body) }; return new Response(JSON.stringify(reply), { status }); };
+const req = (body, origin = 'https://test-bamnat-delivery.bamnat.workers.dev', ip = '1.1.1.1') => new Request('https://test-bamnat-delivery.bamnat.workers.dev/api/ask',
+  { method: 'POST', body: JSON.stringify(body), headers: { Origin: origin, 'CF-Connecting-IP': ip } });
+const ok = (c, m) => console.log(c ? 'PASS' : 'FAIL', m);
+const env = { ANTHROPIC_API_KEY: 'k' };
+let r = await handleAsk(req({ messages: [{ role: 'user', content: '픽업비?' }] }), env), d = await r.json();
+ok(r.status === 200 && d.answer.includes('1,800'), 'answer returned');
+ok(last.body.model === 'claude-opus-5-5' && last.body.system[0].text.includes('매장당 1,800원') && last.headers['x-api-key'] === 'k', 'system prompt has knowledge');
+r = await handleAsk(req({ messages: [{ role: 'user', content: 'x' }] }), {}); ok(r.status === 503, 'no key -> 503');
+r = await handleAsk(req({ messages: [{ role: 'user', content: 'x' }] }, 'https://evil.com'), env); ok(r.status === 403, 'other origin blocked');
+r = await handleAsk(req({ messages: [{ role: 'user', content: 'a'.repeat(501) }] }, undefined, '2.2.2.2'), env); ok(r.status === 400, 'too long blocked');
+r = await handleAsk(req({ messages: [{ role: 'assistant', content: 'hi' }, { role: 'user', content: 'q' }] }, undefined, '3.3.3.3'), env);
+ok(r.status === 200 && last.body.messages.length === 1 && last.body.messages[0].role === 'user', 'leading assistant dropped');
+reply = { stop_reason: 'refusal', content: [] }; d = await (await handleAsk(req({ messages: [{ role: 'user', content: 'q' }] }, undefined, '4.4.4.4'), env)).json();
+ok(d.answer.includes('010-5425-9060'), 'refusal -> contact');
+status = 500; r = await handleAsk(req({ messages: [{ role: 'user', content: 'q' }] }, undefined, '5.5.5.5'), env); ok(r.status === 502, 'api error -> 502');
+status = 200; reply = { stop_reason: 'end_turn', content: [{ type: 'text', text: 'ok' }] };
+let codes = []; for (let i = 0; i < 10; i++) codes.push((await handleAsk(req({ messages: [{ role: 'user', content: 'q' }] }, undefined, '9.9.9.9'), env)).status);
+ok(codes.slice(0, 8).every(c => c === 200) && codes[8] === 429, 'rate limit after 8/min');
