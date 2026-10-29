@@ -16,6 +16,8 @@
 | `stock-admin.js` | 관리자 > 재고관리 탭 기능 |
 | `stock.html` | 셀러가 로그인해서 자기 재고를 보는 화면 (`/stock`) |
 | `supabase/stock.sql` | 거래처 재고 테이블. schema.sql 다음에 한 번 실행 |
+| `products.html` | 상품관리 화면 (`/products`). 관리자는 [상품관리] 탭, 셀러는 상단 [상품관리] 버튼 |
+| `supabase/products.sql` | 상품·변경기록 테이블과 사진 저장소. stock.sql 다음에 한 번 실행 (여러 번 실행해도 안전) |
 
 ## 접수 시간 안내 (한국 시간 기준)
 
@@ -212,6 +214,17 @@ Cloudflare **Workers & Pages → bamnat-delivery** 가 이 저장소의 `claude/
    업체별 현황의 **미가입**은 같은 상호로 가입한 셀러가 없다는 뜻입니다.
 - 관리자는 업체를 고른 뒤 [업체 화면 미리보기]로 셀러에게 보이는 화면을 확인할 수 있습니다. 메모는 셀러 화면에 보이지 않습니다.
 
+## 상품관리 (관리자 > 상품관리 탭, 셀러 > 상품관리)
+
+1. **처음 한 번**: Supabase SQL Editor에서 `supabase/products.sql` 전체를 실행합니다.
+2. 상품 한 줄 = 도매업체명 + 도매상품명 + 컬러 + 사이즈. 저장하면 **상품코드(P000001…)**가 자동으로 붙고 바꿀 수 없습니다.
+   플랫폼마다 다른 쇼핑몰상품명을 여러 개 적을 수 있고, 사진은 1장(긴 변 800px로 줄여 Storage `product-photos`에 저장).
+3. **권한**: 관리자는 모든 거래처. 승인된 셀러는 자기 상호 상품만 보고 등록·수정합니다(거래처명은 DB가 자기 상호로 고정).
+   셀러는 **[삭제 요청]**만 할 수 있고, 관리자가 [삭제 승인]/[거절]합니다. 삭제해도 행은 남고(삭제됨) 기록도 남습니다.
+4. **변경 기록**: 등록·수정·삭제요청·삭제가 `product_logs`에 자동으로 남고(DB 트리거), [기록] 버튼으로 바뀐 칸을 볼 수 있습니다.
+5. **엑셀**: [등록 양식 받기] → 한 줄에 플랫폼 하나씩 적어 [엑셀로 등록]. 같은 상품의 여러 줄은 한 상품으로 합치고,
+   상품코드(또는 같은 도매처·상품·컬러·사이즈)가 이미 있으면 새 쇼핑몰상품명만 더합니다. [엑셀 다운로드]도 같은 모양입니다.
+
 ## 수정 작업 순서 (실제 사이트 보호)
 
 1. 수정은 **작업용 브랜치**(원본을 복사한 공간)에서 합니다. 원본 `claude/fulfillment-order-system-d0h6g2` 는 실제 사이트입니다.
@@ -225,7 +238,7 @@ Cloudflare **Workers & Pages → bamnat-delivery** 가 이 저장소의 `claude/
 `config.js` 의 `TEST_SUPABASE` 에 그 프로젝트 주소와 publishable 키를 넣습니다.
 
 ## 화면 자동 점검 (개발용)
-`tests/` 폴더: 가짜 Supabase 로 실제 화면을 열어 확인합니다. `cd tests && npm install && node e2e-signup.js` (재고관리: `node e2e-stock.js`)
+`tests/` 폴더: 가짜 Supabase 로 실제 화면을 열어 확인합니다. `cd tests && npm install && node e2e-signup.js` (재고관리: `node e2e-stock.js`, 상품관리: `node e2e-products.js`)
 (사이트에는 올라가지 않습니다 — `.assetsignore`)
 
 ## 운송장 전송 (2026-10-28~)

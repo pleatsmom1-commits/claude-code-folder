@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>밤낮딜리버리 상품관리</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+    .modal { position: fixed; inset: 0; background: rgba(15, 23, 42, .6); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
+    .modal.open { display: flex; }
+    /* 휴대폰: 표 대신 상품마다 카드 한 장 */
+    @media (max-width: 640px) {
+        #list-table thead { display: none; }
+        #list-table, #list-table tbody, #list-table tr, #list-table td { display: block; width: 100%; }
+        #list-table tr { position: relative; padding: 10px 10px 10px 64px; min-height: 64px; }
+        #list-table td { padding: 1px 0; white-space: normal !important; max-width: none !important; text-align: left !important; }
+        #list-table td.c-photo { position: absolute; left: 10px; top: 10px; width: auto; }
+        #list-table td[data-label]::before { content: attr(data-label) " "; color: #94a3b8; }
+        #list-table td:empty { display: none; }
+        #list-table td.c-actions { margin-top: 6px; }
+    }
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+<div id="page-header" class="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex justify-between items-center gap-2">
+    <div class="flex items-center gap-3">
+        <div class="bg-indigo-600 text-white p-2 rounded-lg font-black tracking-wider text-sm">밤낮</div>
+        <div>
+            <h1 class="font-bold text-lg leading-tight text-slate-900">상품관리</h1>
+            <p id="header-company" class="text-xs text-slate-500"></p>
+        </div>
+    </div>
+    <a href="/" class="text-xs text-slate-500 hover:text-slate-800">← 주문접수 화면</a>
+</div>
+
+<main class="max-w-7xl mx-auto p-4 sm:p-6 space-y-4">
+    <div id="state" class="bg-white rounded-xl border border-slate-200 p-10 text-center text-slate-500">상품을 불러오는 중입니다...</div>
+
+    <div id="app" class="hidden space-y-4">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
+            <div class="flex justify-between items-start flex-wrap gap-3">
+                <div>
+                    <h2 class="font-bold text-slate-900">상품 목록</h2>
+                    <p class="text-xs text-slate-500 mt-0.5">상품마다 <b>상품코드</b>가 자동으로 붙습니다. 상품코드나 상품명으로 검색하면 도매처·도매상품명·플랫폼별 상품명이 바로 나옵니다. 바꾼 내용은 모두 [기록]에 남습니다.</p>
+                </div>
+                <div class="flex gap-2 flex-wrap">
+                    <button onclick="downloadForm()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm">등록 양식 받기</button>
+                    <label class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow cursor-pointer">
+                        엑셀로 등록
+                        <input id="upload-input" type="file" accept=".xlsx,.xls" onchange="uploadForm(event)" class="hidden">
+                    </label>
+                    <button onclick="downloadList()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm">엑셀 다운로드</button>
+                    <button onclick="openEdit(null)" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow">+ 상품 등록</button>
+                </div>
+            </div>
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-2">
+                <input type="search" id="f-keyword" oninput="renderList()" placeholder="상품코드 · 쇼핑몰상품명 · 도매처 · 도매상품명 검색" class="px-3 py-1.5 border rounded-lg text-xs bg-white w-72">
+                <select id="f-company" onchange="renderList()" class="admin-only hidden px-2 py-1.5 border rounded-lg text-xs bg-white max-w-[220px]"></select>
+                <select id="f-status" onchange="renderList()" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
+                    <option value="active">사용중</option>
+                    <option value="requested">삭제 요청</option>
+                    <option value="deleted" class="admin-only">삭제됨</option>
+                    <option value="all">전체</option>
+                </select>
+                <span id="request-badge" class="hidden text-xs font-bold text-rose-600 bg-rose-50 px-2.5 py-1 rounded-full cursor-pointer" onclick="showRequests()"></span>
+                <span id="summary" class="text-xs text-slate-500 ml-auto"></span>
+            </div>
+            <div class="overflow-auto max-h-[70vh] border border-slate-200 rounded-lg">
+                <table id="list-table" class="w-full text-left text-xs">
+                    <thead class="bg-slate-800 text-slate-200 font-bold sticky top-0 z-10">
+                        <tr>
+                            <th class="p-2">사진</th><th class="p-2">상품코드</th><th class="p-2 admin-only hidden">거래처명</th>
+                            <th class="p-2">도매업체명</th><th class="p-2">도매상품명</th><th class="p-2">컬러</th><th class="p-2">사이즈</th>
+                            <th class="p-2">플랫폼별 쇼핑몰상품명</th><th class="p-2">상태</th><th class="p-2 text-center">관리</th>
+                        </tr>
+                    </thead>
+                    <tbody id="list" class="divide-y divide-slate-100"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</main>
+
+<!-- 상품 등록·수정 -->
+<div id="edit-modal" class="modal">
+    <form onsubmit="saveEdit(event)" class="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[92vh] overflow-y-auto p-6 space-y-4">
+        <div class="flex justify-between items-start">
+            <div>
+                <h3 id="edit-title" class="text-lg font-bold text-slate-900">상품 등록</h3>
+                <p id="edit-code" class="text-xs text-indigo-600 font-bold mt-0.5"></p>
+            </div>
+            <button type="button" onclick="closeModal('edit-modal')" class="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+        </div>
+        <datalist id="company-options"></datalist>
+        <datalist id="platform-options">
+            <option value="스마트스토어"><option value="쿠팡"><option value="지그재그"><option value="에이블리"><option value="카페24"><option value="자사몰"><option value="29CM"><option value="무신사"><option value="11번가"><option value="G마켓">
+        </datalist>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <label class="space-y-1 admin-only hidden sm:col-span-2"><span class="font-bold text-slate-600">거래처명 *</span><input id="e-company" list="company-options" class="w-full px-3 py-2 border rounded-lg"></label>
+            <label class="space-y-1"><span class="font-bold text-slate-600">도매업체명 *</span><input id="e-wholesale_company" class="w-full px-3 py-2 border rounded-lg"></label>
+            <label class="space-y-1"><span class="font-bold text-slate-600">도매상품명 *</span><input id="e-wholesale_product" class="w-full px-3 py-2 border rounded-lg"></label>
+            <label class="space-y-1"><span class="font-bold text-slate-600">컬러</span><input id="e-color" class="w-full px-3 py-2 border rounded-lg"></label>
+            <label class="space-y-1"><span class="font-bold text-slate-600">사이즈</span><input id="e-size" class="w-full px-3 py-2 border rounded-lg"></label>
+        </div>
+        <div class="space-y-2 text-xs">
+            <div class="flex justify-between items-center">
+                <span class="font-bold text-slate-600">플랫폼별 쇼핑몰상품명 <span class="font-normal text-slate-400">(플랫폼마다 이름이 다르면 줄을 추가하세요)</span></span>
+                <button type="button" onclick="addNameRow('', '')" class="px-2 py-1 border border-slate-200 rounded text-indigo-600 font-bold hover:bg-indigo-50">+ 줄 추가</button>
+            </div>
+            <div id="e-names" class="space-y-2"></div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-[auto_1fr] gap-3 text-xs items-start">
+            <div class="space-y-1">
+                <span class="font-bold text-slate-600 block">사진 <span class="font-normal text-slate-400">(컬러가 보이는 1장)</span></span>
+                <div class="w-28 h-28 border rounded-lg bg-slate-50 flex items-center justify-center overflow-hidden">
+                    <img id="e-photo-img" class="hidden w-full h-full object-cover" alt="">
+                    <span id="e-photo-none" class="text-slate-300">사진 없음</span>
+                </div>
+                <div class="flex gap-1">
+                    <label class="px-2 py-1 border border-slate-200 rounded font-bold cursor-pointer hover:bg-slate-50">사진 선택<input id="e-photo" type="file" accept="image/*" onchange="pickPhoto(event)" class="hidden"></label>
+                    <button type="button" onclick="clearPhoto()" class="px-2 py-1 border border-slate-200 rounded text-slate-500 hover:bg-slate-50">빼기</button>
+                </div>
+            </div>
+            <label class="space-y-1"><span class="font-bold text-slate-600">메모</span><textarea id="e-memo" rows="5" class="w-full px-3 py-2 border rounded-lg"></textarea></label>
+        </div>
+        <div id="e-request-box" class="hidden bg-rose-50 border border-rose-200 rounded-lg p-3 text-xs text-rose-700"></div>
+        <div class="flex justify-between gap-2 flex-wrap">
+            <div class="flex gap-2">
+                <button type="button" id="e-delete" onclick="deleteProduct()" class="admin-only hidden px-4 py-2 border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-bold">삭제</button>
+                <button type="button" id="e-request" onclick="requestDelete()" class="seller-only hidden px-4 py-2 border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-bold">삭제 요청</button>
+            </div>
+            <div class="flex gap-2 ml-auto">
+                <button type="button" onclick="closeModal('edit-modal')" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold">취소</button>
+                <button type="submit" id="e-save" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-lg text-xs font-bold">저장</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- 변경 기록 -->
+<div id="log-modal" class="modal">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        <div class="flex justify-between items-start p-5 border-b">
+            <div>
+                <h3 class="text-lg font-bold text-slate-900">변경 기록</h3>
+                <p id="log-title" class="text-xs text-slate-500 mt-0.5"></p>
+            </div>
+            <button type="button" onclick="closeModal('log-modal')" class="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+        </div>
+        <div id="log-list" class="overflow-y-auto p-5 space-y-3 text-xs"></div>
+    </div>
+</div>
+
+<!-- 엑셀 등록 미리보기 -->
+<div id="upload-modal" class="modal">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+        <div class="flex justify-between items-start p-5 border-b">
+            <div>
+                <h3 class="text-lg font-bold text-slate-900">엑셀 등록 확인</h3>
+                <p id="upload-info" class="text-xs text-slate-500 mt-0.5"></p>
+            </div>
+            <button type="button" onclick="closeModal('upload-modal')" class="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+        </div>
+        <div class="overflow-auto flex-1 p-5">
+            <table class="w-full text-left text-xs">
+                <thead class="text-slate-500 border-b"><tr><th class="p-2">처리</th><th class="p-2 admin-only hidden">거래처명</th><th class="p-2">도매업체명</th><th class="p-2">도매상품명</th><th class="p-2">컬러</th><th class="p-2">사이즈</th><th class="p-2">쇼핑몰상품명</th></tr></thead>
+                <tbody id="upload-list" class="divide-y divide-slate-100"></tbody>
+            </table>
+        </div>
+        <div class="p-5 border-t flex justify-between items-center gap-2">
+            <span id="upload-status" class="text-xs text-indigo-600 font-bold"></span>
+            <div class="flex gap-2">
+                <button type="button" onclick="closeModal('upload-modal')" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold">취소</button>
+                <button type="button" id="upload-confirm" onclick="confirmUpload()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-lg text-xs font-bold">등록하기</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // DB 주소/키는 config.js. 권한은 DB(RLS)에서 막습니다:
+    // 관리자는 전부, 승인된 셀러는 자기 상호 상품만 보고 등록·수정하며 삭제는 요청만 합니다.
+    const PHOTO_BUCKET = 'product-photos';
+    const PHOTO_MAX = 800;          // 사진 긴 변 최대 px (줄여서 저장)
+    const FIELD_LABELS = {
+        company: '거래처명', wholesale_company: '도매업체명', wholesale_product: '도매상품명', color: '컬러', size: '사이즈',
+        mall_names: '쇼핑몰상품명', photo_url: '사진', memo: '메모', delete_request_reason: '삭제 요청 사유',
+    };
+    let client = null;
+    let me = null;                  // { id, company, role, status }
+    let isAdmin = false;
+    let products = [];
+    let editing = null;             // 수정 중인 상품 (새 상품이면 null)
+    let photoBlob = null;           // 새로 고른 사진 (줄인 것)
+    let photoCleared = false;
+    let upload = null;              // 엑셀 등록 대기 { creates: [...], merges: [...], skipped: [...] }
+
+    const embed = new URLSearchParams(location.search).has('embed');
+
+    function esc(v) {
+        return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    function norm(v) { return String(v ?? '').replace(/\s+/g, '').toLowerCase(); }
+    function itemKey(p) { return [p.company, p.wholesale_company, p.wholesale_product, p.color, p.size].map(norm).join('|'); }
+    function today() {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+    function fmtTime(iso) {
+        const d = new Date(iso);
+        return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    }
+    function namesText(list) {
+        return (list || []).map(n => (n.platform ? `${n.platform}: ` : '') + n.name).join(' / ');
+    }
+    function showModal(id) { document.getElementById(id).classList.add('open'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+    function showState(html) {
+        document.getElementById('state').innerHTML = html;
+        document.getElementById('state').classList.remove('hidden');
+        document.getElementById('app').classList.add('hidden');
+    }
+    function errorMessage(error) {
+        if (!error) return '';
+        if (error.code === '23505') return '이미 같은 상품(거래처·도매업체명·도매상품명·컬러·사이즈)이 등록되어 있습니다.';
+        if (error.code === '42501') return '권한이 없는 작업입니다.';
+        if (['PGRST205', '42P01'].includes(error.code)) return 'DB 설정이 최신이 아닙니다.\n(관리자: Supabase SQL Editor에서 supabase/products.sql 을 실행해주세요)';
+        return error.message || String(error);
+    }
+
+    async function fetchAll(build) {
+        let all = [];
+        for (let from = 0; ; from += 1000) {
+            const { data, error } = await build().range(from, from + 999);
+            if (error) return { data: null, error };
+            all = all.concat(data || []);
+            if (!data || data.length < 1000) break;
+        }
+        return { data: all, error: null };
+    }
+
+    // -----------------------------------------------------------------
+    // 시작 · 불러오기
+    // -----------------------------------------------------------------
+    async function init() {
+        if (embed) document.getElementById('page-header').classList.add('hidden');
+        if (!window.supabase) { showState('화면을 불러오지 못했습니다. 새로고침해주세요.'); return; }
+        client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const { data: { session } } = await client.auth.getSession();
+        if (!session) { showState('로그인 후 이용할 수 있습니다.<br><br><a class="text-indigo-600 font-bold" href="/">로그인하러 가기</a>'); return; }
+        const { data: profile, error } = await client.from('profiles').select('id,company,role,status').eq('id', session.user.id).single();
+        if (error || !profile) { showState('계정 정보를 불러오지 못했습니다. 다시 로그인해주세요.'); return; }
+        me = profile;
+        isAdmin = profile.role === 'admin';
+        if (!isAdmin && profile.status !== 'approved') { showState('관리자 승인 후 상품관리를 이용할 수 있습니다.'); return; }
+        document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !isAdmin));
+        document.querySelectorAll('.seller-only').forEach(el => el.classList.toggle('hidden', isAdmin));
+        if (!isAdmin) document.querySelector('#f-status option[value="deleted"]').remove();
+        document.getElementById('header-company').textContent = isAdmin ? '관리자 · 전체 거래처' : `${profile.company}`;
+        await loadProducts();
+    }
+
+    async function loadProducts() {
+        const { data, error } = await fetchAll(() => client.from('products').select('*').order('company').order('code'));
+        if (error) { showState('상품을 불러오지 못했습니다.<br><span class="text-xs">' + esc(errorMessage(error)) + '</span>'); return; }
+        products = data;
+        document.getElementById('state').classList.add('hidden');
+        document.getElementById('app').classList.remove('hidden');
+        renderCompanies();
+        renderList();
+    }
+
+    function companies() {
+        const map = new Map();
+        products.forEach(p => { if (!map.has(norm(p.company))) map.set(norm(p.company), p.company); });
+        return [...map.values()].sort((a, b) => a.localeCompare(b, 'ko'));
+    }
+
+    function renderCompanies() {
+        if (!isAdmin) return;
+        const sel = document.getElementById('f-company');
+        const cur = sel.value;
+        const list = companies();
+        sel.innerHTML = `<option value="">거래처 전체 (${list.length}곳)</option>` + list.map(c => `<option value="${esc(norm(c))}">${esc(c)}</option>`).join('');
+        sel.value = list.some(c => norm(c) === cur) ? cur : '';
+        document.getElementById('company-options').innerHTML = list.map(c => `<option value="${esc(c)}">`).join('');
+    }
+
+    function statusOf(p) {
+        if (p.deleted_at) return 'deleted';
+        if (p.delete_requested_at) return 'requested';
+        return 'active';
+    }
+
+    function filtered() {
+        const kw = norm(document.getElementById('f-keyword').value);
+        const company = isAdmin ? document.getElementById('f-company').value : '';
+        const status = document.getElementById('f-status').value;
+        return products.filter(p => {
+            const st = statusOf(p);
+            if (status === 'active' && st === 'deleted') return false;
+            if (status === 'requested' && st !== 'requested') return false;
+            if (status === 'deleted' && st !== 'deleted') return false;
+            if (company && norm(p.company) !== company) return false;
+            if (kw) {
+                const text = norm([p.code, p.company, p.wholesale_company, p.wholesale_product, p.color, p.size, namesText(p.mall_names), p.memo].join('|'));
+                if (!text.includes(kw)) return false;
+            }
+            return true;
+        });
+    }
+
+    function renderList() {
+        const list = filtered();
+        const requested = products.filter(p => statusOf(p) === 'requested').length;
+        const badge = document.getElementById('request-badge');
+        badge.classList.toggle('hidden', !requested);
+        badge.textContent = isAdmin ? `삭제 요청 ${requested}건` : `삭제 요청 중 ${requested}건`;
+        document.getElementById('summary').textContent = `${list.length.toLocaleString('ko-KR')}개 표시 · 전체 ${products.filter(p => !p.deleted_at).length.toLocaleString('ko-KR')}개`;
+        const tbody = document.getElementById('list');
+        const cols = isAdmin ? 10 : 9;
+        if (!list.length) {
+            tbody.innerHTML = `<tr><td colspan="${cols}" class="p-8 text-center text-slate-400">${products.length ? '조건에 맞는 상품이 없습니다.' : '등록된 상품이 없습니다. [+ 상품 등록] 또는 [엑셀로 등록]으로 등록하세요.'}</td></tr>`;
+            return;
+        }
+        const shown = list.slice(0, 500);
+        tbody.innerHTML = shown.map(p => {
+            const st = statusOf(p);
+            const stHtml = st === 'deleted' ? '<span class="px-1.5 py-0.5 bg-slate-200 text-slate-500 rounded text-[10px] font-bold">삭제됨</span>'
+                : st === 'requested' ? `<span class="px-1.5 py-0.5 bg-rose-50 text-rose-600 rounded text-[10px] font-bold" title="${esc(p.delete_request_reason)}">삭제 요청</span>`
+                : '<span class="text-emerald-600 font-bold text-[11px]">사용중</span>';
+            const reqBtns = isAdmin && st === 'requested'
+                ? `<button onclick="approveDelete(${p.id})" class="px-2 py-1 text-[11px] text-white bg-rose-600 hover:bg-rose-700 rounded font-bold">삭제 승인</button>
+                   <button onclick="rejectDelete(${p.id})" class="px-2 py-1 text-[11px] text-slate-600 hover:bg-slate-100 rounded font-bold">거절</button>` : '';
+            return `
+            <tr class="${st === 'deleted' ? 'bg-slate-50 text-slate-400' : 'hover:bg-slate-50'}">
+                <td class="p-2 c-photo">${p.photo_url ? `<img src="${esc(p.photo_url)}" class="w-10 h-10 object-cover rounded border" alt="">` : '<div class="w-10 h-10 rounded border bg-slate-50"></div>'}</td>
+                <td class="p-2 font-mono font-bold text-indigo-700 whitespace-nowrap">${esc(p.code)}</td>
+                ${isAdmin ? `<td class="p-2 font-bold whitespace-nowrap">${esc(p.company)}</td>` : ''}
+                <td class="p-2 whitespace-nowrap" data-label="도매">${esc(p.wholesale_company)}</td>
+                <td class="p-2" data-label="도매상품">${esc(p.wholesale_product)}</td>
+                <td class="p-2 whitespace-nowrap" data-label="컬러">${esc(p.color)}</td>
+                <td class="p-2 whitespace-nowrap" data-label="사이즈">${esc(p.size)}</td>
+                <td class="p-2 max-w-[320px]">${(p.mall_names || []).map(n => `<div>${n.platform ? `<span class="text-slate-400">${esc(n.platform)}</span> ` : ''}${esc(n.name)}</div>`).join('')}</td>
+                <td class="p-2 whitespace-nowrap">${stHtml}</td>
+                <td class="p-2 text-center whitespace-nowrap c-actions">
+                    ${st !== 'deleted' ? `<button onclick="openEdit(${p.id})" class="px-2 py-1 text-[11px] text-indigo-600 hover:bg-indigo-50 rounded font-bold">수정</button>` : ''}
+                    <button onclick="openLogs(${p.id})" class="px-2 py-1 text-[11px] text-slate-500 hover:bg-slate-100 rounded font-bold">기록</button>
+                    ${reqBtns}
+                </td>
+            </tr>`;
+        }).join('') + (list.length > shown.length ? `<tr><td colspan="${cols}" class="p-3 text-center text-slate-400">처음 500개만 표시합니다. 검색해서 좁혀주세요.</td></tr>` : '');
+    }
+
+    function showRequests() {
+        document.getElementById('f-status').value = 'requested';
+        renderList();
+    }
+
+    // -----------------------------------------------------------------
+    // 등록 · 수정 창
+    // -----------------------------------------------------------------
+    function addNameRow(platform, name) {
+        const row = document.createElement('div');
+        row.className = 'flex gap-2 name-row';
+        row.innerHTML = `
+            <input list="platform-options" value="${esc(platform)}" placeholder="플랫폼 (예: 스마트스토어)" class="n-platform w-40 px-3 py-2 border rounded-lg">
+            <input value="${esc(name)}" placeholder="그 플랫폼의 쇼핑몰상품명" class="n-name flex-1 px-3 py-2 border rounded-lg">
+            <button type="button" onclick="this.parentElement.remove()" class="px-2 text-slate-400 hover:text-rose-600">×</button>`;
+        document.getElementById('e-names').appendChild(row);
+    }
+
+    function setPhotoPreview(url) {
+        const img = document.getElementById('e-photo-img');
+        img.classList.toggle('hidden', !url);
+        document.getElementById('e-photo-none').classList.toggle('hidden', !!url);
+        if (url) img.src = url; else img.removeAttribute('src');
+    }
+
+    function openEdit(id) {
+        const p = id ? products.find(x => x.id === id) : null;
+        editing = p;
+        photoBlob = null;
+        photoCleared = false;
+        document.getElementById('edit-title').textContent = p ? '상품 수정' : '상품 등록';
+        document.getElementById('edit-code').textContent = p ? `상품코드 ${p.code}` : '저장하면 상품코드가 자동으로 붙습니다';
+        const companyKey = isAdmin ? document.getElementById('f-company').value : '';
+        const defCompany = companies().find(c => norm(c) === companyKey) || '';
+        document.getElementById('e-company').value = p ? p.company : defCompany;
+        for (const f of ['wholesale_company', 'wholesale_product', 'color', 'size', 'memo']) {
+            document.getElementById('e-' + f).value = p ? p[f] : '';
+        }
+        document.getElementById('e-names').innerHTML = '';
+        (p && p.mall_names.length ? p.mall_names : [{ platform: '', name: '' }]).forEach(n => addNameRow(n.platform, n.name));
+        setPhotoPreview(p ? p.photo_url : '');
+        document.getElementById('e-delete').classList.toggle('hidden', !isAdmin || !p);
+        const reqBtn = document.getElementById('e-request');
+        reqBtn.classList.toggle('hidden', isAdmin || !p);
+        reqBtn.textContent = p && p.delete_requested_at ? '삭제 요청 취소' : '삭제 요청';
+        const box = document.getElementById('e-request-box');
+        box.classList.toggle('hidden', !(p && p.delete_requested_at));
+        if (p && p.delete_requested_at) box.textContent = `삭제 요청됨 (${fmtTime(p.delete_requested_at)})${p.delete_request_reason ? ' · 사유: ' + p.delete_request_reason : ''}`;
+        showModal('edit-modal');
+    }
+
+    // 사진: 긴 변 800px, JPEG 로 줄여서 올립니다.
+    function pickPhoto(event) {
+        const file = event.target.files[0];
+        event.target.value = '';
+        if (!file) return;
+        const img = new Image();
+        img.onload = () => {
+            const scale = Math.min(1, PHOTO_MAX / Math.max(img.width, img.height));
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.round(img.width * scale);
+            canvas.height = Math.round(img.height * scale);
+            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+            canvas.toBlob(blob => {
+                photoBlob = blob;
+                photoCleared = false;
+                setPhotoPreview(URL.createObjectURL(blob));
+            }, 'image/jpeg', 0.82);
+            URL.revokeObjectURL(img.src);
+        };
+        img.onerror = () => alert('사진을 읽지 못했습니다. JPG·PNG 사진을 골라주세요.');
+        img.src = URL.createObjectURL(file);
+    }
+
+    function clearPhoto() {
+        photoBlob = null;
+        photoCleared = true;
+        setPhotoPreview('');
+    }
+
+    async function uploadPhoto(company) {
+        const rand = Array.from(crypto.getRandomValues(new Uint8Array(6)), b => b.toString(16).padStart(2, '0')).join('');
+        const folder = norm(company).replace(/[^0-9a-z가-힣]/g, '') || 'etc';
+        // Storage 파일 이름에는 한글을 쓰지 않습니다 (주소가 깨지지 않게)
+        const path = `${encodeURIComponent(folder).replace(/%/g, '')}/${Date.now()}-${rand}.jpg`;
+        const { error } = await client.storage.from(PHOTO_BUCKET).upload(path, photoBlob, { contentType: 'image/jpeg', upsert: false });
+        if (error) throw error;
+        return client.storage.from(PHOTO_BUCKET).getPublicUrl(path).data.publicUrl;
+    }
+
+    async function saveEdit(event) {
+        event.preventDefault();
+        const row = {};
+        for (const f of ['wholesale_company', 'wholesale_product', 'color', 'size', 'memo']) row[f] = document.getElementById('e-' + f).value.trim();
+        row.mall_names = [...document.querySelectorAll('#e-names .name-row')]
+            .map(r => ({ platform: r.querySelector('.n-platform').value.trim(), name: r.querySelector('.n-name').value.trim() }))
+            .filter(n => n.name);
+        const company = isAdmin ? document.getElementById('e-company').value.trim() : me.company;
+        if (isAdmin) {
+            if (!company) { alert('거래처명을 입력해주세요.'); return; }
+            row.company = company;
+        }
+        if (!row.wholesale_company || !row.wholesale_product) { alert('도매업체명과 도매상품명을 입력해주세요.'); return; }
+        const btn = document.getElementById('e-save');
+        btn.disabled = true;
+        try {
+            if (photoBlob) row.photo_url = await uploadPhoto(company);
+            else if (photoCleared) row.photo_url = '';
+            const { error } = editing
+                ? await client.from('products').update(row).eq('id', editing.id)
+                : await client.from('products').insert(row);
+            if (error) throw error;
+            closeModal('edit-modal');
+            await loadProducts();
+        } catch (error) {
+            alert('저장하지 못했습니다.\n\n' + errorMessage(error));
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async function requestDelete() {
+        if (!editing) return;
+        let patch;
+        if (editing.delete_requested_at) {
+            if (!confirm('삭제 요청을 취소합니다.')) return;
+            patch = { delete_requested_at: null, delete_request_reason: '' };
+        } else {
+            const reason = prompt('삭제 요청 사유를 적어주세요. 관리자가 확인 후 삭제합니다.\n(예: 판매 종료)', '');
+            if (reason === null) return;
+            patch = { delete_requested_at: new Date().toISOString(), delete_request_reason: reason.trim() };
+        }
+        const { error } = await client.from('products').update(patch).eq('id', editing.id);
+        if (error) { alert('요청하지 못했습니다.\n\n' + errorMessage(error)); return; }
+        closeModal('edit-modal');
+        await loadProducts();
+    }
+
+    async function markDeleted(id, message) {
+        if (!confirm(message)) return false;
+        const { error } = await client.from('products').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+        if (error) { alert('삭제하지 못했습니다.\n\n' + errorMessage(error)); return false; }
+        await loadProducts();
+        return true;
+    }
+
+    async function deleteProduct() {
+        if (editing && await markDeleted(editing.id, `상품 ${editing.code} 을(를) 삭제합니다.\n목록에서 빠지고 기록은 남습니다.`)) closeModal('edit-modal');
+    }
+
+    function approveDelete(id) {
+        const p = products.find(x => x.id === id);
+        markDeleted(id, `${p.company} · ${p.code} 삭제 요청을 승인합니다.${p.delete_request_reason ? '\n사유: ' + p.delete_request_reason : ''}`);
+    }
+
+    async function rejectDelete(id) {
+        const p = products.find(x => x.id === id);
+        if (!confirm(`${p.company} · ${p.code} 삭제 요청을 거절합니다. (상품은 그대로 둡니다)`)) return;
+        const { error } = await client.from('products').update({ delete_requested_at: null, delete_request_reason: '' }).eq('id', id);
+        if (error) { alert('처리하지 못했습니다.\n\n' + errorMessage(error)); return; }
+        await loadProducts();
+    }
+
+    // -----------------------------------------------------------------
+    // 변경 기록
+    // -----------------------------------------------------------------
+    function valueText(key, v) {
+        if (key === 'mall_names') return namesText(v) || '(없음)';
+        if (key === 'photo_url') return v ? '사진 있음' : '(없음)';
+        return v === '' || v == null ? '(없음)' : String(v);
+    }
+
+    async function openLogs(id) {
+        const p = products.find(x => x.id === id);
+        document.getElementById('log-title').textContent = `${p.code} · ${p.wholesale_company} ${p.wholesale_product} ${p.color} ${p.size}`;
+        document.getElementById('log-list').innerHTML = '<div class="text-slate-400">불러오는 중...</div>';
+        showModal('log-modal');
+        const { data, error } = await client.from('product_logs').select('*').eq('product_id', id).order('at', { ascending: false });
+        if (error) { document.getElementById('log-list').innerHTML = `<div class="text-rose-600">${esc(errorMessage(error))}</div>`; return; }
+        document.getElementById('log-list').innerHTML = data.length ? data.map(l => {
+            const changes = l.before && l.after ? Object.keys(FIELD_LABELS)
+                .filter(k => JSON.stringify(l.before[k] ?? null) !== JSON.stringify(l.after[k] ?? null))
+                .map(k => `<div><span class="text-slate-400">${FIELD_LABELS[k]}</span> ${esc(valueText(k, l.before[k]))} → <b>${esc(valueText(k, l.after[k]))}</b></div>`).join('') : '';
+            return `
+            <div class="border border-slate-200 rounded-lg p-3">
+                <div class="flex justify-between"><b>${esc(l.action)}</b><span class="text-slate-400">${fmtTime(l.at)} · ${esc(l.actor_name || '')}</span></div>
+                ${changes ? `<div class="mt-1.5 space-y-0.5">${changes}</div>` : ''}
+            </div>`;
+        }).join('') : '<div class="text-slate-400">기록이 없습니다.</div>';
+    }
+
+    // -----------------------------------------------------------------
+    // 엑셀: 등록 양식 받기 · 엑셀로 등록 · 목록 다운로드
+    // 양식은 한 줄에 플랫폼 하나. 같은 도매처·도매상품명·컬러·사이즈 줄은 한 상품으로 합칩니다.
+    // -----------------------------------------------------------------
+    const FORM_COLS = [
+        { key: 'company', label: '거래처명', adminOnly: true },
+        { key: 'code', label: '상품코드' },
+        { key: 'wholesale_company', label: '도매업체명' },
+        { key: 'wholesale_product', label: '도매상품명' },
+        { key: 'color', label: '컬러' },
+        { key: 'size', label: '사이즈' },
+        { key: 'platform', label: '플랫폼' },
+        { key: 'name', label: '쇼핑몰상품명' },
+        { key: 'memo', label: '메모' },
+    ];
+    function formCols() { return FORM_COLS.filter(c => isAdmin || !c.adminOnly); }
+
+    function downloadForm() {
+        const cols = formCols();
+        const sample = [
+            { company: '예시상회', code: '', wholesale_company: '홍은동', wholesale_product: '114', color: '검정', size: 'F', platform: '스마트스토어', name: '코지플라워 가디건', memo: '' },
+            { company: '예시상회', code: '', wholesale_company: '홍은동', wholesale_product: '114', color: '검정', size: 'F', platform: '지그재그', name: '[당일출고] 코지 가디건', memo: '' },
+            { company: '예시상회', code: '', wholesale_company: '파티파티', wholesale_product: '087벨루니버튼조끼', color: '그레이', size: '', platform: '', name: '벨루니 버튼 조끼', memo: '' },
+        ];
+        const ws = XLSX.utils.aoa_to_sheet([cols.map(c => c.label), ...sample.map(s => cols.map(c => s[c.key]))]);
+        ws['!cols'] = cols.map(c => ({ wch: c.key === 'name' ? 30 : c.key === 'wholesale_product' ? 20 : 12 }));
+        const head = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '1E293B' } } };
+        const must = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '4F46E5' } } };
+        cols.forEach((c, i) => {
+            const cell = ws[XLSX.utils.encode_cell({ r: 0, c: i })];
+            cell.s = ['wholesale_company', 'wholesale_product', 'company'].includes(c.key) ? must : head;
+        });
+        const guide = [
+            ['상품 등록 양식 작성방법'],
+            [''],
+            ['· 파란 칸(도매업체명, 도매상품명' + (isAdmin ? ', 거래처명' : '') + ')은 꼭 적어주세요. 나머지는 비워도 됩니다.'],
+            ['· 컬러·사이즈가 다르면 다른 상품입니다. 한 줄에 하나씩 적어주세요.'],
+            ['· 플랫폼마다 쇼핑몰상품명이 다르면, 같은 도매업체명·도매상품명·컬러·사이즈를 한 줄 더 적고 플랫폼과 상품명만 바꿔주세요. (예시 1·2번 줄)'],
+            ['· 상품코드는 비워두세요. 등록하면 자동으로 붙습니다. 이미 등록된 상품에 플랫폼 상품명을 더할 때만 상품코드를 적으면 됩니다.'],
+            ['· 예시 줄은 지우고 작성해주세요.'],
+        ];
+        const ws2 = XLSX.utils.aoa_to_sheet(guide);
+        ws2['!cols'] = [{ wch: 110 }];
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, '상품등록');
+        XLSX.utils.book_append_sheet(wb, ws2, '작성방법');
+        XLSX.writeFile(wb, '밤낮딜리버리_상품등록양식.xlsx');
+    }
+
+    function uploadForm(event) {
+        const file = event.target.files[0];
+        event.target.value = '';
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = evt => {
+            let rows;
+            try {
+                const wb = XLSX.read(new Uint8Array(evt.target.result), { type: 'array' });
+                const name = wb.SheetNames.includes('상품등록') ? '상품등록' : wb.SheetNames[0];
+                rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '' });
+            } catch (e) { alert('엑셀 파일을 읽지 못했습니다.\n\n' + e.message); return; }
+            const header = (rows[0] || []).map(h => String(h).replace(/\s+/g, ''));
+            const idx = {};
+            FORM_COLS.forEach(c => { idx[c.key] = header.indexOf(c.label); });
+            if (idx.wholesale_company < 0 || idx.wholesale_product < 0) {
+                alert('첫 줄에 "도매업체명", "도매상품명" 머리글이 있어야 합니다.\n[등록 양식 받기]로 받은 양식을 써주세요.');
+                return;
+            }
+            const cell = (r, k) => (idx[k] >= 0 ? String(r[idx[k]] ?? '').trim() : '');
+            const byKey = new Map(products.filter(p => !p.deleted_at).map(p => [itemKey(p), p]));
+            const byCode = new Map(products.filter(p => !p.deleted_at).map(p => [p.code.toUpperCase(), p]));
+            const creates = new Map(), merges = new Map(), skipped = [];
+            rows.slice(1).forEach((r, i) => {
+                if (!r.some(v => String(v).trim())) return;
+                const item = {
+                    company: isAdmin ? cell(r, 'company') : me.company,
+                    wholesale_company: cell(r, 'wholesale_company'), wholesale_product: cell(r, 'wholesale_product'),
+                    color: cell(r, 'color'), size: cell(r, 'size'), memo: cell(r, 'memo'),
+                };
+                const name = { platform: cell(r, 'platform'), name: cell(r, 'name') };
+                const code = cell(r, 'code').toUpperCase();
+                const line = i + 2;
+                const existing = code ? byCode.get(code) : byKey.get(itemKey(item));
+                if (code && !existing) { skipped.push({ line, reason: `상품코드 ${code} 를 찾지 못함` }); return; }
+                if (!existing) {
+                    if (isAdmin && !item.company) { skipped.push({ line, reason: '거래처명 없음' }); return; }
+                    if (!item.wholesale_company || !item.wholesale_product) { skipped.push({ line, reason: '도매업체명·도매상품명 없음' }); return; }
+                }
+                const target = existing ? merges : creates;
+                const key = existing ? existing.code : itemKey(item);
+                if (!target.has(key)) target.set(key, existing ? { product: existing, names: [] } : { ...item, mall_names: [] });
+                const entry = target.get(key);
+                const names = existing ? entry.names : entry.mall_names;
+                const already = (existing ? existing.mall_names : []).concat(names)
+                    .some(n => norm(n.platform) === norm(name.platform) && norm(n.name) === norm(name.name));
+                if (name.name && !already) names.push(name);
+            });
+            const mergeList = [...merges.values()].filter(m => m.names.length);
+            upload = { creates: [...creates.values()], merges: mergeList, skipped, sameCount: merges.size - mergeList.length };
+            renderUpload(file.name);
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    function renderUpload(fileName) {
+        const u = upload;
+        document.getElementById('upload-info').textContent =
+            `${fileName} · 새 상품 ${u.creates.length}개 · 쇼핑몰상품명 추가 ${u.merges.length}개`
+            + (u.sameCount ? ` · 이미 같은 내용 ${u.sameCount}개` : '') + (u.skipped.length ? ` · 건너뜀 ${u.skipped.length}줄` : '');
+        const td = v => `<td class="p-2">${esc(v)}</td>`;
+        const adminTd = v => (isAdmin ? td(v) : '');
+        document.getElementById('upload-list').innerHTML =
+            u.creates.map(c => `<tr><td class="p-2 text-emerald-600 font-bold whitespace-nowrap">새 상품</td>${adminTd(c.company)}${td(c.wholesale_company)}${td(c.wholesale_product)}${td(c.color)}${td(c.size)}${td(namesText(c.mall_names))}</tr>`).join('')
+            + u.merges.map(m => `<tr><td class="p-2 text-indigo-600 font-bold whitespace-nowrap">${esc(m.product.code)}에 추가</td>${adminTd(m.product.company)}${td(m.product.wholesale_company)}${td(m.product.wholesale_product)}${td(m.product.color)}${td(m.product.size)}${td(namesText(m.names))}</tr>`).join('')
+            + u.skipped.map(s => `<tr class="text-slate-400"><td class="p-2 whitespace-nowrap">건너뜀</td><td class="p-2" colspan="${isAdmin ? 6 : 5}">${s.line}번째 줄: ${esc(s.reason)}</td></tr>`).join('')
+            || `<tr><td colspan="7" class="p-6 text-center text-slate-400">등록할 내용이 없습니다.</td></tr>`;
+        document.getElementById('upload-confirm').disabled = !(u.creates.length || u.merges.length);
+        showModal('upload-modal');
+    }
+
+    async function confirmUpload() {
+        const u = upload;
+        const btn = document.getElementById('upload-confirm');
+        const status = document.getElementById('upload-status');
+        btn.disabled = true;
+        try {
+            for (let i = 0; i < u.creates.length; i += 200) {
+                status.textContent = `새 상품 저장 중... ${i}/${u.creates.length}`;
+                const { error } = await client.from('products').insert(u.creates.slice(i, i + 200));
+                if (error) throw error;
+            }
+            for (let i = 0; i < u.merges.length; i++) {
+                status.textContent = `쇼핑몰상품명 추가 중... ${i}/${u.merges.length}`;
+                const m = u.merges[i];
+                const { error } = await client.from('products').update({ mall_names: m.product.mall_names.concat(m.names) }).eq('id', m.product.id);
+                if (error) throw error;
+            }
+            status.textContent = '';
+            alert(`등록했습니다. 새 상품 ${u.creates.length}개, 쇼핑몰상품명 추가 ${u.merges.length}개`);
+            closeModal('upload-modal');
+        } catch (error) {
+            status.textContent = '';
+            alert('등록 중 오류가 났습니다. (오류 전까지는 저장됨)\n\n' + errorMessage(error));
+        } finally {
+            btn.disabled = false;
+            await loadProducts();
+        }
+    }
+
+    function downloadList() {
+        const list = filtered();
+        if (!list.length) { alert('다운로드할 상품이 없습니다.'); return; }
+        const cols = formCols();
+        const rows = [];
+        list.forEach(p => {
+            const names = p.mall_names.length ? p.mall_names : [{ platform: '', name: '' }];
+            names.forEach(n => rows.push(cols.map(c => (c.key === 'platform' ? n.platform : c.key === 'name' ? n.name : p[c.key] ?? ''))));
+        });
+        const ws = XLSX.utils.aoa_to_sheet([cols.map(c => c.label), ...rows]);
+        ws['!cols'] = cols.map(c => ({ wch: c.key === 'name' ? 30 : 14 }));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, '상품등록');
+        XLSX.writeFile(wb, `상품목록_${today()}.xlsx`);
+    }
+
+    init();
+</script>
+</body>
+</html>
