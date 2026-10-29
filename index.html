@@ -77,6 +77,10 @@
             <a id="nav-stock-btn" href="/stock" class="hidden shrink-0 whitespace-nowrap ml-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
                 <i data-lucide="package" class="w-4 h-4"></i> 재고 확인
             </a>
+            <!-- 셀러 로그인 시에만 표시: 내 상품관리 페이지 (products.html) -->
+            <a id="nav-products-btn" href="/products" class="hidden shrink-0 whitespace-nowrap ml-2 px-3 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
+                <i data-lucide="tags" class="w-4 h-4"></i> 상품관리
+            </a>
         </div>
         <div class="flex items-center gap-3">
             <div id="db-status-badge" class="px-2.5 py-1 bg-slate-100 text-slate-500 text-xs font-bold rounded-full flex items-center gap-1.5">
@@ -657,6 +661,9 @@
                 <button id="admin-tab-stock" onclick="switchAdminTab('stock')" class="px-5 py-2.5 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center gap-1.5">
                     재고관리
                 </button>
+                <button id="admin-tab-products" onclick="switchAdminTab('products')" class="px-5 py-2.5 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center gap-1.5">
+                    상품관리
+                </button>
             </div>
 
             <!-- 3-1. 주문 관리 -->
@@ -1198,6 +1205,14 @@
                     </div>
                     <p class="ship-full text-[11px] text-slate-500">* 연락처는 [정산서 발송] 탭의 거래처 연락처를 같이 씁니다 (없으면 회원가입 연락처). 연락처가 없거나 단톡방으로 보낼 업체는 [단톡방용 문구 복사]를 눌러 붙여넣으세요.</p>
                 </div>
+            </div>
+
+            <!-- 3-7. 상품관리 (products.html 을 그대로 불러와 보여줌) -->
+            <div id="admin-products-panel" class="hidden space-y-2">
+                <div class="flex justify-end">
+                    <a href="/products" target="_blank" class="text-xs font-bold text-indigo-600 hover:underline">새 창에서 크게 열기</a>
+                </div>
+                <iframe id="admin-products-frame" title="상품관리" class="w-full bg-white rounded-xl border border-slate-200" style="height: calc(100vh - 220px); min-height: 600px;"></iframe>
             </div>
 
             <div id="admin-stock-panel" class="hidden space-y-4">
@@ -2789,6 +2804,9 @@
             const stockBtn = document.getElementById('nav-stock-btn');
             stockBtn.classList.toggle('hidden', currentRole !== 'seller');
             stockBtn.classList.toggle('flex', currentRole === 'seller');
+            const productsBtn = document.getElementById('nav-products-btn');
+            productsBtn.classList.toggle('hidden', currentRole !== 'seller');
+            productsBtn.classList.toggle('flex', currentRole === 'seller');
             const area = document.getElementById('nav-user-area');
             if (!currentRole) {
                 area.innerHTML = `<span class="text-xs text-slate-400">로그인 필요</span>`;
@@ -4733,6 +4751,8 @@
             document.getElementById('admin-tab-pickup').className = tab === 'pickup' ? on : off;
             document.getElementById('admin-tab-stock').className = tab === 'stock' ? on : off;
             document.getElementById('admin-tab-ship').className = tab === 'ship' ? on : off;
+            document.getElementById('admin-tab-products').className = tab === 'products' ? on : off;
+            document.getElementById('admin-products-panel').classList.toggle('hidden', tab !== 'products');
             document.getElementById('admin-ship-panel').classList.toggle('hidden', tab !== 'ship');
             document.getElementById('admin-orders-panel').classList.toggle('hidden', tab !== 'orders');
             document.getElementById('admin-sellers-panel').classList.toggle('hidden', tab !== 'sellers');
@@ -4743,6 +4763,10 @@
             if (tab === 'pickup') fetchAdminPickupRequests();
             if (tab === 'stock') onStockTabOpened();
             if (tab === 'ship') onShipTabOpened();
+            if (tab === 'products') {
+                const frame = document.getElementById('admin-products-frame');
+                if (!frame.getAttribute('src')) frame.setAttribute('src', 'products.html?embed=1');
+            }
         }
 
         async function fetchSellersFromDB() {
