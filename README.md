@@ -21,6 +21,8 @@
 | `inventory.html` | 새 재고표 (`/inventory`). 관리자는 [새 재고표] 탭. 셀러는 자기 재고 보기만 |
 | `supabase/inventory.sql` | 새 재고표·수량 기록 테이블과 수량 바꾸는 함수. products.sql 다음에 한 번 실행 (여러 번 실행해도 안전) |
 | `supabase/inventory_confirm.sql` | 재고 확정(날짜별 확정 시각·그날 재고 사진). inventory.sql 다음에 한 번 실행 (여러 번 실행해도 안전) |
+| `picking.html` | 재고 출고 · 주문할 상품 (`/picking`, 관리자 [재고 출고] 탭) |
+| `supabase/inventory_orders.sql` | 주문 상품명 짝짓기·출고확정 기록과 함수. inventory.sql 다음에 한 번 실행 (여러 번 실행해도 안전) |
 
 ## 접수 시간 안내 (한국 시간 기준)
 
@@ -242,6 +244,16 @@ Cloudflare **Workers & Pages → bamnat-delivery** 가 이 저장소의 `claude/
    확정 뒤 수량을 고치면 "바뀐 수량 N건"과 [다시 확정]이 뜹니다. 평일 오전 8시부터 확정 전까지는 "재고출고중"으로 표시합니다.
 6. 수량은 DB 함수(`inventory_move`, `inventory_import`)로만 바뀌고 관리자만 부를 수 있습니다. 바뀔 때마다 `inventory_moves`에 기록이 남습니다([기록]).
 
+## 재고 출고 · 주문할 상품 (관리자 > 재고 출고 탭)
+
+1. **처음 한 번**: `supabase/inventory_orders.sql` 실행.
+2. 접수일 기간(기본 어제~오늘)의 **미출고 풀필먼트 주문**을 먼저 들어온 순서대로 새 재고표의 **상품화** 수량에 배정합니다(불량·미상품화 제외).
+   주문 상품명 → 상품 찾기: 관리자가 짝지어 둔 이름 → 상품코드 → 쇼핑몰상품명 일치 → 도매처·도매상품명 → 쇼핑몰상품명 포함, 여러 개면 컬러·사이즈로 좁힘.
+   못 찾거나 여러 개면 "상품 확인 필요"에서 고르면 `product_aliases`에 저장되어 다음부터 자동입니다.
+3. **재고출고가능 리스트**(위치순): 실제로 챙긴 줄만 체크 → [출고확정] → `inventory_pick`이 상품화 재고에서 빼고 `order_stock_picks`에 남김(같은 주문 두 번 안 빠짐, [되돌리기] 가능). 체크 안 한 줄은 미출고·재고 그대로.
+4. **주문해야 할 상품**(도매처순): 모자란 수량을 상품마다 합침. 두 리스트 모두 인쇄·엑셀·텍스트 복사(도매처별 묶음).
+5. 주문 표(orders)의 출고 상태는 바꾸지 않습니다.
+
 ## 수정 작업 순서 (실제 사이트 보호)
 
 1. 수정은 **작업용 브랜치**(원본을 복사한 공간)에서 합니다. 원본 `claude/fulfillment-order-system-d0h6g2` 는 실제 사이트입니다.
@@ -255,7 +267,7 @@ Cloudflare **Workers & Pages → bamnat-delivery** 가 이 저장소의 `claude/
 `config.js` 의 `TEST_SUPABASE` 에 그 프로젝트 주소와 publishable 키를 넣습니다.
 
 ## 화면 자동 점검 (개발용)
-`tests/` 폴더: 가짜 Supabase 로 실제 화면을 열어 확인합니다. `cd tests && npm install && node e2e-signup.js` (재고관리: `node e2e-stock.js`, 상품관리: `node e2e-products.js`, 새 재고표: `node e2e-inventory.js`)
+`tests/` 폴더: 가짜 Supabase 로 실제 화면을 열어 확인합니다. `cd tests && npm install && node e2e-signup.js` (재고관리: `node e2e-stock.js`, 상품관리: `node e2e-products.js`, 새 재고표: `node e2e-inventory.js`, 재고 출고: `node e2e-picking.js`)
 (사이트에는 올라가지 않습니다 — `.assetsignore`)
 
 ## 운송장 전송 (2026-10-28~)
