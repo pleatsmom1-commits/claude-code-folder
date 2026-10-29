@@ -61,8 +61,31 @@ function shipParseTracking(value) {
     return { tracking: m[0], state: /부출|부분/.test(raw) ? '부분출고' : '출고', raw };
 }
 
-// 송장 엑셀 → 업체별 묶음
-function shipParseRows(aoa) {
+// 엑셀에서 쓸 시트 고르기
+//  - 송화인·운송장번호 머리글이 있는 첫 시트를 읽습니다.
+//  - '미출고' 이름의 시트(미출고송장번호 목록)가 있으면, 그 송장번호는 미출고로 봅니다
+//    (송장 작업표 v6: 출력송장 시트 + 미출고송장 시트).
+function shipReadWorkbook(wb) {
+    const aoaOf = name => XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: '' });
+    const hasHead = aoa => aoa.slice(0, 20).some(r => r.some(c => /송화인/.test(String(c))) && r.some(c => /송장/.test(String(c))));
+    const main = wb.SheetNames.find(n => !/결과/.test(n) && hasHead(aoaOf(n))) || wb.SheetNames.find(n => hasHead(aoaOf(n))) || wb.SheetNames[0];
+    const unshipped = new Set();
+    let unshippedSheet = '';
+    for (const n of wb.SheetNames) {
+        if (n === main || !/미출고/.test(n) || /결과/.test(n)) continue;
+        const aoa = aoaOf(n);
+        if (hasHead(aoa)) continue;
+        for (const r of aoa) for (const c of r) {
+            const m = String(c ?? '').replace(/[\s-]/g, '').match(/^\d{8,}$/);
+            if (m) unshipped.add(m[0]);
+        }
+        if (unshipped.size) unshippedSheet = n;
+    }
+    return { aoa: aoaOf(main), sheet: main, unshipped, unshippedSheet };
+}
+
+// 송장 엑셀 → 업체별 묶음 (unshipped: 미출고송장 목록에 있는 송장번호)
+function shipParseRows(aoa, unshipped = new Set()) {
     const headIdx = aoa.findIndex(r => r.some(c => /송화인/.test(String(c))) && r.some(c => /송장/.test(String(c))));
     if (headIdx < 0) throw new Error('머리글(송화인 · 수화인명 · 운송장번호 · 상품명)을 찾지 못했습니다.');
     const head = aoa[headIdx].map(c => String(c ?? '').replace(/\s+/g, ''));
@@ -90,11 +113,12 @@ function shipParseRows(aoa) {
             company = options.find(o => known.has(settleNorm(o))) || recipient;
         }
         if (!company) { warnings.push(`${line}행: 업체를 알 수 없음`); continue; }
-        const t = shipParseTracking(r[c.tracking]);
+        let t = shipParseTracking(r[c.tracking]);
+        if (t.tracking && unshipped.has(t.tracking)) t = { tracking: '', state: '미출고', raw: '미출고', planned: t.tracking };
         if (t.state === '미출고' && t.raw && !/미출고/.test(t.raw)) warnings.push(`${line}행 [${company}] 운송장번호 "${t.raw}" 를 읽지 못해 미출고로 넣었습니다`);
         const fee = c.fee >= 0 ? Number(String(r[c.fee] ?? '').replace(/[^\d.-]/g, '')) || 0 : 0;
         const g = groups[company] = groups[company] || { company, items: [] };
-        g.items.push({ recipient, tracking: t.tracking, state: t.state, product: String(r[c.product] ?? '').trim(), fee, store });
+        g.items.push({ recipient, tracking: t.tracking, state: t.state, product: String(r[c.product] ?? '').trim(), fee, store, ...(t.planned ? { planned: t.planned } : {}) });
     }
     Object.values(groups).forEach(g => Object.assign(g, shipCounts(g.items)));
     return { groups, warnings, rows: rows.length };
@@ -103,7 +127,8 @@ function shipParseRows(aoa) {
 function shipCounts(items) {
     return {
         parcel_count: new Set(items.filter(x => x.tracking).map(x => x.tracking)).size,
-        unshipped_count: items.filter(x => !x.tracking).length,
+        // 미출고: 송장번호가 정해져 있으면(미출고송장 목록) 서로 다른 송장번호 수, 아니면 미출고 줄 수
+        unshipped_count: new Set(items.filter(x => !x.tracking).map((x, i) => x.planned || 'row' + i)).size,
         partial_count: new Set(items.filter(x => x.state === '부분출고').map(x => x.tracking)).size,
         extra_fee: items.reduce((s, x) => s + (Number(x.fee) || 0), 0),
     };
@@ -117,14 +142,13 @@ function uploadShipWorkbook(event) {
     reader.onload = evt => {
         try {
             const wb = XLSX.read(new Uint8Array(evt.target.result), { type: 'array' });
-            const ws = wb.Sheets[wb.SheetNames[0]];
-            const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
-            const parsed = shipParseRows(aoa);
+            const book = shipReadWorkbook(wb);
+            const parsed = shipParseRows(book.aoa, book.unshipped);
             shipExcel = parsed.groups;
             shipExcelGroups = parsed.groups;
             shipExcelWarnings = parsed.warnings;
             shipExcelFileName = file.name;
-            document.getElementById('ship-file-status').textContent = `"${file.name}" · ${parsed.rows}줄 · 업체 ${Object.keys(shipExcel).length}곳`;
+            document.getElementById('ship-file-status').textContent = `"${file.name}" · ${parsed.rows}줄 · 업체 ${Object.keys(shipExcel).length}곳` + (book.unshippedSheet ? ` · '${book.unshippedSheet}' 시트 미출고 송장 ${book.unshipped.size}개 반영` : '');
             shipChecked.clear();
             shipSkipped.clear(); shipLastCopied = null;
             if (!SHIP_FULL_FEATURES) shipAutoSave();   // 올리자마자 출고일로 저장 → 나중에 [조회]로 다시 볼 수 있음

@@ -241,6 +241,29 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
     await page.click('#ship-clear-btn'); await page.waitForTimeout(400);
     check('전체 삭제 → 그 날짜 저장분 삭제, 목록 비움', tables.shipments.length === 0 && (await page.textContent('#ship-list')).includes('표시할 운송장이 없습니다') && !(await vis('#ship-next')) && !(await vis('#ship-clear-btn')));
     await page.screenshot({ path: path.join(__dirname, 'out', 'shot-ship-simple.png') });
+
+    // 송장 작업표 v6 형식: 출력송장 시트(송장번호 모두 있음) + 미출고송장 시트(미출고 송장번호 목록)
+    const v6 = path.join(__dirname, 'out', 'ship-v6.xlsx');
+    const wb6 = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb6, XLSX.utils.aoa_to_sheet([
+      ['송화인', '송화인전번', '수화인명', '주소', '상품명', '옵션', '전화번호', '휴대폰', '배송메세지', '운송장번호', '택배비', '수량'],
+      ['밤낮딜리버리', '0100000', '르아더스', '주소', '픽업건 의류', '', '', '', '', '6082251369497', '', '1'],
+      ['밤낮딜리버리(럭스걸)', '0100000', '고객가', '주소', '자켓', '', '', '', '', '6082251300001', '', '1'],
+      ['밤낮딜리버리(럭스걸)', '0100000', '고객나', '주소', '(합)슬랙스', '', '', '', '', '6082251300002', '', '1'],
+      ['밤낮딜리버리(럭스걸)', '0100000', '고객나', '주소', '(합)니트', '', '', '', '', '6082251300002', '', '1'],
+      ['밤낮딜리버리(럭스걸)', '0100000', '고객다', '주소', '셔츠', '', '', '', '', 6082251300003, '', '1'],
+    ]), '출력송장');
+    XLSX.utils.book_append_sheet(wb6, XLSX.utils.aoa_to_sheet([['미출고송장번호'], [6082251300002]]), '미출고송장');
+    XLSX.utils.book_append_sheet(wb6, XLSX.utils.aoa_to_sheet([['송화인', '수화인명', '상품명', '운송장번호'], ['밤낮딜리버리', '엉뚱한값', '무시', '1']]), '출고및 미출고 결과값');
+    XLSX.writeFile(wb6, v6);
+    await page.setInputFiles('#ship-file-input', v6); await page.waitForTimeout(1000);
+    const lux6 = ship('럭스걸');
+    check('v6 형식: 출력송장 시트를 읽고 결과값 시트는 무시', tables.shipments.length === 2 && !!ship('르아더스') && lux6 && lux6.items.length === 4, JSON.stringify(tables.shipments.map(x => x.company)));
+    check('v6 형식: 미출고송장 목록의 송장 → 미출고 (같은 송장 2줄 = 미출고 1개)', lux6.parcel_count === 2 && lux6.unshipped_count === 1 && lux6.items.filter(i => i.state === '미출고').length === 2, JSON.stringify(lux6 && { p: lux6.parcel_count, u: lux6.unshipped_count }));
+    check('v6 형식: 파일 상태에 미출고 시트 반영 표시', (await page.textContent('#ship-file-status')).includes("'미출고송장' 시트 미출고 송장 1개 반영"), await page.textContent('#ship-file-status'));
+    await page.locator('#ship-list tr', { hasText: '럭스걸' }).locator('button:has-text("송장 목록 복사")').click(); await page.waitForTimeout(300);
+    const c6 = await page.evaluate(() => navigator.clipboard.readText());
+    check('v6 형식: 복사 내용에 미출고 표시', c6.includes('고객나\t미출고\t(합)슬랙스') && c6.includes('고객다\t6082251300003\t셔츠') && c6.includes('총 출고건수 2건'), c6);
   } else {
     check('unsaved rows cannot be checked', await page.locator('#ship-list input[type=checkbox]:not([disabled])').count() === 0);
     await page.click('#ship-save-btn'); await page.waitForTimeout(800);
