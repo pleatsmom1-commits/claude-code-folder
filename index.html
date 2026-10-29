@@ -664,6 +664,9 @@
                 <button id="admin-tab-products" onclick="switchAdminTab('products')" class="px-5 py-2.5 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center gap-1.5">
                     상품관리
                 </button>
+                <button id="admin-tab-inventory" onclick="switchAdminTab('inventory')" class="px-5 py-2.5 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center gap-1.5">
+                    새 재고표
+                </button>
             </div>
 
             <!-- 3-1. 주문 관리 -->
@@ -1213,6 +1216,14 @@
                     <a href="/products" target="_blank" class="text-xs font-bold text-indigo-600 hover:underline">새 창에서 크게 열기</a>
                 </div>
                 <iframe id="admin-products-frame" title="상품관리" class="w-full bg-white rounded-xl border border-slate-200" style="height: calc(100vh - 220px); min-height: 600px;"></iframe>
+            </div>
+
+            <!-- 3-8. 새 재고표 (inventory.html 을 그대로 불러와 보여줌) -->
+            <div id="admin-inventory-panel" class="hidden space-y-2">
+                <div class="flex justify-end">
+                    <a href="/inventory" target="_blank" class="text-xs font-bold text-indigo-600 hover:underline">새 창에서 크게 열기</a>
+                </div>
+                <iframe id="admin-inventory-frame" title="새 재고표" class="w-full bg-white rounded-xl border border-slate-200" style="height: calc(100vh - 220px); min-height: 600px;"></iframe>
             </div>
 
             <div id="admin-stock-panel" class="hidden space-y-4">
@@ -4753,6 +4764,8 @@
             document.getElementById('admin-tab-ship').className = tab === 'ship' ? on : off;
             document.getElementById('admin-tab-products').className = tab === 'products' ? on : off;
             document.getElementById('admin-products-panel').classList.toggle('hidden', tab !== 'products');
+            document.getElementById('admin-tab-inventory').className = tab === 'inventory' ? on : off;
+            document.getElementById('admin-inventory-panel').classList.toggle('hidden', tab !== 'inventory');
             document.getElementById('admin-ship-panel').classList.toggle('hidden', tab !== 'ship');
             document.getElementById('admin-orders-panel').classList.toggle('hidden', tab !== 'orders');
             document.getElementById('admin-sellers-panel').classList.toggle('hidden', tab !== 'sellers');
@@ -4763,9 +4776,9 @@
             if (tab === 'pickup') fetchAdminPickupRequests();
             if (tab === 'stock') onStockTabOpened();
             if (tab === 'ship') onShipTabOpened();
-            if (tab === 'products') {
-                const frame = document.getElementById('admin-products-frame');
-                if (!frame.getAttribute('src')) frame.setAttribute('src', 'products.html?embed=1');
+            if (tab === 'products' || tab === 'inventory') {
+                const frame = document.getElementById(`admin-${tab}-frame`);
+                if (!frame.getAttribute('src')) frame.setAttribute('src', `${tab}.html?embed=1`);
             }
         }
 

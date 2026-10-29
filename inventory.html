@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>밤낮딜리버리 새 재고표</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+    .modal { position: fixed; inset: 0; background: rgba(15, 23, 42, .6); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
+    .modal.open { display: flex; }
+    .qty { display: inline-flex; align-items: center; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background: #fff; }
+    .qty button { width: 26px; height: 28px; font-weight: 700; color: #475569; }
+    .qty button:hover { background: #f1f5f9; }
+    .qty input { width: 44px; height: 28px; text-align: center; border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; font-weight: 700; }
+    .qty.changed { border-color: #f59e0b; }
+    .qty.changed input { background: #fef3c7; }
+    input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+    /* 휴대폰: 표 대신 상품마다 카드 한 장 */
+    @media (max-width: 640px) {
+        #inv-table thead { display: none; }
+        #inv-table, #inv-table tbody, #inv-table tr, #inv-table td { display: block; width: 100%; }
+        #inv-table tr { padding: 10px; }
+        #inv-table td { padding: 1px 0; white-space: normal !important; max-width: none !important; text-align: left !important; }
+        #inv-table td[data-label]::before { content: attr(data-label) " "; color: #94a3b8; }
+        #inv-table td:empty { display: none; }
+        #inv-table td.c-check { display: none; }
+    }
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+<div id="page-header" class="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex justify-between items-center gap-2">
+    <div class="flex items-center gap-3">
+        <div class="bg-indigo-600 text-white p-2 rounded-lg font-black tracking-wider text-sm">밤낮</div>
+        <div>
+            <h1 class="font-bold text-lg leading-tight text-slate-900">재고표</h1>
+            <p id="header-company" class="text-xs text-slate-500"></p>
+        </div>
+    </div>
+    <a href="/" class="text-xs text-slate-500 hover:text-slate-800">← 주문접수 화면</a>
+</div>
+
+<main class="max-w-7xl mx-auto p-4 sm:p-6 space-y-4 pb-28">
+    <div id="state" class="bg-white rounded-xl border border-slate-200 p-10 text-center text-slate-500">재고를 불러오는 중입니다...</div>
+
+    <div id="app" class="hidden space-y-4">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
+            <div class="flex justify-between items-start flex-wrap gap-3">
+                <div>
+                    <h2 class="font-bold text-slate-900">재고표</h2>
+                    <p class="text-xs text-slate-500 mt-0.5">
+                        <b>상품화</b> = 라벨 작업 끝난 재고, <b>미상품화</b> = 라벨 전 재고, <b>불량</b>은 출고 계산에서 뺍니다.
+                        <span class="admin-only hidden">[-][+]로 고친 뒤 이유를 적고 아래 [저장]을 누르세요. 바뀐 수량은 모두 [기록]에 남습니다.</span>
+                    </p>
+                </div>
+                <div class="flex gap-2 flex-wrap">
+                    <button onclick="downloadTemplate()" class="admin-only hidden px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm">최종재고 양식 받기</button>
+                    <label class="admin-only hidden px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow cursor-pointer">
+                        최종재고 엑셀 올리기
+                        <input id="upload-input" type="file" accept=".xlsx,.xls" onchange="uploadFinal(event)" class="hidden">
+                    </label>
+                    <button onclick="downloadList()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm">엑셀 다운로드</button>
+                    <button onclick="openIntake()" class="admin-only hidden px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow">+ 입고</button>
+                </div>
+            </div>
+            <div id="stats" class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center"></div>
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-2">
+                <input type="search" id="f-keyword" oninput="renderList()" placeholder="상품코드 · 쇼핑몰상품명 · 도매처 · 도매상품명 · 위치 검색" class="px-3 py-1.5 border rounded-lg text-xs bg-white w-72">
+                <select id="f-company" onchange="renderList()" class="admin-only hidden px-2 py-1.5 border rounded-lg text-xs bg-white max-w-[220px]"></select>
+                <select id="f-status" onchange="renderList()" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
+                    <option value="stock">재고 있는 상품</option>
+                    <option value="b">미상품화 있음 (라벨 작업 필요)</option>
+                    <option value="defect">불량 있음</option>
+                    <option value="all">전체 상품 (재고 0 포함)</option>
+                </select>
+                <button onclick="labelChecked()" class="admin-only hidden px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-emerald-700 font-bold text-xs rounded-lg">선택 라벨완료</button>
+                <span id="summary" class="text-xs text-slate-500 ml-auto"></span>
+            </div>
+            <div class="overflow-auto max-h-[70vh] border border-slate-200 rounded-lg">
+                <table id="inv-table" class="w-full text-left text-xs">
+                    <thead class="bg-slate-800 text-slate-200 font-bold sticky top-0 z-10">
+                        <tr>
+                            <th class="p-2 admin-only hidden"><input type="checkbox" id="check-all" onchange="toggleAll(this.checked)"></th>
+                            <th class="p-2">상품코드</th><th class="p-2 admin-only hidden">거래처명</th>
+                            <th class="p-2">도매업체명</th><th class="p-2">도매상품명</th><th class="p-2">컬러</th><th class="p-2">사이즈</th>
+                            <th class="p-2">쇼핑몰상품명</th>
+                            <th class="p-2 text-center">상품화</th><th class="p-2 text-center">미상품화</th><th class="p-2 text-center">불량</th>
+                            <th class="p-2">위치</th><th class="p-2 text-center">관리</th>
+                        </tr>
+                    </thead>
+                    <tbody id="list" class="divide-y divide-slate-100"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</main>
+
+<!-- 바뀐 수량 저장 (관리자) -->
+<div id="save-bar" class="hidden fixed bottom-0 inset-x-0 bg-white border-t border-amber-300 shadow-[0_-4px_12px_rgba(0,0,0,.08)] p-3 z-40">
+    <div class="max-w-7xl mx-auto flex items-center gap-2 flex-wrap">
+        <span id="save-info" class="text-sm font-bold text-amber-700"></span>
+        <input id="save-reason" placeholder="이유를 한 번에 적기 (줄마다 적은 이유가 먼저)" class="flex-1 min-w-[200px] px-3 py-2 border rounded-lg text-xs">
+        <button onclick="resetPending()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold">되돌리기</button>
+        <button id="save-btn" onclick="savePending()" class="px-5 py-2 bg-amber-500 hover:bg-amber-600 disabled:bg-slate-300 text-white rounded-lg text-xs font-bold">저장</button>
+    </div>
+</div>
+
+<!-- 입고 -->
+<div id="intake-modal" class="modal">
+    <form onsubmit="saveIntake(event)" class="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[92vh] overflow-y-auto p-6 space-y-4" autocomplete="off">
+        <div class="flex justify-between items-start">
+            <div>
+                <h3 class="text-lg font-bold text-slate-900">입고</h3>
+                <p class="text-xs text-slate-500 mt-0.5">도매업체명·도매상품명이나 쇼핑몰상품명, 상품코드를 치면 등록된 상품이 나옵니다. 고르면 나머지가 채워집니다.</p>
+            </div>
+            <button type="button" onclick="closeModal('intake-modal')" class="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+        </div>
+        <datalist id="company-options"></datalist>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <label class="space-y-1 sm:col-span-2"><span class="font-bold text-slate-600">거래처명 *</span><input id="i-company" list="company-options" oninput="suggest()" class="w-full px-3 py-2 border rounded-lg"></label>
+            <label class="space-y-1"><span class="font-bold text-slate-600">도매업체명</span><input id="i-wholesale_company" oninput="suggest()" class="w-full px-3 py-2 border rounded-lg"></label>
+            <label class="space-y-1"><span class="font-bold text-slate-600">도매상품명</span><input id="i-wholesale_product" oninput="suggest()" class="w-full px-3 py-2 border rounded-lg"></label>
+            <label class="space-y-1 sm:col-span-2"><span class="font-bold text-slate-600">쇼핑몰상품명 또는 상품코드</span><input id="i-name" oninput="suggest()" class="w-full px-3 py-2 border rounded-lg"></label>
+            <label class="space-y-1"><span class="font-bold text-slate-600">컬러</span><input id="i-color" oninput="suggest()" class="w-full px-3 py-2 border rounded-lg"></label>
+            <label class="space-y-1"><span class="font-bold text-slate-600">사이즈</span><input id="i-size" oninput="suggest()" class="w-full px-3 py-2 border rounded-lg"></label>
+        </div>
+        <div id="i-suggest" class="border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-56 overflow-y-auto text-xs"></div>
+        <div id="i-picked" class="hidden bg-indigo-50 border border-indigo-200 rounded-lg p-3 text-xs"></div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <label class="space-y-1"><span class="font-bold text-slate-600">수량 *</span><input id="i-qty" type="number" min="1" value="1" class="w-full px-3 py-2 border rounded-lg"></label>
+            <label class="space-y-1"><span class="font-bold text-slate-600">넣을 곳</span>
+                <select id="i-where" class="w-full px-3 py-2 border rounded-lg"><option value="b">미상품화 (라벨 전)</option><option value="a">상품화 (라벨 완료)</option><option value="defect">불량</option></select></label>
+            <label class="space-y-1"><span class="font-bold text-slate-600">위치</span><input id="i-location" class="w-full px-3 py-2 border rounded-lg"></label>
+            <label class="space-y-1"><span class="font-bold text-slate-600">메모(이유)</span><input id="i-reason" placeholder="예: 반품 입고" class="w-full px-3 py-2 border rounded-lg"></label>
+        </div>
+        <div class="flex justify-end gap-2">
+            <button type="button" onclick="closeModal('intake-modal')" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold">취소</button>
+            <button type="submit" id="i-save" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-lg text-xs font-bold">입고 저장</button>
+        </div>
+    </form>
+</div>
+
+<!-- 기록 -->
+<div id="log-modal" class="modal">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        <div class="flex justify-between items-start p-5 border-b">
+            <div>
+                <h3 class="text-lg font-bold text-slate-900">재고 기록</h3>
+                <p id="log-title" class="text-xs text-slate-500 mt-0.5"></p>
+            </div>
+            <button type="button" onclick="closeModal('log-modal')" class="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+        </div>
+        <div id="log-list" class="overflow-y-auto p-5 text-xs"></div>
+    </div>
+</div>
+
+<!-- 최종재고 올리기 미리보기 -->
+<div id="upload-modal" class="modal">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+        <div class="flex justify-between items-start p-5 border-b">
+            <div>
+                <h3 class="text-lg font-bold text-slate-900">최종재고 올리기 확인</h3>
+                <p id="upload-info" class="text-xs text-slate-500 mt-0.5"></p>
+            </div>
+            <button type="button" onclick="closeModal('upload-modal')" class="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+        </div>
+        <div class="overflow-auto flex-1 p-5 space-y-3">
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+                파일에 있는 <b>거래처의 재고는 파일 수량으로 맞춰집니다.</b> 그 거래처의 재고 중 파일에 없는 상품은 0이 됩니다. 파일에 없는 거래처는 그대로입니다.
+                상품관리에 없는 상품은 자동으로 등록됩니다. 수량이 모두 0인 줄은 상품만 등록하고 재고는 만들지 않습니다.
+            </div>
+            <table class="w-full text-left text-xs">
+                <thead class="text-slate-500 border-b"><tr><th class="p-2">거래처</th><th class="p-2 text-right">상품</th><th class="p-2 text-right">새로 등록</th><th class="p-2 text-right">상품화</th><th class="p-2 text-right">미상품화</th><th class="p-2 text-right">불량</th><th class="p-2 text-right">0으로 바뀜</th></tr></thead>
+                <tbody id="upload-list" class="divide-y divide-slate-100"></tbody>
+            </table>
+            <div id="upload-skipped" class="text-xs text-slate-400 space-y-0.5"></div>
+        </div>
+        <div class="p-5 border-t flex justify-between items-center gap-2">
+            <span id="upload-status" class="text-xs text-indigo-600 font-bold"></span>
+            <div class="flex gap-2">
+                <button type="button" onclick="closeModal('upload-modal')" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold">취소</button>
+                <button type="button" id="upload-confirm" onclick="confirmUpload()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-lg text-xs font-bold">올리기</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // DB 주소/키는 config.js. 수량은 DB 함수(inventory_move / inventory_import)로만 바뀌고 관리자만 부를 수 있습니다.
+    // 셀러는 자기 상호 재고를 보기만 합니다.
+    let client = null;
+    let me = null;
+    let isAdmin = false;
+    let products = [];              // 상품관리 (삭제 안 된 것)
+    let inv = new Map();            // product_id → 재고 줄
+    let pending = new Map();        // product_id → { a, b, defect, location, reason } (관리자가 고치는 중인 값)
+    let picked = null;              // 입고 창에서 고른 상품
+    let upload = null;
+    const embed = new URLSearchParams(location.search).has('embed');
+
+    function esc(v) {
+        return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    function norm(v) { return String(v ?? '').replace(/\s+/g, '').toLowerCase(); }
+    function itemKey(p) { return [p.company, p.wholesale_company, p.wholesale_product, p.color, p.size].map(norm).join('|'); }
+    function num(v) { const n = parseInt(String(v ?? '').replace(/[^0-9-]/g, ''), 10); return Number.isFinite(n) ? n : 0; }
+    function fmt(n) { return Number(n || 0).toLocaleString('ko-KR'); }
+    function today() {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+    function fmtTime(iso) {
+        const d = new Date(iso);
+        return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    }
+    function namesText(list) { return (list || []).map(n => (n.platform ? `${n.platform}: ` : '') + n.name).join(' / '); }
+    function showModal(id) { document.getElementById(id).classList.add('open'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+    function showState(html) {
+        document.getElementById('state').innerHTML = html;
+        document.getElementById('state').classList.remove('hidden');
+        document.getElementById('app').classList.add('hidden');
+    }
+    function errorMessage(error) {
+        if (!error) return '';
+        if (error.code === '42501') return '권한이 없는 작업입니다.';
+        if (error.code === '23505') return '이미 같은 상품이 상품관리에 있습니다.';
+        if (['PGRST205', 'PGRST202', '42P01', '42883'].includes(error.code)) return 'DB 설정이 최신이 아닙니다.\n(관리자: Supabase SQL Editor에서 supabase/inventory.sql 을 실행해주세요)';
+        return error.message || String(error);
+    }
+    async function fetchAll(build) {
+        let all = [];
+        for (let from = 0; ; from += 1000) {
+            const { data, error } = await build().range(from, from + 999);
+            if (error) return { data: null, error };
+            all = all.concat(data || []);
+            if (!data || data.length < 1000) break;
+        }
+        return { data: all, error: null };
+    }
+    const qtyOf = id => {
+        const r = inv.get(id);
+        return { a: r ? r.qty_a : 0, b: r ? r.qty_b : 0, defect: r ? r.qty_defect : 0, location: r ? r.location : '', memo: r ? r.memo : '' };
+    };
+
+    // -----------------------------------------------------------------
+    // 시작 · 불러오기
+    // -----------------------------------------------------------------
+    async function init() {
+        if (embed) document.getElementById('page-header').classList.add('hidden');
+        if (!window.supabase) { showState('화면을 불러오지 못했습니다. 새로고침해주세요.'); return; }
+        client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const { data: { session } } = await client.auth.getSession();
+        if (!session) { showState('로그인 후 이용할 수 있습니다.<br><br><a class="text-indigo-600 font-bold" href="/">로그인하러 가기</a>'); return; }
+        const { data: profile, error } = await client.from('profiles').select('id,company,role,status').eq('id', session.user.id).single();
+        if (error || !profile) { showState('계정 정보를 불러오지 못했습니다. 다시 로그인해주세요.'); return; }
+        me = profile;
+        isAdmin = profile.role === 'admin';
+        if (!isAdmin && profile.status !== 'approved') { showState('관리자 승인 후 재고를 볼 수 있습니다.'); return; }
+        document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !isAdmin));
+        document.getElementById('header-company').textContent = isAdmin ? '관리자 · 전체 거래처' : profile.company;
+        await loadAll();
+    }
+
+    async function loadAll() {
+        const [p, i] = await Promise.all([
+            fetchAll(() => client.from('products').select('*').is('deleted_at', null).order('company').order('code')),
+            fetchAll(() => client.from('inventory').select('*').order('product_id')),
+        ]);
+        const error = p.error || i.error;
+        if (error) { showState('재고를 불러오지 못했습니다.<br><span class="text-xs">' + esc(errorMessage(error)) + '</span>'); return; }
+        products = p.data;
+        inv = new Map(i.data.map(r => [r.product_id, r]));
+        pending.clear();
+        document.getElementById('state').classList.add('hidden');
+        document.getElementById('app').classList.remove('hidden');
+        renderCompanies();
+        renderList();
+    }
+
+    function companies() {
+        const map = new Map();
+        products.forEach(p => { if (!map.has(norm(p.company))) map.set(norm(p.company), p.company); });
+        return [...map.values()].sort((a, b) => a.localeCompare(b, 'ko'));
+    }
+    function renderCompanies() {
+        if (!isAdmin) return;
+        const sel = document.getElementById('f-company');
+        const cur = sel.value;
+        const list = companies();
+        sel.innerHTML = `<option value="">거래처 전체 (${list.length}곳)</option>` + list.map(c => `<option value="${esc(norm(c))}">${esc(c)}</option>`).join('');
+        sel.value = list.some(c => norm(c) === cur) ? cur : '';
+        document.getElementById('company-options').innerHTML = list.map(c => `<option value="${esc(c)}">`).join('');
+    }
+
+    function filtered() {
+        const kw = norm(document.getElementById('f-keyword').value);
+        const company = isAdmin ? document.getElementById('f-company').value : '';
+        const status = document.getElementById('f-status').value;
+        return products.filter(p => {
+            const q = qtyOf(p.id);
+            if (status === 'stock' && !(q.a || q.b || q.defect) && !pending.has(p.id)) return false;
+            if (status === 'b' && !q.b) return false;
+            if (status === 'defect' && !q.defect) return false;
+            if (company && norm(p.company) !== company) return false;
+            if (kw) {
+                const text = norm([p.code, p.company, p.wholesale_company, p.wholesale_product, p.color, p.size, namesText(p.mall_names), q.location].join('|'));
+                if (!text.includes(kw)) return false;
+            }
+            return true;
+        });
+    }
+
+    function renderStats(list) {
+        const sum = { a: 0, b: 0, defect: 0 };
+        list.forEach(p => { const q = qtyOf(p.id); sum.a += q.a; sum.b += q.b; sum.defect += q.defect; });
+        const box = (label, value, color) => `<div class="bg-${color}-50 border border-${color}-100 rounded-lg p-2"><div class="text-lg font-black text-${color}-700">${fmt(value)}</div><div class="text-[11px] text-slate-500">${label}</div></div>`;
+        document.getElementById('stats').innerHTML = box('표시된 상품', list.length, 'slate') + box('상품화', sum.a, 'emerald') + box('미상품화', sum.b, 'amber') + box('불량', sum.defect, 'rose');
+    }
+
+    function qtyCell(p, field, value, changed) {
+        if (!isAdmin) return `<span class="font-bold">${fmt(value)}</span>`;
+        return `<span class="qty ${changed ? 'changed' : ''}">
+            <button type="button" onclick="bump(${p.id}, '${field}', -1)">−</button>
+            <input type="number" min="0" value="${value}" onchange="setQty(${p.id}, '${field}', this.value)">
+            <button type="button" onclick="bump(${p.id}, '${field}', 1)">+</button></span>`;
+    }
+
+    function renderList() {
+        const list = filtered();
+        renderStats(list);
+        document.getElementById('summary').textContent = `${fmt(list.length)}개 표시`;
+        const tbody = document.getElementById('list');
+        const cols = isAdmin ? 13 : 11;
+        if (!list.length) {
+            tbody.innerHTML = `<tr><td colspan="${cols}" class="p-8 text-center text-slate-400">${inv.size ? '조건에 맞는 재고가 없습니다.' : '아직 재고가 없습니다.' + (isAdmin ? ' [최종재고 양식 받기]로 받은 엑셀을 채워 [최종재고 엑셀 올리기]로 시작하세요.' : '')}</td></tr>`;
+            renderSaveBar();
+            return;
+        }
+        const shown = list.slice(0, 500);
+        tbody.innerHTML = shown.map(p => {
+            const q = qtyOf(p.id);
+            const pd = pending.get(p.id);
+            const v = pd || q;
+            return `
+            <tr class="${pd ? 'bg-amber-50/60' : 'hover:bg-slate-50'}">
+                ${isAdmin ? `<td class="p-2 c-check"><input type="checkbox" class="row-check" data-id="${p.id}"></td>` : ''}
+                <td class="p-2 font-mono font-bold text-indigo-700 whitespace-nowrap">${esc(p.code)}</td>
+                ${isAdmin ? `<td class="p-2 font-bold whitespace-nowrap">${esc(p.company)}</td>` : ''}
+                <td class="p-2 whitespace-nowrap" data-label="도매">${esc(p.wholesale_company)}</td>
+                <td class="p-2" data-label="도매상품">${esc(p.wholesale_product)}</td>
+                <td class="p-2 whitespace-nowrap" data-label="컬러">${esc(p.color)}</td>
+                <td class="p-2 whitespace-nowrap" data-label="사이즈">${esc(p.size)}</td>
+                <td class="p-2 max-w-[260px]">${(p.mall_names || []).map(n => `<div>${n.platform ? `<span class="text-slate-400">${esc(n.platform)}</span> ` : ''}${esc(n.name)}</div>`).join('')}</td>
+                <td class="p-2 text-center whitespace-nowrap" data-label="상품화">${qtyCell(p, 'a', v.a, pd && pd.a !== q.a)}</td>
+                <td class="p-2 text-center whitespace-nowrap" data-label="미상품화">${qtyCell(p, 'b', v.b, pd && pd.b !== q.b)}</td>
+                <td class="p-2 text-center whitespace-nowrap" data-label="불량">${qtyCell(p, 'defect', v.defect, pd && pd.defect !== q.defect)}</td>
+                <td class="p-2 whitespace-nowrap" data-label="위치">${isAdmin
+                    ? `<input value="${esc(v.location)}" onchange="setLocation(${p.id}, this.value)" class="w-20 px-2 py-1 border rounded ${pd && pd.location !== q.location ? 'bg-amber-100 border-amber-400' : ''}">`
+                    : esc(q.location)}</td>
+                <td class="p-2 text-center whitespace-nowrap">
+                    ${isAdmin && q.b > 0 && !pd ? `<button onclick="labelDone(${p.id})" class="px-2 py-1 text-[11px] text-emerald-700 hover:bg-emerald-50 rounded font-bold">라벨완료</button>` : ''}
+                    <button onclick="openLogs(${p.id})" class="px-2 py-1 text-[11px] text-slate-500 hover:bg-slate-100 rounded font-bold">기록</button>
+                    ${pd ? `<div class="mt-1"><input value="${esc(pd.reason)}" oninput="setReason(${p.id}, this.value)" placeholder="이유" class="reason-input w-28 px-2 py-1 border border-amber-400 rounded"></div>` : ''}
+                </td>
+            </tr>`;
+        }).join('') + (list.length > shown.length ? `<tr><td colspan="${cols}" class="p-3 text-center text-slate-400">처음 500개만 표시합니다. 검색하거나 거래처를 골라 좁혀주세요.</td></tr>` : '');
+        renderSaveBar();
+    }
+
+    // -----------------------------------------------------------------
+    // [-][숫자][+] 조정 → 이유 → [저장] (관리자)
+    // -----------------------------------------------------------------
+    function editPending(id, fn) {
+        const q = qtyOf(id);
+        const pd = pending.get(id) || { a: q.a, b: q.b, defect: q.defect, location: q.location, reason: '' };
+        fn(pd);
+        if (pd.a === q.a && pd.b === q.b && pd.defect === q.defect && pd.location === q.location) pending.delete(id);
+        else pending.set(id, pd);
+        renderList();
+    }
+    function bump(id, field, d) { editPending(id, pd => { pd[field] = Math.max(0, pd[field] + d); }); }
+    function setQty(id, field, value) { editPending(id, pd => { pd[field] = Math.max(0, num(value)); }); }
+    function setLocation(id, value) { editPending(id, pd => { pd.location = value.trim(); }); }
+    function setReason(id, value) { const pd = pending.get(id); if (pd) pd.reason = value; }
+    function resetPending() { pending.clear(); renderList(); }
+
+    function renderSaveBar() {
+        const bar = document.getElementById('save-bar');
+        bar.classList.toggle('hidden', !pending.size);
+        document.getElementById('save-info').textContent = `바뀐 상품 ${pending.size}개`;
+    }
+
+    async function savePending() {
+        const common = document.getElementById('save-reason').value.trim();
+        const items = [...pending.entries()];
+        const qtyChanged = ([id, pd]) => { const q = qtyOf(id); return pd.a !== q.a || pd.b !== q.b || pd.defect !== q.defect; };
+        const missing = items.filter(e => qtyChanged(e) && !e[1].reason.trim() && !common);
+        if (missing.length) {
+            alert(`수량을 바꾼 상품은 이유를 적어주세요. (${missing.length}개)\n줄마다 적거나, 아래 칸에 한 번에 적으면 됩니다.`);
+            return;
+        }
+        const btn = document.getElementById('save-btn');
+        btn.disabled = true;
+        let done = 0;
+        try {
+            for (const [id, pd] of items) {
+                const q = qtyOf(id);
+                const { error } = await client.rpc('inventory_move', {
+                    p_product_id: id, p_kind: '조정', p_da: pd.a - q.a, p_db: pd.b - q.b, p_dd: pd.defect - q.defect,
+                    p_reason: pd.reason.trim() || common, p_location: pd.location, p_memo: null,
+                });
+                if (error) throw error;
+                done++;
+            }
+            document.getElementById('save-reason').value = '';
+        } catch (error) {
+            alert(`저장 중 오류가 났습니다. (${done}개는 저장됨)\n\n` + errorMessage(error));
+        } finally {
+            btn.disabled = false;
+            await loadAll();
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // 라벨완료: 미상품화 → 상품화
+    // -----------------------------------------------------------------
+    async function labelDone(id) {
+        const p = products.find(x => x.id === id);
+        const q = qtyOf(id);
+        const answer = prompt(`${p.code} ${p.wholesale_product} ${p.color} ${p.size}\n라벨 작업이 끝난 수량을 적어주세요. (미상품화 ${q.b}개)`, String(q.b));
+        if (answer === null) return;
+        const n = num(answer);
+        if (n <= 0 || n > q.b) { alert(`1 ~ ${q.b} 사이로 적어주세요.`); return; }
+        const { error } = await client.rpc('inventory_move', { p_product_id: id, p_kind: '라벨완료', p_da: n, p_db: -n, p_dd: 0, p_reason: '' });
+        if (error) { alert('저장하지 못했습니다.\n\n' + errorMessage(error)); return; }
+        await loadAll();
+    }
+
+    function toggleAll(on) { document.querySelectorAll('.row-check').forEach(c => { c.checked = on; }); }
+
+    async function labelChecked() {
+        const ids = [...document.querySelectorAll('.row-check:checked')].map(c => Number(c.dataset.id)).filter(id => qtyOf(id).b > 0);
+        if (!ids.length) { alert('미상품화 재고가 있는 상품을 체크해주세요.'); return; }
+        const total = ids.reduce((s, id) => s + qtyOf(id).b, 0);
+        if (!confirm(`체크한 ${ids.length}개 상품의 미상품화 ${total}개를 모두 상품화(라벨 완료)로 옮깁니다.`)) return;
+        let done = 0;
+        for (const id of ids) {
+            const b = qtyOf(id).b;
+            const { error } = await client.rpc('inventory_move', { p_product_id: id, p_kind: '라벨완료', p_da: b, p_db: -b, p_dd: 0, p_reason: '' });
+            if (error) { alert(`${done}개 처리 후 오류가 났습니다.\n\n` + errorMessage(error)); break; }
+            done++;
+        }
+        document.getElementById('check-all').checked = false;
+        await loadAll();
+    }
+
+    // -----------------------------------------------------------------
+    // 입고: 상품을 찾아 고르거나(자동 채움), 없으면 상품관리에 새로 등록 후 입고
+    // -----------------------------------------------------------------
+    const I_FIELDS = ['company', 'wholesale_company', 'wholesale_product', 'name', 'color', 'size'];
+    function openIntake() {
+        picked = null;
+        const companyKey = document.getElementById('f-company').value;
+        I_FIELDS.forEach(f => { document.getElementById('i-' + f).value = ''; });
+        document.getElementById('i-company').value = companies().find(c => norm(c) === companyKey) || '';
+        document.getElementById('i-qty').value = '1';
+        document.getElementById('i-where').value = 'b';
+        document.getElementById('i-location').value = '';
+        document.getElementById('i-reason').value = '';
+        suggest();
+        showModal('intake-modal');
+    }
+    function intakeValues() {
+        const v = {};
+        I_FIELDS.forEach(f => { v[f] = document.getElementById('i-' + f).value.trim(); });
+        return v;
+    }
+    function suggest() {
+        const v = intakeValues();
+        if (picked && !(norm(v.company) === norm(picked.company) && v.wholesale_company === picked.wholesale_company && v.wholesale_product === picked.wholesale_product
+            && v.color === picked.color && v.size === picked.size)) picked = null;
+        const box = document.getElementById('i-suggest');
+        const typed = [v.wholesale_company, v.wholesale_product, v.name, v.color, v.size].some(Boolean);
+        let list = [];
+        if (typed) {
+            list = products.filter(p => {
+                if (v.company && !norm(p.company).includes(norm(v.company))) return false;
+                if (v.wholesale_company && !norm(p.wholesale_company).includes(norm(v.wholesale_company))) return false;
+                if (v.wholesale_product && !norm(p.wholesale_product).includes(norm(v.wholesale_product))) return false;
+                if (v.color && !norm(p.color).includes(norm(v.color))) return false;
+                if (v.size && !norm(p.size).includes(norm(v.size))) return false;
+                if (v.name && !norm(p.code + '|' + namesText(p.mall_names)).includes(norm(v.name))) return false;
+                return true;
+            }).slice(0, 30);
+        }
+        box.classList.toggle('hidden', !typed || !!picked);
+        box.innerHTML = list.length ? list.map(p => {
+            const q = qtyOf(p.id);
+            return `<button type="button" onclick="pick(${p.id})" class="w-full text-left p-2 hover:bg-indigo-50 flex justify-between gap-2">
+                <span><b class="font-mono text-indigo-700">${esc(p.code)}</b> ${esc(p.company)} · ${esc(p.wholesale_company)} ${esc(p.wholesale_product)} ${esc(p.color)} ${esc(p.size)}
+                <span class="text-slate-400">${esc(namesText(p.mall_names))}</span></span>
+                <span class="text-slate-400 whitespace-nowrap">상품화 ${q.a} · 미상품화 ${q.b}</span></button>`;
+        }).join('') : `<div class="p-3 text-slate-400">맞는 상품이 없습니다. 거래처명·도매업체명·도매상품명을 채우고 저장하면 <b>상품관리에 새로 등록</b>하고 입고합니다.</div>`;
+        renderPicked();
+    }
+    function pick(id) {
+        const p = products.find(x => x.id === id);
+        picked = p;
+        document.getElementById('i-company').value = p.company;
+        document.getElementById('i-wholesale_company').value = p.wholesale_company;
+        document.getElementById('i-wholesale_product').value = p.wholesale_product;
+        document.getElementById('i-color').value = p.color;
+        document.getElementById('i-size').value = p.size;
+        document.getElementById('i-name').value = (p.mall_names[0] || {}).name || '';
+        document.getElementById('i-location').value = qtyOf(id).location;
+        document.getElementById('i-suggest').classList.add('hidden');
+        renderPicked();
+    }
+    function renderPicked() {
+        const box = document.getElementById('i-picked');
+        box.classList.toggle('hidden', !picked);
+        if (picked) {
+            const q = qtyOf(picked.id);
+            box.innerHTML = `<b class="font-mono text-indigo-700">${esc(picked.code)}</b> 상품에 입고합니다. 지금 상품화 ${q.a} · 미상품화 ${q.b} · 불량 ${q.defect}
+                <div class="text-slate-500 mt-0.5">${esc(namesText(picked.mall_names))}</div>
+                <button type="button" onclick="picked=null; suggest()" class="mt-1 text-indigo-600 font-bold">다른 상품 고르기</button>`;
+        }
+    }
+    async function saveIntake(event) {
+        event.preventDefault();
+        const v = intakeValues();
+        const qty = num(document.getElementById('i-qty').value);
+        if (qty <= 0) { alert('수량을 1 이상으로 적어주세요.'); return; }
+        const btn = document.getElementById('i-save');
+        btn.disabled = true;
+        try {
+            let product = picked;
+            if (!product) {
+                const same = products.find(p => itemKey(p) === itemKey(v));
+                if (same) product = same;
+                else {
+                    if (!v.company || !v.wholesale_company || !v.wholesale_product) { alert('목록에서 상품을 고르거나, 새 상품이면 거래처명·도매업체명·도매상품명을 채워주세요.'); return; }
+                    if (!confirm(`상품관리에 없는 상품입니다. 새로 등록하고 입고할까요?\n${v.company} · ${v.wholesale_company} ${v.wholesale_product} ${v.color} ${v.size}`)) return;
+                    const row = { company: v.company, wholesale_company: v.wholesale_company, wholesale_product: v.wholesale_product, color: v.color, size: v.size,
+                        mall_names: v.name ? [{ platform: '', name: v.name }] : [] };
+                    const { data, error } = await client.from('products').insert(row).select().single();
+                    if (error) throw error;
+                    product = data;
+                }
+            }
+            const where = document.getElementById('i-where').value;
+            const { error } = await client.rpc('inventory_move', {
+                p_product_id: product.id, p_kind: '입고',
+                p_da: where === 'a' ? qty : 0, p_db: where === 'b' ? qty : 0, p_dd: where === 'defect' ? qty : 0,
+                p_reason: document.getElementById('i-reason').value.trim(),
+                p_location: document.getElementById('i-location').value.trim() || null, p_memo: null,
+            });
+            if (error) throw error;
+            closeModal('intake-modal');
+            await loadAll();
+        } catch (error) {
+            alert('입고하지 못했습니다.\n\n' + errorMessage(error));
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // 기록
+    // -----------------------------------------------------------------
+    async function openLogs(id) {
+        const p = products.find(x => x.id === id);
+        document.getElementById('log-title').textContent = `${p.code} · ${p.wholesale_company} ${p.wholesale_product} ${p.color} ${p.size}`;
+        document.getElementById('log-list').innerHTML = '<div class="text-slate-400">불러오는 중...</div>';
+        showModal('log-modal');
+        const { data, error } = await client.from('inventory_moves').select('*').eq('product_id', id).order('at', { ascending: false }).limit(300);
+        if (error) { document.getElementById('log-list').innerHTML = `<div class="text-rose-600">${esc(errorMessage(error))}</div>`; return; }
+        const d = n => (n > 0 ? `<span class="text-emerald-600">+${n}</span>` : n < 0 ? `<span class="text-rose-600">${n}</span>` : '<span class="text-slate-300">0</span>');
+        document.getElementById('log-list').innerHTML = data.length ? `
+            <table class="w-full text-left">
+                <thead class="text-slate-500 border-b"><tr><th class="p-1.5">언제</th><th class="p-1.5">작업</th><th class="p-1.5 text-center">상품화</th><th class="p-1.5 text-center">미상품화</th><th class="p-1.5 text-center">불량</th><th class="p-1.5">이유 · 누가</th></tr></thead>
+                <tbody class="divide-y divide-slate-100">${data.map(l => `
+                    <tr><td class="p-1.5 whitespace-nowrap">${fmtTime(l.at)}</td><td class="p-1.5 font-bold whitespace-nowrap">${esc(l.kind)}</td>
+                    <td class="p-1.5 text-center whitespace-nowrap">${d(l.d_a)} → ${l.a_after}</td>
+                    <td class="p-1.5 text-center whitespace-nowrap">${d(l.d_b)} → ${l.b_after}</td>
+                    <td class="p-1.5 text-center whitespace-nowrap">${d(l.d_defect)} → ${l.defect_after}</td>
+                    <td class="p-1.5">${esc(l.reason)} <span class="text-slate-400">${esc(l.actor_name)}</span></td></tr>`).join('')}
+                </tbody>
+            </table>` : '<div class="text-slate-400">기록이 없습니다.</div>';
+    }
+
+    // -----------------------------------------------------------------
+    // 최종재고 엑셀: 양식 받기(지금 재고 + 예전 재고표로 채움) · 올리기
+    // -----------------------------------------------------------------
+    const FINAL_COLS = [
+        { key: 'company', label: '거래처명' }, { key: 'code', label: '상품코드' },
+        { key: 'wholesale_company', label: '도매업체명' }, { key: 'wholesale_product', label: '도매상품명' },
+        { key: 'color', label: '컬러' }, { key: 'size', label: '사이즈' }, { key: 'name', label: '쇼핑몰상품명' },
+        { key: 'a', label: '상품화수량' }, { key: 'b', label: '미상품화수량' }, { key: 'defect', label: '불량수량' },
+        { key: 'location', label: '재고위치' }, { key: 'memo', label: '메모' },
+    ];
+
+    async function downloadTemplate() {
+        const companyKey = document.getElementById('f-company').value;
+        const rows = [];
+        const seen = new Set();
+        products.filter(p => !companyKey || norm(p.company) === companyKey).forEach(p => {
+            const q = qtyOf(p.id);
+            seen.add(itemKey(p));
+            rows.push({ company: p.company, code: p.code, wholesale_company: p.wholesale_company, wholesale_product: p.wholesale_product,
+                color: p.color, size: p.size, name: (p.mall_names[0] || {}).name || '', a: q.a, b: q.b, defect: q.defect, location: q.location, memo: q.memo, from: inv.has(p.id) ? '' : '상품관리' });
+        });
+        // 아직 재고가 없으면 예전 재고표(보관중)로 채워 드립니다. 라벨 칸에 표시가 있으면 상품화, 없으면 미상품화로 넣습니다.
+        let oldCount = 0;
+        if (!inv.size) {
+            const { data: old, error } = await fetchAll(() => client.from('stock_items').select('company,wholesale_company,wholesale_product,retail_product,color,size,quantity,location,label,memo,shipped_on,shipped_note').order('company').order('id'));
+            if (!error) {
+                const merged = new Map();
+                old.filter(r => !r.shipped_on && !r.shipped_note && (r.wholesale_product || r.retail_product))
+                    .filter(r => !companyKey || norm(r.company) === companyKey)
+                    .forEach(r => {
+                        const item = { company: r.company, wholesale_company: r.wholesale_company, wholesale_product: r.wholesale_product || r.retail_product, color: r.color, size: r.size };
+                        const k = itemKey(item);
+                        const existing = rows.find(x => !x.code ? false : itemKey(x) === k);
+                        const qty = Math.max(0, Math.round(Number(r.quantity) || 0));
+                        const defect = num((String(r.memo || '').match(/불량\s*(\d+)/) || [])[1]);
+                        const target = existing || merged.get(k) || { ...item, code: '', name: r.retail_product || '', a: 0, b: 0, defect: 0, location: '', memo: '', from: '예전 재고표' };
+                        if (String(r.label || '').trim()) target.a += qty; else target.b += qty;
+                        target.defect += defect;
+                        if (r.location && !String(target.location).split(', ').includes(r.location)) target.location = [target.location, r.location].filter(Boolean).join(', ');
+                        if (existing) existing.from = '예전 재고표'; else merged.set(k, target);
+                        oldCount++;
+                    });
+                rows.push(...merged.values());
+            }
+        }
+        rows.sort((x, y) => x.company.localeCompare(y.company, 'ko') || String(x.wholesale_company).localeCompare(String(y.wholesale_company), 'ko'));
+        const header = [...FINAL_COLS.map(c => c.label), '참고(올릴 때 안 읽음)'];
+        const ws = XLSX.utils.aoa_to_sheet([header, ...rows.map(r => [...FINAL_COLS.map(c => r[c.key] ?? ''), r.from || ''])]);
+        ws['!cols'] = header.map(h => ({ wch: ['쇼핑몰상품명', '도매상품명'].includes(h) ? 24 : h.startsWith('참고') ? 16 : 11 }));
+        const must = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '4F46E5' } } };
+        const head = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '1E293B' } } };
+        const qtyHead = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '059669' } } };
+        header.forEach((h, i) => {
+            ws[XLSX.utils.encode_cell({ r: 0, c: i })].s = ['거래처명', '도매업체명', '도매상품명'].includes(h) ? must : ['상품화수량', '미상품화수량', '불량수량'].includes(h) ? qtyHead : head;
+        });
+        const guide = [
+            ['최종재고 양식 작성방법'], [''],
+            ['· 한 줄 = 상품 하나(도매업체명 + 도매상품명 + 컬러 + 사이즈). 파란 칸은 꼭 채워주세요.'],
+            ['· 초록 칸에 실제로 센 수량을 적습니다. 상품화 = 라벨 작업 끝남, 미상품화 = 라벨 전, 불량 = 팔 수 없는 것.'],
+            ['· 상품코드가 있는 줄은 그 상품의 수량이 바뀝니다. 상품코드가 없는 줄은 상품관리에 새로 등록됩니다.'],
+            ['· 수량이 모두 0인 줄은 상품만 등록되고 재고는 만들지 않습니다.'],
+            ['· 올리면 파일에 있는 거래처의 재고가 파일 수량으로 맞춰집니다. (그 거래처 재고 중 파일에 없는 상품은 0)'],
+            ['· "참고" 칸은 어디서 가져온 줄인지 알려주는 칸이고, 올릴 때는 읽지 않습니다.'],
+            ...(oldCount ? [['· 이 파일은 예전 재고표의 보관중 재고 ' + oldCount + '줄로 채웠습니다. 라벨 칸에 표시가 있던 줄은 상품화, 없던 줄은 미상품화로 넣었습니다. 실제로 세어 고쳐주세요.']] : []),
+        ];
+        const ws2 = XLSX.utils.aoa_to_sheet(guide);
+        ws2['!cols'] = [{ wch: 120 }];
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, '최종재고');
+        XLSX.utils.book_append_sheet(wb, ws2, '작성방법');
+        XLSX.writeFile(wb, `최종재고양식_${today()}.xlsx`);
+    }
+
+    function uploadFinal(event) {
+        const file = event.target.files[0];
+        event.target.value = '';
+        if (!file) return;
+        if (pending.size && !confirm('저장하지 않은 수량 변경이 있습니다. 버리고 계속할까요?')) return;
+        const reader = new FileReader();
+        reader.onload = evt => {
+            let rows;
+            try {
+                const wb = XLSX.read(new Uint8Array(evt.target.result), { type: 'array' });
+                const name = wb.SheetNames.includes('최종재고') ? '최종재고' : wb.SheetNames[0];
+                rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '' });
+            } catch (e) { alert('엑셀 파일을 읽지 못했습니다.\n\n' + e.message); return; }
+            const header = (rows[0] || []).map(h => String(h).replace(/\s+/g, ''));
+            const idx = {};
+            FINAL_COLS.forEach(c => { idx[c.key] = header.indexOf(c.label); });
+            if (idx.wholesale_product < 0 || (idx.a < 0 && idx.b < 0)) {
+                alert('첫 줄에 "도매상품명", "상품화수량"/"미상품화수량" 머리글이 있어야 합니다.\n[최종재고 양식 받기]로 받은 양식을 써주세요.');
+                return;
+            }
+            const cell = (r, k) => (idx[k] >= 0 ? String(r[idx[k]] ?? '').trim() : '');
+            const byKey = new Map(products.map(p => [itemKey(p), p]));
+            const byCode = new Map(products.map(p => [p.code.toUpperCase(), p]));
+            const groups = new Map();   // norm(company) → { company, items: Map(key → item), creates: Map(key → product row) }
+            const skipped = [];
+            rows.slice(1).forEach((r, i) => {
+                if (!r.some(v => String(v).trim())) return;
+                const line = i + 2;
+                const code = cell(r, 'code').toUpperCase();
+                let product = code ? byCode.get(code) : null;
+                if (code && !product) { skipped.push(`${line}번째 줄: 상품코드 ${code} 를 찾지 못함`); return; }
+                const item = { company: cell(r, 'company'), wholesale_company: cell(r, 'wholesale_company'), wholesale_product: cell(r, 'wholesale_product'), color: cell(r, 'color'), size: cell(r, 'size') };
+                if (!product) product = byKey.get(itemKey(item));
+                const company = product ? product.company : item.company;
+                if (!company) { skipped.push(`${line}번째 줄: 거래처명 없음`); return; }
+                if (!product && (!item.wholesale_company || !item.wholesale_product)) { skipped.push(`${line}번째 줄: 도매업체명·도매상품명 없음`); return; }
+                const qa = num(cell(r, 'a')), qb = num(cell(r, 'b')), qd = num(cell(r, 'defect'));
+                if (qa < 0 || qb < 0 || qd < 0) { skipped.push(`${line}번째 줄: 수량이 0보다 작음`); return; }
+                const ck = norm(company);
+                if (!groups.has(ck)) groups.set(ck, { company, items: new Map(), creates: new Map() });
+                const g = groups.get(ck);
+                const key = product ? 'id:' + product.id : itemKey(item);
+                if (!product && !g.creates.has(key)) {
+                    const name = cell(r, 'name');
+                    g.creates.set(key, { ...item, company, mall_names: name ? [{ platform: '', name }] : [] });
+                }
+                const cur = g.items.get(key) || { key, product, a: 0, b: 0, defect: 0, location: '', memo: '' };
+                cur.a += qa; cur.b += qb; cur.defect += qd;
+                const loc = cell(r, 'location');
+                if (loc && !cur.location.split(', ').includes(loc)) cur.location = [cur.location, loc].filter(Boolean).join(', ');
+                const memo = cell(r, 'memo');
+                if (memo) cur.memo = [cur.memo, memo].filter(Boolean).join(' / ');
+                g.items.set(key, cur);
+            });
+            upload = { file: file.name, groups: [...groups.values()].sort((x, y) => x.company.localeCompare(y.company, 'ko')), skipped };
+            renderUpload();
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    function renderUpload() {
+        const u = upload;
+        let total = 0, created = 0;
+        document.getElementById('upload-list').innerHTML = u.groups.map(g => {
+            const items = [...g.items.values()];
+            const ids = new Set(items.filter(i => i.product).map(i => i.product.id));
+            const zeroed = [...inv.values()].filter(r => norm(r.company) === norm(g.company) && !ids.has(r.product_id) && (r.qty_a || r.qty_b || r.qty_defect)).length;
+            const sum = k => items.reduce((s, i) => s + i[k], 0);
+            total += items.length; created += g.creates.size;
+            return `<tr><td class="p-2 font-bold">${esc(g.company)}</td><td class="p-2 text-right">${fmt(items.length)}</td><td class="p-2 text-right ${g.creates.size ? 'text-emerald-600 font-bold' : 'text-slate-300'}">${fmt(g.creates.size)}</td>
+                <td class="p-2 text-right">${fmt(sum('a'))}</td><td class="p-2 text-right">${fmt(sum('b'))}</td><td class="p-2 text-right">${fmt(sum('defect'))}</td>
+                <td class="p-2 text-right ${zeroed ? 'text-rose-600 font-bold' : 'text-slate-300'}">${fmt(zeroed)}</td></tr>`;
+        }).join('') || '<tr><td colspan="7" class="p-6 text-center text-slate-400">올릴 내용이 없습니다.</td></tr>';
+        document.getElementById('upload-info').textContent = `${u.file} · 거래처 ${u.groups.length}곳 · 상품 ${fmt(total)}개 (새로 등록 ${fmt(created)}개)` + (u.skipped.length ? ` · 건너뜀 ${u.skipped.length}줄` : '');
+        document.getElementById('upload-skipped').innerHTML = u.skipped.slice(0, 50).map(s => `<div>${esc(s)}</div>`).join('') + (u.skipped.length > 50 ? `<div>… 외 ${u.skipped.length - 50}줄</div>` : '');
+        document.getElementById('upload-confirm').disabled = !u.groups.length;
+        document.getElementById('upload-status').textContent = '';
+        showModal('upload-modal');
+    }
+
+    async function confirmUpload() {
+        const u = upload;
+        const btn = document.getElementById('upload-confirm');
+        const status = document.getElementById('upload-status');
+        btn.disabled = true;
+        let doneCompanies = 0;
+        try {
+            // 1) 상품관리에 없는 상품 등록
+            const creates = u.groups.flatMap(g => [...g.creates.values()]);
+            for (let i = 0; i < creates.length; i += 200) {
+                status.textContent = `새 상품 등록 중... ${i}/${creates.length}`;
+                const { error } = await client.from('products').insert(creates.slice(i, i + 200));
+                if (error) throw error;
+            }
+            if (creates.length) {
+                const { data, error } = await fetchAll(() => client.from('products').select('*').is('deleted_at', null).order('id'));
+                if (error) throw error;
+                products = data;
+            }
+            const byKey = new Map(products.map(p => [itemKey(p), p]));
+            // 2) 거래처마다 수량 맞추기
+            for (const g of u.groups) {
+                status.textContent = `재고 저장 중... ${g.company} (${doneCompanies + 1}/${u.groups.length})`;
+                const items = [...g.items.values()].map(i => {
+                    const p = i.product || byKey.get(i.key);
+                    if (!p) throw new Error(`새로 등록한 상품을 찾지 못했습니다: ${i.key}`);
+                    return { product_id: p.id, a: i.a, b: i.b, defect: i.defect, location: i.location, memo: i.memo };
+                });
+                const { error } = await client.rpc('inventory_import', { p_company: g.company, p_items: items, p_reason: `최종재고 엑셀 (${u.file})` });
+                if (error) throw error;
+                doneCompanies++;
+            }
+            status.textContent = '';
+            alert(`올렸습니다. 거래처 ${doneCompanies}곳, 새로 등록한 상품 ${creates.length}개`);
+            closeModal('upload-modal');
+        } catch (error) {
+            status.textContent = '';
+            alert(`올리는 중 오류가 났습니다. (거래처 ${doneCompanies}곳까지 저장됨. 같은 파일을 다시 올리면 이어서 맞춰집니다)\n\n` + errorMessage(error));
+        } finally {
+            btn.disabled = false;
+            await loadAll();
+        }
+    }
+
+    function downloadList() {
+        const list = filtered();
+        if (!list.length) { alert('다운로드할 재고가 없습니다.'); return; }
+        const header = ['거래처명', '상품코드', '도매업체명', '도매상품명', '컬러', '사이즈', '쇼핑몰상품명', '상품화', '미상품화', '불량', '합계', '재고위치'];
+        const rows = list.map(p => {
+            const q = qtyOf(p.id);
+            return [p.company, p.code, p.wholesale_company, p.wholesale_product, p.color, p.size, namesText(p.mall_names), q.a, q.b, q.defect, q.a + q.b + q.defect, q.location];
+        });
+        const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+        ws['!cols'] = header.map(h => ({ wch: ['쇼핑몰상품명', '도매상품명'].includes(h) ? 26 : 11 }));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, '재고');
+        XLSX.writeFile(wb, `재고_${isAdmin ? '' : me.company + '_'}${today()}.xlsx`);
+    }
+
+    window.addEventListener('beforeunload', e => { if (pending.size) { e.preventDefault(); e.returnValue = ''; } });
+    init();
+</script>
+</body>
+</html>
