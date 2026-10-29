@@ -276,16 +276,16 @@ function renderShipTable() {
                 class="ship-done-chk w-4 h-4 align-middle cursor-pointer accent-emerald-600" title="체크를 풀면 복사 표시가 지워집니다"></td>
             <td class="p-2.5 font-bold">${shipSkipped.has(r.company) ? '<span class="text-[10px] text-amber-600 font-bold">⏸ 나중에</span> ' : ''}${c}${r.notInExcel ? '<span class="ml-1 text-[10px] text-slate-400 font-normal">(이번 엑셀에 없음)</span>' : ''}</td>
             <td class="p-2.5 text-right font-black text-indigo-700">${r.parcel_count || 0}건</td>
-            <td class="p-2.5 text-right">${(r.items || []).length}개</td>
+            <td class="ship-full p-2.5 text-right">${(r.items || []).length}개</td>
             <td class="p-2.5 text-right ${r.unshipped_count ? 'text-orange-600 font-bold' : 'text-slate-300'}">${r.unshipped_count || 0}</td>
             <td class="p-2.5 text-right ${r.partial_count ? 'text-orange-600 font-bold' : 'text-slate-300'}">${r.partial_count || 0}</td>
-            <td class="p-2.5 text-right ${r.extra_fee ? 'font-bold' : 'text-slate-300'}">${Number(r.extra_fee || 0).toLocaleString('ko-KR')}</td>
+            <td class="ship-full p-2.5 text-right ${r.extra_fee ? 'font-bold' : 'text-slate-300'}">${Number(r.extra_fee || 0).toLocaleString('ko-KR')}</td>
             <td class="ship-full p-2.5">${phone ? escapeHtml(settlePhoneLabel(phone)) : '<span class="text-rose-500 font-bold">연락처 없음</span>'}</td>
             <td class="ship-full p-2.5">${shipStateHtml(r)}</td>
             <td class="p-2.5 whitespace-nowrap">
                 <button data-company="${c}" onclick="previewShip(this.dataset.company)" class="ship-full px-2 py-1 text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 rounded">보기</button>
                 <button data-company="${c}" onclick="copyShipList(this.dataset.company)" class="px-2 py-1 text-[11px] font-bold text-white bg-slate-700 hover:bg-slate-800 rounded" title="지금 카톡에 붙여넣는 모양(받는분 · 송장번호 · 상품명)으로 복사합니다. 저장하지 않아도 됩니다">송장 목록 복사</button>
-                ${checkable ? `<button data-company="${c}" onclick="copyShipMessage(this.dataset.company)" class="px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded" title="단톡방에 붙여넣을 안내문과 링크를 복사합니다">단톡방용 문구 복사</button>` : ''}
+                ${checkable ? `<button data-company="${c}" onclick="copyShipMessage(this.dataset.company)" class="ship-full px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded" title="단톡방에 붙여넣을 안내문과 링크를 복사합니다">단톡방용 문구 복사</button>` : ''}
             </td>
         </tr>`;
     }).join('');
