@@ -56,7 +56,8 @@ function makeWorkbook(file, extra = []) {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
     ['송화인', '수화인명', '운송장번호', '상품명', '부피추가비용'],
-    ['밤낮딜리버리', '르아더스', '6082251369497', '픽업건 의류', ''],
+    ['밤낮딜리버리(르아더스)', '고객영', '6082251369497', '픽업건 의류', ''],
+    ['밤낮딜리버리', '이천 더드레스', '6082251369444', '의류', ''],
     ['밤낮딜리버리', '유어피치(눈타이드)', '6082251369526', '의류/유어피치(눈타이드)', ''],
     ['밤낮딜리버리(눈타이드)', '고객가', '6082251369478', '자켓 / 블랙 / XL / 1개', ''],
     ['밤낮딜리버리(럭스걸)', '고객나', '6082251369551', '(합)슬랙스', ''],
@@ -175,7 +176,8 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
 
   await page.setInputFiles('#ship-file-input', xlsxFile); await page.waitForTimeout(800);
   const listText = (await page.textContent('#ship-list')).replace(/\s+/g, ' ');
-  check('companies split by 송화인 괄호 / 매장발송', ['르아더스', '눈타이드', '럭스걸', '무드투문'].every(c => listText.includes(c)) && !listText.includes('유어피치'), listText);
+  check('companies = 송화인 괄호 안 상호만 (그냥 밤낮딜리버리 줄은 제외)', ['르아더스', '눈타이드', '럭스걸', '무드투문'].every(c => listText.includes(c)) && !listText.includes('유어피치') && !listText.includes('더드레스'), listText);
+  check('제외 줄 수 표시', (await page.textContent('#ship-file-status')).includes('괄호 없는 송화인 2줄 제외'), await page.textContent('#ship-file-status'));
   check('summary counts', (await page.textContent('#ship-summary')).includes('업체 4곳'), await page.textContent('#ship-summary'));
   const FULL = await page.evaluate(() => SHIP_FULL_FEATURES);
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
@@ -187,7 +189,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
     check('럭스걸 출고 3건 (같은 송장 1건), 상품 4개, 부피추가 1000', g['럭스걸'].parcel_count === 3 && g['럭스걸'].items.length === 4 && g['럭스걸'].extra_fee === 1000);
     check('무드투문 출고 2건, 미출고 1개', g['무드투문'].parcel_count === 2 && g['무드투문'].unshipped_count === 1);
     check('number cell read as full tracking number', g['럭스걸'].items.some(i => i.tracking === '6082251369516'));
-    check('유어피치(눈타이드) → 눈타이드', g['눈타이드'].items.length === 2 && g['눈타이드'].items[0].store === true);
+    check('매장발송(유어피치(눈타이드)) 줄은 눈타이드에 안 들어감', g['눈타이드'].items.length === 1 && !g['눈타이드'].items[0].store);
     await page.locator('#ship-list tr', { hasText: '무드투문' }).locator('button:has-text("송장 목록 복사")').click(); await page.waitForTimeout(300);
     const clip2 = await page.evaluate(() => navigator.clipboard.readText().catch(() => ''));
     check('송장 목록 복사: 지금 카톡 모양 (받는분 탭 송장 탭 상품) + 출고건수', clip2.startsWith('무드투문님 10/28 운송장정보 전달드립니다.\n총 출고된 송장건수 2건 ( 이중 부분출고송장건수 1건 )\n\n오늘의 정산서는 모든 출고가 마무리 되는대로 바로 보내드리겠습니다.\n고맙습니다.\n\n') && clip2.includes('고객마\t미출고\t(합)티셔츠 cream') && clip2.includes('고객마\t6082251369522/부출\t(합)삭스') && clip2.includes('고객바\t6082251369472\t티셔츠'), clip2);
@@ -247,7 +249,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
     const wb6 = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb6, XLSX.utils.aoa_to_sheet([
       ['송화인', '송화인전번', '수화인명', '주소', '상품명', '옵션', '전화번호', '휴대폰', '배송메세지', '운송장번호', '택배비', '수량'],
-      ['밤낮딜리버리', '0100000', '르아더스', '주소', '픽업건 의류', '', '', '', '', '6082251369497', '', '1'],
+      ['밤낮딜리버리(르아더스)', '0100000', '고객영', '주소', '픽업건 의류', '', '', '', '', '6082251369497', '', '1'],
       ['밤낮딜리버리(럭스걸)', '0100000', '고객가', '주소', '자켓', '', '', '', '', '6082251300001', '', '1'],
       ['밤낮딜리버리(럭스걸)', '0100000', '고객나', '주소', '(합)슬랙스', '', '', '', '', '6082251300002', '', '1'],
       ['밤낮딜리버리(럭스걸)', '0100000', '고객나', '주소', '(합)니트', '', '', '', '', '6082251300002', '', '1'],

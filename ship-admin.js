@@ -14,6 +14,8 @@ const SHIP_PAGE_PATH = '/ship';
 const SHIP_FULL_FEATURES = false;
 if (!SHIP_FULL_FEATURES) document.head.insertAdjacentHTML('beforeend', '<style>.ship-full{display:none!important}</style>');
 const SHIP_STORE_SENDER = '밤낮딜리버리';   // 송화인이 이 이름뿐이면 매장으로 보내는 건 (수화인 = 업체)
+// 대표님 요청 (2026-10-29): 송화인이 '밤낮딜리버리(상호)' 인 줄만 받고, 그냥 '밤낮딜리버리'(매장·사무실 발송) 등은 넣지 않음
+const SHIP_ONLY_BRACKETED = true;
 
 let shipExcel = null;          // 엑셀에서 읽은 업체별 묶음 { company: {company, items, ...} }
 let shipExcelFileName = '';
@@ -99,10 +101,12 @@ function shipParseRows(aoa, unshipped = new Set()) {
     const known = shipKnownCompanies(inParens);
     const groups = {};
     const warnings = [];
+    let skipped = 0;
     for (const { r, line } of rows) {
         const sender = String(r[c.sender] ?? '').trim();
         const recipient = String(r[c.recipient] ?? '').trim();
         const m = sender.match(/^밤낮딜리버리\s*\((.+)\)\s*$/);
+        if (SHIP_ONLY_BRACKETED && !m) { skipped++; continue; }
         let company = m ? m[1].trim() : sender;
         let store = false;
         if (sender.replace(/\s/g, '') === SHIP_STORE_SENDER) {
@@ -121,7 +125,7 @@ function shipParseRows(aoa, unshipped = new Set()) {
         g.items.push({ recipient, tracking: t.tracking, state: t.state, product: String(r[c.product] ?? '').trim(), fee, store, ...(t.planned ? { planned: t.planned } : {}) });
     }
     Object.values(groups).forEach(g => Object.assign(g, shipCounts(g.items)));
-    return { groups, warnings, rows: rows.length };
+    return { groups, warnings, rows: rows.length, skipped };
 }
 
 function shipCounts(items) {
@@ -148,7 +152,7 @@ function uploadShipWorkbook(event) {
             shipExcelGroups = parsed.groups;
             shipExcelWarnings = parsed.warnings;
             shipExcelFileName = file.name;
-            document.getElementById('ship-file-status').textContent = `"${file.name}" · ${parsed.rows}줄 · 업체 ${Object.keys(shipExcel).length}곳` + (book.unshippedSheet ? ` · '${book.unshippedSheet}' 시트 미출고 송장 ${book.unshipped.size}개 반영` : '');
+            document.getElementById('ship-file-status').textContent = `"${file.name}" · ${parsed.rows}줄 · 업체 ${Object.keys(shipExcel).length}곳` + (parsed.skipped ? ` · 괄호 없는 송화인 ${parsed.skipped}줄 제외` : '') + (book.unshippedSheet ? ` · '${book.unshippedSheet}' 시트 미출고 송장 ${book.unshipped.size}개 반영` : '');
             shipChecked.clear();
             shipSkipped.clear(); shipLastCopied = null;
             if (!SHIP_FULL_FEATURES) shipAutoSave();   // 올리자마자 출고일로 저장 → 나중에 [조회]로 다시 볼 수 있음
