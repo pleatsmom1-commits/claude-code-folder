@@ -4,6 +4,7 @@
 -- (schema.sql 을 먼저 실행한 상태여야 합니다. 여러 번 실행해도 안전합니다.)
 --  - 관리자 [운송장 전송] 탭에서 송장 엑셀을 올리면 업체(상호)·출고일별로 한 줄씩 저장됩니다.
 --  - 업체에게는 링크(/ship?t=...)로 자기 운송장 목록만 보여줍니다.
+--  - 올린 엑셀과 [송장 목록 복사] 표시를 날짜별로 남겨, 다시 [조회]하면 그대로 보입니다.
 -- =====================================================================
 create table if not exists public.shipments (
     id              bigint generated always as identity primary key,
@@ -22,6 +23,9 @@ create table if not exists public.shipments (
     unique (company, ship_date)
 );
 create index if not exists shipments_date_idx on public.shipments (ship_date);
+-- 2026-10-29: 송장 목록 복사 도우미용 (엑셀 순서, 카톡에 복사한 시각)
+alter table public.shipments add column if not exists seq       integer;       -- 엑셀에 적힌 업체 순서
+alter table public.shipments add column if not exists copied_at timestamptz;   -- [송장 목록 복사]한 시각 (체크 풀면 비움)
 alter table public.shipments enable row level security;
 
 drop policy if exists shipments_admin on public.shipments;
