@@ -20,6 +20,7 @@
 | `supabase/products.sql` | 상품·변경기록 테이블과 사진 저장소. stock.sql 다음에 한 번 실행 (여러 번 실행해도 안전) |
 | `inventory.html` | 새 재고표 (`/inventory`). 관리자는 [새 재고표] 탭. 셀러는 자기 재고 보기만 |
 | `supabase/inventory.sql` | 새 재고표·수량 기록 테이블과 수량 바꾸는 함수. products.sql 다음에 한 번 실행 (여러 번 실행해도 안전) |
+| `supabase/inventory_confirm.sql` | 재고 확정(날짜별 확정 시각·그날 재고 사진). inventory.sql 다음에 한 번 실행 (여러 번 실행해도 안전) |
 
 ## 접수 시간 안내 (한국 시간 기준)
 
@@ -236,7 +237,10 @@ Cloudflare **Workers & Pages → bamnat-delivery** 가 이 저장소의 `claude/
    상품관리에 없는 상품은 자동 등록, 수량이 모두 0인 줄은 상품만 등록합니다.
 4. **매일**: 줄마다 [-][숫자][+]로 고치고 이유를 적어 [저장]. [라벨완료]/[선택 라벨완료]는 미상품화 → 상품화.
    [+ 입고]는 도매업체명·도매상품명·쇼핑몰상품명·상품코드로 상품을 찾아 고르면 나머지가 채워지고, 없으면 상품관리에 새로 등록 후 입고합니다.
-5. 수량은 DB 함수(`inventory_move`, `inventory_import`)로만 바뀌고 관리자만 부를 수 있습니다. 바뀔 때마다 `inventory_moves`에 기록이 남습니다([기록]).
+5. **재고 확정** (`supabase/inventory_confirm.sql`): 위쪽 띠에 오늘 확정 여부가 보입니다. 관리자가 정리를 마치면 [재고정리완료],
+   누르지 않으면 오후 7시가 지난 뒤 누가 화면을 열 때 자동 확정(DB 함수 `inventory_today`). 확정할 때 그날 재고 사진(`inventory_snapshots`)이 남고,
+   확정 뒤 수량을 고치면 "바뀐 수량 N건"과 [다시 확정]이 뜹니다. 평일 오전 8시부터 확정 전까지는 "재고출고중"으로 표시합니다.
+6. 수량은 DB 함수(`inventory_move`, `inventory_import`)로만 바뀌고 관리자만 부를 수 있습니다. 바뀔 때마다 `inventory_moves`에 기록이 남습니다([기록]).
 
 ## 수정 작업 순서 (실제 사이트 보호)
 

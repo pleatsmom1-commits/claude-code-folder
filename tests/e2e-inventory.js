@@ -45,6 +45,14 @@ const tables = {
   ],
 };
 const requests = [];
+// 재고 확정 (inventory_confirm.sql 흉내). 화면에 보이는 한국 시각은 목요일 오전 10시로 고정
+const fakeDay = { day: '2026-10-29', now_kst: '2026-10-29T10:00:00', row: null };
+function rpcToday() {
+  const r = fakeDay.row;
+  const changes = r ? tables.inventory_moves.filter(m => m.at > r.confirmed_at).length : 0;
+  return { day: fakeDay.day, now_kst: fakeDay.now_kst, confirmed_at: r && r.confirmed_at, confirmer: r && r.confirmer, auto: r && r.auto, times: r && r.times,
+    changes_after: changes, last_day: r ? fakeDay.day : '2026-10-28', last_confirmed_at: r ? r.confirmed_at : '2026-10-28T10:00:00Z' };
+}
 
 const b64url = o => Buffer.from(JSON.stringify(o)).toString('base64url');
 const tokenFor = u => b64url({ alg: 'HS256', typ: 'JWT' }) + '.' + b64url({ sub: u.id, email: u.profile.email, exp: Math.floor(Date.now() / 1000) + 3600, role: 'authenticated', aud: 'authenticated' }) + '.sig';
@@ -146,8 +154,14 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
       if (wantsObject) return rows.length ? json(200, rows[0]) : json(406, { code: 'PGRST116', message: 'no rows' });
       return json(200, rows);
     }
+    if (url.pathname === '/rest/v1/rpc/inventory_today') return json(200, rpcToday());
     if (url.pathname.startsWith('/rest/v1/rpc/')) {
       if (!isAdmin) return json(403, { code: '42501', message: '관리자만' });
+      if (url.pathname.endsWith('inventory_confirm')) {
+        await new Promise(r => setTimeout(r, 5));
+        fakeDay.row = { confirmed_at: now(), confirmer: '관리', auto: false, times: (fakeDay.row ? fakeDay.row.times : 0) + 1 };
+        return json(200, fakeDay.row);
+      }
       const [st, data] = url.pathname.endsWith('inventory_move') ? rpcMove(body) : rpcImport(body);
       return json(st, data);
     }
@@ -284,6 +298,23 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   const lrows = XLSX.utils.sheet_to_json(XLSX.readFile(lPath).Sheets['재고'], { header: 1 });
   check('list download has quantities', lrows.some(r => r[3] === '꽃니트' && r[7] === 5 && r[8] === 3 && r[10] === 8), JSON.stringify(lrows.slice(0, 3)));
   await page.screenshot({ path: path.join(__dirname, 'out', 'shot-inventory-admin.png'), fullPage: true });
+
+  // ---------- 재고 확정 ----------
+  let banner = await page.textContent('#day-banner');
+  check('banner: 재고가 확정되지 않았습니다 + 재고출고중 (weekday 10:00)', banner.includes('재고가 확정되지 않았습니다') && banner.includes('재고출고중') && banner.includes('재고정리완료'), banner.replace(/\s+/g, ' '));
+  await page.click('#day-banner button:has-text("재고정리완료")'); await page.waitForTimeout(800);
+  banner = await page.textContent('#day-banner');
+  check('after confirm: 확정됨 shown', !!fakeDay.row && banner.includes('재고 확정됨') && !banner.includes('바뀐 수량'), banner.replace(/\s+/g, ' '));
+  await row('꽃니트').locator('td').nth(8).locator('button', { hasText: '+' }).click();
+  await page.fill('#save-reason', '확정 뒤 수정');
+  await page.click('#save-btn'); await page.waitForTimeout(1000);
+  banner = await page.textContent('#day-banner');
+  check('edit after confirm -> 바뀐 수량 1건 + 다시 확정', banner.includes('바뀐 수량이 1건') && banner.includes('다시 확정'), banner.replace(/\s+/g, ' '));
+  await page.click('#day-banner button:has-text("다시 확정")'); await page.waitForTimeout(800);
+  banner = await page.textContent('#day-banner');
+  check('re-confirm -> 2번째, no pending changes', fakeDay.row.times === 2 && banner.includes('2번째') && !banner.includes('바뀐 수량'), banner.replace(/\s+/g, ' '));
+  await page.screenshot({ path: path.join(__dirname, 'out', 'shot-inventory-confirmed.png') });
+  fakeDay.row = null;   // 셀러 화면은 확정 전 상태로 확인
   // 조정 중 화면 (안내용 캡처)
   await row('꽃니트').locator('td').nth(8).locator('button', { hasText: '−' }).click();
   await page.screenshot({ path: path.join(__dirname, 'out', 'shot-inventory-adjust.png') });
@@ -309,6 +340,8 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.goto(PAGE); await page.waitForTimeout(1500);
   const sText = await page.textContent('#list');
   check('seller sees own stock only, read-only', sText.includes('꽃니트') && (await page.locator('#list .qty').count()) === 0 && !(await page.isVisible('button:has-text("+ 입고")')), sText.slice(0, 120));
+  const sBanner = await page.textContent('#day-banner');
+  check('seller banner: 재고출고중 without confirm button', sBanner.includes('재고출고중') && !sBanner.includes('재고정리완료'), sBanner.replace(/\s+/g, ' '));
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: path.join(__dirname, 'out', 'shot-inventory-seller-mobile.png'), fullPage: true });
 
