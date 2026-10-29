@@ -201,8 +201,9 @@ function renderShipTable() {
         ? `⚠️ 확인이 필요한 줄 ${shipExcelWarnings.length}개: ${shipExcelWarnings.slice(0, 5).map(escapeHtml).join(' / ')}${shipExcelWarnings.length > 5 ? ' …' : ''}` : '';
 
     renderShipNext(list);
+    document.getElementById('ship-clear-btn').classList.toggle('hidden', !shipExcel);
     if (!list.length) {
-        tbody.innerHTML = '<tr><td colspan="10" class="p-8 text-center text-slate-400">표시할 운송장이 없습니다.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="p-8 text-center text-slate-400">표시할 운송장이 없습니다.</td></tr>';
         return;
     }
     tbody.innerHTML = list.map(r => {
@@ -213,7 +214,9 @@ function renderShipTable() {
         <tr class="hover:bg-slate-50 ${shipChecked.has(r.company) ? 'bg-amber-50/60' : ''} ${shipDone.has(r.company) ? 'text-slate-400' : ''}">
             <td class="ship-full p-2.5"><input type="checkbox" data-company="${c}" ${checkable ? '' : 'disabled title="저장한 뒤 선택할 수 있습니다"'} ${shipChecked.has(r.company) ? 'checked' : ''}
                 onchange="toggleShipCheck(this.dataset.company, this.checked)" class="w-4 h-4 align-middle cursor-pointer disabled:cursor-not-allowed"></td>
-            <td class="p-2.5 font-bold">${shipDone.has(r.company) ? '<span class="text-emerald-600">✔</span> ' : shipSkipped.has(r.company) ? '<span class="text-[10px] text-amber-600 font-bold">⏸ 나중에</span> ' : ''}${c}${r.notInExcel ? '<span class="ml-1 text-[10px] text-slate-400 font-normal">(이번 엑셀에 없음)</span>' : ''}</td>
+            <td class="p-2.5 text-center"><input type="checkbox" data-company="${c}" ${shipDone.has(r.company) ? 'checked' : ''} onchange="toggleShipDone(this.dataset.company, this.checked)"
+                class="ship-done-chk w-4 h-4 align-middle cursor-pointer accent-emerald-600" title="체크를 풀면 복사 표시가 지워집니다"></td>
+            <td class="p-2.5 font-bold">${shipSkipped.has(r.company) ? '<span class="text-[10px] text-amber-600 font-bold">⏸ 나중에</span> ' : ''}${c}${r.notInExcel ? '<span class="ml-1 text-[10px] text-slate-400 font-normal">(이번 엑셀에 없음)</span>' : ''}</td>
             <td class="p-2.5 text-right font-black text-indigo-700">${r.parcel_count || 0}건</td>
             <td class="p-2.5 text-right">${(r.items || []).length}개</td>
             <td class="p-2.5 text-right ${r.unshipped_count ? 'text-orange-600 font-bold' : 'text-slate-300'}">${r.unshipped_count || 0}</td>
@@ -282,8 +285,12 @@ function shipMessageText(r) {
 // 지금 카톡에 붙여넣는 모양 그대로: 받는분 · 송장번호 · 상품명 (엑셀에서 복사한 것처럼 탭으로 구분) + 맨 위 출고건수
 function shipListText(r) {
     const [, m, d] = String(document.getElementById('ship-date').value || '').split('-');
-    const head = `[밤낮딜리버리] ${r.company}님${m ? ` ${Number(m)}/${Number(d)}` : ''} 운송장정보 전달드립니다. 출고건수 ${r.parcel_count || 0}건`
-        + (r.unshipped_count ? ` (미출고 ${r.unshipped_count}개)` : '');
+    // 대표님 문구 (2026-10-29): 부분출고가 없으면 총 출고건수만
+    const partial = r.partial_count || 0;
+    const head = [
+        `${r.company}님${m ? ` ${Number(m)}/${Number(d)}` : ''} 운송장정보 전달드립니다.`,
+        `총 출고건수 ${r.parcel_count || 0}건` + (partial ? ` ( 이중 부분출고건수 ${partial}건 )` : ''),
+    ].join('\n');
     const lines = (r.items || []).map(x => [x.recipient, x.tracking ? x.tracking + (x.state === '부분출고' ? '/부출' : '') : '미출고', x.product].join('\t'));
     return [head, '', ...lines].join('\n');
 }
@@ -315,6 +322,26 @@ function shipLoadDone() {
 function shipSaveDone() {
     try { localStorage.setItem(shipDoneKey(), JSON.stringify([...shipDone])); } catch (e) { /* 무시 */ }
 }
+function toggleShipDone(company, checked) {
+    if (checked) shipMarkDone(company);
+    else { shipDone.delete(company); shipSaveDone(); }
+    if (shipLastCopied && shipLastCopied.company === company && !checked) shipLastCopied = null;
+    renderShipTable();
+}
+
+// 올린 엑셀과 복사 표시를 모두 지우기 (다른 엑셀을 다시 올릴 때)
+function clearShipUpload() {
+    if (!shipExcel) return;
+    if (!confirm('올린 송장 엑셀 내용과 복사 표시를 모두 지울까요?\n(엑셀 파일 자체는 그대로입니다. 다시 올리면 됩니다)')) return;
+    shipExcel = null;
+    shipExcelFileName = '';
+    shipExcelWarnings = [];
+    shipChecked.clear();
+    shipDone.clear(); shipSkipped.clear(); shipSaveDone(); shipLastCopied = null;
+    document.getElementById('ship-file-status').textContent = '';
+    renderShipTable();
+}
+
 function shipMarkDone(company) { shipDone.add(company); shipSkipped.delete(company); shipSaveDone(); }
 
 function shipNextTarget(list = shipCurrentList()) {
