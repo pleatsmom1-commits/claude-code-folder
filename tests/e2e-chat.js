@@ -54,7 +54,7 @@ const ok = (c, m, x = '') => { console.log(c ? 'PASS ' : 'FAIL ', m, x ? ' -- ' 
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => document.querySelectorAll('#bn-chat .bn-ai').length >= 3 && !document.querySelector('#bn-chat form button').disabled);
   ok(asked[1].messages.length === 3 && asked[1].messages[1].role === 'assistant', 'history sent with follow-up', JSON.stringify(asked[1].messages.map(m => m.role)));
-  await page.screenshot({ path: path.join(__dirname, 'chat.png') });
+  await page.screenshot({ path: path.join(__dirname, 'out', 'chat.png') });
   const box = await page.locator('#bn-chat').boundingBox();
   ok(box.x >= 0 && box.x + box.width <= 390, 'fits phone width');
   await page.click('#bn-chat header button');
