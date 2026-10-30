@@ -184,18 +184,35 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   check('sender + cs phone shown (last used number)', table.includes('밤낮딜리버리(애플샵)') && table.includes('010-7777-8888'), table.slice(0, 200));
   check('4 orders, platform badge', table.includes('주문 4건') && table.includes('스마트스토어 양식'));
   check('address joined with detail', table.includes('서울 강남구 테헤란로 1 101호'));
-  check('combined order marked (합)', (await page.locator('#ai-result tbody tr').nth(1).innerText()).includes('(합)'));
-  check('product matched by mall name + color', (await page.locator('#ai-result tbody tr').nth(0).innerText()).includes('P000001') && (await page.locator('#ai-result tbody tr').nth(0).innerText()).includes('재고 3'));
-  check('white matched + no stock', (await page.locator('#ai-result tbody tr').nth(2).innerText()).includes('P000002') && (await page.locator('#ai-result tbody tr').nth(2).innerText()).includes('재고 없음'));
-  check('unknown product shown', (await page.locator('#ai-result tbody tr').nth(1).innerText()).includes('상품관리에 없음'));
-  check('missing phone flagged', (await page.locator('#ai-result tbody tr').nth(2).innerText()).includes('연락처 없음'));
-  check('duplicate of recent order flagged', (await page.locator('#ai-result tbody tr').nth(3).innerText()).includes('이미 접수?'));
-  check('submit blocked while a row is missing phone', await page.isDisabled('#btn-ai-submit'));
+  check('notice about office stock shown', (await page.innerText('#stock-ship-notice')).includes('사무실에 있는 재고부터 우선 출고'));
+  const row = n => page.locator('#ai-result tbody tr').nth(n);
+  check('(합) not added automatically', !(await row(0).innerText()).includes('(합) 고랭') && (await page.locator('#ai-result tbody input[type=checkbox]').count()) === 2);
+  check('same recipient hint + checkbox', (await row(0).innerText()).includes('같은 받는분 2건') && table.includes('부분출고 없이'));
+  check('product matched by mall name + color', (await row(0).innerText()).includes('P000001') && (await row(0).innerText()).includes('재고 3'));
+  check('wholesale filled from match', (await row(0).locator('input[type=text]').nth(0).inputValue()) === '청평화A' && (await row(0).locator('input[type=text]').nth(1).inputValue()) === '울팬츠');
+  check('white matched + no stock', (await row(2).innerText()).includes('P000002') && (await row(2).innerText()).includes('재고 없음'));
+  check('unknown product shown', (await row(1).innerText()).includes('상품관리에 없음'));
+  check('missing phone flagged', (await row(2).innerText()).includes('연락처 없음'));
+  check('missing wholesale flagged', (await row(1).innerText()).includes('도매처명·도매상품명 없음'));
+  check('duplicate text', (await row(3).innerText()).includes('최근 3일안에 동일한 주문건이 있으니 확인해주세요.'));
+  check('unknown-wholesale button + disclaimer', table.includes('빈 도매처 칸을 쇼핑몰상품명으로 채우기') && table.includes('책임질 수 없습니다'));
+  check('submit blocked while rows are missing info', await page.isDisabled('#btn-ai-submit'));
   await page.screenshot({ path: path.join(__dirname, 'out', 'shot-ai-confirm.png'), fullPage: true });
 
-  // 연락처 없는 줄 빼기 → 접수 가능
-  await page.locator('#ai-result tbody tr').nth(2).locator('button').click(); await page.waitForTimeout(100);
-  check('after 빼기: submit enabled (3건)', !(await page.isDisabled('#btn-ai-submit')) && (await page.innerText('#btn-ai-submit')).includes('3건'));
+  // 연락처 없는 줄 빼기 → 아직 도매처 빈 줄 때문에 막힘
+  await row(2).locator('button').click(); await page.waitForTimeout(100);
+  check('after 빼기: still blocked by empty wholesale', await page.isDisabled('#btn-ai-submit'));
+  // 니트 머플러: 직접 입력
+  await row(1).locator('input[type=text]').nth(0).fill('신평화B'); await row(1).locator('input[type=text]').nth(0).press('Tab'); await page.waitForTimeout(100);
+  await row(1).locator('input[type=text]').nth(1).fill('머플러'); await row(1).locator('input[type=text]').nth(1).press('Tab'); await page.waitForTimeout(100);
+  // 가디건: 모름 → 쇼핑몰상품명
+  await page.click('button:has-text("빈 도매처 칸을 쇼핑몰상품명으로 채우기")'); await page.waitForTimeout(100);
+  check('unknown filled with mall name', (await row(3).locator('input[type=text]').nth(1).inputValue()) === '가디건 / 아이보리' && (await row(3).innerText()).includes('모름'));
+  check('now submit enabled (3건)', !(await page.isDisabled('#btn-ai-submit')) && (await page.innerText('#btn-ai-submit')).includes('3건'));
+  // (합) 체크: 같은 받는분 2건 함께
+  await row(1).locator('input[type=checkbox]').check(); await page.waitForTimeout(100);
+  check('(합) checks whole group', (await row(0).locator('input[type=checkbox]').isChecked()) && (await row(0).innerText()).includes('(합) 고랭'));
+  await page.screenshot({ path: path.join(__dirname, 'out', 'shot-ai-confirm2.png'), fullPage: true });
 
   // 보관요청 [접수] 전에는 막힘 (기존 규칙과 같음)
   const before = tables.orders.length;
@@ -205,12 +222,13 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.click('#btn-ai-submit'); await page.waitForTimeout(800);
   const added = tables.orders.slice(before);
   check('3 orders saved', added.length === 3, String(added.length));
-  check('confirm mentioned duplicate', dialogs.some(d => d.includes('최근 3일 안에')));
+  const conf = dialogs.find(d => d.startsWith('총 3건을')) || '';
+  check('final confirm lists (합) / 책임 / 중복', conf.includes('(합) 합배송 2건') && conf.includes('책임질 수 없습니다') && conf.includes('최근 3일안에'), conf);
   const o1 = added[0] || {};
   check('sender/cs phone rules', added.every(o => o.sender_name === '밤낮딜리버리(애플샵)' && o.cs_phone === '010-7777-8888' && o.seller_company === '애플샵'), JSON.stringify(o1));
   check('fields from file', o1.recipient === '박민수' && o1.phone === '010-1234-5678' && o1.zipcode === '06000' && o1.address === '서울 강남구 테헤란로 1 101호' && o1.memo === '문 앞', JSON.stringify(o1));
-  check('product text = (합) + name / option', o1.product === '(합)고랭 울 팬츠 / 컬러: 블랙 / 사이즈: M' && added[1].product === '(합)니트 머플러' && added[1].qty === 2, o1.product + ' | ' + (added[1] || {}).product);
-  check('wholesale filled from match', o1.wholesale_company === '청평화A' && o1.wholesale_product === '울팬츠' && added[1].wholesale_company === '');
+  check('product text = (합) + name / option', o1.product === '(합)고랭 울 팬츠 / 컬러: 블랙 / 사이즈: M' && added[1].product === '(합)니트 머플러' && added[1].qty === 2 && added[2].product === '가디건 / 아이보리', added.map(o => o.product).join(' | '));
+  check('wholesale saved (match / typed / unknown)', o1.wholesale_company === '청평화A' && added[1].wholesale_company === '신평화B' && added[1].wholesale_product === '머플러' && added[2].wholesale_company === '가디건 / 아이보리' && added[2].wholesale_product === '가디건 / 아이보리');
   check('excel-type id + 접수대기 + keep', added.every(o => o.id.startsWith('ORD-EXCEL-') && o.status === '접수대기' && o.keep_request === '없음'));
   check('success message + table reset', dialogs.some(d => d.includes('총 3건의 주문이 접수')) && (await vis('#ai-drop-zone')) && !(await vis('#ai-result')));
   check('new orders in my list', (await page.textContent('#seller-order-list')).includes('박민수'));
