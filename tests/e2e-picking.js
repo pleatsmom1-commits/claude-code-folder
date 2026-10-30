@@ -166,6 +166,17 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.fill('#login-email', 'admin@x.com'); await page.fill('#login-pw', 'adminpass1');
   await page.click('#btn-login'); await page.waitForTimeout(1500);
   check('admin dashboard', await page.isVisible('#admin-dashboard'));
+  // 메뉴 묶음
+  const vis = sel => page.isVisible(sel);
+  check('4 groups shown, 주문/송장관리 active with its 3 tabs only', (await vis('#admin-group-order')) && (await vis('#admin-group-stock')) && (await vis('#admin-group-settle')) && (await vis('#admin-group-sellers'))
+    && (await vis('#admin-tab-orders')) && (await vis('#admin-tab-pickup')) && (await vis('#admin-tab-ship')) && !(await vis('#admin-tab-stock')) && !(await vis('#admin-tab-settle')));
+  await page.screenshot({ path: path.join(__dirname, 'out', 'shot-tabs-order.png'), clip: { x: 0, y: 0, width: 1400, height: 420 } });
+  await page.click('#admin-group-settle'); await page.waitForTimeout(500);
+  check('single-tab group (정산) hides sub-tab row, shows panel', !(await vis('#admin-subtabs')) && (await vis('#admin-settle-panel')));
+  await page.click('#admin-group-sellers'); await page.waitForTimeout(500);
+  check('거래처 group opens 셀러 관리', await vis('#admin-sellers-panel'));
+  await page.click('#admin-group-stock'); await page.waitForTimeout(300);
+  check('재고 group: 재고관리 first, 4 tabs', (await vis('#admin-stock-panel')) && (await vis('#admin-tab-products')) && (await vis('#admin-tab-inventory')) && (await vis('#admin-tab-picking')) && !(await vis('#admin-tab-orders')));
   await page.click('#admin-tab-picking'); await page.waitForTimeout(2000);
   const frame = page.frame({ url: /picking\.html\?embed=1/ });
   check('재고 출고 tab loads picking.html', !!frame && (await frame.textContent('#pick-list')).includes('P000002'));

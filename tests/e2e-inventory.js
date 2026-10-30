@@ -204,6 +204,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.fill('#login-email', 'admin@x.com'); await page.fill('#login-pw', 'adminpass1');
   await page.click('#btn-login'); await page.waitForTimeout(1500);
   check('admin dashboard + order list', await page.isVisible('#admin-dashboard'));
+  await page.click('#admin-group-stock'); await page.waitForTimeout(300);
   await page.click('#admin-tab-inventory'); await page.waitForTimeout(2000);
   const frame = page.frame({ url: /inventory\.html\?embed=1/ });
   check('새 재고표 tab loads inventory.html in frame', !!frame && (await frame.textContent('#list')).includes('아직 재고가 없습니다'));
