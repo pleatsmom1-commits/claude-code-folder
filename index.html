@@ -640,36 +640,55 @@
                 <p class="text-xs text-slate-500">모든 거래처(셀러)의 주문을 취합해 마감·다운로드하고, 셀러 가입 승인과 정보를 관리합니다.</p>
             </div>
 
-            <div class="flex flex-wrap border-b border-slate-200">
-                <button id="admin-tab-orders" onclick="switchAdminTab('orders')" class="px-5 py-2.5 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600">
-                    주문 관리
-                </button>
-                <button id="admin-tab-sellers" onclick="switchAdminTab('sellers')" class="px-5 py-2.5 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center gap-1.5">
-                    셀러 관리
-                    <span id="admin-pending-badge" class="hidden px-1.5 py-0.5 bg-rose-500 text-white text-[10px] rounded-full"></span>
-                </button>
-                <button id="admin-tab-settle" onclick="switchAdminTab('settle')" class="px-5 py-2.5 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center gap-1.5">
-                    정산서 발송
-                </button>
-                <button id="admin-tab-pickup" onclick="switchAdminTab('pickup')" class="px-5 py-2.5 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center gap-1.5">
-                    사입 픽업요청
-                    <span id="admin-pickup-badge" class="hidden px-1.5 py-0.5 bg-orange-500 text-white text-[10px] rounded-full"></span>
-                </button>
-                <button id="admin-tab-ship" onclick="switchAdminTab('ship')" class="px-5 py-2.5 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center gap-1.5">
-                    운송장 전송
-                </button>
-                <button id="admin-tab-stock" onclick="switchAdminTab('stock')" class="px-5 py-2.5 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center gap-1.5">
-                    재고관리
-                </button>
-                <button id="admin-tab-products" onclick="switchAdminTab('products')" class="px-5 py-2.5 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center gap-1.5">
-                    상품관리
-                </button>
-                <button id="admin-tab-inventory" onclick="switchAdminTab('inventory')" class="px-5 py-2.5 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center gap-1.5">
-                    새 재고표
-                </button>
-                <button id="admin-tab-picking" onclick="switchAdminTab('picking')" class="px-5 py-2.5 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center gap-1.5">
-                    재고 출고
-                </button>
+            <!-- 관리자 메뉴: 위 = 큰 묶음, 아래 = 묶음 안의 탭 (묶음에 탭이 하나면 아래 줄은 숨김) -->
+            <div class="space-y-0">
+                <div class="flex flex-wrap gap-2">
+                    <button id="admin-group-order" onclick="switchAdminGroup('order')" class="">
+                        <i data-lucide="clipboard-list" class="w-4 h-4"></i> 주문/송장관리
+                        <span id="admin-group-order-badge" class="hidden px-1.5 py-0.5 bg-orange-500 text-white text-[10px] rounded-full"></span>
+                    </button>
+                    <button id="admin-group-stock" onclick="switchAdminGroup('stock')" class="">
+                        <i data-lucide="package" class="w-4 h-4"></i> 재고/상품/출고관리
+                    </button>
+                    <button id="admin-group-settle" onclick="switchAdminGroup('settle')" class="">
+                        <i data-lucide="receipt" class="w-4 h-4"></i> 정산
+                    </button>
+                    <button id="admin-group-sellers" onclick="switchAdminGroup('sellers')" class="">
+                        <i data-lucide="users" class="w-4 h-4"></i> 거래처
+                        <span id="admin-group-sellers-badge" class="hidden px-1.5 py-0.5 bg-rose-500 text-white text-[10px] rounded-full"></span>
+                    </button>
+                </div>
+                <div id="admin-subtabs" class="flex flex-wrap border-b border-slate-200 mt-3">
+                    <button id="admin-tab-orders" onclick="switchAdminTab('orders')" class="">
+                        주문관리
+                    </button>
+                    <button id="admin-tab-pickup" onclick="switchAdminTab('pickup')" class="">
+                        사입픽업요청
+                        <span id="admin-pickup-badge" class="hidden px-1.5 py-0.5 bg-orange-500 text-white text-[10px] rounded-full"></span>
+                    </button>
+                    <button id="admin-tab-ship" onclick="switchAdminTab('ship')" class="">
+                        운송장전송
+                    </button>
+                    <button id="admin-tab-stock" onclick="switchAdminTab('stock')" class="">
+                        재고관리
+                    </button>
+                    <button id="admin-tab-products" onclick="switchAdminTab('products')" class="">
+                        상품관리
+                    </button>
+                    <button id="admin-tab-inventory" onclick="switchAdminTab('inventory')" class="">
+                        재고표
+                    </button>
+                    <button id="admin-tab-picking" onclick="switchAdminTab('picking')" class="">
+                        재고출고
+                    </button>
+                    <button id="admin-tab-settle" onclick="switchAdminTab('settle')" class="">
+                        정산서 발송
+                    </button>
+                    <button id="admin-tab-sellers" onclick="switchAdminTab('sellers')" class="">
+                        셀러 관리
+                        <span id="admin-pending-badge" class="hidden px-1.5 py-0.5 bg-rose-500 text-white text-[10px] rounded-full"></span>
+                    </button>
+                </div>
             </div>
 
             <!-- 3-1. 주문 관리 -->
@@ -4667,6 +4686,9 @@
             const badge = document.getElementById('admin-pickup-badge');
             badge.textContent = pending;
             badge.classList.toggle('hidden', pending === 0);
+            const groupBadge = document.getElementById('admin-group-order-badge');
+            groupBadge.textContent = pending;
+            groupBadge.classList.toggle('hidden', pending === 0);
             const checked = new Set(Array.from(document.querySelectorAll('.pickup-chk-item:checked')).map(c => c.value));
             const rows = getFilteredPickupRequests();
             document.getElementById('pickup-admin-count').innerText = `조회 ${rows.length}건 / 전체 ${pickupRequests.length}건`;
@@ -4765,9 +4787,36 @@
         // =====================================================================
         // 관리자: 셀러 관리
         // =====================================================================
+        // 관리자 메뉴 묶음: 큰 묶음 → 그 안의 탭
+        const ADMIN_GROUPS = {
+            order: ['orders', 'pickup', 'ship'],
+            stock: ['stock', 'products', 'inventory', 'picking'],
+            settle: ['settle'],
+            sellers: ['sellers'],
+        };
+        const ADMIN_GROUP_OF = Object.fromEntries(Object.entries(ADMIN_GROUPS).flatMap(([g, tabs]) => tabs.map(t => [t, g])));
+        const ADMIN_LAST_TAB = {};   // 묶음마다 마지막으로 본 탭
+
+        function switchAdminGroup(group) {
+            switchAdminTab(ADMIN_LAST_TAB[group] || ADMIN_GROUPS[group][0]);
+        }
+
+        function renderAdminGroups(group) {
+            const gOn = "px-4 py-2.5 text-sm font-bold rounded-xl bg-indigo-600 text-white shadow flex items-center gap-1.5";
+            const gOff = "px-4 py-2.5 text-sm font-bold rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 flex items-center gap-1.5";
+            Object.entries(ADMIN_GROUPS).forEach(([g, tabs]) => {
+                document.getElementById('admin-group-' + g).className = g === group ? gOn : gOff;
+                tabs.forEach(t => document.getElementById('admin-tab-' + t).classList.toggle('hidden', g !== group));
+            });
+            // 탭이 하나뿐인 묶음은 아래 줄을 숨김
+            document.getElementById('admin-subtabs').classList.toggle('hidden', ADMIN_GROUPS[group].length < 2);
+        }
+
         function switchAdminTab(tab) {
             const on = "px-5 py-2.5 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 flex items-center gap-1.5";
             const off = "px-5 py-2.5 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center gap-1.5";
+            const group = ADMIN_GROUP_OF[tab];
+            ADMIN_LAST_TAB[group] = tab;
             document.getElementById('admin-tab-orders').className = tab === 'orders' ? on : off;
             document.getElementById('admin-tab-sellers').className = tab === 'sellers' ? on : off;
             document.getElementById('admin-tab-settle').className = tab === 'settle' ? on : off;
@@ -4786,6 +4835,7 @@
             document.getElementById('admin-settle-panel').classList.toggle('hidden', tab !== 'settle');
             document.getElementById('admin-pickup-panel').classList.toggle('hidden', tab !== 'pickup');
             document.getElementById('admin-stock-panel').classList.toggle('hidden', tab !== 'stock');
+            renderAdminGroups(group);
             if (tab === 'settle') onSettleTabOpened();
             if (tab === 'pickup') fetchAdminPickupRequests();
             if (tab === 'stock') onStockTabOpened();
@@ -4824,6 +4874,9 @@
             const badge = document.getElementById('admin-pending-badge');
             badge.innerText = `승인대기 ${pendingCount}`;
             badge.classList.toggle('hidden', pendingCount === 0);
+            const groupBadge = document.getElementById('admin-group-sellers-badge');
+            groupBadge.innerText = `승인대기 ${pendingCount}`;
+            groupBadge.classList.toggle('hidden', pendingCount === 0);
 
             const statusFilter = document.getElementById('seller-status-filter').value;
             const keyword = document.getElementById('seller-search').value.trim().toLowerCase();
