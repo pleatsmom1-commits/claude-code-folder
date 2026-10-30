@@ -68,6 +68,7 @@ function makeWorkbook(file, extra = []) {
     ['밤낮딜리버리(무드투문)', '고객마', '6082251369522/부출', '(합)티셔츠 mint', ''],
     ['밤낮딜리버리(무드투문)', '고객마', '6082251369522/부출', '(합)삭스', ''],
     ['밤낮딜리버리(무드투문)', '고객바', '6082251369472', '티셔츠', ''],
+    ['밤낮딜리버리(빈출고상회)', '고객하', '미출고', '아직 안 나간 상품', ''],
     ...extra,
     ['', '', '', '', ''],
   ]), 'Sheet1');
@@ -177,6 +178,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.setInputFiles('#ship-file-input', xlsxFile); await page.waitForTimeout(800);
   const listText = (await page.textContent('#ship-list')).replace(/\s+/g, ' ');
   check('companies = 송화인 괄호 안 상호만 (그냥 밤낮딜리버리 줄은 제외)', ['르아더스', '눈타이드', '럭스걸', '무드투문'].every(c => listText.includes(c)) && !listText.includes('유어피치') && !listText.includes('더드레스'), listText);
+  check('출고 0건 업체 숨김 + 표시', !listText.includes('빈출고상회') && (await page.textContent('#ship-file-status')).includes('출고 0건 1곳 숨김(빈출고상회)'), await page.textContent('#ship-file-status'));
   check('제외 줄 수 표시', (await page.textContent('#ship-file-status')).includes('괄호 없는 송화인 2줄 제외'), await page.textContent('#ship-file-status'));
   check('summary counts', (await page.textContent('#ship-summary')).includes('업체 4곳'), await page.textContent('#ship-summary'));
   const FULL = await page.evaluate(() => SHIP_FULL_FEATURES);
