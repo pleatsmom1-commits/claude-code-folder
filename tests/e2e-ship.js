@@ -68,6 +68,7 @@ function makeWorkbook(file, extra = []) {
     ['밤낮딜리버리(무드투문)', '고객마', '6082251369522/부출', '(합)티셔츠 mint', ''],
     ['밤낮딜리버리(무드투문)', '고객마', '6082251369522/부출', '(합)삭스', ''],
     ['밤낮딜리버리(무드투문)', '고객바', '6082251369472', '티셔츠', ''],
+    ['밤낮딜리버리(빈출고상회)', '고객하', '미출고', '아직 안 나간 상품', ''],
     ...extra,
     ['', '', '', '', ''],
   ]), 'Sheet1');
@@ -177,6 +178,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.setInputFiles('#ship-file-input', xlsxFile); await page.waitForTimeout(800);
   const listText = (await page.textContent('#ship-list')).replace(/\s+/g, ' ');
   check('companies = 송화인 괄호 안 상호만 (그냥 밤낮딜리버리 줄은 제외)', ['르아더스', '눈타이드', '럭스걸', '무드투문'].every(c => listText.includes(c)) && !listText.includes('유어피치') && !listText.includes('더드레스'), listText);
+  check('출고 0건 업체 숨김 + 표시', !listText.includes('빈출고상회') && (await page.textContent('#ship-file-status')).includes('출고 0건 1곳 숨김(빈출고상회)'), await page.textContent('#ship-file-status'));
   check('제외 줄 수 표시', (await page.textContent('#ship-file-status')).includes('괄호 없는 송화인 2줄 제외'), await page.textContent('#ship-file-status'));
   check('summary counts', (await page.textContent('#ship-summary')).includes('업체 4곳'), await page.textContent('#ship-summary'));
   const FULL = await page.evaluate(() => SHIP_FULL_FEATURES);
@@ -185,7 +187,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
     // 간단 복사 도우미: 저장·발송 버튼 없이 업체별 [송장 목록 복사]만
     check('simple mode: 저장·발송·체크 숨김', !(await vis('#ship-save-btn')) && !(await vis('#ship-send-btn')) && !(await page.locator('#ship-list input[type=checkbox]').first().isVisible()));
     const g = Object.fromEntries(tables.shipments.map(x => [x.company, x]));
-    check('upload auto-saves 4 companies for the date (Excel order kept)', tables.shipments.length === 4 && tables.shipments.every(x => x.ship_date === '2026-10-28' && !x.copied_at) && tables.shipments.sort((a, b) => a.seq - b.seq).map(x => x.company).join(',') === '르아더스,눈타이드,럭스걸,무드투문', JSON.stringify(tables.shipments.map(x => [x.company, x.seq])));
+    check('upload auto-saves 5 companies (출고 0건 포함) for the date (Excel order kept)', tables.shipments.length === 5 && tables.shipments.every(x => x.ship_date === '2026-10-28' && !x.copied_at) && tables.shipments.sort((a, b) => a.seq - b.seq).map(x => x.company).join(',') === '르아더스,눈타이드,럭스걸,무드투문,빈출고상회', JSON.stringify(tables.shipments.map(x => [x.company, x.seq])));
     check('럭스걸 출고 3건 (같은 송장 1건), 상품 4개, 부피추가 1000', g['럭스걸'].parcel_count === 3 && g['럭스걸'].items.length === 4 && g['럭스걸'].extra_fee === 1000);
     check('무드투문 출고 2건, 미출고 1개', g['무드투문'].parcel_count === 2 && g['무드투문'].unshipped_count === 1);
     check('number cell read as full tracking number', g['럭스걸'].items.some(i => i.tracking === '6082251369516'));
@@ -225,6 +227,13 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
     await page.selectOption('#ship-filter', 'todo'); await page.waitForTimeout(300);
     rows = (await page.textContent('#ship-list')).replace(/\s+/g, ' ');
     check('미복사 업체만 조회', rows.includes('눈타이드') && !rows.includes('럭스걸'), rows.slice(0, 200));
+    check('요약 줄에 출고 0건 숨김 1곳', (await page.textContent('#ship-summary')).includes('출고 0건 숨김 1곳'));
+    await page.selectOption('#ship-filter', 'zero'); await page.waitForTimeout(300);
+    rows = (await page.textContent('#ship-list')).replace(/\s+/g, ' ');
+    check('[출고 0건(숨긴) 업체] 조회 → 빈출고상회만 (저장돼 있음)', rows.includes('빈출고상회') && !rows.includes('럭스걸') && !!ship('빈출고상회'), rows.slice(0, 200));
+    await page.setViewportSize({ width: 1830, height: 1000 }); await page.screenshot({ path: path.join(__dirname, 'out', 'shot-ship-zero.png'), clip: { x: 0, y: 380, width: 1830, height: 360 } }); await page.setViewportSize({ width: 1400, height: 900 });
+    await page.locator('#ship-list tr', { hasText: '빈출고상회' }).locator('button:has-text("송장 목록 복사")').click(); await page.waitForTimeout(300);
+    check('숨긴 업체도 복사 가능', (await page.evaluate(() => navigator.clipboard.readText())).includes('고객하\t미출고'));
     await page.selectOption('#ship-filter', 'all'); await page.waitForTimeout(300);
     await page.locator('#ship-list tr', { hasText: '럭스걸' }).locator('button:has-text("송장 목록 복사")').click(); await page.waitForTimeout(300);
     c3 = await page.evaluate(() => navigator.clipboard.readText());
@@ -233,7 +242,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
     // 송장 추가 후 다시 올리기: 그대로인 업체는 복사 표시 유지, 바뀐 업체만 표시 해제
     makeWorkbook(xlsxFile, [['밤낮딜리버리(럭스걸)', '고객추가', '6082251369999', '추가 상품', '']]);
     await page.setInputFiles('#ship-file-input', xlsxFile); await page.waitForTimeout(1000);
-    check('re-upload: still 4 rows, 럭스걸 updated', tables.shipments.length === 4 && ship('럭스걸').items.length === 5 && ship('럭스걸').parcel_count === 4);
+    check('re-upload: still 5 rows, 럭스걸 updated', tables.shipments.length === 5 && ship('럭스걸').items.length === 5 && ship('럭스걸').parcel_count === 4);
     check('re-upload: 바뀐 럭스걸만 복사 표시 해제 + 알림', !ship('럭스걸').copied_at && !!ship('무드투문').copied_at && !!ship('르아더스').copied_at && lastDialog().includes('럭스걸'), lastDialog());
     makeWorkbook(xlsxFile);
 
@@ -246,7 +255,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
     await page.screenshot({ path: path.join(__dirname, 'out', 'shot-ship-checkall-before.png'), clip: { x: 0, y: 380, width: 1830, height: 500 } });
     check('[전체 체크] 버튼 보임', (await vis('#ship-checkall-btn')) && (await page.textContent('#ship-checkall-label')) === '전체 체크');
     await page.click('#ship-checkall-btn'); await page.waitForTimeout(300);
-    check('[전체 체크] → 모두 복사완료 (DB 도), 버튼은 "전체 체크 해제"', tables.shipments.every(x => !!x.copied_at) && (await page.textContent('#ship-next-progress')).includes('4곳 중 4곳 완료') && (await page.textContent('#ship-checkall-label')) === '전체 체크 해제');
+    check('[전체 체크] → 모두 복사완료 (DB 도), 버튼은 "전체 체크 해제"', tables.shipments.filter(x => x.parcel_count).every(x => !!x.copied_at) && (await page.textContent('#ship-next-progress')).includes('4곳 중 4곳 완료') && (await page.textContent('#ship-checkall-label')) === '전체 체크 해제');
     await page.screenshot({ path: path.join(__dirname, 'out', 'shot-ship-checkall-after.png'), clip: { x: 0, y: 380, width: 1830, height: 500 } });
     await page.click('#ship-checkall-btn'); await page.waitForTimeout(300);
     check('[전체 체크 해제] → 모두 해제', tables.shipments.every(x => !x.copied_at) && (await page.textContent('#ship-checkall-label')) === '전체 체크');
