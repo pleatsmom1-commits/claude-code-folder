@@ -4,7 +4,9 @@
 //  - 홈페이지(www.bamnatdelivery.com)에도 아래 한 줄로 붙일 수 있습니다. 질문은 이 파일을 올린 사이트로 보냅니다.
 //      <script src="https://bamnat-delivery.bamnat.workers.dev/chat.js" defer></script>
 //    · data-bottom="90"      : 오른쪽 아래 버튼 높이(px). 홈페이지의 카카오톡 버튼과 겹치지 않게 올릴 때
-//    · data-floating="off"   : 오른쪽 아래 버튼을 숨김
+//    · data-floating="off"   : 오른쪽 아래 버튼을 숨김 / "pc" : PC(넓은 화면)에서만 보임
+//    · data-label="..."      : 오른쪽 아래 버튼 글자
+//    · data-color="#6C5CE7"  : 오른쪽 아래 버튼 색
 //    · class="bn-chat-open"  : 홈페이지의 아무 버튼에나 붙이면, 누를 때 상담창이 열림 (예: "신규업체 상담전용" 버튼)
 //  - AI 가 모르는 질문이면 연락처 남기기 칸을 띄워 /api/inquiry (worker/inquiry.js) 로 보냅니다.
 //    대표님이 관리자 화면 > AI 상담에서 답하면 손님 휴대폰으로 문자가 갑니다.
@@ -18,11 +20,15 @@
     const INQUIRY_API = new URL('/api/inquiry', BASE).href;
     const BOTTOM = Math.max(0, Number(me && me.dataset.bottom) || 18);
     const FLOATING = !(me && me.dataset.floating === 'off');
+    const PC_ONLY = !!(me && me.dataset.floating === 'pc');
+    const LABEL = (me && me.dataset.label) || '💬 궁금한 점 물어보기';
+    const COLOR = /^#[0-9a-f]{3,8}$/i.test((me && me.dataset.color) || '') ? me.dataset.color : '#1e3a8a';
     const history = [];
 
     const css = document.createElement('style');
     css.textContent = `
-#bn-chat-btn{position:fixed;right:18px;bottom:${BOTTOM}px;z-index:2147483000;border:0;border-radius:999px;padding:12px 18px;background:#1e3a8a;color:#fff;font:700 14px/1 sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.25);cursor:pointer}
+#bn-chat-btn{position:fixed;right:18px;bottom:${BOTTOM}px;z-index:2147483000;border:0;border-radius:999px;padding:12px 18px;background:${COLOR};color:#fff;font:700 14px/1 sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.25);cursor:pointer}
+${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
 #bn-chat{position:fixed;right:12px;bottom:${BOTTOM + 58}px;z-index:2147483001;width:min(380px,calc(100vw - 24px));height:min(600px,calc(100vh - ${BOTTOM + 92}px));display:none;flex-direction:column;background:#fff;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.3);overflow:hidden;font:14px/1.55 sans-serif;color:#111}
 #bn-chat.open{display:flex}
 #bn-chat header{background:#1e3a8a;color:#fff;padding:12px 14px;display:flex;justify-content:space-between;align-items:center}
@@ -53,7 +59,7 @@
     const btn = document.createElement('button');
     btn.id = 'bn-chat-btn';
     btn.type = 'button';
-    btn.textContent = '💬 궁금한 점 물어보기';
+    btn.textContent = LABEL;
 
     const box = document.createElement('div');
     box.id = 'bn-chat';
