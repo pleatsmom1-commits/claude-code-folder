@@ -13,6 +13,7 @@
 //  - 대화 내용은 이 브라우저 화면에만 있고, 창을 새로 고치면 사라집니다. 연락처를 남길 때만 그 대화가 함께 저장됩니다.
 // =====================================================================
 (function () {
+    if (window.BamnatChat) return; // 홈페이지에 두 번 붙여도 버튼·창은 하나만
     const KAKAO = 'http://pf.kakao.com/_yWhKb/chat';
     const me = document.currentScript;
     const BASE = me ? me.src : location.href;
