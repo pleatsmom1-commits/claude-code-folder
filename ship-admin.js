@@ -125,7 +125,10 @@ function shipParseRows(aoa, unshipped = new Set()) {
         g.items.push({ recipient, tracking: t.tracking, state: t.state, product: String(r[c.product] ?? '').trim(), fee, store, ...(t.planned ? { planned: t.planned } : {}) });
     }
     Object.values(groups).forEach(g => Object.assign(g, shipCounts(g.items)));
-    return { groups, warnings, rows: rows.length, skipped };
+    // 대표님 요청 (2026-10-30): 출고 0건(전부 미출고)인 업체는 목록에 넣지 않음
+    const zero = SHIP_FULL_FEATURES ? [] : Object.values(groups).filter(g => !g.parcel_count).map(g => g.company);
+    zero.forEach(c => delete groups[c]);
+    return { groups, warnings, rows: rows.length, skipped, zero };
 }
 
 function shipCounts(items) {
@@ -152,7 +155,7 @@ function uploadShipWorkbook(event) {
             shipExcelGroups = parsed.groups;
             shipExcelWarnings = parsed.warnings;
             shipExcelFileName = file.name;
-            document.getElementById('ship-file-status').textContent = `"${file.name}" · ${parsed.rows}줄 · 업체 ${Object.keys(shipExcel).length}곳` + (parsed.skipped ? ` · 괄호 없는 송화인 ${parsed.skipped}줄 제외` : '') + (book.unshippedSheet ? ` · '${book.unshippedSheet}' 시트 미출고 송장 ${book.unshipped.size}개 반영` : '');
+            document.getElementById('ship-file-status').textContent = `"${file.name}" · ${parsed.rows}줄 · 업체 ${Object.keys(shipExcel).length}곳` + (parsed.skipped ? ` · 괄호 없는 송화인 ${parsed.skipped}줄 제외` : '') + (parsed.zero.length ? ` · 출고 0건 ${parsed.zero.length}곳 숨김(${parsed.zero.join(', ')})` : '') + (book.unshippedSheet ? ` · '${book.unshippedSheet}' 시트 미출고 송장 ${book.unshipped.size}개 반영` : '');
             shipChecked.clear();
             shipSkipped.clear(); shipLastCopied = null;
             if (!SHIP_FULL_FEATURES) shipAutoSave();   // 올리자마자 출고일로 저장 → 나중에 [조회]로 다시 볼 수 있음
@@ -246,7 +249,8 @@ function shipCurrentList() {
     for (const s of saved.values()) list.push({ ...s, partial_count: shipCounts(s.items || []).partial_count, saved: s, changed: false, notInExcel: !!shipExcel && SHIP_FULL_FEATURES });
     // 복사 도우미만 쓸 때는 엑셀에 적힌 순서 그대로 (그 순서대로 카톡에 보내므로)
     if (SHIP_FULL_FEATURES) return list.sort((a, b) => a.company.localeCompare(b.company, 'ko'));
-    return shipExcel ? list : shipSavedOrder(list);
+    const shown = list.filter(r => r.parcel_count);   // 출고 0건 업체는 숨김
+    return shipExcel ? shown : shipSavedOrder(shown);
 }
 
 function shipStateHtml(r) {
