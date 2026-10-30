@@ -1,12 +1,14 @@
 // 밤낮딜리버리 사이트 + Supabase 자동 깨우기
 // - fetch: 사이트 파일(index.html)을 그대로 보여줍니다. /api/settle/send 는 정산서 알림톡 발송(worker/alimtalk.js),
 //   /api/signup/notify · /api/seller/approved 는 회원가입·승인 알림 문자(worker/notify.js),
-//   /api/ship/send 는 업체별 운송장 전송 알림(worker/shipping.js), /api/ask 는 문의 AI 답변(worker/ask.js).
+//   /api/ship/send 는 업체별 운송장 전송 알림(worker/shipping.js), /api/ask 는 문의 AI 답변(worker/ask.js),
+//   /api/inquiry · /api/inquiry/answer 는 AI 가 모르는 문의 접수와 대표님 답변 전달(worker/inquiry.js).
 // - scheduled: 정해진 시간마다 Supabase 에 한 번 접속해, 무료 요금제의 '7일 미사용 일시정지'를 막습니다.
 import { handleSettleSend, handleSettleMessage } from './alimtalk.js';
 import { handleSignupNotify, handleSellerApproved } from './notify.js';
 import { handleShipSend } from './shipping.js';
 import { handleAsk } from './ask.js';
+import { handleInquiry, handleInquiryAnswer } from './inquiry.js';
 
 export default {
   async fetch(request, env) {
@@ -17,6 +19,8 @@ export default {
     if (path === '/api/seller/approved') return handleSellerApproved(request, env);
     if (path === '/api/ship/send') return handleShipSend(request, env);
     if (path === '/api/ask') return handleAsk(request, env);
+    if (path === '/api/inquiry') return handleInquiry(request, env);
+    if (path === '/api/inquiry/answer') return handleInquiryAnswer(request, env);
     return env.ASSETS.fetch(request);
   },
 

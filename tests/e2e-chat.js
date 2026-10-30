@@ -17,7 +17,7 @@ const ok = (c, m, x = '') => { console.log(c ? 'PASS ' : 'FAIL ', m, x ? ' -- ' 
   const page = await browser.newPage({ viewport: { width: 390, height: 800 } });
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
-  const asked = [];
+  const asked = [], leads = [];
   await page.route('**/*', async route => {
     const u = route.request().url();
     const lib = Object.keys(LIB).find(k => u.includes(k));
@@ -25,13 +25,19 @@ const ok = (c, m, x = '') => { console.log(c ? 'PASS ' : 'FAIL ', m, x ? ' -- ' 
     if (u.startsWith('http://site.test/api/ask')) {
       const body = JSON.parse(route.request().postData());
       asked.push(body);
-      return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ answer: '픽업비는 매장당 1,800원입니다.' }) });
+      const human = body.messages[body.messages.length - 1].content.includes('견적');
+      return route.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' },
+        body: JSON.stringify(human ? { answer: '이 부분은 대표님이 직접 확인해서 연락드릴게요.', needsHuman: true } : { answer: '픽업비는 매장당 1,800원입니다.', needsHuman: false }) });
+    }
+    if (u.startsWith('http://site.test/api/inquiry')) {
+      leads.push(JSON.parse(route.request().postData()));
+      return route.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ status: 'saved' }) });
     }
     if (u.startsWith('http://site.test/')) {
       const f = path.join(ROOT, new URL(u).pathname === '/' ? 'index.html' : new URL(u).pathname);
-      if (fs.existsSync(f)) return route.fulfill({ body: fs.readFileSync(f), contentType: f.endsWith('.js') ? 'application/javascript' : 'text/html' });
+      if (fs.existsSync(f)) return route.fulfill({ body: fs.readFileSync(f), contentType: (f.endsWith('.js') ? 'application/javascript' : 'text/html') + '; charset=utf-8' });
     }
-    if (u === 'http://www.bamnatdelivery.com/') return route.fulfill({ contentType: 'text/html', body: '<html><body><h1>밤낮딜리버리 홈</h1><script src="http://site.test/chat.js" defer></script></body></html>' });
+    if (u === 'http://www.bamnatdelivery.com/') return route.fulfill({ contentType: 'text/html; charset=utf-8', body: '<html><body><h1>밤낮딜리버리 홈</h1><a href="#" class="bn-chat-open" id="newbiz">신규업체 상담전용</a><script src="http://site.test/chat.js" data-bottom="90" defer></script></body></html>' });
     if (u.includes('supabase.co')) return route.fulfill({ contentType: 'application/json', body: '[]' });
     return route.abort();
   });
@@ -61,6 +67,26 @@ const ok = (c, m, x = '') => { console.log(c ? 'PASS ' : 'FAIL ', m, x ? ' -- ' 
   await page.keyboard.press('Enter');
   await page.waitForSelector('#bn-chat .bn-ai >> text=1,800원');
   ok(asked.length === 3, 'homepage embed asks the site API');
+  const bb = await page.locator('#bn-chat-btn').boundingBox();
+  ok(Math.round(800 - bb.y - bb.height) === 90, 'data-bottom raises floating button', String(800 - bb.y - bb.height));
+  // AI 가 모르는 질문 → 연락처 남기기
+  await page.fill('#bn-chat textarea', '100건 견적 받을 수 있나요?');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('#bn-chat .bn-lead');
+  ok((await page.inputValue('#bn-chat .bn-lead [name=question]')) === '100건 견적 받을 수 있나요?', 'lead form opens with question');
+  await page.fill('#bn-chat .bn-lead [name=company]', '새샵');
+  await page.fill('#bn-chat .bn-lead [name=phone]', '010-1234-5678');
+  await page.click('#bn-chat .bn-lead .bn-send');
+  ok((await page.textContent('#bn-chat .bn-lead .bn-err')).includes('동의') && leads.length === 0, 'consent required');
+  await page.check('#bn-chat .bn-lead [name=consent]');
+  await page.screenshot({ path: path.join(__dirname, 'out', 'chat-lead.png') });
+  await page.click('#bn-chat .bn-lead .bn-send');
+  await page.waitForSelector('#bn-chat .bn-ai >> text=문의가 접수됐어요');
+  ok(leads.length === 1 && leads[0].phone === '01012345678' && leads[0].consent === true && leads[0].chatLog.length === 4 && leads[0].source.includes('bamnatdelivery'), 'lead sent with chat log', JSON.stringify(leads[0]).slice(0, 200));
+  // 홈페이지 버튼(class="bn-chat-open")으로 열기
+  await page.click('#bn-chat header button');
+  await page.click('#newbiz');
+  ok(await page.isVisible('#bn-chat'), 'bn-chat-open button opens chat');
   ok(errors.length === 0, 'no page script errors', errors.join(' | '));
   await browser.close();
 })();

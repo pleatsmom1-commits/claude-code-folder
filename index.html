@@ -657,6 +657,10 @@
                         <i data-lucide="users" class="w-4 h-4"></i> 거래처
                         <span id="admin-group-sellers-badge" class="hidden px-1.5 py-0.5 bg-rose-500 text-white text-[10px] rounded-full"></span>
                     </button>
+                    <button id="admin-group-inquiry" onclick="switchAdminGroup('inquiry')" class="">
+                        <i data-lucide="message-circle" class="w-4 h-4"></i> AI 상담
+                        <span id="admin-group-inquiry-badge" class="hidden px-1.5 py-0.5 bg-orange-500 text-white text-[10px] rounded-full"></span>
+                    </button>
                 </div>
                 <div id="admin-subtabs" class="flex flex-wrap border-b border-slate-200 mt-3">
                     <button id="admin-tab-orders" onclick="switchAdminTab('orders')" class="">
@@ -683,6 +687,9 @@
                     </button>
                     <button id="admin-tab-settle" onclick="switchAdminTab('settle')" class="">
                         정산서 발송
+                    </button>
+                    <button id="admin-tab-inquiry" onclick="switchAdminTab('inquiry')" class="">
+                        AI 상담
                     </button>
                     <button id="admin-tab-sellers" onclick="switchAdminTab('sellers')" class="">
                         셀러 관리
@@ -963,6 +970,40 @@
                             <tbody id="pickup-admin-list" class="divide-y divide-slate-100 text-slate-700"></tbody>
                         </table>
                     </div>
+                </div>
+            </div>
+
+            <!-- AI 상담 (스크립트: inquiry-admin.js) -->
+            <div id="admin-inquiry-panel" class="hidden grid lg:grid-cols-5 gap-4">
+                <div class="lg:col-span-3 bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+                    <div class="flex justify-between items-start flex-wrap gap-2">
+                        <div>
+                            <h3 class="font-bold text-slate-900">손님이 남긴 문의</h3>
+                            <p class="text-xs text-slate-500 mt-0.5">AI 가 답하지 못한 질문입니다. 답변을 적고 [답변 보내기]를 누르면 손님 휴대폰으로 문자가 갑니다.</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <select id="inquiry-status-filter" onchange="fetchInquiries()" class="border border-slate-200 rounded-lg px-2 py-1 text-xs">
+                                <option value="waiting">답변대기</option>
+                                <option value="all">전체</option>
+                                <option value="answered">답변보냄</option>
+                                <option value="closed">완료(미발송)</option>
+                            </select>
+                            <button onclick="onInquiryTabOpened()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg">새로고침</button>
+                        </div>
+                    </div>
+                    <div id="inquiry-list" class="space-y-3"></div>
+                </div>
+                <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+                    <div>
+                        <h3 class="font-bold text-slate-900">AI 답변 모음집 <span id="faq-count" class="text-xs font-normal text-slate-400"></span></h3>
+                        <p class="text-xs text-slate-500 mt-0.5">대표님이 쓴 답을 AI 가 먼저 참고합니다. 홈페이지 안내보다 우선이고, 모든 손님에게 보일 수 있으니 개인정보는 넣지 마세요.</p>
+                    </div>
+                    <div class="space-y-1.5 bg-indigo-50 rounded-lg p-3">
+                        <input id="faq-new-q" class="w-full border border-slate-200 rounded p-2 text-xs" placeholder="질문 (예: 토요일에도 픽업하나요?)">
+                        <textarea id="faq-new-a" class="w-full border border-slate-200 rounded p-2 text-xs" rows="2" placeholder="대표님 답"></textarea>
+                        <div class="text-right"><button onclick="addFaq()" class="px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg">추가</button></div>
+                    </div>
+                    <div id="faq-list" class="space-y-2 max-h-[600px] overflow-y-auto"></div>
                 </div>
             </div>
 
@@ -2116,6 +2157,7 @@
                 fetchCouriers();
                 resetPickupSearch(false);
                 fetchAdminPickupRequests();
+                refreshInquiryBadge();
             } else {
                 setupSellerUI();
                 resetKeepRequest(); // 로그인할 때마다 보관요청은 다시 선택
@@ -4792,6 +4834,7 @@
             stock: ['stock', 'products', 'inventory', 'picking'],
             settle: ['settle'],
             sellers: ['sellers'],
+            inquiry: ['inquiry'],
         };
         const ADMIN_GROUP_OF = Object.fromEntries(Object.entries(ADMIN_GROUPS).flatMap(([g, tabs]) => tabs.map(t => [t, g])));
         const ADMIN_LAST_TAB = {};   // 묶음마다 마지막으로 본 탭
@@ -4834,11 +4877,14 @@
             document.getElementById('admin-settle-panel').classList.toggle('hidden', tab !== 'settle');
             document.getElementById('admin-pickup-panel').classList.toggle('hidden', tab !== 'pickup');
             document.getElementById('admin-stock-panel').classList.toggle('hidden', tab !== 'stock');
+            document.getElementById('admin-tab-inquiry').className = tab === 'inquiry' ? on : off;
+            document.getElementById('admin-inquiry-panel').classList.toggle('hidden', tab !== 'inquiry');
             renderAdminGroups(group);
             if (tab === 'settle') onSettleTabOpened();
             if (tab === 'pickup') fetchAdminPickupRequests();
             if (tab === 'stock') onStockTabOpened();
             if (tab === 'ship') onShipTabOpened();
+            if (tab === 'inquiry') onInquiryTabOpened();
             if (tab === 'products' || tab === 'inventory' || tab === 'picking') {
                 const frame = document.getElementById(`admin-${tab}-frame`);
                 if (!frame.getAttribute('src')) frame.setAttribute('src', `${tab}.html?embed=1`);
@@ -5364,6 +5410,8 @@
     <!-- 관리자 > 운송장 전송 -->
     <script src="ship-admin.js"></script>
     <script src="stock-admin.js"></script>
+    <!-- 관리자 > AI 상담 (답변 대기 문의, 답변 모음집) -->
+    <script src="inquiry-admin.js"></script>
     <!-- 오른쪽 아래 "궁금한 점 물어보기" AI 상담창 -->
     <script src="chat.js"></script>
     <!-- 밤낮딜리버리 풀필먼트 엑셀양식 원본 파일 (2026, 1번 작성안내 + 2번 엑셀양식). 양식을 바꾸려면 이 값을 새 파일로 교체하세요. -->
