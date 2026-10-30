@@ -235,7 +235,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   check('admin dashboard + order list', (await vis('#admin-dashboard')) && (await page.textContent('#admin-order-list')).includes('홍길동'));
   check('admin list hides 운송장 입력·송장번호 업로드·택배사 관리', !(await page.locator('#admin-orders-panel th:has-text("운송장정보")').isVisible()) && (await page.locator('.admin-tracking:visible').count()) === 0 && !(await page.locator('button:has-text("송장번호 업로드")').isVisible()) && !(await page.locator('button:has-text("택배사 관리")').isVisible()) && !(await page.locator('button:has-text("선택 출고완료")').isVisible()));
   await page.screenshot({ path: path.join(__dirname, 'out', 'shot-admin-orders.png') });
-  await page.click('#admin-tab-sellers'); await page.waitForTimeout(500);
+  await page.click('#admin-group-sellers'); await page.waitForTimeout(500);
   const sellerHead = await page.textContent('#admin-sellers-panel thead');
   const sellerRow = (await page.locator('#seller-admin-list tr', { hasText: '애플샵' }).textContent()).replace(/\s+/g, ' ');
   check('seller list shows address column + value', sellerHead.includes('매장 · 사무실 주소') && sellerRow.includes('서울 강남구 1') && sellerRow.includes('2층'), sellerRow);
