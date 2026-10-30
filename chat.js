@@ -22,8 +22,8 @@
 
     const css = document.createElement('style');
     css.textContent = `
-#bn-chat-btn{position:fixed;right:18px;bottom:${BOTTOM}px;z-index:9000;border:0;border-radius:999px;padding:12px 18px;background:#1e3a8a;color:#fff;font:700 14px/1 sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.25);cursor:pointer}
-#bn-chat{position:fixed;right:12px;bottom:${BOTTOM + 58}px;z-index:9001;width:min(380px,calc(100vw - 24px));height:min(600px,calc(100vh - ${BOTTOM + 92}px));display:none;flex-direction:column;background:#fff;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.3);overflow:hidden;font:14px/1.55 sans-serif;color:#111}
+#bn-chat-btn{position:fixed;right:18px;bottom:${BOTTOM}px;z-index:2147483000;border:0;border-radius:999px;padding:12px 18px;background:#1e3a8a;color:#fff;font:700 14px/1 sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.25);cursor:pointer}
+#bn-chat{position:fixed;right:12px;bottom:${BOTTOM + 58}px;z-index:2147483001;width:min(380px,calc(100vw - 24px));height:min(600px,calc(100vh - ${BOTTOM + 92}px));display:none;flex-direction:column;background:#fff;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.3);overflow:hidden;font:14px/1.55 sans-serif;color:#111}
 #bn-chat.open{display:flex}
 #bn-chat header{background:#1e3a8a;color:#fff;padding:12px 14px;display:flex;justify-content:space-between;align-items:center}
 #bn-chat header b{font-size:15px}
