@@ -126,8 +126,8 @@ function shipParseRows(aoa, unshipped = new Set()) {
     }
     Object.values(groups).forEach(g => Object.assign(g, shipCounts(g.items)));
     // 대표님 요청 (2026-10-30): 출고 0건(전부 미출고)인 업체는 목록에 넣지 않음
+    //  (저장은 해 두고, [조회] 칸에서 '출고 0건(숨긴) 업체'를 고르면 볼 수 있음)
     const zero = SHIP_FULL_FEATURES ? [] : Object.values(groups).filter(g => !g.parcel_count).map(g => g.company);
-    zero.forEach(c => delete groups[c]);
     return { groups, warnings, rows: rows.length, skipped, zero };
 }
 
@@ -234,8 +234,16 @@ function shipSavedOrder(list) {
     return [...list].sort((a, b) => (a.seq ?? 1e9) - (b.seq ?? 1e9) || a.company.localeCompare(b.company, 'ko'));
 }
 
-// 엑셀(이번에 올린 것) + 저장된 것을 합친 목록
+// 엑셀(이번에 올린 것) + 저장된 것을 합친 목록 (출고 0건 업체는 빼고)
 function shipCurrentList() {
+    return SHIP_FULL_FEATURES ? shipAllList() : shipAllList().filter(r => r.parcel_count);
+}
+// 출고 0건(숨긴) 업체
+function shipZeroList() {
+    return SHIP_FULL_FEATURES ? [] : shipAllList().filter(r => !r.parcel_count);
+}
+
+function shipAllList() {
     const saved = new Map(shipSaved.map(s => [s.company, s]));
     const list = [];
     if (shipExcel) {
@@ -249,8 +257,7 @@ function shipCurrentList() {
     for (const s of saved.values()) list.push({ ...s, partial_count: shipCounts(s.items || []).partial_count, saved: s, changed: false, notInExcel: !!shipExcel && SHIP_FULL_FEATURES });
     // 복사 도우미만 쓸 때는 엑셀에 적힌 순서 그대로 (그 순서대로 카톡에 보내므로)
     if (SHIP_FULL_FEATURES) return list.sort((a, b) => a.company.localeCompare(b.company, 'ko'));
-    const shown = list.filter(r => r.parcel_count);   // 출고 0건 업체는 숨김
-    return shipExcel ? shown : shipSavedOrder(shown);
+    return shipExcel ? list : shipSavedOrder(list);
 }
 
 function shipStateHtml(r) {
@@ -285,15 +292,21 @@ function renderShipTable() {
         ? `⚠️ 확인이 필요한 줄 ${shipExcelWarnings.length}개: ${shipExcelWarnings.slice(0, 5).map(escapeHtml).join(' / ')}${shipExcelWarnings.length > 5 ? ' …' : ''}` : '';
 
     renderShipNext(list);
-    document.getElementById('ship-clear-btn').classList.toggle('hidden', !list.length);
+    document.getElementById('ship-clear-btn').classList.toggle('hidden', !shipAllList().length);
     document.getElementById('ship-checkall-btn').classList.toggle('hidden', !list.length || SHIP_FULL_FEATURES);
     document.getElementById('ship-checkall-label').textContent = list.length && list.every(r => shipDone.has(r.company)) ? '전체 체크 해제' : '전체 체크';
     const doneCount = list.filter(r => shipDone.has(r.company)).length;
+    const zero = shipZeroList();
     if (!SHIP_FULL_FEATURES && list.length) {
         document.getElementById('ship-summary').innerHTML += ` · 복사완료 <b class="text-emerald-600">${doneCount}</b>곳`
+            + (zero.length ? ` · <a href="#" onclick="showShipZero(); return false;" class="text-slate-500 underline" title="눌러서 보기">출고 0건 숨김 ${zero.length}곳</a>` : '')
             + (shipReady ? '' : ' <span class="text-rose-600 font-bold">· 저장 안 됨 (Supabase 에서 shipping.sql 실행 필요)</span>');
     }
-    const shown = SHIP_FULL_FEATURES ? list : list.filter(r => shipFilter === 'all' || (shipFilter === 'done') === shipDone.has(r.company));
+    const zeroOpt = document.querySelector('#ship-filter option[value="zero"]');
+    if (zeroOpt) zeroOpt.textContent = `출고 0건(숨긴) 업체 ${zero.length}곳`;
+    const shown = SHIP_FULL_FEATURES ? list
+        : shipFilter === 'zero' ? zero
+        : list.filter(r => shipFilter === 'all' || (shipFilter === 'done') === shipDone.has(r.company));
     if (!shown.length) {
         tbody.innerHTML = `<tr><td colspan="11" class="p-8 text-center text-slate-400">${list.length ? '조회 조건에 맞는 업체가 없습니다.' : '표시할 운송장이 없습니다. 송장 엑셀을 올리거나 출고일을 고르고 [조회]를 누르세요.'}</td></tr>`;
         return;
@@ -390,8 +403,15 @@ function shipListText(r) {
     return [head, '', ...lines, '', tail].join('\n');
 }
 
+// 요약 줄의 '출고 0건 숨김 N곳'을 누르면 그 업체들만 보기
+function showShipZero() {
+    document.getElementById('ship-filter').value = 'zero';
+    shipFilter = 'zero';
+    renderShipTable();
+}
+
 async function copyShipList(company) {
-    const r = shipCurrentList().find(x => x.company === company);
+    const r = shipAllList().find(x => x.company === company);
     if (!r) return;
     const text = shipListText(r);
     try {
@@ -437,7 +457,7 @@ function toggleShipDone(company, checked) {
 // 이 출고일의 송장 목록과 복사 표시를 모두 지우기 (잘못 올렸을 때)
 async function clearShipUpload() {
     const date = document.getElementById('ship-date').value;
-    if (!shipCurrentList().length) return;
+    if (!shipAllList().length) return;
     if (!confirm(`${date} 송장 목록과 복사 표시를 모두 지울까요?\n(엑셀 파일 자체는 그대로입니다. 다시 올리면 됩니다)`)) return;
     if (shipReady && supabaseClient && shipSaved.length) {
         const { error } = await supabaseClient.from('shipments').delete().eq('ship_date', date);
