@@ -155,6 +155,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.fill('#login-email', 'admin@x.com'); await page.fill('#login-pw', 'adminpass1');
   await page.click('#btn-login'); await page.waitForTimeout(1500);
   check('admin dashboard + order list', (await vis('#admin-dashboard')) && (await page.textContent('#admin-order-list')).includes('홍길동'));
+  await page.click('#admin-group-stock'); await page.waitForTimeout(300);
   await page.click('#admin-tab-stock'); await page.waitForTimeout(600);
   check('stock tab shows existing item', (await vis('#admin-stock-panel')) && (await page.textContent('#stock-list')).includes('지워질상품'));
   check('company summary marks 가나샵 linked to seller "가나 샵"', (await page.textContent('#stock-company-list')).includes('연결됨'));
