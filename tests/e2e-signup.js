@@ -25,6 +25,8 @@ const tables = {
   orders: [{ id: 'ORD-1', seller_id: ids.seller, seller_company: '애플샵', sender_name: '밤낮딜리버리(애플샵)', recipient: '홍길동', phone: '010-2222-3333', address: '서울', product: '티셔츠', status: '접수대기', ship_status: '미출고', order_type: 'fulfillment', order_no: 1, item_no: 1, seller_order_no: 1, created_at: new Date().toISOString() }],
   couriers: [{ id: 'c1', name: '우체국택배', sort_order: 1 }],
   address_book: [], pickup_requests: [], settlements: [], settle_contacts: [],
+  inquiries: [{ id: 7, created_at: '2026-10-30T01:00:00Z', company: '새샵', name: '박', phone: '01055556666', question: '토요일에도 픽업하나요?', chat_log: [{ role: 'user', content: '토요일에도 픽업하나요?' }, { role: 'assistant', content: '대표님이 확인해서 연락드릴게요.' }], source: 'https://www.bamnatdelivery.com/', status: 'waiting' }],
+  ai_faq: [{ id: 1, question: '부가세 포함인가요?', answer: '부가세 별도입니다.', active: true }],
 };
 const requests = [];
 const apiCalls = []; // 사이트 서버(/api/...)로 보낸 요청 (회원가입·승인 알림 문자)
@@ -100,6 +102,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
       const isAdmin = who && who.profile.role === 'admin';
       let rows = tables[table].filter(r => isAdmin || !('seller_id' in r) || (who && r.seller_id === who.id));
       if (method === 'GET') return json(200, applyFilters(rows, url));
+      if (method === 'HEAD') { const n = applyFilters(rows, url).length; return route.fulfill({ status: 200, headers: { ...cors, 'content-range': `0-${Math.max(n - 1, 0)}/${n}` }, body: '' }); }
       if (method === 'POST') { const list = (Array.isArray(body) ? body : [body]).map(r => ({ ...r, seller_id: who && who.id, created_at: new Date().toISOString() })); tables[table].push(...list); return json(201, list); }
       if (method === 'PATCH') { const hit = applyFilters(rows, url); hit.forEach(r => Object.assign(r, body)); return json(200, hit); }
       if (method === 'DELETE') { const hit = applyFilters(rows, url); tables[table] = tables[table].filter(r => !hit.includes(r)); return json(200, hit); }
@@ -261,6 +264,23 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.click('#seller-edit-modal button[type=submit]'); await page.waitForTimeout(500);
   check('admin saves seller address + tax email', users['seller@x.com'].profile.detail_address === '3층' && users['seller@x.com'].profile.tax_email === 'new-bill@apple.com', lastDialog());
   await page.screenshot({ path: path.join(__dirname, 'out', 'shot-sellers.png') });
+
+  // ---------- 5. 관리자: AI 상담 (답변 대기 문의, 답변 모음집) ----------
+  check('AI 상담 badge shows waiting count', (await page.textContent('#admin-group-inquiry-badge')).includes('1') && (await vis('#admin-group-inquiry-badge')));
+  await page.click('#admin-group-inquiry'); await page.waitForTimeout(800);
+  check('inquiry panel lists waiting inquiry', (await vis('#admin-inquiry-panel')) && (await page.textContent('#inquiry-list')).includes('토요일에도 픽업하나요?') && (await page.textContent('#inquiry-list')).includes('010-5555-6666') && (await page.textContent('#inquiry-list')).includes('홈페이지'));
+  check('faq list shows existing answer', (await page.inputValue('#faq-list .faq-q')) === '부가세 포함인가요?');
+  await page.fill('#inquiry-list .inq-answer', '네, 토요일도 픽업합니다.');
+  await page.fill('#inquiry-list .inq-faq-q', '토요일에도 픽업하나요?');
+  await page.click('#inquiry-list button:has-text("답변 보내기")'); await page.waitForTimeout(800);
+  const ia = apiCalls.find(c => c.path === '/api/inquiry/answer');
+  check('answer -> /api/inquiry/answer with faq', ia && ia.body.id === 7 && ia.body.answer === '네, 토요일도 픽업합니다.' && ia.body.addFaq === true && ia.auth.startsWith('Bearer '), JSON.stringify(ia));
+  await page.fill('#faq-new-q', '카드 결제 되나요?'); await page.fill('#faq-new-a', '계좌이체만 가능합니다.');
+  await page.click('#admin-inquiry-panel button:has-text("추가")'); await page.waitForTimeout(600);
+  check('faq added', tables.ai_faq.some(f => f.question === '카드 결제 되나요?') && (await page.locator('#faq-list .faq-q').count()) === 2);
+  await page.screenshot({ path: path.join(__dirname, 'out', 'shot-inquiry.png') });
+  await page.click('#admin-group-order'); await page.waitForTimeout(300);
+  check('back to 주문관리 hides AI 상담 panel', !(await vis('#admin-inquiry-panel')) && (await vis('#admin-orders-panel')));
 
   // 회원가입 화면 캡처
   await page.evaluate(() => logout()); await page.waitForTimeout(800);
