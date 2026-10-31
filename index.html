@@ -287,6 +287,14 @@
                 </div>
             </div>
 
+            <!-- 재고 출고 안내 (모든 접수 방식 공통) -->
+            <div id="stock-ship-notice" class="bg-sky-50 border border-sky-200 rounded-xl px-4 py-3 text-xs text-sky-900 leading-relaxed">
+                <b>📢 재고 출고 안내</b><br>
+                모든 출고건은 현재 <b>밤낮딜리버리 사무실에 있는 재고부터 우선 출고</b>됩니다.
+                출고가 끝난 후, 사무실 재고는 자동 차감되어 기록됩니다.
+                단, 합배송 요청으로 출고되지 않은 재고는 차감되지 않습니다.
+            </div>
+
             <!-- Single & Batch Registration Tabs -->
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <div class="flex border-b border-slate-200 bg-slate-50/50">
@@ -295,6 +303,9 @@
                     </button>
                     <button id="reg-tab-batch" onclick="switchRegTab('batch')" class="px-6 py-3 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700">
                         엑셀 일괄 등록 (2번 시트 양식)
+                    </button>
+                    <button id="reg-tab-ai" onclick="switchRegTab('ai')" class="px-6 py-3 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700">
+                        쇼핑몰 주문서 그대로 올리기 <span class="ml-1 px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px]">AI</span>
                     </button>
                 </div>
 
@@ -416,6 +427,25 @@
                             </button>
                             <p class="order-block-reason hidden mt-3 text-xs font-bold text-rose-600"></p>
                         </div>
+                    </div>
+
+                    <!-- 쇼핑몰 주문서 그대로 올리기 (order-ai.js) -->
+                    <div id="ai-order-form" class="hidden space-y-4">
+                        <div id="ai-drop-zone" class="border-2 border-dashed border-indigo-200 rounded-xl p-8 text-center bg-indigo-50/40 transition"
+                            ondragover="event.preventDefault(); this.classList.add('border-indigo-500', 'bg-indigo-50')"
+                            ondragleave="this.classList.remove('border-indigo-500', 'bg-indigo-50')"
+                            ondrop="aiDrop(event)">
+                            <i data-lucide="sparkles" class="w-10 h-10 text-indigo-600 mx-auto mb-2"></i>
+                            <p class="text-sm font-bold text-slate-700">쇼핑몰에서 받은 주문서 엑셀을 <span class="text-indigo-700">그대로</span> 올려 주세요</p>
+                            <p class="text-xs text-slate-500 mt-1 mb-4">스마트스토어·쿠팡·지그재그·에이블리 등 어떤 양식이든 AI 가 받는분·주소·연락처·상품 칸을 찾아 표로 보여드려요.<br>확인 후 [이대로 주문접수]를 누르면 접수돼요. (보내는사람·C/S 연락처는 자동)</p>
+                            <input type="file" id="ai-file-input" accept=".xlsx, .xls, .csv" class="hidden" onchange="aiFileChosen(event)">
+                            <button id="btn-ai-upload" onclick="document.getElementById('ai-file-input').click()" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold text-xs rounded-lg shadow">
+                                주문서 파일 선택
+                            </button>
+                            <p id="ai-status" class="hidden mt-3 text-xs font-bold"></p>
+                            <p class="order-block-reason hidden mt-3 text-xs font-bold text-rose-600"></p>
+                        </div>
+                        <div id="ai-result" class="hidden space-y-3"></div>
                     </div>
                 </div>
             </div>
@@ -694,6 +724,9 @@
                     <button id="admin-tab-sellers" onclick="switchAdminTab('sellers')" class="">
                         셀러 관리
                         <span id="admin-pending-badge" class="hidden px-1.5 py-0.5 bg-rose-500 text-white text-[10px] rounded-full"></span>
+                    </button>
+                    <button id="admin-tab-aicost" onclick="switchAdminTab('aicost')" class="">
+                        AI 사용료
                     </button>
                 </div>
             </div>
@@ -1217,6 +1250,7 @@
                             <option value="all">전체 업체</option>
                             <option value="done">복사완료 업체</option>
                             <option value="todo">미복사 업체</option>
+                            <option value="zero">출고 0건(숨긴) 업체</option>
                         </select>
                         <button type="button" id="ship-search-btn" onclick="runShipSearch()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg flex items-center gap-1" title="이 출고일에 올렸던 송장 목록을 다시 불러옵니다">
                             <i data-lucide="search" class="w-3.5 h-3.5"></i> 조회</button>
@@ -1295,6 +1329,11 @@
                     <a href="/picking" target="_blank" class="text-xs font-bold text-indigo-600 hover:underline">새 창에서 크게 열기</a>
                 </div>
                 <iframe id="admin-picking-frame" title="재고 출고" class="w-full bg-white rounded-xl border border-slate-200" style="height: calc(100vh - 220px); min-height: 600px;"></iframe>
+            </div>
+
+            <!-- 3-10. AI 사용료 (ai-cost.html 을 그대로 불러와 보여줌) -->
+            <div id="admin-aicost-panel" class="hidden space-y-2">
+                <iframe id="admin-aicost-frame" title="AI 사용료" class="w-full bg-white rounded-xl border border-slate-200" style="height: calc(100vh - 220px); min-height: 600px;"></iframe>
             </div>
 
             <div id="admin-stock-panel" class="hidden space-y-4">
@@ -2259,7 +2298,7 @@
             if (!allowed) {
                 reason = '관리자 승인 후 주문을 등록할 수 있습니다.';
             }
-            ['btn-submit-order', 'btn-excel-upload', 'btn-store-submit'].forEach(id => {
+            ['btn-submit-order', 'btn-excel-upload', 'btn-store-submit', 'btn-ai-upload'].forEach(id => {
                 const btn = document.getElementById(id);
                 if (btn) btn.disabled = !allowed;
             });
@@ -2930,22 +2969,13 @@
         }
 
         function switchRegTab(tab) {
-            const btnSingle = document.getElementById('reg-tab-single');
-            const btnBatch = document.getElementById('reg-tab-batch');
-            const formSingle = document.getElementById('single-order-form');
-            const formBatch = document.getElementById('batch-order-form');
-
-            if (tab === 'single') {
-                btnSingle.className = "px-6 py-3 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 bg-white";
-                btnBatch.className = "px-6 py-3 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700";
-                formSingle.classList.remove('hidden');
-                formBatch.classList.add('hidden');
-            } else {
-                btnBatch.className = "px-6 py-3 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 bg-white";
-                btnSingle.className = "px-6 py-3 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700";
-                formBatch.classList.remove('hidden');
-                formSingle.classList.add('hidden');
-            }
+            const on = "px-6 py-3 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 bg-white";
+            const off = "px-6 py-3 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700";
+            const forms = { single: 'single-order-form', batch: 'batch-order-form', ai: 'ai-order-form' };
+            Object.entries(forms).forEach(([key, formId]) => {
+                document.getElementById(`reg-tab-${key}`).className = key === tab ? on : off;
+                document.getElementById(formId).classList.toggle('hidden', key !== tab);
+            });
         }
 
         async function handleSingleOrderSubmit(e) {
@@ -4833,7 +4863,7 @@
             order: ['orders', 'pickup', 'ship'],
             stock: ['stock', 'products', 'inventory', 'picking'],
             settle: ['settle'],
-            sellers: ['sellers'],
+            sellers: ['sellers', 'aicost'],
             inquiry: ['inquiry'],
         };
         const ADMIN_GROUP_OF = Object.fromEntries(Object.entries(ADMIN_GROUPS).flatMap(([g, tabs]) => tabs.map(t => [t, g])));
@@ -4871,6 +4901,8 @@
             document.getElementById('admin-inventory-panel').classList.toggle('hidden', tab !== 'inventory');
             document.getElementById('admin-tab-picking').className = tab === 'picking' ? on : off;
             document.getElementById('admin-picking-panel').classList.toggle('hidden', tab !== 'picking');
+            document.getElementById('admin-tab-aicost').className = tab === 'aicost' ? on : off;
+            document.getElementById('admin-aicost-panel').classList.toggle('hidden', tab !== 'aicost');
             document.getElementById('admin-ship-panel').classList.toggle('hidden', tab !== 'ship');
             document.getElementById('admin-orders-panel').classList.toggle('hidden', tab !== 'orders');
             document.getElementById('admin-sellers-panel').classList.toggle('hidden', tab !== 'sellers');
@@ -4885,9 +4917,10 @@
             if (tab === 'stock') onStockTabOpened();
             if (tab === 'ship') onShipTabOpened();
             if (tab === 'inquiry') onInquiryTabOpened();
-            if (tab === 'products' || tab === 'inventory' || tab === 'picking') {
+            if (tab === 'products' || tab === 'inventory' || tab === 'picking' || tab === 'aicost') {
                 const frame = document.getElementById(`admin-${tab}-frame`);
-                if (!frame.getAttribute('src')) frame.setAttribute('src', `${tab}.html?embed=1`);
+                const page = tab === 'aicost' ? 'ai-cost' : tab;
+                if (!frame.getAttribute('src')) frame.setAttribute('src', `${page}.html?embed=1`);
             }
         }
 
@@ -5410,6 +5443,7 @@
     <!-- 관리자 > 운송장 전송 -->
     <script src="ship-admin.js"></script>
     <script src="stock-admin.js"></script>
+    <script src="order-ai.js"></script>
     <!-- 관리자 > AI 상담 (답변 대기 문의, 답변 모음집) -->
     <script src="inquiry-admin.js"></script>
     <!-- 오른쪽 아래 "궁금한 점 물어보기" AI 상담창 -->
