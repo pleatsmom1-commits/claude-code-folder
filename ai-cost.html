@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>밤낮딜리버리 AI 사용료</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+<div id="page-header" class="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex justify-between items-center gap-2">
+    <div class="flex items-center gap-3">
+        <div class="bg-indigo-600 text-white p-2 rounded-lg font-black tracking-wider text-sm">밤낮</div>
+        <div>
+            <h1 class="font-bold text-lg leading-tight text-slate-900">AI 사용료</h1>
+            <p class="text-xs text-slate-500">셀러 쇼핑몰 주문서 AI 분석</p>
+        </div>
+    </div>
+    <a href="/" class="text-xs text-slate-500 hover:text-slate-800">← 주문접수 화면</a>
+</div>
+
+<main class="max-w-6xl mx-auto p-4 sm:p-6 space-y-4">
+    <div id="state" class="bg-white rounded-xl border border-slate-200 p-10 text-center text-slate-500">불러오는 중입니다...</div>
+
+    <div id="app" class="hidden space-y-4">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
+            <div class="flex flex-wrap items-end gap-3">
+                <div>
+                    <h2 class="font-bold text-slate-900">이번 달 AI 사용료</h2>
+                    <p class="text-xs text-slate-500 mt-0.5">처음 보는 주문서 양식일 때만 AI 를 불러요. 같은 양식은 저장된 정보로 읽어서 비용이 들지 않아요.<br>원화는 1달러 = <span id="rate-label"></span>원으로 어림한 값이고, 실제 청구는 Claude Console 의 금액이 기준이에요.</p>
+                </div>
+                <label class="text-xs space-y-1 ml-auto"><span class="font-bold text-slate-600 block">월</span><input type="month" id="f-month" onchange="load()" class="px-2 py-1.5 border rounded-lg"></label>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="rounded-lg bg-slate-50 border border-slate-200 p-4"><p class="text-xs text-slate-500">AI 분석 횟수</p><p id="sum-count" class="text-2xl font-black text-slate-900 mt-1">0</p></div>
+                <div class="rounded-lg bg-slate-50 border border-slate-200 p-4"><p class="text-xs text-slate-500">사용료 (달러)</p><p id="sum-usd" class="text-2xl font-black text-slate-900 mt-1">$0</p></div>
+                <div class="rounded-lg bg-indigo-50 border border-indigo-200 p-4"><p class="text-xs text-indigo-700">사용료 (원, 어림)</p><p id="sum-krw" class="text-2xl font-black text-indigo-700 mt-1">0원</p></div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+                <h3 class="font-bold text-slate-900">업체별</h3>
+                <table class="w-full text-xs"><thead class="bg-slate-50 text-slate-500"><tr><th class="px-2 py-2 text-left">업체</th><th class="px-2 py-2 text-right">횟수</th><th class="px-2 py-2 text-right">사용료</th></tr></thead>
+                <tbody id="by-company"></tbody></table>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+                <h3 class="font-bold text-slate-900">최근 사용 기록</h3>
+                <div class="max-h-[360px] overflow-y-auto">
+                    <table class="w-full text-xs"><thead class="bg-slate-50 text-slate-500 sticky top-0"><tr><th class="px-2 py-2 text-left">시간</th><th class="px-2 py-2 text-left">업체</th><th class="px-2 py-2 text-left">파일</th><th class="px-2 py-2 text-right">사용료</th></tr></thead>
+                    <tbody id="recent"></tbody></table>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+            <div>
+                <h3 class="font-bold text-slate-900">저장된 주문서 양식</h3>
+                <p class="text-xs text-slate-500 mt-0.5">AI 가 한 번 읽은 양식이에요. 셀러가 "칸을 잘못 읽었다"고 하면 [지우기]를 누르세요. 다음에 올릴 때 AI 가 다시 읽어요.</p>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-xs"><thead class="bg-slate-50 text-slate-500"><tr><th class="px-2 py-2 text-left">업체</th><th class="px-2 py-2 text-left">쇼핑몰</th><th class="px-2 py-2 text-left">제목줄</th><th class="px-2 py-2 text-right">사용</th><th class="px-2 py-2 text-left">마지막 사용</th><th></th></tr></thead>
+                <tbody id="formats"></tbody></table>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+    // 관리자 전용. ai_usage / order_file_formats (supabase/order_ai.sql)
+    const KRW_PER_USD = 1400;
+    let client = null;
+    const embed = new URLSearchParams(location.search).has('embed');
+    const esc = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const usd = n => '$' + Number(n || 0).toFixed(3);
+    const krw = n => Math.round(Number(n || 0) * KRW_PER_USD).toLocaleString('ko-KR') + '원';
+    const fmtTime = iso => { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+    function showState(html) {
+        document.getElementById('state').innerHTML = html;
+        document.getElementById('state').classList.remove('hidden');
+        document.getElementById('app').classList.add('hidden');
+    }
+    function errorMessage(error) {
+        if (['PGRST205', '42P01'].includes(error.code)) return 'DB 설정이 최신이 아닙니다.\n(Supabase SQL Editor에서 supabase/order_ai.sql 을 실행해주세요)';
+        return error.message || String(error);
+    }
+
+    async function init() {
+        if (embed) document.getElementById('page-header').classList.add('hidden');
+        document.getElementById('rate-label').textContent = KRW_PER_USD.toLocaleString('ko-KR');
+        if (!window.supabase) { showState('화면을 불러오지 못했습니다. 새로고침해주세요.'); return; }
+        client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const { data: { session } } = await client.auth.getSession();
+        if (!session) { showState('로그인 후 이용할 수 있습니다.<br><br><a class="text-indigo-600 font-bold" href="/">로그인하러 가기</a>'); return; }
+        const { data: profile } = await client.from('profiles').select('role').eq('id', session.user.id).single();
+        if (!profile || profile.role !== 'admin') { showState('관리자만 쓸 수 있는 화면입니다.'); return; }
+        const t = new Date();
+        document.getElementById('f-month').value = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}`;
+        await load();
+    }
+
+    async function load() {
+        const [y, m] = document.getElementById('f-month').value.split('-').map(Number);
+        if (!y) return;
+        const start = new Date(y, m - 1, 1).toISOString(), end = new Date(y, m, 1).toISOString();
+        const [u, f] = await Promise.all([
+            client.from('ai_usage').select('*').gte('created_at', start).lt('created_at', end).order('created_at', { ascending: false }).limit(5000),
+            client.from('order_file_formats').select('*').order('last_used_at', { ascending: false }).limit(500),
+        ]);
+        const error = u.error || f.error;
+        if (error) { showState('불러오지 못했습니다.<br><span class="text-xs">' + esc(errorMessage(error)) + '</span>'); return; }
+        const rows = u.data || [];
+        const total = rows.reduce((s, r) => s + Number(r.cost_usd || 0), 0);
+        document.getElementById('sum-count').textContent = rows.length.toLocaleString('ko-KR');
+        document.getElementById('sum-usd').textContent = usd(total);
+        document.getElementById('sum-krw').textContent = krw(total);
+
+        const by = new Map();
+        rows.forEach(r => { const b = by.get(r.company) || { n: 0, cost: 0 }; b.n++; b.cost += Number(r.cost_usd || 0); by.set(r.company, b); });
+        document.getElementById('by-company').innerHTML = [...by.entries()].sort((a, b) => b[1].cost - a[1].cost)
+            .map(([c, b]) => `<tr class="border-b border-slate-100"><td class="px-2 py-2 font-bold">${esc(c)}</td><td class="px-2 py-2 text-right">${b.n}</td><td class="px-2 py-2 text-right">${usd(b.cost)} <span class="text-slate-400">(${krw(b.cost)})</span></td></tr>`).join('')
+            || '<tr><td colspan="3" class="px-2 py-6 text-center text-slate-400">이 달에는 사용 기록이 없어요.</td></tr>';
+        document.getElementById('recent').innerHTML = rows.slice(0, 100)
+            .map(r => `<tr class="border-b border-slate-100"><td class="px-2 py-2 whitespace-nowrap">${fmtTime(r.created_at)}</td><td class="px-2 py-2">${esc(r.company)}</td><td class="px-2 py-2 text-slate-500">${esc(r.note)}</td><td class="px-2 py-2 text-right">${usd(r.cost_usd)}</td></tr>`).join('')
+            || '<tr><td colspan="4" class="px-2 py-6 text-center text-slate-400">기록 없음</td></tr>';
+        document.getElementById('formats').innerHTML = (f.data || [])
+            .map(r => `<tr class="border-b border-slate-100"><td class="px-2 py-2 font-bold">${esc(r.company)}</td><td class="px-2 py-2">${esc(r.platform) || '-'}</td><td class="px-2 py-2 text-slate-500 max-w-[320px] truncate" title="${esc(r.signature)}">${esc(r.signature.split('|').filter(Boolean).slice(0, 8).join(', '))}</td><td class="px-2 py-2 text-right">${r.use_count}</td><td class="px-2 py-2 whitespace-nowrap">${fmtTime(r.last_used_at)}</td><td class="px-2 py-2 text-right"><button onclick="removeFormat(${r.id})" class="px-2 py-1 border border-rose-200 text-rose-600 rounded text-[11px] font-bold hover:bg-rose-50">지우기</button></td></tr>`).join('')
+            || '<tr><td colspan="6" class="px-2 py-6 text-center text-slate-400">아직 저장된 양식이 없어요.</td></tr>';
+        document.getElementById('state').classList.add('hidden');
+        document.getElementById('app').classList.remove('hidden');
+    }
+
+    async function removeFormat(id) {
+        if (!confirm('이 양식 정보를 지울까요? 다음에 같은 양식을 올리면 AI 가 다시 읽어요.')) return;
+        const { error } = await client.from('order_file_formats').delete().eq('id', id);
+        if (error) { alert('지우지 못했습니다.\n' + errorMessage(error)); return; }
+        await load();
+    }
+
+    init();
+</script>
+</body>
+</html>
