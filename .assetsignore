@@ -10,3 +10,4 @@ worker
 CLAUDE.md
 tests
 .gitignore
+backup
