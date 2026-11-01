@@ -172,6 +172,7 @@ async function addFaq() {
     document.getElementById('faq-new-q').value = '';
     document.getElementById('faq-new-a').value = '';
     await fetchFaq();
+    if (faqRows[0]) flashFaqSaved(faqRows[0].id);
 }
 
 async function saveFaq(id) {
@@ -183,6 +184,16 @@ async function saveFaq(id) {
         .update({ question, answer, active: card.querySelector('.faq-on').checked, updated_at: new Date().toISOString() }).eq('id', id);
     if (error) { alert('저장하지 못했습니다: ' + dbErrorMessage(error)); return; }
     await fetchFaq();
+    flashFaqSaved(id);
+}
+
+// 저장 버튼 자리에 잠깐 "저장됨 ✓" 표시 (저장이 됐는지 눈으로 확인)
+function flashFaqSaved(id) {
+    const btn = document.querySelector(`[data-faq="${id}"] button[onclick^="saveFaq"]`);
+    if (!btn) return;
+    btn.textContent = '저장됨 ✓';
+    btn.classList.replace('bg-slate-800', 'bg-emerald-600');
+    setTimeout(() => { btn.textContent = '저장'; btn.classList.replace('bg-emerald-600', 'bg-slate-800'); }, 2000);
 }
 
 async function deleteFaq(id) {
