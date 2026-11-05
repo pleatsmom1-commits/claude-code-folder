@@ -25,6 +25,20 @@ const tables = {
   orders: [{ id: 'ORD-1', seller_id: ids.seller, seller_company: '애플샵', sender_name: '밤낮딜리버리(애플샵)', recipient: '홍길동', phone: '010-2222-3333', address: '서울', product: '티셔츠', status: '접수대기', ship_status: '미출고', order_type: 'fulfillment', order_no: 1, item_no: 1, seller_order_no: 1, created_at: new Date().toISOString() }],
   couriers: [{ id: 'c1', name: '우체국택배', sort_order: 1 }],
   address_book: [], pickup_requests: [], settlements: [], settle_contacts: [],
+  inquiries: [{ id: 7, created_at: '2026-10-30T01:00:00Z', company: '새샵', name: '박', phone: '01055556666', question: '토요일에도 픽업하나요?', chat_log: [{ role: 'user', content: '토요일에도 픽업하나요?' }, { role: 'assistant', content: '대표님이 확인해서 연락드릴게요.' }], source: 'https://www.bamnatdelivery.com/', status: 'waiting' }],
+  ai_faq: [{ id: 1, question: '부가세 포함인가요?', answer: '부가세 별도입니다.', active: true }],
+  ai_chat_logs: (() => {
+    const t = (dayAgo, h, m) => { const d = new Date(); d.setDate(d.getDate() - dayAgo); d.setHours(h, m, 0, 0); return d.toISOString(); };
+    const home = 'https://www.bamnatdelivery.com/', site = 'https://bamnat-delivery.bamnat.workers.dev/';
+    return [
+      { id: 6, created_at: t(0, 14, 12), chat_id: 'a', question: '고객 반품은 어디로 보내면 돼요?', answer: '고객이 직접 보내는 경우: 서울시 중구 청계천로 400, 메가몰 2층 2072호 밤낮딜리버리로 보내 주세요. 반품봉투 겉에 구매한 업체 상호명을 꼭 적어 주세요.', needs_human: false, source: home },
+      { id: 5, created_at: t(0, 14, 10), chat_id: 'a', question: '카드로 결제할 수 있어요?', answer: '현재 카드결제는 불가하며, 계좌이체로만 가능합니다.', needs_human: false, source: home },
+      { id: 4, created_at: t(0, 10, 3), chat_id: 'b', question: '이번 주 금요일에 300장 들어가면 견적 얼마예요?', answer: '이 부분은 대표님이 직접 확인해서 연락드릴게요. 아래에 연락처를 남겨 주시면 답변을 보내 드려요.', needs_human: true, source: home },
+      { id: 3, created_at: t(1, 22, 40), chat_id: 'c', question: '모닝픽업은 몇시까지 신청해요?', answer: '모닝픽업은 오전 9시까지 받고 있으며, 낮시장에 한해 가능합니다. 픽업은 오전 9시 이후 진행됩니다.', needs_human: false, source: site },
+      { id: 2, created_at: t(3, 16, 5), chat_id: 'd', question: '풀필먼트 요금이 얼마예요?', answer: '풀필먼트는 기본 1건당 4,600원입니다(부가세 별도).', needs_human: false, source: home },
+      { id: 1, created_at: t(3, 16, 7), chat_id: 'd', question: '남대문도 사입 돼요?', answer: '남대문은 현재 어렵습니다.', needs_human: false, source: home },
+    ];
+  })(),
 };
 const requests = [];
 const apiCalls = []; // 사이트 서버(/api/...)로 보낸 요청 (회원가입·승인 알림 문자)
@@ -100,6 +114,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
       const isAdmin = who && who.profile.role === 'admin';
       let rows = tables[table].filter(r => isAdmin || !('seller_id' in r) || (who && r.seller_id === who.id));
       if (method === 'GET') return json(200, applyFilters(rows, url));
+      if (method === 'HEAD') { const n = applyFilters(rows, url).length; return route.fulfill({ status: 200, headers: { ...cors, 'content-range': `0-${Math.max(n - 1, 0)}/${n}` }, body: '' }); }
       if (method === 'POST') { const list = (Array.isArray(body) ? body : [body]).map(r => ({ ...r, seller_id: who && who.id, created_at: new Date().toISOString() })); tables[table].push(...list); return json(201, list); }
       if (method === 'PATCH') { const hit = applyFilters(rows, url); hit.forEach(r => Object.assign(r, body)); return json(200, hit); }
       if (method === 'DELETE') { const hit = applyFilters(rows, url); tables[table] = tables[table].filter(r => !hit.includes(r)); return json(200, hit); }
@@ -261,6 +276,40 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.click('#seller-edit-modal button[type=submit]'); await page.waitForTimeout(500);
   check('admin saves seller address + tax email', users['seller@x.com'].profile.detail_address === '3층' && users['seller@x.com'].profile.tax_email === 'new-bill@apple.com', lastDialog());
   await page.screenshot({ path: path.join(__dirname, 'out', 'shot-sellers.png') });
+
+  // ---------- 5. 관리자: AI 상담 (답변 대기 문의, 답변 모음집) ----------
+  check('AI 상담 badge shows waiting count', (await page.textContent('#admin-group-inquiry-badge')).includes('1') && (await vis('#admin-group-inquiry-badge')));
+  await page.click('#admin-group-inquiry'); await page.waitForTimeout(800);
+  check('inquiry panel lists waiting inquiry', (await vis('#admin-inquiry-panel')) && (await page.textContent('#inquiry-list')).includes('토요일에도 픽업하나요?') && (await page.textContent('#inquiry-list')).includes('010-5555-6666') && (await page.textContent('#inquiry-list')).includes('홈페이지'));
+  check('faq list shows existing answer', (await page.inputValue('#faq-list .faq-q')) === '부가세 포함인가요?');
+  await page.fill('#inquiry-list .inq-answer', '네, 토요일도 픽업합니다.');
+  await page.fill('#inquiry-list .inq-faq-q', '토요일에도 픽업하나요?');
+  await page.click('#inquiry-list button:has-text("답변 보내기")'); await page.waitForTimeout(800);
+  const ia = apiCalls.find(c => c.path === '/api/inquiry/answer');
+  check('answer -> /api/inquiry/answer with faq', ia && ia.body.id === 7 && ia.body.answer === '네, 토요일도 픽업합니다.' && ia.body.addFaq === true && ia.auth.startsWith('Bearer '), JSON.stringify(ia));
+  await page.fill('#faq-new-q', '카드 결제 되나요?'); await page.fill('#faq-new-a', '계좌이체만 가능합니다.');
+  await page.click('#admin-inquiry-panel button:has-text("추가")'); await page.waitForTimeout(600);
+  check('faq added', tables.ai_faq.some(f => f.question === '카드 결제 되나요?') && (await page.locator('#faq-list .faq-q').count()) === 2);
+  await page.fill('#faq-list [data-faq] .faq-a >> nth=-1', '부가세 별도입니다.');
+  await page.click('#faq-list [data-faq] >> nth=-1 >> button:has-text("저장")'); await page.waitForTimeout(400);
+  check('faq save shows 저장됨', (await page.locator('#faq-list button:has-text("저장됨")').count()) === 1 && tables.ai_faq.some(f => f.answer === '부가세 별도입니다.'));
+  await page.screenshot({ path: path.join(__dirname, 'out', 'shot-inquiry.png') });
+  // 상담 기록 (날짜별 질문·답변)
+  check('상담 기록 tab visible in AI 상담 group', await vis('#admin-tab-chatlog'));
+  await page.click('#admin-tab-chatlog'); await page.waitForTimeout(800);
+  const clText = await page.textContent('#admin-chatlog-panel');
+  check('chatlog panel shows summary + questions', (await vis('#admin-chatlog-panel')) && !(await vis('#admin-inquiry-panel')) && (await page.textContent('#chatlog-summary')).includes('6') && clText.includes('카드로 결제할 수 있어요?') && clText.includes('AI 가 모름'));
+  check('chatlog requested ai_chat_logs with date range', requests.some(r => r.path === '/rest/v1/ai_chat_logs' && r.search.includes('created_at=gte.') && r.search.includes('created_at=lt.')));
+  check('chatlog grouped by day (3 days)', (await page.locator('#chatlog-days tbody tr').count()) === 3 && (await page.locator('#chatlog-list [id^=chatlog-day-]').count()) === 3);
+  await page.locator('#chatlog-list details >> nth=0').click(); await page.waitForTimeout(200);
+  await page.screenshot({ path: path.join(__dirname, 'out', 'shot-chatlog.png') });
+  await page.selectOption('#chatlog-filter', 'unknown'); await page.waitForTimeout(200);
+  check('filter: only unknown questions', (await page.locator('#chatlog-list .text-sm.font-bold').count()) === 1);
+  await page.selectOption('#chatlog-filter', 'all');
+  await page.click('#admin-tab-inquiry'); await page.waitForTimeout(300);
+  check('back to 문의 hides chatlog', (await vis('#admin-inquiry-panel')) && !(await vis('#admin-chatlog-panel')));
+  await page.click('#admin-group-order'); await page.waitForTimeout(300);
+  check('back to 주문관리 hides AI 상담 panel', !(await vis('#admin-inquiry-panel')) && (await vis('#admin-orders-panel')));
 
   // 회원가입 화면 캡처
   await page.evaluate(() => logout()); await page.waitForTimeout(800);
