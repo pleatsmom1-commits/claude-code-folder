@@ -349,10 +349,10 @@
         document.getElementById('company-options').innerHTML = list.map(c => `<option value="${esc(c)}">`).join('');
     }
 
-    function filtered() {
+    function filtered(statusOverride) {
         const kw = norm(document.getElementById('f-keyword').value);
         const company = isAdmin ? document.getElementById('f-company').value : '';
-        const status = document.getElementById('f-status').value;
+        const status = statusOverride || document.getElementById('f-status').value;
         return products.filter(p => {
             const q = qtyOf(p.id);
             if (status === 'stock' && !(q.a || q.b || q.defect) && !pending.has(p.id)) return false;
@@ -368,13 +368,15 @@
         });
     }
 
-    function renderStats(list) {
+    function renderStats() {
+        // 칸 숫자는 아래 선택(상품화·미상품화·불량)과 상관없이 '재고 있는 상품' 전체 기준 → 칸을 눌러도 숫자는 그대로
+        const list = filtered('stock');
         const sum = { a: 0, b: 0, defect: 0 };
         list.forEach(p => { const q = qtyOf(p.id); sum.a += q.a; sum.b += q.b; sum.defect += q.defect; });
-        // 칸을 누르면 그 조건으로 목록을 거름 (표시된 상품 = 재고 있는 상품 전체)
+        // 칸을 누르면 그 조건으로 목록을 거름
         const cur = document.getElementById('f-status').value;
         const box = (label, value, color, status) => `<button type="button" onclick="pickStatus('${status}')" title="눌러서 ${label} 목록 보기" class="bg-${color}-50 border ${cur === status ? `border-${color}-500 ring-2 ring-${color}-300` : `border-${color}-100`} hover:border-${color}-400 rounded-lg p-2 cursor-pointer transition"><div class="text-lg font-black text-${color}-700">${fmt(value)}</div><div class="text-[11px] text-slate-500">${label}${cur === status ? ' ✓' : ''}</div></button>`;
-        document.getElementById('stats').innerHTML = box('표시된 상품', list.length, 'slate', 'stock') + box('상품화', sum.a, 'emerald', 'a') + box('미상품화', sum.b, 'amber', 'b') + box('불량', sum.defect, 'rose', 'defect');
+        document.getElementById('stats').innerHTML = box('재고 있는 상품', list.length, 'slate', 'stock') + box('상품화', sum.a, 'emerald', 'a') + box('미상품화', sum.b, 'amber', 'b') + box('불량', sum.defect, 'rose', 'defect');
     }
 
     function pickStatus(status) {
@@ -392,7 +394,7 @@
 
     function renderList() {
         const list = filtered();
-        renderStats(list);
+        renderStats();
         document.getElementById('summary').textContent = `${fmt(list.length)}개 표시`;
         const tbody = document.getElementById('list');
         const cols = isAdmin ? 13 : 11;
