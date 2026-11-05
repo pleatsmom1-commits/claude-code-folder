@@ -300,6 +300,16 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   check('list download has quantities', lrows.some(r => r[3] === '꽃니트' && r[7] === 5 && r[8] === 3 && r[10] === 8), JSON.stringify(lrows.slice(0, 3)));
   await page.screenshot({ path: path.join(__dirname, 'out', 'shot-inventory-admin.png'), fullPage: true });
 
+  // 위쪽 4칸 누르면 그 조건으로 거름
+  const visibleRows = async () => (await page.$$eval('#list tr', trs => trs.filter(t => t.offsetParent && !t.querySelector('td[colspan]')).length));
+  const allCount = await visibleRows();
+  for (const [label, st] of [['상품화', 'a'], ['미상품화', 'b'], ['불량', 'defect'], ['표시된 상품', 'stock']]) {
+    await page.click(`#stats button:has-text("${label}")`); await page.waitForTimeout(200);
+    check(`stat box "${label}" filters list`, (await page.inputValue('#f-status')) === st && (await page.textContent('#stats')).includes(label + ' ✓'), String(await visibleRows()));
+    if (st === 'a') await page.screenshot({ path: path.join(__dirname, 'out', 'shot-inventory-statbox.png') });
+  }
+  check('표시된 상품 restores full list', (await visibleRows()) === allCount);
+
   // ---------- 재고 확정 ----------
   let banner = await page.textContent('#day-banner');
   check('banner: 재고가 확정되지 않았습니다 + 재고출고중 (weekday 10:00)', banner.includes('재고가 확정되지 않았습니다') && banner.includes('재고출고중') && banner.includes('재고정리완료'), banner.replace(/\s+/g, ' '));
