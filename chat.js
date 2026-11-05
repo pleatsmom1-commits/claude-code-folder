@@ -10,7 +10,8 @@
 //    · class="bn-chat-open"  : 홈페이지의 아무 버튼에나 붙이면, 누를 때 상담창이 열림 (예: "신규업체 상담전용" 버튼)
 //  - AI 가 모르는 질문이면 연락처 남기기 칸을 띄워 /api/inquiry (worker/inquiry.js) 로 보냅니다.
 //    대표님이 관리자 화면 > AI 상담에서 답하면 손님 휴대폰으로 문자가 갑니다.
-//  - 대화 내용은 이 브라우저 화면에만 있고, 창을 새로 고치면 사라집니다. 연락처를 남길 때만 그 대화가 함께 저장됩니다.
+//  - 질문과 AI 답변은 관리자 화면 > AI 상담 > 상담 기록에 남습니다 (연락처·IP 는 저장 안 함, 1년 후 삭제).
+//    손님 화면의 대화는 창을 새로 고치면 사라집니다.
 // =====================================================================
 (function () {
     if (window.BamnatChat) return; // 홈페이지에 두 번 붙여도 버튼·창은 하나만
@@ -25,6 +26,8 @@
     const LABEL = (me && me.dataset.label) || '💬 궁금한 점 물어보기';
     const COLOR = /^#[0-9a-f]{3,8}$/i.test((me && me.dataset.color) || '') ? me.dataset.color : '#1e3a8a';
     const history = [];
+    // 상담창 한 번(새로 고치기 전까지)의 대화 묶음 표시. 사람을 알아볼 수 없는 무작위 글자입니다.
+    const CHAT_ID = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
 
     const css = document.createElement('style');
     css.textContent = `
@@ -67,7 +70,7 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
     box.innerHTML = `
 <header><b>밤낮딜리버리 AI 안내</b><button type="button" aria-label="닫기">×</button></header>
 <div class="bn-log"></div>
-<div class="bn-note">AI 안내는 참고용이며, 정확한 견적·일정은 상담으로 확정됩니다. 개인정보(주민번호·카드번호 등)는 적지 마세요.
+<div class="bn-note">AI 안내는 참고용이며, 정확한 견적·일정은 상담으로 확정됩니다. 상담 품질을 위해 질문·답변이 저장되며 1년 후 삭제됩니다. 개인정보(주민번호·카드번호 등)는 적지 마세요.
  <a href="#" class="bn-lead-link">대표님께 문의 남기기</a> · <a href="${KAKAO}" target="_blank" rel="noopener">카카오톡 상담</a> · 010-5425-9060</div>
 <form><textarea maxlength="500" placeholder="예) 풀필먼트 요금이 얼마예요?"></textarea><button type="submit">보내기</button></form>`;
 
@@ -170,7 +173,7 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
             const res = await fetch(API, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ messages: history }),
+                body: JSON.stringify({ messages: history, chatId: CHAT_ID, source: location.href }),
             });
             const data = await res.json().catch(() => ({}));
             answer = data.answer || data.error;

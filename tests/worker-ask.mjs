@@ -3,7 +3,8 @@ const W = new URL('..', import.meta.url).href.replace(/\/$/, '');
 const { handleAsk } = await import(W + '/worker/ask.js');
 let last, reply = { stop_reason: 'end_turn', content: [{ type: 'text', text: '픽업비는 매장당 1,800원입니다.' }] }, status = 200;
 let faq = [{ question: '토요일 픽업?', answer: '토요일도 픽업합니다.' }];
-globalThis.fetch = async (url, init) => { if (String(url).includes('/ai_faq')) return new Response(JSON.stringify(faq)); last = { url: String(url), headers: init.headers, body: JSON.parse(init.body) }; return new Response(JSON.stringify(reply), { status }); };
+const logs = [];
+globalThis.fetch = async (url, init) => { if (String(url).includes('/ai_faq')) return new Response(JSON.stringify(faq)); if (String(url).includes('/rpc/log_ai_chat')) { logs.push(JSON.parse(init.body)); return new Response('', { status: 204 }); } last = { url: String(url), headers: init.headers, body: JSON.parse(init.body) }; return new Response(JSON.stringify(reply), { status }); };
 const req = (body, origin = 'https://test-bamnat-delivery.bamnat.workers.dev', ip = '1.1.1.1') => new Request('https://test-bamnat-delivery.bamnat.workers.dev/api/ask',
   { method: 'POST', body: JSON.stringify(body), headers: { Origin: origin, 'CF-Connecting-IP': ip } });
 const ok = (c, m) => console.log(c ? 'PASS' : 'FAIL', m);
@@ -33,3 +34,14 @@ ok(r.status === 403 && !r.headers.get('Access-Control-Allow-Origin'), 'other ori
 reply = { stop_reason: 'end_turn', content: [{ type: 'text', text: '대표님이 확인해서 연락드릴게요. [담당자확인]' }] };
 d = await (await handleAsk(req({ messages: [{ role: 'user', content: '견적?' }] }, undefined, '8.8.8.8'), env)).json();
 ok(d.needsHuman === true && !d.answer.includes('[담당자확인]'), 'marker -> needsHuman, stripped');
+
+// 상담 기록: 질문·답변·모름 여부·대화 묶음이 저장됨
+const lastLog = logs[logs.length - 1];
+ok(lastLog && lastLog.p_question === '견적?' && lastLog.p_needs_human === true && !lastLog.p_answer.includes('[담당자확인]'), 'chat log saved (needs human)');
+logs.length = 0;
+reply = { stop_reason: 'end_turn', content: [{ type: 'text', text: '계좌이체만 됩니다.' }] };
+d = await (await handleAsk(req({ messages: [{ role: 'user', content: '카드 돼요?' }], chatId: 'c1', source: 'https://www.bamnatdelivery.com/' }, undefined, '10.0.0.1'), env)).json();
+ok(logs.length === 1 && logs[0].p_chat_id === 'c1' && logs[0].p_answer === '계좌이체만 됩니다.' && logs[0].p_needs_human === false && logs[0].p_source.includes('bamnatdelivery'), 'chat log saved (answered)');
+globalThis.fetch = async (url, init) => { if (String(url).includes('/rpc/log_ai_chat')) throw new Error('down'); if (String(url).includes('/ai_faq')) return new Response('[]'); return new Response(JSON.stringify(reply)); };
+r = await handleAsk(req({ messages: [{ role: 'user', content: 'q' }] }, undefined, '10.0.0.2'), env);
+ok(r.status === 200, 'log failure does not break answer');

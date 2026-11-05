@@ -129,5 +129,24 @@ async function answer(request, env) {
   // [담당자확인]: AI 가 답을 몰라 대표님께 넘겨야 하는 질문 → 화면에 연락처 남기기 칸을 띄움
   const needsHuman = !text || text.includes('[담당자확인]');
   text = text.replaceAll('[담당자확인]', '').trim();
-  return json({ answer: text || '이 질문은 대표님이 직접 확인해서 연락드릴게요. 아래에 연락처를 남겨 주세요.', needsHuman });
+  const reply = text || '이 질문은 대표님이 직접 확인해서 연락드릴게요. 아래에 연락처를 남겨 주세요.';
+  await saveLog(env, body, last.content, reply, needsHuman);
+  return json({ answer: reply, needsHuman });
+}
+
+// 관리자 > AI 상담 > 상담 기록 에서 보도록 질문·답변을 남깁니다 (supabase/ai_chat_logs.sql).
+// 기록이 실패해도 손님 답변에는 영향 없음.
+async function saveLog(env, body, question, answer, needsHuman) {
+  if (!env.SUPABASE_URL || !env.SUPABASE_KEY) return;
+  try {
+    const res = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/log_ai_chat`, {
+      method: 'POST',
+      headers: { apikey: env.SUPABASE_KEY, Authorization: `Bearer ${env.SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        p_chat_id: String(body.chatId || '').slice(0, 40), p_question: question, p_answer: answer,
+        p_needs_human: needsHuman, p_source: String(body.source || '').slice(0, 300),
+      }),
+    });
+    if (!res.ok) console.log('ask: log failed', res.status);
+  } catch (e) { console.log('ask: log failed', e.message); }
 }

@@ -721,6 +721,9 @@
                     <button id="admin-tab-inquiry" onclick="switchAdminTab('inquiry')" class="">
                         AI 상담
                     </button>
+                    <button id="admin-tab-chatlog" onclick="switchAdminTab('chatlog')" class="">
+                        상담 기록
+                    </button>
                     <button id="admin-tab-sellers" onclick="switchAdminTab('sellers')" class="">
                         셀러 관리
                         <span id="admin-pending-badge" class="hidden px-1.5 py-0.5 bg-rose-500 text-white text-[10px] rounded-full"></span>
@@ -1037,6 +1040,44 @@
                         <div class="text-right"><button onclick="addFaq()" class="px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg">추가</button></div>
                     </div>
                     <div id="faq-list" class="space-y-2 max-h-[600px] overflow-y-auto"></div>
+                </div>
+            </div>
+
+            <!-- AI 상담 > 상담 기록 (스크립트: inquiry-admin.js) -->
+            <div id="admin-chatlog-panel" class="hidden grid lg:grid-cols-3 gap-4">
+                <div class="lg:col-span-1 space-y-4">
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+                        <div>
+                            <h3 class="font-bold text-slate-900">AI 상담 기록</h3>
+                            <p class="text-xs text-slate-500 mt-0.5">손님이 AI 상담창에 한 질문과 AI 답변입니다. 연락처·IP 는 저장하지 않고, 1년이 지나면 자동으로 지워집니다.</p>
+                        </div>
+                        <div class="flex items-center gap-1.5 text-xs">
+                            <input type="date" id="chatlog-from" onchange="fetchChatLogs()" class="border border-slate-200 rounded-lg px-2 py-1">
+                            <span>~</span>
+                            <input type="date" id="chatlog-to" onchange="fetchChatLogs()" class="border border-slate-200 rounded-lg px-2 py-1">
+                        </div>
+                        <div class="flex flex-wrap gap-1.5 text-xs">
+                            <button onclick="setChatLogRange(1)" class="px-2.5 py-1 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg font-bold text-slate-600">오늘</button>
+                            <button onclick="setChatLogRange(7)" class="px-2.5 py-1 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg font-bold text-slate-600">최근 7일</button>
+                            <button onclick="setChatLogRange(30)" class="px-2.5 py-1 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg font-bold text-slate-600">최근 30일</button>
+                            <button onclick="fetchChatLogs()" class="px-2.5 py-1 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg font-bold text-slate-600">새로고침</button>
+                        </div>
+                        <div id="chatlog-summary" class="grid grid-cols-2 gap-2"></div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-2">
+                        <h3 class="font-bold text-slate-900 text-sm">날짜별</h3>
+                        <div id="chatlog-days"></div>
+                    </div>
+                </div>
+                <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-2">
+                    <div class="flex justify-between items-center">
+                        <h3 class="font-bold text-slate-900">질문·답변 내용</h3>
+                        <select id="chatlog-filter" onchange="renderChatLogs()" class="border border-slate-200 rounded-lg px-2 py-1 text-xs">
+                            <option value="all">전체</option>
+                            <option value="unknown">AI 가 모른 질문만</option>
+                        </select>
+                    </div>
+                    <div id="chatlog-list" class="space-y-2 max-h-[750px] overflow-y-auto"></div>
                 </div>
             </div>
 
@@ -4864,7 +4905,7 @@
             stock: ['stock', 'products', 'inventory', 'picking'],
             settle: ['settle'],
             sellers: ['sellers', 'aicost'],
-            inquiry: ['inquiry'],
+            inquiry: ['inquiry', 'chatlog'],
         };
         const ADMIN_GROUP_OF = Object.fromEntries(Object.entries(ADMIN_GROUPS).flatMap(([g, tabs]) => tabs.map(t => [t, g])));
         const ADMIN_LAST_TAB = {};   // 묶음마다 마지막으로 본 탭
@@ -4911,12 +4952,15 @@
             document.getElementById('admin-stock-panel').classList.toggle('hidden', tab !== 'stock');
             document.getElementById('admin-tab-inquiry').className = tab === 'inquiry' ? on : off;
             document.getElementById('admin-inquiry-panel').classList.toggle('hidden', tab !== 'inquiry');
+            document.getElementById('admin-tab-chatlog').className = tab === 'chatlog' ? on : off;
+            document.getElementById('admin-chatlog-panel').classList.toggle('hidden', tab !== 'chatlog');
             renderAdminGroups(group);
             if (tab === 'settle') onSettleTabOpened();
             if (tab === 'pickup') fetchAdminPickupRequests();
             if (tab === 'stock') onStockTabOpened();
             if (tab === 'ship') onShipTabOpened();
             if (tab === 'inquiry') onInquiryTabOpened();
+            if (tab === 'chatlog') onChatLogTabOpened();
             if (tab === 'products' || tab === 'inventory' || tab === 'picking' || tab === 'aicost') {
                 const frame = document.getElementById(`admin-${tab}-frame`);
                 const page = tab === 'aicost' ? 'ai-cost' : tab;

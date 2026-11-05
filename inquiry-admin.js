@@ -202,3 +202,124 @@ async function deleteFaq(id) {
     if (error) { alert('삭제하지 못했습니다: ' + dbErrorMessage(error)); return; }
     await fetchFaq();
 }
+
+// ---------------------------------------------------------------------
+// 상담 기록: 손님이 AI 상담창에 한 질문·AI 답변을 날짜별로 보기 (supabase/ai_chat_logs.sql)
+// ---------------------------------------------------------------------
+let chatLogRows = [];
+
+function chatLogDay(iso) {
+    const d = new Date(iso);
+    const p = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+function chatLogSource(src) {
+    if (!src) return '';
+    return src.includes('bamnatdelivery.com') || src.includes('cafe24') ? '홈페이지' : '주문접수 사이트';
+}
+
+function onChatLogTabOpened() {
+    const from = document.getElementById('chatlog-from');
+    const to = document.getElementById('chatlog-to');
+    if (!to.value) to.value = chatLogDay(new Date().toISOString());
+    if (!from.value) from.value = chatLogDay(new Date(Date.now() - 6 * 86400000).toISOString());
+    fetchChatLogs();
+}
+
+function setChatLogRange(days) {
+    document.getElementById('chatlog-to').value = chatLogDay(new Date().toISOString());
+    document.getElementById('chatlog-from').value = chatLogDay(new Date(Date.now() - (days - 1) * 86400000).toISOString());
+    fetchChatLogs();
+}
+
+async function fetchChatLogs() {
+    if (!supabaseClient || currentRole !== 'admin') return;
+    const from = document.getElementById('chatlog-from').value;
+    const to = document.getElementById('chatlog-to').value;
+    if (!from || !to) return;
+    const start = new Date(`${from}T00:00:00`);
+    const end = new Date(`${to}T00:00:00`);
+    end.setDate(end.getDate() + 1);
+    const list = document.getElementById('chatlog-list');
+    list.innerHTML = '<div class="text-xs text-slate-400 py-6 text-center">불러오는 중…</div>';
+    const { data, error } = await supabaseClient.from('ai_chat_logs').select('*')
+        .gte('created_at', start.toISOString()).lt('created_at', end.toISOString())
+        .order('created_at', { ascending: false }).limit(2000);
+    if (error) {
+        list.innerHTML = `<div class="text-rose-600 text-xs">상담 기록을 불러오지 못했습니다. ${escapeHtml(dbErrorMessage(error))}<br>(Supabase 에서 supabase/ai_chat_logs.sql 을 실행했는지 확인해 주세요)</div>`;
+        return;
+    }
+    chatLogRows = data || [];
+    renderChatLogs();
+}
+
+function renderChatLogs() {
+    const onlyUnknown = document.getElementById('chatlog-filter').value === 'unknown';
+    const rows = chatLogRows;
+    const chats = new Set(rows.map(r => r.chat_id || `#${r.id}`));
+    const unknown = rows.filter(r => r.needs_human).length;
+    const home = rows.filter(r => chatLogSource(r.source) === '홈페이지').length;
+    const stat = (label, value, cls = 'text-slate-900') =>
+        `<div class="bg-slate-50 rounded-lg p-3"><div class="text-[11px] text-slate-500">${label}</div><div class="text-xl font-black ${cls}">${value}</div></div>`;
+    document.getElementById('chatlog-summary').innerHTML =
+        stat('질문 수', rows.length) + stat('상담 (대화창)', chats.size) +
+        stat('AI 가 모른 질문', unknown, unknown ? 'text-orange-600' : 'text-slate-900') +
+        stat('홈페이지에서 / 주문접수 사이트에서', `${home} / ${rows.length - home}`);
+
+    // 날짜별 표
+    const byDay = {};
+    rows.forEach(r => {
+        const d = byDay[chatLogDay(r.created_at)] ||= { q: 0, chats: new Set(), unknown: 0 };
+        d.q++; d.chats.add(r.chat_id || `#${r.id}`); if (r.needs_human) d.unknown++;
+    });
+    const days = Object.keys(byDay).sort().reverse();
+    document.getElementById('chatlog-days').innerHTML = days.length ? `
+<table class="w-full text-xs">
+  <thead><tr class="text-slate-500 border-b"><th class="text-left py-1.5">날짜</th><th class="text-right">질문</th><th class="text-right">상담</th><th class="text-right">AI 가 모름</th></tr></thead>
+  <tbody>${days.map(d => `<tr class="border-b border-slate-100 hover:bg-indigo-50 cursor-pointer" onclick="document.getElementById('chatlog-day-${d}')?.scrollIntoView({behavior:'smooth'})">
+    <td class="py-1.5 font-bold">${d.slice(5).replace('-', '/')} (${'일월화수목금토'[new Date(d + 'T00:00:00').getDay()]})</td>
+    <td class="text-right">${byDay[d].q}</td><td class="text-right">${byDay[d].chats.size}</td>
+    <td class="text-right ${byDay[d].unknown ? 'text-orange-600 font-bold' : 'text-slate-400'}">${byDay[d].unknown}</td></tr>`).join('')}</tbody>
+</table>` : '<div class="text-xs text-slate-400 py-4 text-center">이 기간에는 기록이 없습니다.</div>';
+
+    // 대화 목록 (날짜 → 대화창 묶음)
+    const shown = onlyUnknown ? rows.filter(r => r.needs_human) : rows;
+    const list = document.getElementById('chatlog-list');
+    if (!shown.length) {
+        list.innerHTML = `<div class="text-xs text-slate-400 py-6 text-center">${onlyUnknown ? 'AI 가 모른 질문이 없습니다.' : '이 기간에는 상담 기록이 없습니다.'}</div>`;
+        return;
+    }
+    const groups = [];   // 날짜별, 그 안에서 대화창별
+    shown.forEach(r => {
+        const day = chatLogDay(r.created_at);
+        let g = groups[groups.length - 1];
+        if (!g || g.day !== day) groups.push(g = { day, chats: new Map() });
+        const key = r.chat_id || `#${r.id}`;
+        if (!g.chats.has(key)) g.chats.set(key, []);
+        g.chats.get(key).push(r);
+    });
+    list.innerHTML = groups.map(g => `
+<div id="chatlog-day-${g.day}" class="space-y-2">
+  <div class="text-xs font-black text-slate-500 pt-2">${g.day.replace(/-/g, '.')} · 상담 ${g.chats.size}건</div>
+  ${[...g.chats.values()].map(items => {
+        items = items.slice().reverse();   // 대화 순서대로
+        const first = items[0];
+        return `
+  <div class="border border-slate-200 rounded-xl p-3 space-y-2 bg-white">
+    <div class="flex items-center gap-2 text-[11px] text-slate-400">
+      <span>${inquiryTime(first.created_at)}</span>
+      ${first.source ? `<span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600" title="${escapeHtml(first.source)}">${chatLogSource(first.source)}</span>` : ''}
+      <span>질문 ${items.length}개</span>
+    </div>
+    ${items.map(r => `
+    <div class="space-y-1">
+      <div class="text-sm font-bold text-slate-900 whitespace-pre-wrap">🙋 ${escapeHtml(r.question)}
+        ${r.needs_human ? '<span class="ml-1 px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 text-[10px] align-middle">AI 가 모름</span>' : ''}</div>
+      <details class="text-xs text-slate-600"><summary class="cursor-pointer text-slate-500">🤖 ${escapeHtml((r.answer || '').slice(0, 60))}${(r.answer || '').length > 60 ? '…' : ''}</summary>
+        <div class="mt-1 bg-slate-50 rounded p-2 whitespace-pre-wrap">${escapeHtml(r.answer || '')}</div></details>
+    </div>`).join('')}
+  </div>`;
+    }).join('')}
+</div>`).join('');
+}
