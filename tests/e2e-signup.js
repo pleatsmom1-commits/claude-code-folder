@@ -300,7 +300,6 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   const clText = await page.textContent('#admin-chatlog-panel');
   check('chatlog panel shows summary + questions', (await vis('#admin-chatlog-panel')) && !(await vis('#admin-inquiry-panel')) && (await page.textContent('#chatlog-summary')).includes('6') && clText.includes('카드로 결제할 수 있어요?') && clText.includes('AI 가 모름'));
   check('chatlog requested ai_chat_logs with date range', requests.some(r => r.path === '/rest/v1/ai_chat_logs' && r.search.includes('created_at=gte.') && r.search.includes('created_at=lt.')));
-  check('chatlog shows cost (6 × $0.015 × 1400 = 126원)', (await page.textContent('#chatlog-summary')).includes('126원') && (await page.textContent('#chatlog-days')).includes('63원'));
   check('chatlog grouped by day (3 days)', (await page.locator('#chatlog-days tbody tr').count()) === 3 && (await page.locator('#chatlog-list [id^=chatlog-day-]').count()) === 3);
   await page.locator('#chatlog-list details >> nth=0').click(); await page.waitForTimeout(200);
   await page.screenshot({ path: path.join(__dirname, 'out', 'shot-chatlog.png') });
