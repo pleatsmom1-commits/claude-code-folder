@@ -9,6 +9,8 @@ const SETTLE_PAGE_PATH = '/settle';
 const SETTLE_RESULT_MESSAGE = { '청구': '입금 부탁드립니다.', '이월': '결제완료, 잔여금입니다.', '영수': '결제완료' };
 
 let settleContacts = [];          // [{company, phone, memo}]
+let settleContactChecked = new Set(); // 연락처 표에서 공지 문자 보낼 업체 (정산서와 상관없음)
+let settleMsgMode = 'settle';     // 문자 창: 'settle' = 위 정산서 표에서 체크, 'notice' = 연락처 표에서 체크한 일반 공지
 let settleExcelRows = null;       // 엑셀에서 읽은 정산서 (정산일 무관 전체)
 let settleExcelFileName = '';
 let settleSaved = [];             // 선택한 정산일의 저장된 정산서
@@ -155,13 +157,22 @@ function renderSettleContacts() {
 
     const list = settleContacts.filter(c =>
         !keyword || settleNorm(c.company).includes(keyword) || String(c.phone || '').includes(keyword.replace(/\D/g, '') || '@@'));
+    settleContactShown = list;
+    settleUpdateNoticeButton();
     const tbody = document.getElementById('settle-contact-list');
+    const all = document.getElementById('settle-contact-check-all');
+    if (all) {
+        const can = list.filter(c => c.phone);
+        all.checked = can.length > 0 && can.every(c => settleContactChecked.has(c.company));
+    }
     if (!list.length) {
-        tbody.innerHTML = `<tr><td colspan="3" class="p-6 text-center text-slate-400">${settleContacts.length ? '검색 결과가 없습니다.' : '등록된 연락처가 없습니다. [연락처 엑셀 올리기]로 등록하세요.'}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-400">${settleContacts.length ? '검색 결과가 없습니다.' : '등록된 연락처가 없습니다. [연락처 엑셀 올리기]로 등록하세요.'}</td></tr>`;
         return;
     }
     tbody.innerHTML = list.map(c => `
-        <tr class="hover:bg-slate-50">
+        <tr class="hover:bg-slate-50 ${settleContactChecked.has(c.company) ? 'bg-amber-50/60' : ''}">
+            <td class="p-2.5"><input type="checkbox" data-company="${escapeHtml(c.company)}" ${c.phone ? '' : 'disabled title="연락처가 없어 문자를 보낼 수 없습니다"'}
+                ${settleContactChecked.has(c.company) ? 'checked' : ''} onchange="toggleSettleContactCheck(this.dataset.company, this.checked)" class="w-4 h-4 align-middle cursor-pointer disabled:cursor-not-allowed"></td>
             <td class="p-2.5 font-bold">${escapeHtml(c.company)}</td>
             <td class="p-2.5">
                 <input type="text" value="${escapeHtml(settlePhoneLabel(c.phone))}" placeholder="연락처 없음"
@@ -173,6 +184,25 @@ function renderSettleContacts() {
                     class="px-2 py-1 text-[11px] text-rose-600 hover:bg-rose-50 rounded">삭제</button>
             </td>
         </tr>`).join('');
+}
+
+let settleContactShown = [];       // 지금 연락처 표에 보이는 업체 (검색 반영)
+
+function toggleSettleContactCheck(company, on) {
+    if (on) settleContactChecked.add(company); else settleContactChecked.delete(company);
+    renderSettleContacts();
+}
+
+// 머리줄 체크: 지금 보이는(검색된) 업체 중 연락처 있는 곳 전체 체크/해제
+function toggleSettleContactAll(on) {
+    settleContactShown.filter(c => c.phone).forEach(c => on ? settleContactChecked.add(c.company) : settleContactChecked.delete(c.company));
+    renderSettleContacts();
+}
+
+function settleUpdateNoticeButton() {
+    const n = settleContacts.filter(c => c.phone && settleContactChecked.has(c.company)).length;
+    const btn = document.getElementById('settle-notice-btn');
+    if (btn) btn.lastChild.textContent = ` 공지 문자 보내기 (${n}곳)`;
 }
 
 async function saveSettleContactPhone(input) {
@@ -805,12 +835,22 @@ function settleDuplicateMessage(date, list) {
 // 5. 문자 보내기: 체크한 업체에 직접 쓴 문자 (정정·긴급 안내용, 서버: /api/settle/message)
 // ---------------------------------------------------------------------
 function settleMessageTargets() {
+    if (settleMsgMode === 'notice') return settleContacts.filter(c => c.phone && settleContactChecked.has(c.company)).map(c => ({ company: c.company }));
     return settleCurrentList().filter(r => settleChecked.has(r.company));
 }
 
-function openSettleMessage() {
+// mode: 'settle' = 정산서 표에서 체크한 업체, 'notice' = 연락처 표에서 체크한 업체에 일반 공지 (정산서 링크 없음)
+function openSettleMessage(mode = 'settle') {
+    settleMsgMode = mode;
     const targets = settleMessageTargets();
-    if (!targets.length) { alert('문자 보낼 업체를 표 왼쪽 칸에서 먼저 체크해 주세요.'); return; }
+    if (!targets.length) {
+        alert(mode === 'notice' ? '공지 보낼 거래처를 [정산 거래처 연락처] 표 왼쪽 칸에서 먼저 체크해 주세요.' : '문자 보낼 업체를 표 왼쪽 칸에서 먼저 체크해 주세요.');
+        return;
+    }
+    const linkBox = document.getElementById('settle-msg-link');
+    if (mode === 'notice') linkBox.checked = false;
+    document.getElementById('settle-msg-link-row').classList.toggle('hidden', mode === 'notice');
+    document.getElementById('settle-msg-title').textContent = mode === 'notice' ? '공지 문자 보내기' : '문자 보내기';
     const box = document.getElementById('settle-msg-text');
     if (!box.value.trim()) box.value = '[밤낮딜리버리] {상호}님, ';
     document.getElementById('settle-msg-count').textContent = targets.length;
@@ -848,10 +888,11 @@ function updateSettleMessageInfo() {
 }
 
 async function sendSettleMessage(isTest) {
-    const date = document.getElementById('settle-date').value;
+    const notice = settleMsgMode === 'notice';
+    const date = (!notice && document.getElementById('settle-date').value) || settleDateOffset(0);
     const targets = settleMessageTargets();
     const text = document.getElementById('settle-msg-text').value.trim();
-    const includeLink = document.getElementById('settle-msg-link').checked;
+    const includeLink = !notice && document.getElementById('settle-msg-link').checked;
     if (!targets.length) { alert('문자 보낼 업체를 체크해 주세요.'); return; }
     if (!text || text === '[밤낮딜리버리] {상호}님,') { alert('보낼 내용을 입력해 주세요.'); return; }
 
@@ -883,8 +924,8 @@ async function sendSettleMessage(isTest) {
         send.disabled = false;
         alert(settleResultReport(data).replace('발송 접수', '문자 접수'));
         closeSettleMessage();
-        settleChecked.clear();
-        renderSettleTable();
+        if (notice) { settleContactChecked.clear(); renderSettleContacts(); }
+        else { settleChecked.clear(); renderSettleTable(); }
     } catch (err) {
         alert('문자를 보내지 못했습니다.\n\n' + err.message);
     }

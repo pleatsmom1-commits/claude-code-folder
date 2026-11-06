@@ -1245,11 +1245,13 @@
                     <div class="flex gap-2 items-center flex-wrap">
                         <input type="text" id="settle-contact-search" oninput="renderSettleContacts()" placeholder="상호 · 연락처 검색" class="px-3 py-1.5 border rounded-lg text-xs w-60 focus:outline-indigo-500">
                         <span id="settle-contact-count" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full">총 0곳</span>
+                        <button id="settle-notice-btn" onclick="openSettleMessage('notice')" class="ml-auto px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm flex items-center gap-1" title="체크한 거래처에 정산서와 상관없는 공지 문자를 보냅니다">
+                            <i data-lucide="megaphone" class="w-3.5 h-3.5"></i> 공지 문자 보내기 (0곳)</button>
                     </div>
                     <div class="overflow-auto max-h-[50vh] border border-slate-200 rounded-lg">
                         <table class="w-full text-left text-xs">
                             <thead class="bg-slate-800 text-slate-200 font-bold sticky top-0">
-                                <tr><th class="p-2.5">상호</th><th class="p-2.5">연락처 (수정 후 Enter)</th><th class="p-2.5 text-center">관리</th></tr>
+                                <tr><th class="p-2.5 w-8"><input type="checkbox" id="settle-contact-check-all" onchange="toggleSettleContactAll(this.checked)" class="w-4 h-4 align-middle cursor-pointer" title="보이는 거래처 전체 체크 (연락처 있는 곳만)"></th><th class="p-2.5">상호</th><th class="p-2.5">연락처 (수정 후 Enter)</th><th class="p-2.5 text-center">관리</th></tr>
                             </thead>
                             <tbody id="settle-contact-list" class="divide-y divide-slate-100 text-slate-700"></tbody>
                         </table>
@@ -1549,7 +1551,7 @@
         <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-4">
             <div class="flex justify-between items-start">
                 <div>
-                    <h3 class="text-lg font-bold text-slate-900">문자 보내기</h3>
+                    <h3 id="settle-msg-title" class="text-lg font-bold text-slate-900">문자 보내기</h3>
                     <p class="text-xs text-slate-500 mt-0.5">체크한 업체에 직접 쓴 문자를 보냅니다. 발신번호는 솔라피에 등록한 번호입니다.</p>
                 </div>
                 <button onclick="closeSettleMessage()" class="text-slate-400 hover:text-slate-600 text-xl leading-none">&times;</button>
@@ -1565,7 +1567,7 @@
                     <span id="settle-msg-bytes"></span>
                 </div>
             </div>
-            <label class="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+            <label id="settle-msg-link-row" class="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
                 <input type="checkbox" id="settle-msg-link" onchange="updateSettleMessageInfo()" class="w-4 h-4"> 업체별 정산서 링크를 끝에 붙이기
             </label>
             <div class="flex justify-end gap-2 pt-2">
