@@ -161,11 +161,20 @@ export async function handleSettleMessage(request, env) {
   const missing = ['SOLAPI_API_KEY', 'SOLAPI_API_SECRET', 'SOLAPI_SENDER'].filter(k => !env[k]);
   if (missing.length) return json({ error: `발송 설정이 아직 끝나지 않았습니다. Cloudflare 설정에 다음 값이 필요합니다: ${missing.join(', ')}` }, 500);
 
+  // companyDates: 미납 안내처럼 업체마다 링크 붙일 정산일이 다를 때 { 상호: 'YYYY-MM-DD' }
+  const companyDates = body.companyDates && typeof body.companyDates === 'object' ? body.companyDates : null;
   const tokenBy = new Map();
   if (includeLink) {
-    const sRes = await sb(`/rest/v1/settlements?settle_date=eq.${date}&select=company,token`);
-    if (!sRes.ok) return json({ error: '정산서 링크를 불러오지 못했습니다.' }, 502);
-    for (const s of await sRes.json()) tokenBy.set(s.company, s.token);
+    const dates = companyDates
+      ? [...new Set(companies.map(c => String(companyDates[c] || '')).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)))]
+      : [date];
+    if (dates.length) {
+      const sRes = await sb(`/rest/v1/settlements?settle_date=in.(${dates.join(',')})&select=company,token,settle_date`);
+      if (!sRes.ok) return json({ error: '정산서 링크를 불러오지 못했습니다.' }, 502);
+      for (const s of await sRes.json()) {
+        if (!companyDates || String(companyDates[s.company]) === s.settle_date) tokenBy.set(s.company, s.token);
+      }
+    }
   }
   const buildText = company => {
     let t = text.replace(/\{상호\}/g, company);
