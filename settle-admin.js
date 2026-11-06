@@ -1487,8 +1487,9 @@ async function deleteSettleVersions(ids) {
 
 // ---------------------------------------------------------------------
 // 미납 업체 조회: 정산서를 보낸 지 N일이 지났는데 입금 없이 청구금액이 그대로인 업체
-//  - 업체별로 가장 최근 정산서부터 거꾸로 보며, '청구금액이 같고 그 다음 날 입금액이 0'인 정산서를 묶습니다.
-//    (입금이 있으면 다음 정산서에 입금액이 찍히거나 금액이 바뀌므로 묶음이 끊깁니다)
+//  - 업체별로 가장 최근 정산서부터 거꾸로 보며, '그 다음 정산서에 입금액이 0이고 청구금액이 그대로이거나 늘어난'
+//    청구 정산서를 묶습니다. (매일 서비스를 받아 입금 없이 금액이 쌓이는 업체도 포함)
+//    입금이 있으면 다음 정산서에 입금액이 찍히거나 금액이 줄어 묶음이 끊깁니다.
 //  - 묶음 안에서 가장 먼저 보낸 날부터 N일(달력 날짜)이 지났으면 미납으로 봅니다.
 // ---------------------------------------------------------------------
 let settleUnpaidRows = [];
@@ -1510,7 +1511,8 @@ function settleFindUnpaid(rows, minDays, now = Date.now()) {
         let chain = [latest];
         for (let i = 1; i < list.length; i++) {
             const newer = list[i - 1], older = list[i];
-            if (Number(older.total) !== total || (Number(newer.paid) || 0) !== 0) break;
+            const olderTotal = Number(older.total) || 0;
+            if (older.result !== '청구' || olderTotal <= 0 || olderTotal > (Number(newer.total) || 0) || (Number(newer.paid) || 0) !== 0) break;
             chain.push(older);
         }
         const sent = chain.filter(r => r.sent_at).sort((a, b) => (a.sent_at < b.sent_at ? -1 : 1))[0];
@@ -1518,7 +1520,7 @@ function settleFindUnpaid(rows, minDays, now = Date.now()) {
         const day0 = t => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
         const days = Math.round((day0(now) - day0(sent.sent_at)) / 86400000); // 달력 날짜 기준 (11/3 보냄 → 11/5 = 2일)
         if (days < minDays) continue;
-        out.push({ company, total, firstDate: sent.settle_date, firstSentAt: sent.sent_at, days, lastDate: latest.settle_date, token: latest.token });
+        out.push({ company, total, firstTotal: Number(sent.total) || 0, firstDate: sent.settle_date, firstSentAt: sent.sent_at, days, lastDate: latest.settle_date, token: latest.token });
     }
     return out.sort((a, b) => b.days - a.days || b.total - a.total);
 }
@@ -1558,7 +1560,7 @@ function renderSettleUnpaid() {
             <td class="p-2.5"><input type="checkbox" data-company="${escapeHtml(r.company)}" ${phone ? '' : 'disabled title="연락처가 없어 문자를 보낼 수 없습니다"'}
                 ${settleUnpaidChecked.has(r.company) ? 'checked' : ''} onchange="toggleSettleUnpaidCheck(this.dataset.company, this.checked)" class="w-4 h-4 align-middle cursor-pointer disabled:cursor-not-allowed"></td>
             <td class="p-2.5 font-bold">${escapeHtml(r.company)}</td>
-            <td class="p-2.5 text-right font-bold text-rose-600">${settleWon(r.total)}</td>
+            <td class="p-2.5 text-right font-bold text-rose-600">${settleWon(r.total)}${r.firstTotal && r.firstTotal !== r.total ? `<div class="text-[10px] font-normal text-slate-400">처음 보낸 금액 ${settleWon(r.firstTotal)}</div>` : ''}</td>
             <td class="p-2.5 whitespace-nowrap">${escapeHtml(r.firstDate)} <span class="text-[10px] text-slate-400">(${escapeHtml(settleSentTime(r.firstSentAt))} 발송)</span></td>
             <td class="p-2.5 font-bold ${r.days >= 7 ? 'text-rose-600' : 'text-orange-600'}">${r.days}일째</td>
             <td class="p-2.5 whitespace-nowrap">${escapeHtml(r.lastDate)}</td>

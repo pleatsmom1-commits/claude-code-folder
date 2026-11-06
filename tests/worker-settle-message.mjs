@@ -55,9 +55,12 @@ const rows = [
   { company: 'B', settle_date: '2026-11-05', total: 0, result: '영수', sent_at: '2026-11-05T07:00:00Z', paid: '500' },
   // C: 어제 보냄 → 아직 2일 안 됨
   { company: 'C', settle_date: '2026-11-05', total: 700, result: '청구', sent_at: '2026-11-05T07:00:00Z' },
-  // D: 금액이 늘어남(새 주문) → 마지막 정산서 기준으로 다시 셈 (11/5 보냄 → 1일)
+  // D: 입금 없이 금액이 늘어남(매일 서비스) → 11/2 처음 보낸 날부터 4일째 미납
   { company: 'D', settle_date: '2026-11-02', total: 300, result: '청구', sent_at: '2026-11-02T07:00:00Z' },
   { company: 'D', settle_date: '2026-11-05', total: 900, result: '청구', sent_at: '2026-11-05T07:00:00Z' },
+  // G: 오늘 입금 일부 후 금액이 늘었어도 입금 있으면 끊김 → 오늘 보낸 것만 (0일)
+  { company: 'G', settle_date: '2026-11-01', total: 300, result: '청구', sent_at: '2026-11-01T07:00:00Z' },
+  { company: 'G', settle_date: '2026-11-06', total: 500, result: '청구', sent_at: '2026-11-06T07:00:00Z', paid: '300' },
   // E: 일부 입금했는데 같은 금액(입금액 있음) → 묶음 끊김
   { company: 'E', settle_date: '2026-11-01', total: 400, result: '청구', sent_at: '2026-11-01T07:00:00Z' },
   { company: 'E', settle_date: '2026-11-05', total: 400, result: '청구', sent_at: '2026-11-05T07:00:00Z', paid: '100' },
@@ -65,5 +68,7 @@ const rows = [
   { company: 'F', settle_date: '2026-11-01', total: 400, result: '청구', sent_at: null },
 ];
 const u = settleFindUnpaid(rows, 2, now);
-ok(u.length === 1 && u[0].company === 'A' && u[0].days === 3 && u[0].firstDate === '2026-11-03' && u[0].lastDate === '2026-11-04' && u[0].token === 'a4', 'unpaid: only A', JSON.stringify(u));
-ok(settleFindUnpaid(rows, 0, now).map(x => x.company).sort().join() === 'A,C,D,E', 'unpaid with 0 days');
+const ua = u.find(x => x.company === 'A'), ud = u.find(x => x.company === 'D');
+ok(u.length === 2 && ua.days === 3 && ua.firstDate === '2026-11-03' && ua.lastDate === '2026-11-04' && ua.token === 'a4', 'unpaid: A (same amount)', JSON.stringify(u));
+ok(ud && ud.days === 4 && ud.total === 900 && ud.firstTotal === 300 && ud.firstDate === '2026-11-02', 'unpaid: D (amount keeps growing, no payment)');
+ok(settleFindUnpaid(rows, 0, now).map(x => x.company).sort().join() === 'A,C,D,E,G', 'unpaid with 0 days');
