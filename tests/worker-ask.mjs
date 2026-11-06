@@ -39,9 +39,11 @@ ok(d.needsHuman === true && !d.answer.includes('[담당자확인]'), 'marker -> 
 const lastLog = logs[logs.length - 1];
 ok(lastLog && lastLog.p_question === '견적?' && lastLog.p_needs_human === true && !lastLog.p_answer.includes('[담당자확인]'), 'chat log saved (needs human)');
 logs.length = 0;
-reply = { stop_reason: 'end_turn', content: [{ type: 'text', text: '계좌이체만 됩니다.' }] };
+reply = { stop_reason: 'end_turn', model: 'claude-opus-5-5', usage: { input_tokens: 1000, cache_read_input_tokens: 10000, cache_creation_input_tokens: 0, output_tokens: 200 }, content: [{ type: 'text', text: '계좌이체만 됩니다.' }] };
 d = await (await handleAsk(req({ messages: [{ role: 'user', content: '카드 돼요?' }], chatId: 'c1', source: 'https://www.bamnatdelivery.com/' }, undefined, '10.0.0.1'), env)).json();
 ok(logs.length === 1 && logs[0].p_chat_id === 'c1' && logs[0].p_answer === '계좌이체만 됩니다.' && logs[0].p_needs_human === false && logs[0].p_source.includes('bamnatdelivery'), 'chat log saved (answered)');
+// 1000×4 + 10000×4×0.1 + 200×20 = 12000 → $0.012
+ok(logs[0].p_model === 'claude-opus-5-5' && logs[0].p_input_tokens === 11000 && logs[0].p_output_tokens === 200 && logs[0].p_cost_usd === 0.012, 'chat cost saved', JSON.stringify(logs[0]));
 globalThis.fetch = async (url, init) => { if (String(url).includes('/rpc/log_ai_chat')) throw new Error('down'); if (String(url).includes('/ai_faq')) return new Response('[]'); return new Response(JSON.stringify(reply)); };
 r = await handleAsk(req({ messages: [{ role: 'user', content: 'q' }] }, undefined, '10.0.0.2'), env);
 ok(r.status === 200, 'log failure does not break answer');

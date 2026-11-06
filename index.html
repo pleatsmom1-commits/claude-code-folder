@@ -691,6 +691,9 @@
                         <i data-lucide="message-circle" class="w-4 h-4"></i> AI 상담
                         <span id="admin-group-inquiry-badge" class="hidden px-1.5 py-0.5 bg-orange-500 text-white text-[10px] rounded-full"></span>
                     </button>
+                    <button id="admin-group-aicost" onclick="switchAdminGroup('aicost')" class="">
+                        <i data-lucide="coins" class="w-4 h-4"></i> AI 사용료
+                    </button>
                 </div>
                 <div id="admin-subtabs" class="flex flex-wrap border-b border-slate-200 mt-3">
                     <button id="admin-tab-orders" onclick="switchAdminTab('orders')" class="">
@@ -4943,8 +4946,9 @@
             order: ['orders', 'pickup', 'ship'],
             stock: ['stock', 'products', 'inventory', 'picking'],
             settle: ['settle'],
-            sellers: ['sellers', 'aicost'],
+            sellers: ['sellers'],
             inquiry: ['inquiry', 'chatlog'],
+            aicost: ['aicost'],
         };
         const ADMIN_GROUP_OF = Object.fromEntries(Object.entries(ADMIN_GROUPS).flatMap(([g, tabs]) => tabs.map(t => [t, g])));
         const ADMIN_LAST_TAB = {};   // 묶음마다 마지막으로 본 탭
