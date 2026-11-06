@@ -207,6 +207,8 @@ async function deleteFaq(id) {
 // 상담 기록: 손님이 AI 상담창에 한 질문·AI 답변을 날짜별로 보기 (supabase/ai_chat_logs.sql)
 // ---------------------------------------------------------------------
 let chatLogRows = [];
+const CHATLOG_KRW_PER_USD = 1400;   // ai-cost.html 과 같은 어림 환율
+const chatLogKrw = usd => Math.round(Number(usd || 0) * CHATLOG_KRW_PER_USD).toLocaleString('ko-KR') + '원';
 
 function chatLogDay(iso) {
     const d = new Date(iso);
@@ -260,27 +262,30 @@ function renderChatLogs() {
     const chats = new Set(rows.map(r => r.chat_id || `#${r.id}`));
     const unknown = rows.filter(r => r.needs_human).length;
     const home = rows.filter(r => chatLogSource(r.source) === '홈페이지').length;
+    const cost = rows.reduce((t, r) => t + Number(r.cost_usd || 0), 0);
     const stat = (label, value, cls = 'text-slate-900') =>
         `<div class="bg-slate-50 rounded-lg p-3"><div class="text-[11px] text-slate-500">${label}</div><div class="text-xl font-black ${cls}">${value}</div></div>`;
     document.getElementById('chatlog-summary').innerHTML =
         stat('질문 수', rows.length) + stat('상담 (대화창)', chats.size) +
         stat('AI 가 모른 질문', unknown, unknown ? 'text-orange-600' : 'text-slate-900') +
-        stat('홈페이지에서 / 주문접수 사이트에서', `${home} / ${rows.length - home}`);
+        stat('홈페이지에서 / 주문접수 사이트에서', `${home} / ${rows.length - home}`) +
+        `<div class="col-span-2 bg-indigo-50 rounded-lg p-3"><div class="text-[11px] text-indigo-700">AI 사용료 (어림, 1달러 = ${CHATLOG_KRW_PER_USD.toLocaleString('ko-KR')}원)</div><div class="text-xl font-black text-indigo-700">${chatLogKrw(cost)} <span class="text-xs font-normal">· 질문당 약 ${chatLogKrw(rows.length ? cost / rows.length : 0)}</span></div></div>`;
 
     // 날짜별 표
     const byDay = {};
     rows.forEach(r => {
-        const d = byDay[chatLogDay(r.created_at)] ||= { q: 0, chats: new Set(), unknown: 0 };
-        d.q++; d.chats.add(r.chat_id || `#${r.id}`); if (r.needs_human) d.unknown++;
+        const d = byDay[chatLogDay(r.created_at)] ||= { q: 0, chats: new Set(), unknown: 0, cost: 0 };
+        d.q++; d.cost += Number(r.cost_usd || 0); d.chats.add(r.chat_id || `#${r.id}`); if (r.needs_human) d.unknown++;
     });
     const days = Object.keys(byDay).sort().reverse();
     document.getElementById('chatlog-days').innerHTML = days.length ? `
 <table class="w-full text-xs">
-  <thead><tr class="text-slate-500 border-b"><th class="text-left py-1.5">날짜</th><th class="text-right">질문</th><th class="text-right">상담</th><th class="text-right">AI 가 모름</th></tr></thead>
+  <thead><tr class="text-slate-500 border-b"><th class="text-left py-1.5">날짜</th><th class="text-right">질문</th><th class="text-right">상담</th><th class="text-right">AI 가 모름</th><th class="text-right">사용료</th></tr></thead>
   <tbody>${days.map(d => `<tr class="border-b border-slate-100 hover:bg-indigo-50 cursor-pointer" onclick="document.getElementById('chatlog-day-${d}')?.scrollIntoView({behavior:'smooth'})">
     <td class="py-1.5 font-bold">${d.slice(5).replace('-', '/')} (${'일월화수목금토'[new Date(d + 'T00:00:00').getDay()]})</td>
     <td class="text-right">${byDay[d].q}</td><td class="text-right">${byDay[d].chats.size}</td>
-    <td class="text-right ${byDay[d].unknown ? 'text-orange-600 font-bold' : 'text-slate-400'}">${byDay[d].unknown}</td></tr>`).join('')}</tbody>
+    <td class="text-right ${byDay[d].unknown ? 'text-orange-600 font-bold' : 'text-slate-400'}">${byDay[d].unknown}</td>
+    <td class="text-right text-indigo-700">${chatLogKrw(byDay[d].cost)}</td></tr>`).join('')}</tbody>
 </table>` : '<div class="text-xs text-slate-400 py-4 text-center">이 기간에는 기록이 없습니다.</div>';
 
     // 대화 목록 (날짜 → 대화창 묶음)

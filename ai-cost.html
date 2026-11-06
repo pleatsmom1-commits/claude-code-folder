@@ -32,12 +32,12 @@
             <div class="flex flex-wrap items-end gap-3">
                 <div>
                     <h2 class="font-bold text-slate-900">이번 달 AI 사용료</h2>
-                    <p class="text-xs text-slate-500 mt-0.5">처음 보는 주문서 양식일 때만 AI 를 불러요. 같은 양식은 저장된 정보로 읽어서 비용이 들지 않아요.<br>원화는 1달러 = <span id="rate-label"></span>원으로 어림한 값이고, 실제 청구는 Claude Console 의 금액이 기준이에요.</p>
+                    <p class="text-xs text-slate-500 mt-0.5">주문서 AI: 처음 보는 주문서 양식일 때만 AI 를 불러요. 같은 양식은 저장된 정보로 읽어서 비용이 들지 않아요.<br>AI 상담: 손님이 홈페이지·사이트 상담창에 질문할 때마다 비용이 들어요. 질문·답변 내용은 'AI 상담 &gt; 상담 기록'에서 볼 수 있어요.<br>원화는 1달러 = <span id="rate-label"></span>원으로 어림한 값이고, 실제 청구는 Claude Console 의 금액이 기준이에요.</p>
                 </div>
                 <label class="text-xs space-y-1 ml-auto"><span class="font-bold text-slate-600 block">월</span><input type="month" id="f-month" onchange="load()" class="px-2 py-1.5 border rounded-lg"></label>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div class="rounded-lg bg-slate-50 border border-slate-200 p-4"><p class="text-xs text-slate-500">AI 분석 횟수</p><p id="sum-count" class="text-2xl font-black text-slate-900 mt-1">0</p></div>
+                <div class="rounded-lg bg-slate-50 border border-slate-200 p-4"><p class="text-xs text-slate-500">AI 사용 횟수</p><p id="sum-count" class="text-2xl font-black text-slate-900 mt-1">0</p><p id="sum-split" class="text-[11px] text-slate-500 mt-1"></p></div>
                 <div class="rounded-lg bg-slate-50 border border-slate-200 p-4"><p class="text-xs text-slate-500">사용료 (달러)</p><p id="sum-usd" class="text-2xl font-black text-slate-900 mt-1">$0</p></div>
                 <div class="rounded-lg bg-indigo-50 border border-indigo-200 p-4"><p class="text-xs text-indigo-700">사용료 (원, 어림)</p><p id="sum-krw" class="text-2xl font-black text-indigo-700 mt-1">0원</p></div>
             </div>
@@ -45,14 +45,14 @@
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
-                <h3 class="font-bold text-slate-900">업체별</h3>
+                <h3 class="font-bold text-slate-900">업체별 (AI 상담 포함)</h3>
                 <table class="w-full text-xs"><thead class="bg-slate-50 text-slate-500"><tr><th class="px-2 py-2 text-left">업체</th><th class="px-2 py-2 text-right">횟수</th><th class="px-2 py-2 text-right">사용료</th></tr></thead>
                 <tbody id="by-company"></tbody></table>
             </div>
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
                 <h3 class="font-bold text-slate-900">최근 사용 기록</h3>
                 <div class="max-h-[360px] overflow-y-auto">
-                    <table class="w-full text-xs"><thead class="bg-slate-50 text-slate-500 sticky top-0"><tr><th class="px-2 py-2 text-left">시간</th><th class="px-2 py-2 text-left">업체</th><th class="px-2 py-2 text-left">파일</th><th class="px-2 py-2 text-right">사용료</th></tr></thead>
+                    <table class="w-full text-xs"><thead class="bg-slate-50 text-slate-500 sticky top-0"><tr><th class="px-2 py-2 text-left">시간</th><th class="px-2 py-2 text-left">업체</th><th class="px-2 py-2 text-left">파일 / 질문</th><th class="px-2 py-2 text-right">사용료</th></tr></thead>
                     <tbody id="recent"></tbody></table>
                 </div>
             </div>
@@ -108,13 +108,19 @@
         const [y, m] = document.getElementById('f-month').value.split('-').map(Number);
         if (!y) return;
         const start = new Date(y, m - 1, 1).toISOString(), end = new Date(y, m, 1).toISOString();
-        const [u, f] = await Promise.all([
+        const [u, f, c] = await Promise.all([
             client.from('ai_usage').select('*').gte('created_at', start).lt('created_at', end).order('created_at', { ascending: false }).limit(5000),
             client.from('order_file_formats').select('*').order('last_used_at', { ascending: false }).limit(500),
+            client.from('ai_chat_logs').select('created_at, question, cost_usd').gte('created_at', start).lt('created_at', end).order('created_at', { ascending: false }).limit(20000),
         ]);
         const error = u.error || f.error;
         if (error) { showState('불러오지 못했습니다.<br><span class="text-xs">' + esc(errorMessage(error)) + '</span>'); return; }
-        const rows = u.data || [];
+        // AI 상담 비용 (supabase/ai_chat_logs.sql, ai_chat_cost.sql). 아직 표가 없으면 0 으로 봄
+        const chatRows = (c.error ? [] : c.data || []).map(r => ({ created_at: r.created_at, company: '🤖 AI 상담 (홈페이지·사이트)', note: r.question.slice(0, 40), cost_usd: r.cost_usd || 0 }));
+        const orderCount = (u.data || []).length;
+        const rows = [...(u.data || []), ...chatRows].sort((a, b) => b.created_at.localeCompare(a.created_at));
+        const chatCost = chatRows.reduce((s, r) => s + Number(r.cost_usd || 0), 0);
+        document.getElementById('sum-split').textContent = `주문서 AI ${orderCount.toLocaleString('ko-KR')}번 · AI 상담 ${chatRows.length.toLocaleString('ko-KR')}번 (${krw(chatCost)})`;
         const total = rows.reduce((s, r) => s + Number(r.cost_usd || 0), 0);
         document.getElementById('sum-count').textContent = rows.length.toLocaleString('ko-KR');
         document.getElementById('sum-usd').textContent = usd(total);

@@ -31,6 +31,7 @@ const tables = {
     { id: 2, code: 'P000002', company: '애플샵', wholesale_company: '청평화A', wholesale_product: '울팬츠', color: '화이트', size: 'M', mall_names: [{ platform: '스마트스토어', name: '고랭 울 팬츠' }], deleted_at: null },
   ],
   inventory: [{ product_id: 1, company: '애플샵', qty_a: 3 }],
+  ai_chat_logs: [{ id: 1, created_at: new Date().toISOString(), chat_id: 'a', question: '카드로 결제할 수 있어요?', answer: '계좌이체만 됩니다.', needs_human: false, source: 'https://www.bamnatdelivery.com/', cost_usd: 0.02 }],
   ai_usage: [{ id: 1, created_at: new Date().toISOString(), user_id: ids.seller, company: '애플샵', kind: 'order_file', model: 'claude-opus-5-5', input_tokens: 1500, output_tokens: 200, cost_usd: 0.01, note: '스마트스토어.xlsx' }],
   order_file_formats: [{ id: 1, company: '애플샵', signature: '주문번호|수취인명|수취인연락처', platform: '스마트스토어', mapping: {}, use_count: 3, last_used_at: new Date().toISOString() }],
   couriers: [{ id: 'c1', name: '우체국택배', sort_order: 1 }],
@@ -251,6 +252,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   const frame = page.frameLocator('#admin-aicost-frame');
   const ftext = await frame.locator('body').innerText().catch(e => 'ERR ' + e.message);
   check('cost page shows totals + company + formats', ftext.includes('$0.010') && ftext.includes('14원') && ftext.includes('애플샵') && ftext.includes('스마트스토어'), ftext.slice(0, 300));
+  check('cost page includes AI 상담 cost', ftext.includes('$0.030') && ftext.includes('42원') && ftext.includes('AI 상담 (홈페이지·사이트)') && ftext.includes('AI 상담 1번') && ftext.includes('카드로 결제할 수 있어요?'), ftext.slice(0, 400));
   await page.screenshot({ path: path.join(__dirname, 'out', 'shot-ai-cost.png'), fullPage: false });
   await page.click('#admin-tab-sellers'); await page.waitForTimeout(200);
   check('seller admin tab still works', (await vis('#admin-sellers-panel')) && !(await vis('#admin-aicost-panel')));

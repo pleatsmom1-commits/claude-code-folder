@@ -8,6 +8,7 @@
 // =====================================================================
 import { KNOWLEDGE } from './knowledge.js';
 import { json } from './alimtalk.js';
+import { PRICES } from './order_ai.js';
 
 const MAX_QUESTION = 500;   // 질문 한 번 최대 글자 수
 const MAX_TURNS = 10;       // 이전 대화는 최근 10개만 함께 보냄
@@ -130,13 +131,24 @@ async function answer(request, env) {
   const needsHuman = !text || text.includes('[담당자확인]');
   text = text.replaceAll('[담당자확인]', '').trim();
   const reply = text || '이 질문은 대표님이 직접 확인해서 연락드릴게요. 아래에 연락처를 남겨 주세요.';
-  await saveLog(env, body, last.content, reply, needsHuman);
+  await saveLog(env, body, last.content, reply, needsHuman, usageCost(data, env.AI_MODEL || 'claude-opus-5-5'));
   return json({ answer: reply, needsHuman });
 }
 
 // 관리자 > AI 상담 > 상담 기록 에서 보도록 질문·답변을 남깁니다 (supabase/ai_chat_logs.sql).
 // 기록이 실패해도 손님 답변에는 영향 없음.
-async function saveLog(env, body, question, answer, needsHuman) {
+// AI 사용료 어림 (달러): 입력·출력 토큰 × 모델 단가. 캐시로 다시 읽은 부분은 1/10, 캐시에 처음 넣은 부분은 1.25배.
+export function usageCost(data, model) {
+  const u = data.usage || {};
+  const m = data.model || model;
+  const [pin, pout] = PRICES[m] || PRICES[model] || PRICES['claude-opus-5-5'];
+  const read = u.cache_read_input_tokens || 0, write = u.cache_creation_input_tokens || 0, plain = u.input_tokens || 0;
+  const out = u.output_tokens || 0;
+  const cost = (plain * pin + write * pin * 1.25 + read * pin * 0.1 + out * pout) / 1e6;
+  return { model: m, input: plain + write + read, output: out, cost: Math.round(cost * 1e5) / 1e5 };
+}
+
+async function saveLog(env, body, question, answer, needsHuman, use) {
   if (!env.SUPABASE_URL || !env.SUPABASE_KEY) return;
   try {
     const res = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/log_ai_chat`, {
@@ -145,6 +157,7 @@ async function saveLog(env, body, question, answer, needsHuman) {
       body: JSON.stringify({
         p_chat_id: String(body.chatId || '').slice(0, 40), p_question: question, p_answer: answer,
         p_needs_human: needsHuman, p_source: String(body.source || '').slice(0, 300),
+        p_model: use.model, p_input_tokens: use.input, p_output_tokens: use.output, p_cost_usd: use.cost,
       }),
     });
     if (!res.ok) console.log('ask: log failed', res.status);
