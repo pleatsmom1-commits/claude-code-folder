@@ -7,7 +7,7 @@
 // =====================================================================
 import { solapiSend, normPhone, maskPhone, json, PRODUCTION_HOSTS } from './alimtalk.js';
 import { fromOurSites } from './ask.js';
-import { adminPhones } from './notify.js';
+import { adminPhones, smsOnlyPhones } from './notify.js';
 
 const CONTACT = '추가 문의: 카카오톡 bamnatdelivery / 010-5425-9060';
 
@@ -51,8 +51,9 @@ async function submitInquiry(request, env) {
     const text = `${test}[밤낮딜리버리] 새 AI 상담 문의 (답변대기)\n상호: ${body.company || '-'}\n이름: ${body.name || '-'}\n연락처: ${phone}\n문의: ${short}\n\n관리자 화면 > AI 상담에서 답변해 주세요.\n${site.origin}`;
     const from = normPhone(env.SOLAPI_SENDER);
     // 카카오 승인된 알림톡 템플릿(SOLAPI_INQUIRY_TEMPLATE_ID)이 있으면 밤낮딜리버리 채널 카톡으로, 카톡이 안 되면 문자로 대신
+    // (ADMIN_SMS_ONLY_PHONE 번호는 항상 문자)
     for (const to of phones) {
-      const message = env.SOLAPI_INQUIRY_TEMPLATE_ID && env.SOLAPI_PF_ID
+      const message = env.SOLAPI_INQUIRY_TEMPLATE_ID && env.SOLAPI_PF_ID && !smsOnlyPhones(env).includes(to)
         ? { to, from, kakaoOptions: { pfId: env.SOLAPI_PF_ID, templateId: env.SOLAPI_INQUIRY_TEMPLATE_ID, disableSms: false,
             variables: inquiryTemplateVariables({ ...body, phone, question: short }) } }
         : { to, from, text };
