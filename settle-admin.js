@@ -1579,3 +1579,147 @@ function toggleSettleUnpaidAll(on) {
     settleUnpaidShown.filter(r => settleContactPhone(r.company)).forEach(r => on ? settleUnpaidChecked.add(r.company) : settleUnpaidChecked.delete(r.company));
     renderSettleUnpaid();
 }
+
+// ---------------------------------------------------------------------
+// 업체별 이용 현황: 기간 안 저장된 정산서(업체·날짜마다 최신 1장)를 업체별로 합침
+//  - 세금계산서 금액 = ⑦ 서비스 비용 합계(공급가) + ⑧ 부가세 (대납금액은 제외, 정산서 계산식과 같음)
+// ---------------------------------------------------------------------
+const SETTLE_USAGE_COLS = [
+    { key: 'pickupStores', label: '픽업/반납 매장', count: true },
+    { key: 'pickupCost', label: '① 픽업/반납' },
+    { key: 'prepaid', label: '② 대납금액' },
+    { key: 'unsentStores', label: '대납미송 매장', count: true },
+    { key: 'unsentCost', label: '③ 대납미송' },
+    { key: 'shippingFee', label: '④ 택배비' },
+    { key: 'fulfillCount', label: '풀필 건수', count: true },
+    { key: 'fulfillCost', label: '⑤ 풀필' },
+    { key: 'etcCost', label: '⑥ 기타' },
+    { key: 'serviceTotal', label: '⑦ 서비스 합계(공급가)' },
+    { key: 'vat', label: '⑧ 부가세' },
+    { key: 'taxInvoice', label: '세금계산서 금액(⑦+⑧)', strong: true },
+    { key: 'paid', label: '입금액' },
+];
+let settleUsageRows = [];      // 정산서 한 장씩 (업체·날짜)
+let settleUsageOpen = new Set(); // 날짜별로 펼친 업체
+let settleUsageLinked = new Set(); // 승인된 셀러 상호(정규화) — 업체 화면 연결 여부
+
+function settleNum(v) {
+    if (v == null || v === '') return 0;
+    const n = Number(String(v).replace(/[,\s원]/g, ''));
+    return isFinite(n) ? n : 0;
+}
+
+function setSettleUsagePreset(which) {
+    const d = new Date();
+    if (which === 'prev') d.setMonth(d.getMonth() - 1, 1); else d.setDate(1);
+    const from = settleDateKey(d);
+    const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+    const today = new Date();
+    document.getElementById('settle-usage-from').value = from;
+    document.getElementById('settle-usage-to').value = settleDateKey(which === 'prev' || end < today ? end : today);
+    loadSettleUsage();
+}
+
+async function loadSettleUsage() {
+    const fromEl = document.getElementById('settle-usage-from');
+    const toEl = document.getElementById('settle-usage-to');
+    if (!fromEl.value || !toEl.value) { setSettleUsagePreset('month'); return; }
+    const from = fromEl.value <= toEl.value ? fromEl.value : toEl.value;
+    const to = fromEl.value <= toEl.value ? toEl.value : fromEl.value;
+    const tbody = document.getElementById('settle-usage-list');
+    tbody.innerHTML = '<tr><td class="p-6 text-center text-slate-400">불러오는 중...</td></tr>';
+    const fields = ['pickupStores', 'pickupCost', 'prepaid', 'unsentStores', 'unsentCost', 'shippingFee', 'fulfillCount', 'fulfillCost', 'etcCost', 'serviceTotal', 'vat', 'paid'];
+    const { data, error } = await fetchAllRows(() => supabaseClient.from('settlements')
+        .select(['company', 'settle_date', 'total', 'result', 'token', ...fields.map(f => `${f}:data->>${f}`)].join(', '))
+        .gte('settle_date', from).lte('settle_date', to)
+        .order('company').order('settle_date'));
+    if (error) {
+        tbody.innerHTML = `<tr><td class="p-6 text-center text-rose-500">${escapeHtml('불러오지 못했습니다: ' + dbErrorMessage(error))}</td></tr>`;
+        return;
+    }
+    settleUsageRows = data.map(r => {
+        const o = { company: r.company, date: r.settle_date, total: settleNum(r.total), result: r.result, token: r.token };
+        fields.forEach(f => { o[f] = settleNum(r[f]); });
+        o.taxInvoice = o.serviceTotal + o.vat;
+        return o;
+    });
+    // 승인된 셀러 상호 (업체가 로그인해서 볼 수 있는지 = 가입 상호와 정산서 상호가 같은지)
+    const { data: sellers } = await supabaseClient.from('profiles').select('company').eq('role', 'seller').eq('status', 'approved');
+    settleUsageLinked = new Set((sellers || []).map(p => settleNorm(p.company)));
+    renderSettleUsage();
+}
+
+function settleUsageSummary(rows) {
+    const map = new Map();
+    for (const r of rows) {
+        if (!map.has(r.company)) map.set(r.company, { company: r.company, days: 0, rows: [], last: null });
+        const g = map.get(r.company);
+        g.days++; g.rows.push(r);
+        SETTLE_USAGE_COLS.forEach(c => { g[c.key] = (g[c.key] || 0) + r[c.key]; });
+        if (!g.last || r.date > g.last.date) g.last = r;
+    }
+    return [...map.values()].sort((a, b) => b.taxInvoice - a.taxInvoice || a.company.localeCompare(b.company));
+}
+
+function settleUsageCell(v, c) {
+    if (!v) return '<span class="text-slate-300">-</span>';
+    return c.count ? v.toLocaleString('ko-KR') : settleWon(v);
+}
+
+function renderSettleUsage() {
+    const keyword = settleNorm(document.getElementById('settle-usage-keyword').value);
+    const groups = settleUsageSummary(settleUsageRows).filter(g => !keyword || settleNorm(g.company).includes(keyword));
+    const head = document.getElementById('settle-usage-head');
+    head.innerHTML = `<tr><th class="p-2.5 sticky left-0 bg-slate-800">상호</th><th class="p-2.5 text-right">정산 일수</th>${SETTLE_USAGE_COLS.map(c => `<th class="p-2.5 text-right">${c.label}</th>`).join('')}<th class="p-2.5 text-right">마지막 청구금액</th></tr>`;
+    const sum = {}; SETTLE_USAGE_COLS.forEach(c => { sum[c.key] = groups.reduce((n, g) => n + g[c.key], 0); });
+    document.getElementById('settle-usage-count').textContent = `${groups.length}곳 · 세금계산서 ${settleWon(sum.taxInvoice || 0)}원`;
+    const tbody = document.getElementById('settle-usage-list');
+    const colspan = SETTLE_USAGE_COLS.length + 3;
+    if (!groups.length) { tbody.innerHTML = `<tr><td colspan="${colspan}" class="p-6 text-center text-slate-400">조회된 정산서가 없습니다.</td></tr>`; return; }
+    const cells = (o, strongCls = '') => SETTLE_USAGE_COLS.map(c => `<td class="p-2.5 text-right ${c.strong ? 'font-bold text-indigo-700' : ''} ${strongCls}">${settleUsageCell(o[c.key], c)}</td>`).join('');
+    let html = `<tr class="bg-indigo-50 font-bold"><td class="p-2.5 sticky left-0 bg-indigo-50">합계 (${groups.length}곳)</td><td class="p-2.5 text-right">${groups.reduce((n, g) => n + g.days, 0)}</td>${cells(sum)}<td class="p-2.5"></td></tr>`;
+    for (const g of groups) {
+        const open = settleUsageOpen.has(g.company);
+        html += `<tr class="hover:bg-slate-50 cursor-pointer" data-company="${escapeHtml(g.company)}" onclick="toggleSettleUsageOpen(this.dataset.company)">
+            <td class="p-2.5 font-bold sticky left-0 bg-white">${open ? '▾' : '▸'} ${escapeHtml(g.company)}
+                ${settleUsageLinked.has(settleNorm(g.company))
+                    ? `<a href="/usage?company=${encodeURIComponent(g.company)}" target="_blank" onclick="event.stopPropagation()" class="ml-1 px-1.5 py-0.5 text-[10px] font-bold text-indigo-600 border border-indigo-200 hover:bg-indigo-50 rounded" title="이 업체가 로그인하면 보이는 화면">업체 화면</a>`
+                    : '<span class="ml-1 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 bg-amber-50 rounded" title="같은 상호로 가입·승인된 셀러 계정이 없어 업체가 볼 수 없습니다">연결 안 됨</span>'}</td>
+            <td class="p-2.5 text-right">${g.days}일</td>${cells(g)}
+            <td class="p-2.5 text-right font-bold ${g.last.result === '청구' ? 'text-rose-600' : 'text-emerald-600'}">${settleWon(g.last.total)} <span class="text-[10px] font-normal text-slate-400">${escapeHtml(g.last.date.slice(5))}</span></td>
+        </tr>`;
+        if (open) {
+            for (const r of [...g.rows].sort((a, b) => (a.date < b.date ? 1 : -1))) {
+                html += `<tr class="bg-slate-50/70 text-slate-500">
+                    <td class="p-2 pl-6 sticky left-0 bg-slate-50">${escapeHtml(r.date)} ${r.token ? `<a href="${escapeHtml(settleLink(r.token))}" target="_blank" onclick="event.stopPropagation()" class="ml-1 text-[11px] font-bold text-indigo-600">보기</a>` : ''}</td>
+                    <td class="p-2"></td>${cells(r)}
+                    <td class="p-2 text-right">${settleWon(r.total)} <span class="text-[10px]">${escapeHtml(r.result || '')}</span></td>
+                </tr>`;
+            }
+        }
+    }
+    tbody.innerHTML = html;
+    const unlinked = groups.filter(g => !settleUsageLinked.has(settleNorm(g.company)));
+    const box = document.getElementById('settle-usage-unlinked');
+    box.classList.toggle('hidden', !unlinked.length);
+    box.innerHTML = unlinked.length ? `<b>가입 연결 안 된 업체 ${unlinked.length}곳</b> — 같은 상호로 가입·승인된 셀러 계정이 없어, 이 업체들은 로그인해도 이용 현황이 비어 보입니다. 정산청구서의 상호와 회원가입 상호를 똑같이 맞춰 주세요 (띄어쓰기·영문 대소문자는 무시).<div class="mt-1 text-amber-700">${unlinked.map(g => escapeHtml(g.company)).join(', ')}</div>` : '';
+}
+
+function toggleSettleUsageOpen(company) {
+    if (settleUsageOpen.has(company)) settleUsageOpen.delete(company); else settleUsageOpen.add(company);
+    renderSettleUsage();
+}
+
+function downloadSettleUsage() {
+    if (!settleUsageRows.length) { alert('먼저 기간을 고르고 [조회]를 눌러 주세요.'); return; }
+    const from = document.getElementById('settle-usage-from').value, to = document.getElementById('settle-usage-to').value;
+    const groups = settleUsageSummary(settleUsageRows);
+    const head = ['상호', '정산 일수', ...SETTLE_USAGE_COLS.map(c => c.label), '마지막 청구금액', '마지막 정산일'];
+    const sumSheet = [head, ...groups.map(g => [g.company, g.days, ...SETTLE_USAGE_COLS.map(c => g[c.key]), g.last.total, g.last.date])];
+    const dayHead = ['상호', '정산일', ...SETTLE_USAGE_COLS.map(c => c.label), '총 청구금액', '결과'];
+    const daySheet = [dayHead, ...settleUsageRows.map(r => [r.company, r.date, ...SETTLE_USAGE_COLS.map(c => r[c.key]), r.total, r.result || ''])];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sumSheet), '업체별 합계');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(daySheet), '날짜별');
+    XLSX.writeFile(wb, `업체별이용현황_${from}_${to}.xlsx`);
+}
