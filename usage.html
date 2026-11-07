@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>밤낮딜리버리 내 이용 현황</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<style>
+    :root {
+        --bg: #f1f5f9; --card: #ffffff; --line: #e2e8f0; --text: #0f172a; --sub: #64748b;
+        --head: #1e293b; --accent: #4f46e5; --accent-bg: #e0e7ff;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; font-size: 15px; line-height: 1.5; }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 16px 16px 40px; }
+    .brand { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0 14px; }
+    .brand b { font-size: 16px; }
+    .brand a { font-size: 13px; color: var(--sub); text-decoration: none; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+    .hero { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+    .hero .company { font-size: 20px; font-weight: 800; }
+    .hero .date { color: var(--sub); font-size: 13px; }
+    .stats { display: flex; gap: 10px; }
+    .stat { background: var(--accent-bg); color: var(--accent); border-radius: 10px; padding: 8px 14px; text-align: center; min-width: 88px; }
+    .stat.gray { background: #f1f5f9; color: var(--sub); }
+    .stat b { display: block; font-size: 20px; }
+    .stat span { font-size: 12px; font-weight: 700; }
+    .tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .tabs { display: flex; background: #e2e8f0; border-radius: 10px; padding: 3px; }
+    .tabs button { border: 0; background: transparent; padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; color: var(--sub); cursor: pointer; }
+    .tabs button.on { background: #fff; color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+    input[type=search] { flex: 1; min-width: 160px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 14px; }
+    .btn { border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 700; color: var(--text); cursor: pointer; white-space: nowrap; text-decoration: none; display: inline-block; }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .count { font-size: 13px; color: var(--sub); margin: 10px 2px 6px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; font-size: 12px; color: var(--sub); font-weight: 700; padding: 8px 6px; border-bottom: 2px solid var(--line); white-space: nowrap; position: sticky; top: 0; background: #fff; }
+    td { padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    td.num { text-align: right; font-weight: 800; }
+    td.nowrap { white-space: nowrap; }
+    .table-box { overflow: auto; max-height: 70vh; }
+    .sub { color: var(--sub); font-size: 12px; }
+    .shipped { color: var(--sub); }
+    .state { text-align: center; padding: 60px 16px; color: var(--sub); }
+    .preview-bar { background: #fef3c7; color: #92400e; text-align: center; padding: 8px; font-size: 13px; font-weight: 700; }
+    .note { font-size: 12px; color: var(--sub); margin: 10px 2px 0; }
+    .foot { text-align: center; font-size: 12px; color: var(--sub); margin-top: 18px; }
+    /* 휴대폰: 표 대신 카드처럼 한 줄씩 */
+    @media (max-width: 640px) {
+        thead { display: none; }
+        table, tbody, tr, td { display: block; width: 100%; }
+        tr { border-bottom: 1px solid var(--line); padding: 10px 2px; }
+        td { border: 0; padding: 1px 0; }
+        td:empty { display: none; }
+        td.small { display: inline-block; width: auto; margin-right: 12px; }
+        td.small:empty { display: none; }
+        td.num { text-align: left; }
+        td[data-label]::before { content: attr(data-label) " "; color: var(--sub); font-size: 12px; font-weight: 400; }
+        .table-box { max-height: none; }
+    }
+    .stats { flex-wrap: wrap; }
+    .stat.big { background: var(--accent); color: #fff; min-width: 150px; }
+    .period { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .period input[type=date] { padding: 7px 8px; border: 1px solid var(--line); border-radius: 10px; font-size: 13px; }
+    h2 { font-size: 15px; margin: 0 0 10px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0 18px; }
+    .grid div { display: flex; justify-content: space-between; padding: 7px 2px; border-bottom: 1px solid var(--line); font-size: 14px; }
+    .grid div b { font-weight: 800; }
+    .grid div.strong { color: var(--accent); }
+    td a { color: var(--accent); font-weight: 700; text-decoration: none; }
+    .red { color: #e11d48; } .green { color: #059669; }
+</style>
+</head>
+<body>
+<div id="preview-bar" class="preview-bar" hidden>관리자 미리보기 화면입니다 (업체에게 보이는 모양)</div>
+<div class="wrap">
+    <div class="brand"><b>밤낮딜리버리 내 이용 현황</b><a href="/">← 주문접수 화면</a></div>
+    <div id="app"><div class="state">불러오는 중입니다...</div></div>
+    <div class="foot">문의: 밤낮딜리버리 카카오톡 채널</div>
+</div>
+<script src="config.js"></script>
+<script>
+    // DB 주소/키는 config.js (공개용 값). 정산서는 get_my_settlements 함수로만 읽고, 함수가 로그인한 계정의 상호와 같은 정산서만 돌려줍니다.
+    // 세금계산서 금액 = ⑦ 서비스 비용 합계(공급가) + ⑧ 부가세 (대납금액 제외, 정산서 계산식과 같음)
+    const ITEMS = [
+        { key: 'pickupStores', label: '픽업/반납 매장 수', count: true },
+        { key: 'pickupCost', label: '① 픽업/반납 비용' },
+        { key: 'unsentStores', label: '대납미송 매장 수', count: true },
+        { key: 'unsentCost', label: '③ 대납미송 비용' },
+        { key: 'shippingFee', label: '④ 택배비' },
+        { key: 'fulfillCount', label: '풀필 건수', count: true },
+        { key: 'fulfillCost', label: '⑤ 풀필 비용' },
+        { key: 'etcCost', label: '⑥ 기타 비용' },
+        { key: 'serviceTotal', label: '⑦ 서비스 합계 (공급가)' },
+        { key: 'vat', label: '⑧ 부가세' },
+        { key: 'taxInvoice', label: '세금계산서 금액 (⑦+⑧)', strong: true },
+        { key: 'prepaid', label: '② 대납금액' },
+        { key: 'paid', label: '입금액' },
+    ];
+    let client, company = '', previewCompany = '', rows = [];
+    function esc(value) {
+        return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    function num(v) { const n = Number(String(v ?? '').replace(/[,\s원]/g, '')); return isFinite(n) ? n : 0; }
+    function won(n) { return Math.round(n).toLocaleString('ko-KR'); }
+    function cell(v, item) { return v ? (item.count ? v.toLocaleString('ko-KR') : won(v)) : '-'; }
+    function dateKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+    function showState(html) { document.getElementById('app').innerHTML = `<div class="card state">${html}</div>`; }
+
+    function preset(which) {
+        const now = new Date();
+        let from, to;
+        if (which === 'prev') { from = new Date(now.getFullYear(), now.getMonth() - 1, 1); to = new Date(now.getFullYear(), now.getMonth(), 0); }
+        else if (which === '3m') { from = new Date(now.getFullYear(), now.getMonth() - 2, 1); to = now; }
+        else { from = new Date(now.getFullYear(), now.getMonth(), 1); to = now; }
+        document.getElementById('from').value = dateKey(from);
+        document.getElementById('to').value = dateKey(to);
+        load();
+    }
+
+    async function init() {
+        if (!window.supabase) { showState('화면을 불러오지 못했습니다. 새로고침해주세요.'); return; }
+        client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const { data: { session } } = await client.auth.getSession();
+        if (!session) { showState('로그인 후 이용 현황을 확인할 수 있습니다.<br><br><a class="btn primary" href="/">로그인하러 가기</a>'); return; }
+        const { data: profile, error: pErr } = await client.from('profiles').select('company,role,status').eq('id', session.user.id).single();
+        if (pErr || !profile) { showState('계정 정보를 불러오지 못했습니다.<br>다시 로그인해주세요.<br><br><a class="btn" href="/">주문접수 화면</a>'); return; }
+        if (profile.role === 'admin') {
+            previewCompany = new URLSearchParams(location.search).get('company') || '';
+            if (!previewCompany) { showState('관리자는 [정산] 탭 > 업체별 이용 현황에서 [업체 화면]으로 열어주세요.<br><br><a class="btn" href="/">주문접수 화면</a>'); return; }
+            company = previewCompany;
+            document.getElementById('preview-bar').hidden = false;
+        } else {
+            if (profile.status !== 'approved') { showState('관리자 승인 후 이용 현황을 확인할 수 있습니다.'); return; }
+            company = profile.company;
+        }
+        document.title = `${company} 이용 현황`;
+        document.getElementById('app').innerHTML = `
+        <div class="card hero">
+            <div><div class="company">${esc(company)}</div><div class="date" id="period-label"></div></div>
+            <div class="period">
+                <button class="btn" onclick="preset('month')">이번 달</button>
+                <button class="btn" onclick="preset('prev')">지난 달</button>
+                <button class="btn" onclick="preset('3m')">최근 3개월</button>
+                <input type="date" id="from"> ~ <input type="date" id="to">
+                <button class="btn primary" onclick="load()">조회</button>
+            </div>
+        </div>
+        <div id="result"></div>`;
+        preset('month');
+    }
+
+    async function load() {
+        const from = document.getElementById('from').value, to = document.getElementById('to').value;
+        if (!from || !to) return;
+        const box = document.getElementById('result');
+        box.innerHTML = '<div class="card state">불러오는 중입니다...</div>';
+        const { data, error } = await client.rpc('get_my_settlements', { p_from: from, p_to: to, p_company: previewCompany || null });
+        if (error) {
+            box.innerHTML = `<div class="card state">이용 현황을 불러오지 못했습니다.<br>잠시 후 다시 시도해주세요.<br><span class="sub">${esc(error.message)}</span></div>`;
+            return;
+        }
+        rows = (data || []).map(r => {
+            const d = r.data || {};
+            const o = { date: r.settle_date, total: num(r.total), result: r.result || '', token: r.token };
+            ITEMS.forEach(it => { if (it.key !== 'taxInvoice') o[it.key] = num(d[it.key]); });
+            o.taxInvoice = o.serviceTotal + o.vat;
+            return o;
+        });
+        const lo = from <= to ? from : to, hi = from <= to ? to : from;
+        document.getElementById('period-label').textContent = `${lo} ~ ${hi}`;
+        render();
+    }
+
+    function render() {
+        const box = document.getElementById('result');
+        if (!rows.length) {
+            box.innerHTML = '<div class="card state">이 기간에 정산 내역이 없습니다.<br><span class="sub">정산서 상호가 가입하신 상호와 다르면 보이지 않을 수 있습니다. 밤낮딜리버리에 문의해 주세요.</span></div>';
+            return;
+        }
+        const sum = {}; ITEMS.forEach(it => { sum[it.key] = rows.reduce((n, r) => n + r[it.key], 0); });
+        const last = rows[0]; // 최신 정산일이 먼저 옴
+        box.innerHTML = `
+        <div class="card">
+            <div class="stats">
+                <div class="stat big"><b>${won(sum.taxInvoice)}</b><span>세금계산서 금액 (원)</span></div>
+                <div class="stat"><b>${rows.length}</b><span>이용 일수</span></div>
+                <div class="stat"><b>${sum.fulfillCount.toLocaleString('ko-KR')}</b><span>풀필 건수</span></div>
+                <div class="stat"><b>${sum.pickupStores.toLocaleString('ko-KR')}</b><span>픽업/반납 매장</span></div>
+                <div class="stat gray"><b>${won(sum.prepaid)}</b><span>대납금액 (원)</span></div>
+                <div class="stat gray"><b class="${last.result === '청구' ? 'red' : 'green'}">${won(last.total)}</b><span>현재 청구금액 (${esc(last.date.slice(5))})</span></div>
+            </div>
+        </div>
+        <div class="card">
+            <h2>항목별 합계</h2>
+            <div class="grid">${ITEMS.map(it => `<div class="${it.strong ? 'strong' : ''}"><span>${it.label}</span><b>${cell(sum[it.key], it)}${it.count || !sum[it.key] ? '' : '원'}</b></div>`).join('')}</div>
+            <p class="note">* 세금계산서 금액은 서비스 비용(공급가)과 부가세를 더한 금액입니다. 대납금액은 포함되지 않습니다.<br>* 세금계산서는 익월초에 "이레앤컴퍼니" 상호로 전자발급 됩니다.</p>
+        </div>
+        <div class="card">
+            <div class="tools" style="justify-content:space-between"><h2 style="margin:0">날짜별 내역</h2><button class="btn" onclick="downloadExcel()">엑셀 다운로드</button></div>
+            <div class="table-box" style="margin-top:10px">
+                <table>
+                    <thead><tr><th>정산일</th>${ITEMS.map(it => `<th style="text-align:right">${it.label}</th>`).join('')}<th style="text-align:right">총 청구금액</th><th>정산서</th></tr></thead>
+                    <tbody>${rows.map(r => `<tr>
+                        <td class="nowrap"><b>${esc(r.date)}</b></td>
+                        ${ITEMS.map(it => `<td class="num small nowrap" data-label="${esc(it.label)}">${r[it.key] ? cell(r[it.key], it) : ''}</td>`).join('')}
+                        <td class="num nowrap ${r.result === '청구' ? 'red' : 'green'}" data-label="총 청구금액">${won(r.total)} <span class="sub">${esc(r.result)}</span></td>
+                        <td class="nowrap">${r.token ? `<a href="/settle?t=${encodeURIComponent(r.token)}" target="_blank">보기</a>` : ''}</td>
+                    </tr>`).join('')}</tbody>
+                </table>
+            </div>
+        </div>`;
+    }
+
+    function downloadExcel() {
+        if (!rows.length) { alert('다운로드할 내역이 없습니다.'); return; }
+        const header = ['정산일', ...ITEMS.map(it => it.label), '총 청구금액', '결과'];
+        const data = [...rows].reverse().map(r => [r.date, ...ITEMS.map(it => r[it.key]), r.total, r.result]);
+        const sum = ['합계', ...ITEMS.map(it => rows.reduce((n, r) => n + r[it.key], 0)), '', ''];
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([header, ...data, sum]), '이용 현황');
+        XLSX.writeFile(wb, `${company}_이용현황_${document.getElementById('from').value}_${document.getElementById('to').value}.xlsx`);
+    }
+
+    init();
+</script>
+</body>
+</html>
