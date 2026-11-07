@@ -1,6 +1,6 @@
 // =====================================================================
 // 신규업체 AI 상담: AI 가 모르는 질문 → 대표님 답변 → 손님 휴대폰으로 전달
-//  - POST /api/inquiry        : 손님이 연락처를 남김 → 답변 대기 문의로 저장 + 대표님 휴대폰 문자 알림
+//  - POST /api/inquiry        : 손님이 연락처를 남김 → 답변 대기 문의로 저장 + 대표님께 알림 (알림톡 템플릿 있으면 카톡, 없으면 문자)
 //  - POST /api/inquiry/answer : 관리자가 답변을 적고 [보내기] → 손님 휴대폰으로 문자, 답변 모음집(ai_faq)에도 추가
 //      테스트 사이트(미리보기 주소)에서는 손님 대신 대표님 휴대폰으로 보냄
 //  - 표와 함수는 supabase/inquiries.sql
@@ -47,10 +47,26 @@ async function submitInquiry(request, env) {
     const test = PRODUCTION_HOSTS.includes(site.hostname) ? '' : '[테스트] ';
     const short = question.length > 80 ? question.slice(0, 80) + '…' : question;
     const text = `${test}[밤낮딜리버리] 새 AI 상담 문의 (답변대기)\n상호: ${body.company || '-'}\n이름: ${body.name || '-'}\n연락처: ${phone}\n문의: ${short}\n\n관리자 화면 > AI 상담에서 답변해 주세요.\n${site.origin}`;
-    const r = await solapiSend(env, { to, from: normPhone(env.SOLAPI_SENDER), text });
+    const from = normPhone(env.SOLAPI_SENDER);
+    // 카카오 승인된 알림톡 템플릿(SOLAPI_INQUIRY_TEMPLATE_ID)이 있으면 밤낮딜리버리 채널 카톡으로, 카톡이 안 되면 문자로 대신
+    const message = env.SOLAPI_INQUIRY_TEMPLATE_ID && env.SOLAPI_PF_ID
+      ? { to, from, kakaoOptions: { pfId: env.SOLAPI_PF_ID, templateId: env.SOLAPI_INQUIRY_TEMPLATE_ID, disableSms: false,
+          variables: inquiryTemplateVariables({ ...body, phone, question: short }) } }
+      : { to, from, text };
+    const r = await solapiSend(env, message);
     if (r.status !== 'sent') console.log('inquiry: admin notify failed', r.message);
   }
   return json({ status: 'saved' });
+}
+
+// 알림톡 템플릿 변수 (솔라피에 등록하는 템플릿의 #{...} 이름과 같아야 함 → README 참고)
+export function inquiryTemplateVariables(q) {
+  return {
+    '#{상호}': q.company || '-',
+    '#{이름}': q.name || '-',
+    '#{연락처}': q.phone || '-',
+    '#{문의}': q.question || '-',
+  };
 }
 
 export async function handleInquiryAnswer(request, env) {
