@@ -27,6 +27,13 @@
     const PC_ONLY = !!(me && me.dataset.floating === 'pc');
     const LABEL = (me && me.dataset.label) || '💬 궁금한 점 물어보기';
     const COLOR = /^#[0-9a-f]{3,8}$/i.test((me && me.dataset.color) || '') ? me.dataset.color : '#1e3a8a';
+    // 카카오톡 채널 답변 시간 안내 (한국 시간). 오전 8시~오후 4시: 1시간 안 / 오후 4시~밤 11시: 밤 10~11시 / 밤 11시~아침 8시: 아침 8시 이후
+    function kakaoHint() {
+        const h = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', hour: 'numeric', hourCycle: 'h23' }).format(new Date()));
+        if (h >= 8 && h < 16) return '⏰ 지금은 보통 1시간 안에 답변드려요 (오전 8시~오후 4시)';
+        if (h >= 16 && h < 23) return '🌙 지금 남기시면 보통 밤 10~11시 사이에 답변드려요 (오전 8시~오후 4시에는 1시간 안에 답변)';
+        return '🌙 지금 남기시면 아침 8시 이후 차례로 답변드려요 (오전 8시~오후 4시에는 1시간 안에 답변)';
+    }
     const history = [];
     // 상담창 한 번(새로 고치기 전까지)의 대화 묶음 표시. 사람을 알아볼 수 없는 무작위 글자입니다.
     const CHAT_ID = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
@@ -65,7 +72,8 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
 #bn-chat .bn-kakao small{font-weight:400;font-size:11px;color:#3c3c3c}
 #bn-chat .bn-human-bar{padding:8px 10px 0;border-top:1px solid #e5e7eb;background:#fff}
 #bn-chat .bn-human-card{background:#fff;border:1px solid #fde68a;border-radius:12px;padding:10px;margin:8px 0;display:grid;gap:6px}
-#bn-chat .bn-human-card span{font-size:12px;color:#475569}`;
+#bn-chat .bn-human-card span{font-size:12px;color:#475569}
+#bn-chat .bn-hint{display:block;font-size:11px;color:#6b7280;text-align:center;margin-top:3px}`;
     document.head.appendChild(css);
 
     const btn = document.createElement('button');
@@ -80,7 +88,7 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
 <div class="bn-log"></div>
 <div class="bn-note">AI 안내는 참고용이며, 정확한 견적·일정은 상담으로 확정됩니다. 상담 품질을 위해 질문·답변이 저장되며 1년 후 삭제됩니다. 개인정보(주민번호·카드번호 등)는 적지 마세요.
  <a href="#" class="bn-lead-link">대표님께 문의 남기기</a> · 전화 010-5425-9060</div>
-<div class="bn-human-bar"><a class="bn-kakao" href="${KAKAO}" target="_blank" rel="noopener">💬 사람과 상담하기 <small>(카카오톡 채널)</small></a></div>
+<div class="bn-human-bar"><a class="bn-kakao" href="${KAKAO}" target="_blank" rel="noopener">💬 사람과 상담하기 <small>(카카오톡 채널)</small></a><span class="bn-hint"></span></div>
 <form><textarea maxlength="500" placeholder="예) 풀필먼트 요금이 얼마예요?"></textarea><button type="submit">보내기</button></form>`;
 
     const log = box.querySelector('.bn-log');
@@ -121,6 +129,7 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
         card.className = 'bn-human-card';
         card.innerHTML = `<span>바로 사람과 이야기하고 싶으시면 카카오톡 채널로 상담해 주세요.</span>
 <a class="bn-kakao" href="${KAKAO}" target="_blank" rel="noopener">💬 사람과 상담하기 <small>(카카오톡 채널)</small></a>
+<span class="bn-hint">${kakaoHint()}</span>
 <span>카톡이 어려우시면 아래에 연락처를 남겨 주세요. 확인 후 문자로 답변드려요.</span>`;
         log.appendChild(card);
     }
@@ -208,7 +217,8 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
         input.focus();
     }
 
-    const open = () => { box.classList.add('open'); input.focus(); };
+    const barHint = box.querySelector('.bn-human-bar .bn-hint');
+    const open = () => { barHint.textContent = kakaoHint(); box.classList.add('open'); input.focus(); };
     btn.onclick = () => { if (box.classList.contains('open')) box.classList.remove('open'); else open(); };
     // 홈페이지의 "신규업체 상담전용" 같은 버튼: class="bn-chat-open" 을 붙이면 누를 때 열림
     document.addEventListener('click', e => {
