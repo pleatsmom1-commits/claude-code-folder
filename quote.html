@@ -35,6 +35,24 @@ button.send:disabled{opacity:.6}
 .done .big{font-size:60px}
 .done p{font-size:16px;color:#475569;line-height:1.65}
 .hide{display:none}
+/* PC(넓은 화면)에서는 칸을 두 줄로 나란히 놓고 글씨·여백을 조금 줄여 한 화면에 다 보이게 (휴대폰은 그대로) */
+@media(min-width:768px){
+  body{padding:28px 0}
+  .wrap{max-width:760px;min-height:0;border-radius:16px;overflow:hidden;box-shadow:0 8px 30px rgba(15,23,42,.08)}
+  header{padding:16px 24px}
+  header b{font-size:18px}
+  header small{font-size:13px}
+  main{padding:18px 24px 24px}
+  #form{display:grid;grid-template-columns:1fr 1fr;column-gap:16px}
+  #form .full,#form .agree,#form .send,#form .err{grid-column:1/-1}
+  .f{margin-bottom:12px}
+  .f label,.lb{font-size:14px;margin-bottom:5px}
+  input,textarea{padding:9px 12px;font-size:15px;border-radius:10px}
+  textarea{height:96px}
+  .chip{padding:7px 13px;font-size:14px}
+  .agree{padding:10px 12px;font-size:14px;margin:8px 0 12px}
+  button.send{padding:13px;font-size:16px}
+}
 </style>
 </head>
 <body>
@@ -45,7 +63,7 @@ button.send:disabled{opacity:.6}
       <div class="f"><label>상호 (쇼핑몰명) *</label><input id="company" placeholder="예) 해피옷장"></div>
       <div class="f"><label>담당자 이름 <span>(선택)</span></label><input id="name" placeholder="예) 김대표"></div>
       <div class="f"><label>휴대폰 번호 * <span>답변을 문자로 보내드려요</span></label><input id="phone" inputmode="tel" placeholder="예) 010-1234-5678"></div>
-      <div class="f"><div class="lb">이용하실 서비스 * <span>여러 개 골라도 돼요</span></div>
+      <div class="f full"><div class="lb">이용하실 서비스 * <span>여러 개 골라도 돼요</span></div>
         <div class="chips" id="services">
           <button type="button" class="chip">사입대행</button><button type="button" class="chip">풀필먼트 (고객 배송)</button>
           <button type="button" class="chip">매장·사무실 택배</button><button type="button" class="chip">당일배송</button>
@@ -53,7 +71,7 @@ button.send:disabled{opacity:.6}
         </div></div>
       <div class="f"><label>한 달 예상 물량 <span>(선택)</span></label><input id="volume" placeholder="예) 하루 30건, 한 달 약 600건"></div>
       <div class="f"><label>주로 사입하는 상가 <span>(선택)</span></label><input id="mall" placeholder="예) 누죤, 디오트, APM"></div>
-      <div class="f"><label>문의 내용 *</label><textarea id="question" rows="5" placeholder="궁금하신 점이나 원하시는 조건을 편하게 적어주세요"></textarea></div>
+      <div class="f full"><label>문의 내용 *</label><textarea id="question" rows="5" placeholder="궁금하신 점이나 원하시는 조건을 편하게 적어주세요"></textarea></div>
       <label class="agree" id="agree-box"><input type="checkbox" id="consent">
         <span><b>개인정보 수집·이용에 동의합니다 (필수)</b><small>견적 답변을 위해 상호·이름·휴대폰 번호를 받습니다. 문의 후 1년이 지나면 지웁니다.</small></span></label>
       <button class="send" id="send" type="submit">견적 문의 보내기</button>
