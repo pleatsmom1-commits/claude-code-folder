@@ -10,12 +10,14 @@
 //    · class="bn-chat-open"  : 홈페이지의 아무 버튼에나 붙이면, 누를 때 상담창이 열림 (예: "신규업체 상담전용" 버튼)
 //  - AI 가 모르는 질문이면 연락처 남기기 칸을 띄워 /api/inquiry (worker/inquiry.js) 로 보냅니다.
 //    대표님이 관리자 화면 > AI 상담에서 답하면 손님 휴대폰으로 문자가 갑니다.
+//  - 상담창 안의 노란 "사람과 상담하기" 버튼을 누르면 카카오톡 채널(밤낮딜리버리) 채팅방이 열립니다.
+//    AI 가 답할 수 없는 질문(사고·파손·분실·정산 다툼 등)에는 이 버튼을 크게 한 번 더 보여 줍니다.
 //  - 질문과 AI 답변은 관리자 화면 > AI 상담 > 상담 기록에 남습니다 (연락처·IP 는 저장 안 함, 1년 후 삭제).
 //    손님 화면의 대화는 창을 새로 고치면 사라집니다.
 // =====================================================================
 (function () {
     if (window.BamnatChat) return; // 홈페이지에 두 번 붙여도 버튼·창은 하나만
-    const KAKAO = 'http://pf.kakao.com/_yWhKb/chat';
+    const KAKAO = 'https://pf.kakao.com/_yWhKb/chat'; // 카카오톡 채널 bamnatdelivery 채팅방
     const me = document.currentScript;
     const BASE = me ? me.src : location.href;
     const API = new URL('/api/ask', BASE).href;
@@ -25,6 +27,13 @@
     const PC_ONLY = !!(me && me.dataset.floating === 'pc');
     const LABEL = (me && me.dataset.label) || '💬 궁금한 점 물어보기';
     const COLOR = /^#[0-9a-f]{3,8}$/i.test((me && me.dataset.color) || '') ? me.dataset.color : '#1e3a8a';
+    // 카카오톡 채널 답변 시간 안내 (한국 시간). 오전 8시~오후 4시: 1시간 안 / 오후 4시~밤 11시: 밤 10~11시 / 밤 11시~아침 8시: 아침 8시 이후
+    function kakaoHint() {
+        const h = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', hour: 'numeric', hourCycle: 'h23' }).format(new Date()));
+        if (h >= 8 && h < 16) return '⏰ 지금은 평균 1시간 안에 답변드려요 (오전 8시~오후 4시)';
+        if (h >= 16 && h < 23) return '🌙 지금 남기시면 보통 밤 10~11시 사이에 답변드려요 (오전 8시~오후 4시에는 평균 1시간 안에 답변)';
+        return '🌙 지금 남기시면 아침 8시 이후 차례로 답변드려요 (오전 8시~오후 4시에는 평균 1시간 안에 답변)';
+    }
     const history = [];
     // 상담창 한 번(새로 고치기 전까지)의 대화 묶음 표시. 사람을 알아볼 수 없는 무작위 글자입니다.
     const CHAT_ID = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
@@ -57,7 +66,14 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
 #bn-chat .bn-lead textarea{height:60px;resize:vertical}
 #bn-chat .bn-lead label{font-size:11px;color:#475569;display:flex;gap:6px;align-items:flex-start}
 #bn-chat .bn-lead .bn-send{border:0;border-radius:8px;background:#1e3a8a;color:#fff;padding:9px;font-weight:700;cursor:pointer}
-#bn-chat .bn-lead .bn-err{color:#e11d48;font-size:12px}`;
+#bn-chat .bn-lead .bn-err{color:#e11d48;font-size:12px}
+#bn-chat .bn-kakao{display:flex;align-items:center;justify-content:center;gap:6px;background:#FEE500;color:#191919;border-radius:10px;padding:9px;font:700 14px/1.2 sans-serif;text-decoration:none}
+#bn-chat .bn-kakao:hover{filter:brightness(.96)}
+#bn-chat .bn-kakao small{font-weight:400;font-size:11px;color:#3c3c3c}
+#bn-chat .bn-human-bar{padding:8px 10px 0;border-top:1px solid #e5e7eb;background:#fff}
+#bn-chat .bn-human-card{background:#fff;border:1px solid #fde68a;border-radius:12px;padding:10px;margin:8px 0;display:grid;gap:6px}
+#bn-chat .bn-human-card span{font-size:12px;color:#475569}
+#bn-chat .bn-hint{display:block;font-size:11px;color:#6b7280;text-align:center;margin-top:3px}`;
     document.head.appendChild(css);
 
     const btn = document.createElement('button');
@@ -71,7 +87,8 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
 <header><b>밤낮딜리버리 AI 안내</b><button type="button" aria-label="닫기">×</button></header>
 <div class="bn-log"></div>
 <div class="bn-note">AI 안내는 참고용이며, 정확한 견적·일정은 상담으로 확정됩니다. 상담 품질을 위해 질문·답변이 저장되며 1년 후 삭제됩니다. 개인정보(주민번호·카드번호 등)는 적지 마세요.
- <a href="#" class="bn-lead-link">대표님께 문의 남기기</a> · <a href="${KAKAO}" target="_blank" rel="noopener">카카오톡 상담</a> · 010-5425-9060</div>
+ <a href="#" class="bn-lead-link">대표님께 문의 남기기</a> · 전화 010-5425-9060</div>
+<div class="bn-human-bar"><a class="bn-kakao" href="${KAKAO}" target="_blank" rel="noopener">💬 사람과 상담하기 <small>(카카오톡 채널)</small></a><span class="bn-hint"></span></div>
 <form><textarea maxlength="500" placeholder="예) 풀필먼트 요금이 얼마예요?"></textarea><button type="submit">보내기</button></form>`;
 
     const log = box.querySelector('.bn-log');
@@ -105,6 +122,17 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
     human.onclick = () => showLeadForm('');
     quick.appendChild(human);
     log.appendChild(quick);
+
+    // AI 가 답할 수 없을 때: 카카오톡 채널로 바로 사람과 상담하도록 크게 안내
+    function showHumanCard() {
+        const card = document.createElement('div');
+        card.className = 'bn-human-card';
+        card.innerHTML = `<span>바로 사람과 이야기하고 싶으시면 카카오톡 채널로 상담해 주세요.</span>
+<a class="bn-kakao" href="${KAKAO}" target="_blank" rel="noopener">💬 사람과 상담하기 <small>(카카오톡 채널)</small></a>
+<span class="bn-hint">${kakaoHint()}</span>
+<span>카톡이 어려우시면 아래에 연락처를 남겨 주세요. 확인 후 문자로 답변드려요.</span>`;
+        log.appendChild(card);
+    }
 
     let leadBox = null;
     function showLeadForm(question) {
@@ -151,7 +179,7 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
                 }
                 msg = data.error;
             } catch { /* 아래 안내 */ }
-            err.textContent = msg || '연결이 원활하지 않아요. 카카오톡 bamnatdelivery 또는 010-5425-9060으로 문의해 주세요.';
+            err.textContent = msg || '연결이 원활하지 않아요. 아래 "사람과 상담하기"(카카오톡 채널) 또는 010-5425-9060으로 문의해 주세요.';
             sendBtn.disabled = false;
             sendBtn.textContent = '문의 남기기';
         };
@@ -183,13 +211,14 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
         } catch {
             history.pop();
         }
-        wait.textContent = answer || '연결이 원활하지 않아요. 카카오톡 bamnatdelivery 또는 010-5425-9060으로 문의해 주세요.';
-        if (needsHuman) showLeadForm(q);
+        wait.textContent = answer || '연결이 원활하지 않아요. 아래 "사람과 상담하기"(카카오톡 채널) 또는 010-5425-9060으로 문의해 주세요.';
+        if (needsHuman) { showHumanCard(); showLeadForm(q); }
         send.disabled = false;
         input.focus();
     }
 
-    const open = () => { box.classList.add('open'); input.focus(); };
+    const barHint = box.querySelector('.bn-human-bar .bn-hint');
+    const open = () => { barHint.textContent = kakaoHint(); box.classList.add('open'); input.focus(); };
     btn.onclick = () => { if (box.classList.contains('open')) box.classList.remove('open'); else open(); };
     // 홈페이지의 "신규업체 상담전용" 같은 버튼: class="bn-chat-open" 을 붙이면 누를 때 열림
     document.addEventListener('click', e => {
