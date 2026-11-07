@@ -68,10 +68,12 @@ function renderInquiries() {
         const log = (r.chat_log || []).map(m =>
             `<div class="${m.role === 'user' ? 'text-slate-800' : 'text-slate-500'}"><b>${m.role === 'user' ? '손님' : 'AI'}:</b> ${escapeHtml(m.content)}</div>`).join('');
         const waiting = r.status === 'waiting';
+        const isQuote = String(r.question || '').startsWith('[견적문의]');
         return `
 <div class="border border-slate-200 rounded-xl p-4 space-y-2 bg-white" data-inquiry="${r.id}">
   <div class="flex flex-wrap items-center gap-2 text-xs">
     <span class="px-2 py-0.5 rounded font-bold ${cls}">${escapeHtml(label)}</span>
+    ${isQuote ? '<span class="px-2 py-0.5 rounded font-bold bg-violet-100 text-violet-700">💰 견적문의</span>' : ''}
     <span class="text-slate-400">${inquiryTime(r.created_at)}</span>
     <b class="text-slate-800">${escapeHtml(r.company || '-')}</b>
     <span>${escapeHtml(r.name || '')}</span>
@@ -82,7 +84,7 @@ function renderInquiries() {
   ${log ? `<details class="text-xs"><summary class="cursor-pointer text-slate-500">AI 와 나눈 대화 보기</summary><div class="mt-1 space-y-1 bg-slate-50 rounded p-2 whitespace-pre-wrap">${log}</div></details>` : ''}
   ${waiting ? `
   <textarea class="inq-answer w-full border border-slate-300 rounded-lg p-2 text-sm" rows="3" placeholder="손님께 보낼 답변"></textarea>
-  <label class="flex items-center gap-1.5 text-xs text-slate-600"><input type="checkbox" class="inq-faq" checked> AI 답변 모음집에도 추가 (다음부터 AI 가 이 답을 참고)</label>
+  <label class="flex items-center gap-1.5 text-xs text-slate-600"><input type="checkbox" class="inq-faq" ${isQuote ? '' : 'checked'}> AI 답변 모음집에도 추가 (다음부터 AI 가 이 답을 참고)</label>
   <input class="inq-faq-q w-full border border-slate-200 rounded-lg p-2 text-xs" value="${escapeHtml(r.question)}" placeholder="모음집에 넣을 질문 (손님 이름·번호는 빼고 적어 주세요)">
   <div class="flex gap-2 justify-end">
     <button onclick="closeInquiry(${r.id})" class="px-3 py-1.5 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg">보내지 않고 완료</button>

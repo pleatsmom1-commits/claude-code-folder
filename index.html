@@ -935,6 +935,25 @@
                     <span id="pickup-notify-status" class="text-[11px] font-bold text-slate-400"></span>
                     <p class="w-full text-[11px] text-slate-400">여러 명은 쉼표(,)로 나눠 적어주세요. 새로 들어온 픽업요청만 한 건씩 바로 보냅니다.</p>
                 </div>
+                <!-- 비회원 간단 접수 (스크립트: quick-admin.js, 손님 화면: quick.html) -->
+                <div class="bg-white rounded-xl shadow-sm border-2 border-teal-200 p-5 space-y-3">
+                    <div class="flex justify-between items-start flex-wrap gap-2">
+                        <div>
+                            <h3 class="font-bold text-slate-900">🟢 비회원 간단 접수 <span id="quick-order-count" class="hidden ml-1 px-2 py-0.5 rounded bg-orange-100 text-orange-700 text-xs"></span></h3>
+                            <p class="text-xs text-slate-500 mt-0.5">회원가입 없이 홈페이지 [비회원 간단 접수하기]로 들어온 첫 주문입니다. 확인 후 [접수완료]를 눌러주세요. 두 번째 이용부터는 SO솔루션 가입을 안내해 주세요.</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <select id="quick-status-filter" onchange="fetchQuickOrders()" class="border border-slate-200 rounded-lg px-2 py-1 text-xs">
+                                <option value="waiting">확인대기</option>
+                                <option value="all">전체</option>
+                                <option value="done">접수완료</option>
+                                <option value="canceled">취소</option>
+                            </select>
+                            <button onclick="fetchQuickOrders()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg">새로고침</button>
+                        </div>
+                    </div>
+                    <div id="quick-order-list" class="space-y-3"></div>
+                </div>
                 <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
                     <!-- 조회: 기간 / 상태 / 검색 → [조회] -->
                     <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
@@ -1030,7 +1049,7 @@
                     <div class="flex justify-between items-start flex-wrap gap-2">
                         <div>
                             <h3 class="font-bold text-slate-900">손님이 남긴 문의</h3>
-                            <p class="text-xs text-slate-500 mt-0.5">AI 가 답하지 못한 질문입니다. 답변을 적고 [답변 보내기]를 누르면 손님 휴대폰으로 문자가 갑니다.</p>
+                            <p class="text-xs text-slate-500 mt-0.5">AI 가 답하지 못한 질문과 홈페이지 견적 문의(💰)입니다. 답변을 적고 [답변 보내기]를 누르면 손님 휴대폰으로 문자가 갑니다.</p>
                         </div>
                         <div class="flex gap-2">
                             <select id="inquiry-status-filter" onchange="fetchInquiries()" class="border border-slate-200 rounded-lg px-2 py-1 text-xs">
@@ -5101,7 +5120,7 @@
             document.getElementById('admin-chatlog-panel').classList.toggle('hidden', tab !== 'chatlog');
             renderAdminGroups(group);
             if (tab === 'settle') onSettleTabOpened();
-            if (tab === 'pickup') fetchAdminPickupRequests();
+            if (tab === 'pickup') { fetchAdminPickupRequests(); fetchQuickOrders(); }
             if (tab === 'stock') onStockTabOpened();
             if (tab === 'ship') onShipTabOpened();
             if (tab === 'inquiry') onInquiryTabOpened();
@@ -5635,6 +5654,7 @@
     <script src="order-ai.js"></script>
     <!-- 관리자 > AI 상담 (답변 대기 문의, 답변 모음집) -->
     <script src="inquiry-admin.js"></script>
+    <script src="quick-admin.js"></script>
     <!-- 오른쪽 아래 "궁금한 점 물어보기" AI 상담창 -->
     <script src="chat.js"></script>
     <!-- 밤낮딜리버리 풀필먼트 엑셀양식 원본 파일 (2026, 1번 작성안내 + 2번 엑셀양식). 양식을 바꾸려면 이 값을 새 파일로 교체하세요. -->
