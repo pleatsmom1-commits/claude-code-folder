@@ -305,3 +305,10 @@ Cloudflare **Workers & Pages → bamnat-delivery** 가 이 저장소의 `claude/
   아래 버튼에서 받는분별 운송장번호를 확인해 주세요.
   ```
   버튼: 웹링크 "운송장 확인" → `https://bamnat-delivery.bamnat.workers.dev/ship?t=#{토큰}`
+
+## 새 회원가입 알림 (카톡/문자)
+
+- 셀러가 회원가입하면 `ADMIN_NOTIFY_PHONE` 번호(쉼표로 여러 개 가능)로 알림이 갑니다.
+- Cloudflare 변수 `SOLAPI_SIGNUP_TEMPLATE_ID` 에 카카오 승인된 알림톡 템플릿 ID 를 넣으면 **카톡(알림톡)** 으로 보내고,
+  카톡이 실패하면 같은 내용을 문자로 대신 보냅니다. 비워두면 지금처럼 문자로 보냅니다.
+- 템플릿 변수 이름: `#{상호}`, `#{대표자}`, `#{연락처}`

@@ -25,7 +25,11 @@ const tables = {
   orders: [{ id: 'ORD-1', seller_id: ids.seller, seller_company: '애플샵', sender_name: '밤낮딜리버리(애플샵)', recipient: '홍길동', phone: '010-2222-3333', address: '서울', product: '티셔츠', status: '접수대기', ship_status: '미출고', order_type: 'fulfillment', order_no: 1, item_no: 1, seller_order_no: 1, created_at: new Date().toISOString() }],
   couriers: [{ id: 'c1', name: '우체국택배', sort_order: 1 }],
   address_book: [], pickup_requests: [], settlements: [], settle_contacts: [],
-  inquiries: [{ id: 7, created_at: '2026-10-30T01:00:00Z', company: '새샵', name: '박', phone: '01055556666', question: '토요일에도 픽업하나요?', chat_log: [{ role: 'user', content: '토요일에도 픽업하나요?' }, { role: 'assistant', content: '대표님이 확인해서 연락드릴게요.' }], source: 'https://www.bamnatdelivery.com/', status: 'waiting' }],
+  quick_orders: [
+    { id: 11, created_at: '2026-11-07T01:00:00Z', company: '해피옷장', phone: '01098765432', stores: [{ mall: '누죤', store: '블루하우스', floor: '3층 B12호', phone: '02-1234-5678' }], prepay: true, prepay_misong: false, ship_to: 'customer', recipients: [{ name: '김영희', phone: '010-2222-3333', address: '서울 강남구 1', product: '블라우스 2장', message: '' }], memo: '오늘 꼭', status: 'waiting' },
+    { id: 9, created_at: '2026-11-01T01:00:00Z', company: '해피옷장', phone: '01098765432', stores: [{ mall: '디오트', store: 'A', floor: '1층', phone: '021111111' }], prepay: false, prepay_misong: false, ship_to: 'store', recipients: [{ name: '해피옷장', phone: '01098765432', address: '서울', product: '', message: '' }], memo: '', status: 'done' },
+  ],
+  inquiries: [{ id: 8, created_at: '2026-10-31T01:00:00Z', company: '견적샵', name: '', phone: '01077778888', question: '[견적문의]\n서비스: 풀필먼트\n\n단가 궁금해요', chat_log: [], source: 'https://www.bamnatdelivery.com/ (견적문의)', status: 'answered', answer: '1건 4,600원입니다.' }, { id: 7, created_at: '2026-10-30T01:00:00Z', company: '새샵', name: '박', phone: '01055556666', question: '토요일에도 픽업하나요?', chat_log: [{ role: 'user', content: '토요일에도 픽업하나요?' }, { role: 'assistant', content: '대표님이 확인해서 연락드릴게요.' }], source: 'https://www.bamnatdelivery.com/', status: 'waiting' }],
   ai_faq: [{ id: 1, question: '부가세 포함인가요?', answer: '부가세 별도입니다.', active: true }],
   ai_chat_logs: (() => {
     const t = (dayAgo, h, m) => { const d = new Date(); d.setDate(d.getDate() - dayAgo); d.setHours(h, m, 0, 0); return d.toISOString(); };
@@ -147,6 +151,12 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   // ---------- 1. 로그인 화면 ----------
   await page.goto(PAGE); await page.waitForTimeout(800);
   check('login screen shown', await vis('#login-form'));
+  check('plain address: signup modal closed', !(await vis('#signup-modal')));
+
+  // ---------- 1-1. 홈페이지 버튼 주소(?signup)로 오면 회원가입 창이 바로 열림 ----------
+  await page.goto(PAGE + '&signup'); await page.waitForTimeout(800);
+  check('?signup opens signup modal right away', (await vis('#login-form')) && (await vis('#signup-modal')));
+  await page.goto(PAGE); await page.waitForTimeout(800);
 
   // ---------- 2. 회원가입 ----------
   await page.click('button:has-text("회원가입하기")'); await page.waitForTimeout(200);
@@ -308,7 +318,20 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.selectOption('#chatlog-filter', 'all');
   await page.click('#admin-tab-inquiry'); await page.waitForTimeout(300);
   check('back to 문의 hides chatlog', (await vis('#admin-inquiry-panel')) && !(await vis('#admin-chatlog-panel')));
+  await page.selectOption('#inquiry-status-filter', 'all'); await page.waitForTimeout(500);
+  check('quote inquiry shows 견적문의 badge', (await page.textContent('#inquiry-list')).includes('💰 견적문의'));
+  await page.selectOption('#inquiry-status-filter', 'waiting'); await page.waitForTimeout(300);
   await page.click('#admin-group-order'); await page.waitForTimeout(300);
+  // 비회원 간단 접수 (사입 픽업요청 탭 맨 위)
+  await page.click('#admin-tab-pickup'); await page.waitForTimeout(800);
+  const qt = await page.textContent('#quick-order-list');
+  check('quick orders listed (waiting only)', qt.includes('해피옷장') && qt.includes('블루하우스') && qt.includes('김영희') && !qt.includes('디오트'), qt.slice(0, 200));
+  check('quick order shows 2번째 이용 badge', qt.includes('2번째 이용'));
+  check('quick waiting count badge', (await page.textContent('#quick-order-count')).includes('1'));
+  await page.screenshot({ path: path.join(__dirname, 'out', 'shot-quick-admin.png') });
+  await page.click('#quick-order-list button:has-text("접수완료")'); await page.waitForTimeout(600);
+  check('quick order -> done', tables.quick_orders.find(r => r.id === 11).status === 'done');
+  await page.click('#admin-tab-orders'); await page.waitForTimeout(300);
   check('back to 주문관리 hides AI 상담 panel', !(await vis('#admin-inquiry-panel')) && (await vis('#admin-orders-panel')));
 
   // 회원가입 화면 캡처
