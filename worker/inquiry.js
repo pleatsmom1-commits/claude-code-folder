@@ -7,6 +7,7 @@
 // =====================================================================
 import { solapiSend, normPhone, maskPhone, json, PRODUCTION_HOSTS } from './alimtalk.js';
 import { fromOurSites } from './ask.js';
+import { adminPhones, smsOnlyPhones } from './notify.js';
 
 const CONTACT = '추가 문의: 카카오톡 bamnatdelivery / 010-5425-9060';
 
@@ -41,20 +42,24 @@ async function submitInquiry(request, env) {
   }
 
   // 대표님께 새 문의 알림 문자 (실패해도 문의 저장은 된 것)
-  const to = normPhone(env.ADMIN_NOTIFY_PHONE || env.SOLAPI_SENDER);
-  if (to && env.SOLAPI_API_KEY && env.SOLAPI_API_SECRET) {
+  // 받는 번호: ADMIN_NOTIFY_PHONE (쉼표로 여러 개 가능)
+  const phones = adminPhones(env);
+  if (phones.length && env.SOLAPI_API_KEY && env.SOLAPI_API_SECRET) {
     const site = new URL(request.url);
     const test = PRODUCTION_HOSTS.includes(site.hostname) ? '' : '[테스트] ';
     const short = question.length > 80 ? question.slice(0, 80) + '…' : question;
     const text = `${test}[밤낮딜리버리] 새 AI 상담 문의 (답변대기)\n상호: ${body.company || '-'}\n이름: ${body.name || '-'}\n연락처: ${phone}\n문의: ${short}\n\n관리자 화면 > AI 상담에서 답변해 주세요.\n${site.origin}`;
     const from = normPhone(env.SOLAPI_SENDER);
     // 카카오 승인된 알림톡 템플릿(SOLAPI_INQUIRY_TEMPLATE_ID)이 있으면 밤낮딜리버리 채널 카톡으로, 카톡이 안 되면 문자로 대신
-    const message = env.SOLAPI_INQUIRY_TEMPLATE_ID && env.SOLAPI_PF_ID
-      ? { to, from, kakaoOptions: { pfId: env.SOLAPI_PF_ID, templateId: env.SOLAPI_INQUIRY_TEMPLATE_ID, disableSms: false,
-          variables: inquiryTemplateVariables({ ...body, phone, question: short }) } }
-      : { to, from, text };
-    const r = await solapiSend(env, message);
-    if (r.status !== 'sent') console.log('inquiry: admin notify failed', r.message);
+    // (ADMIN_SMS_ONLY_PHONE 번호는 항상 문자)
+    for (const to of phones) {
+      const message = env.SOLAPI_INQUIRY_TEMPLATE_ID && env.SOLAPI_PF_ID && !smsOnlyPhones(env).includes(to)
+        ? { to, from, kakaoOptions: { pfId: env.SOLAPI_PF_ID, templateId: env.SOLAPI_INQUIRY_TEMPLATE_ID, disableSms: false,
+            variables: inquiryTemplateVariables({ ...body, phone, question: short }) } }
+        : { to, from, text };
+      const r = await solapiSend(env, message);
+      if (r.status !== 'sent') console.log('inquiry: admin notify failed', maskPhone(to), r.message);
+    }
   }
   return json({ status: 'saved' });
 }

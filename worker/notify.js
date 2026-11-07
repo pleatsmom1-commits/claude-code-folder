@@ -7,6 +7,7 @@
 //  - 새 회원가입 알림: Cloudflare 설정에 SOLAPI_SIGNUP_TEMPLATE_ID(카카오 승인된 알림톡 템플릿)가 있으면
 //    카톡(알림톡)으로, 카톡이 안 되면 같은 내용 문자로 대신 보냅니다. 템플릿이 없으면 문자로 보냅니다.
 //  - 받는 번호(ADMIN_NOTIFY_PHONE)는 쉼표로 여러 개 적을 수 있습니다. 예: "01054259060,01012345678"
+//    ADMIN_SMS_ONLY_PHONE 에 적은 번호는 알림톡 템플릿이 있어도 항상 문자로 받습니다.
 // =====================================================================
 import { solapiSend, normPhone, maskPhone, json, PRODUCTION_HOSTS } from './alimtalk.js';
 
@@ -77,12 +78,17 @@ export async function handleSellerApproved(request, env) {
 
 function adminPhone(env) { return adminPhones(env)[0] || null; }
 
-// ADMIN_NOTIFY_PHONE 에 쉼표(,)로 적은 번호들 (중복 제거)
+// 알림 받는 번호들 (중복 제거): ADMIN_NOTIFY_PHONE(카톡 알림톡 우선) + ADMIN_SMS_ONLY_PHONE(항상 문자만)
+//  둘 다 쉼표(,)로 여러 개 적을 수 있습니다.
 export function adminPhones(env) {
-  const list = String(env.ADMIN_NOTIFY_PHONE || env.SOLAPI_SENDER || '')
-    .split(/[,;/]+/).map(normPhone).filter(Boolean);
+  const list = [...splitPhones(env.ADMIN_NOTIFY_PHONE || env.SOLAPI_SENDER), ...smsOnlyPhones(env)];
   return [...new Set(list)];
 }
+
+// 알림톡이 있어도 문자로만 받을 번호 (ADMIN_SMS_ONLY_PHONE)
+export function smsOnlyPhones(env) { return splitPhones(env.ADMIN_SMS_ONLY_PHONE); }
+
+function splitPhones(v) { return String(v || '').split(/[,;/]+/).map(normPhone).filter(Boolean); }
 
 // 알림톡 템플릿 변수 (카카오에 등록하는 템플릿과 이름이 같아야 함 → README 참고)
 export function signupTemplateVariables(p) {
@@ -100,7 +106,7 @@ export function signupText(p, origin) {
 // 알림톡 템플릿이 있으면 알림톡(실패 시 같은 내용 문자), 없으면 문자
 export function signupMessage(env, to, p, origin) {
   const from = normPhone(env.SOLAPI_SENDER);
-  if (env.SOLAPI_SIGNUP_TEMPLATE_ID && env.SOLAPI_PF_ID) {
+  if (env.SOLAPI_SIGNUP_TEMPLATE_ID && env.SOLAPI_PF_ID && !smsOnlyPhones(env).includes(to)) {
     return {
       to, from,
       kakaoOptions: { pfId: env.SOLAPI_PF_ID, templateId: env.SOLAPI_SIGNUP_TEMPLATE_ID, disableSms: false, variables: signupTemplateVariables(p) },
