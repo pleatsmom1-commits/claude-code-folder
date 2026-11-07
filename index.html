@@ -923,6 +923,14 @@
 
             <!-- 3-4. 사입 픽업요청 (셀러가 접수한 픽업요청 목록) -->
             <div id="admin-pickup-panel" class="hidden space-y-4">
+                <!-- 사입팀 알림 받을 번호: 새 픽업요청이 들어오면 이 번호로 바로 알림 (worker/pickup_notify.js) -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 px-6 py-4 flex flex-wrap items-center gap-2">
+                    <span class="text-xs font-black text-slate-700">📱 사입팀 알림 받을 번호</span>
+                    <input type="text" id="pickup-notify-phones" oninput="showPickupNotifyCount()" placeholder="예) 010-1234-5678, 010-2345-6789" class="px-3 py-1.5 border rounded-lg text-xs bg-white w-80">
+                    <button type="button" onclick="savePickupNotifyPhones()" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-black">저장</button>
+                    <span id="pickup-notify-status" class="text-[11px] font-bold text-slate-400"></span>
+                    <p class="w-full text-[11px] text-slate-400">여러 명은 쉼표(,)로 나눠 적어주세요. 새로 들어온 픽업요청만 한 건씩 바로 보냅니다.</p>
+                </div>
                 <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
                     <!-- 조회: 기간 / 상태 / 검색 → [조회] -->
                     <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
@@ -4693,7 +4701,7 @@
 
             const btn = document.getElementById('btn-pickup-submit');
             btn.disabled = true;
-            const { error } = await supabaseClient.from('pickup_requests').insert([{
+            const { data: inserted, error } = await supabaseClient.from('pickup_requests').insert([{
                 seller_company: currentSellerAccount.company || '',
                 orderer_name: ordererName,
                 orderer_phone: ordererPhone,
@@ -4704,7 +4712,7 @@
                 prepay_misong: misong,
                 agreed: (prepay || misong) ? agreed : false,
                 memo: document.getElementById('pk-memo').value.trim() || null,
-            }]);
+            }]).select('id');
             btn.disabled = false;
             if (error) {
                 console.error('픽업요청 오류:', error);
@@ -4712,11 +4720,63 @@
                 if (['PGRST205', '42P01'].includes(error.code)) msg = 'DB 설정이 아직 적용되지 않았습니다.\n(관리자: Supabase SQL Editor에서 supabase/pickup.sql 을 실행해주세요)';
                 return alert('픽업요청을 접수하지 못했습니다.\n\n' + msg);
             }
+            if (inserted && inserted[0]) notifyPickupTeam(inserted[0].id);
             alert('픽업요청이 접수되었습니다. 감사합니다.');
             ['pk-store-name', 'pk-store-location', 'pk-store-phone', 'pk-memo'].forEach(id => { document.getElementById(id).value = ''; });
             document.querySelectorAll('input[name="pk-prepay"], input[name="pk-misong"]').forEach(r => { r.checked = false; });
             updatePickupAgree();
             loadMyPickupRequests();
+        }
+
+        // 새 픽업요청을 사입팀 휴대폰으로 알림 (worker/pickup_notify.js). 실패해도 접수에는 영향 없음
+        function notifyPickupTeam(id) {
+            fetch('/api/pickup/notify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id })
+            }).catch(() => {});
+        }
+
+        // ---- 관리자: 사입팀 알림 받을 번호 (DB: app_settings, supabase/pickup_notify.sql) ----
+        async function loadPickupNotifyPhones() {
+            if (!supabaseClient || currentRole !== 'admin') return;
+            const input = document.getElementById('pickup-notify-phones');
+            const status = document.getElementById('pickup-notify-status');
+            const { data, error } = await supabaseClient.from('app_settings').select('value').eq('key', 'pickup_notify_phones');
+            if (error) {
+                status.innerText = '아직 설정 전입니다. (Supabase SQL Editor에서 supabase/pickup_notify.sql 을 실행해주세요)';
+                status.className = 'text-[11px] font-bold text-rose-600';
+                return;
+            }
+            input.value = (data && data[0] && data[0].value) || '';
+            showPickupNotifyCount();
+        }
+
+        function showPickupNotifyCount() {
+            const status = document.getElementById('pickup-notify-status');
+            const n = document.getElementById('pickup-notify-phones').value.split(/[,\n/;]+/)
+                .map(v => v.replace(/\D/g, '')).filter(v => /^0\d{8,10}$/.test(v)).length;
+            status.innerText = n ? `새 픽업요청이 들어오면 ${n}명에게 바로 알림이 갑니다.` : '번호가 없으면 알림이 가지 않습니다.';
+            status.className = 'text-[11px] font-bold ' + (n ? 'text-emerald-700' : 'text-slate-400');
+        }
+
+        async function savePickupNotifyPhones() {
+            const raw = document.getElementById('pickup-notify-phones').value;
+            const parts = raw.split(/[,\n/;]+/).map(v => v.trim()).filter(Boolean);
+            const bad = parts.filter(v => !/^0\d{8,10}$/.test(v.replace(/\D/g, '')));
+            if (bad.length) return alert('휴대폰 번호가 올바르지 않습니다:\n' + bad.join('\n') + '\n\n여러 명은 쉼표(,)로 나눠 적어주세요.');
+            const value = parts.join(', ');
+            const { error } = await supabaseClient.from('app_settings')
+                .upsert({ key: 'pickup_notify_phones', value, updated_at: new Date().toISOString() });
+            if (error) {
+                console.error('사입팀 알림 번호 저장 오류:', error);
+                let msg = dbErrorMessage(error);
+                if (['PGRST205', '42P01'].includes(error.code)) msg = 'DB 설정이 아직 적용되지 않았습니다.\n(Supabase SQL Editor에서 supabase/pickup_notify.sql 을 실행해주세요)';
+                return alert('저장하지 못했습니다.\n\n' + msg);
+            }
+            document.getElementById('pickup-notify-phones').value = value;
+            showPickupNotifyCount();
+            alert('사입팀 알림 번호를 저장했습니다.');
         }
 
         function pickupStatusBadge(status) {
@@ -4746,6 +4806,7 @@
         // ---- 관리자: 사입 픽업요청 목록 ----
         async function fetchAdminPickupRequests() {
             if (!supabaseClient || currentRole !== 'admin') return;
+            loadPickupNotifyPhones();
             const { data, error } = await fetchAllRows(() => supabaseClient.from('pickup_requests').select('*')
                 .order('created_at', { ascending: false }));
             if (error) {
