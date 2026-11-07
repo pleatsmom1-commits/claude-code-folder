@@ -50,12 +50,12 @@
     </header>
 
     <!-- Operational Status Banner -->
-    <div id="status-banner" class="px-6 py-2.5 text-sm font-medium flex justify-between items-center transition-colors">
+    <div id="status-banner" class="px-4 sm:px-6 py-2.5 text-sm font-medium flex flex-col sm:flex-row gap-1.5 sm:gap-4 sm:justify-between sm:items-center transition-colors">
         <div class="flex items-center gap-2">
             <i id="status-icon" data-lucide="info" class="w-4 h-4"></i>
             <span id="status-text">상태 로딩 중...</span>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span id="status-subtext" class="text-xs opacity-90"></span>
             <span id="status-clock" class="font-mono text-xs font-bold bg-black/20 px-2 py-0.5 rounded whitespace-nowrap"></span>
         </div>
@@ -2417,11 +2417,11 @@
             const subtext = document.getElementById('status-subtext');
 
             if (phase === 'kakao') {
-                banner.className = "bg-amber-500 text-white px-6 py-2.5 text-sm font-medium flex justify-between items-center shadow-inner";
+                banner.className = "bg-amber-500 text-white px-4 sm:px-6 py-2.5 text-sm font-medium flex flex-col sm:flex-row gap-1.5 sm:gap-4 sm:justify-between sm:items-center shadow-inner";
                 text.innerText = "배송접수 24시간 가능 · 지금(07:30~14:00) 당일 출고 긴급건은 카카오톡 단톡방으로 꼭 알려주세요";
                 subtext.innerText = "접수누락 방지를 위해 당일 출고건은 단톡방 안내 메세지가 필수입니다.";
             } else {
-                banner.className = "bg-emerald-500 text-white px-6 py-2.5 text-sm font-medium flex justify-between items-center shadow-inner";
+                banner.className = "bg-emerald-500 text-white px-4 sm:px-6 py-2.5 text-sm font-medium flex flex-col sm:flex-row gap-1.5 sm:gap-4 sm:justify-between sm:items-center shadow-inner";
                 text.innerText = "배송접수는 24시간 가능 · 사입 픽업요청은 23시 전까지 접수해주세요";
                 subtext.innerText = "관리자 마감(접수완료) 전·출고 전 주문은 수정/삭제할 수 있습니다.";
             }
