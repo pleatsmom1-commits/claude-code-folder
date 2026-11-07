@@ -31,33 +31,44 @@
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
             <div class="flex flex-wrap items-end gap-3">
                 <div>
-                    <h2 class="font-bold text-slate-900">이번 달 AI 사용료</h2>
-                    <p class="text-xs text-slate-500 mt-0.5">처음 보는 주문서 양식일 때만 AI 를 불러요. 같은 양식은 저장된 정보로 읽어서 비용이 들지 않아요.<br>원화는 1달러 = <span id="rate-label"></span>원으로 어림한 값이고, 실제 청구는 Claude Console 의 금액이 기준이에요.</p>
+                    <h2 class="font-bold text-slate-900">AI 사용료</h2>
+                    <p class="text-xs text-slate-500 mt-0.5">우리 사이트에서 AI 를 쓴 곳의 비용을 모두 모아 보여 줘요. 쓸 때마다 바로 기록돼서 새로고침하면 반영돼요.<br>원화는 1달러 = <span id="rate-label"></span>원으로 어림한 값이고, 실제 청구는 Claude Console 의 금액이 기준이에요.</p>
                 </div>
                 <label class="text-xs space-y-1 ml-auto"><span class="font-bold text-slate-600 block">월</span><input type="month" id="f-month" onchange="load()" class="px-2 py-1.5 border rounded-lg"></label>
+                <button onclick="load()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg">새로고침</button>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div class="rounded-lg bg-slate-50 border border-slate-200 p-4"><p class="text-xs text-slate-500">AI 분석 횟수</p><p id="sum-count" class="text-2xl font-black text-slate-900 mt-1">0</p></div>
+                <div class="rounded-lg bg-indigo-50 border border-indigo-200 p-4"><p class="text-xs text-indigo-700">이번 달 사용료 (원, 어림)</p><p id="sum-krw" class="text-2xl font-black text-indigo-700 mt-1">0원</p></div>
                 <div class="rounded-lg bg-slate-50 border border-slate-200 p-4"><p class="text-xs text-slate-500">사용료 (달러)</p><p id="sum-usd" class="text-2xl font-black text-slate-900 mt-1">$0</p></div>
-                <div class="rounded-lg bg-indigo-50 border border-indigo-200 p-4"><p class="text-xs text-indigo-700">사용료 (원, 어림)</p><p id="sum-krw" class="text-2xl font-black text-indigo-700 mt-1">0원</p></div>
+                <div class="rounded-lg bg-slate-50 border border-slate-200 p-4"><p class="text-xs text-slate-500">AI 사용 횟수</p><p id="sum-count" class="text-2xl font-black text-slate-900 mt-1">0</p></div>
             </div>
         </div>
-
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+            <h3 class="font-bold text-slate-900">어디서 썼나요 (사용처별)</h3>
+            <table class="w-full text-xs"><thead class="bg-slate-50 text-slate-500"><tr><th class="px-2 py-2 text-left">사용처</th><th class="px-2 py-2 text-right">횟수</th><th class="px-2 py-2 text-right">사용료</th><th class="px-2 py-2 text-left w-1/4">비율</th></tr></thead>
+            <tbody id="by-place"></tbody></table>
+        </div>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
-                <h3 class="font-bold text-slate-900">업체별</h3>
+                <h3 class="font-bold text-slate-900">날짜별</h3>
+                <div class="max-h-[360px] overflow-y-auto">
+                    <table class="w-full text-xs"><thead class="bg-slate-50 text-slate-500 sticky top-0"><tr><th class="px-2 py-2 text-left">날짜</th><th class="px-2 py-2 text-right">주문서 읽기</th><th class="px-2 py-2 text-right">AI 상담</th><th class="px-2 py-2 text-right">합계</th></tr></thead>
+                    <tbody id="by-day"></tbody></table>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+                <h3 class="font-bold text-slate-900">주문서 읽기 업체별</h3>
                 <table class="w-full text-xs"><thead class="bg-slate-50 text-slate-500"><tr><th class="px-2 py-2 text-left">업체</th><th class="px-2 py-2 text-right">횟수</th><th class="px-2 py-2 text-right">사용료</th></tr></thead>
                 <tbody id="by-company"></tbody></table>
             </div>
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
-                <h3 class="font-bold text-slate-900">최근 사용 기록</h3>
-                <div class="max-h-[360px] overflow-y-auto">
-                    <table class="w-full text-xs"><thead class="bg-slate-50 text-slate-500 sticky top-0"><tr><th class="px-2 py-2 text-left">시간</th><th class="px-2 py-2 text-left">업체</th><th class="px-2 py-2 text-left">파일</th><th class="px-2 py-2 text-right">사용료</th></tr></thead>
-                    <tbody id="recent"></tbody></table>
-                </div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+            <h3 class="font-bold text-slate-900">최근 사용 기록</h3>
+            <div class="max-h-[420px] overflow-y-auto">
+                <table class="w-full text-xs"><thead class="bg-slate-50 text-slate-500 sticky top-0"><tr><th class="px-2 py-2 text-left">시간</th><th class="px-2 py-2 text-left">사용처</th><th class="px-2 py-2 text-left">내용</th><th class="px-2 py-2 text-right">사용료</th></tr></thead>
+                <tbody id="recent"></tbody></table>
             </div>
         </div>
-
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
             <div>
                 <h3 class="font-bold text-slate-900">저장된 주문서 양식</h3>
@@ -72,7 +83,7 @@
 </main>
 
 <script>
-    // 관리자 전용. ai_usage / order_file_formats (supabase/order_ai.sql)
+    // 관리자 전용. ai_usage / order_file_formats (supabase/order_ai.sql) + AI 상담 비용 ai_chat_logs (supabase/ai_chat_logs.sql, ai_chat_cost.sql)
     const KRW_PER_USD = 1400;
     let client = null;
     const embed = new URLSearchParams(location.search).has('embed');
@@ -104,29 +115,53 @@
         await load();
     }
 
+    // 사용처: 어디서 AI 를 썼는지
+    const PLACES = {
+        order: ['📄 셀러 주문서 읽기', '셀러가 쇼핑몰 주문서를 그대로 올릴 때 (처음 보는 양식만)'],
+        chat_home: ['🤖 AI 상담 · 홈페이지', '홈페이지(bamnatdelivery.com) 상담창 질문'],
+        chat_site: ['🤖 AI 상담 · 주문접수 사이트', '주문접수 사이트 오른쪽 아래 상담창 질문'],
+    };
+    const chatPlace = src => /bamnatdelivery\.com|cafe24/.test(src || '') ? 'chat_home' : 'chat_site';
+    const dayKey = iso => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
     async function load() {
         const [y, m] = document.getElementById('f-month').value.split('-').map(Number);
         if (!y) return;
         const start = new Date(y, m - 1, 1).toISOString(), end = new Date(y, m, 1).toISOString();
-        const [u, f] = await Promise.all([
+        const [u, f, c] = await Promise.all([
             client.from('ai_usage').select('*').gte('created_at', start).lt('created_at', end).order('created_at', { ascending: false }).limit(5000),
             client.from('order_file_formats').select('*').order('last_used_at', { ascending: false }).limit(500),
+            client.from('ai_chat_logs').select('created_at, question, source, cost_usd').gte('created_at', start).lt('created_at', end).order('created_at', { ascending: false }).limit(20000),
         ]);
         const error = u.error || f.error;
         if (error) { showState('불러오지 못했습니다.<br><span class="text-xs">' + esc(errorMessage(error)) + '</span>'); return; }
-        const rows = u.data || [];
-        const total = rows.reduce((s, r) => s + Number(r.cost_usd || 0), 0);
+        // AI 상담 기록(supabase/ai_chat_logs.sql, ai_chat_cost.sql)이 아직 없으면 0 으로 봄
+        const orderRows = (u.data || []).map(r => ({ ...r, place: 'order', detail: [r.company, r.note].filter(Boolean).join(' · ') }));
+        const chatRows = (c.error ? [] : c.data || []).map(r => ({ created_at: r.created_at, cost_usd: r.cost_usd || 0, place: chatPlace(r.source), detail: r.question }));
+        const rows = [...orderRows, ...chatRows].sort((a, b) => b.created_at.localeCompare(a.created_at));
+        const sum = list => list.reduce((s, r) => s + Number(r.cost_usd || 0), 0);
+        const total = sum(rows);
         document.getElementById('sum-count').textContent = rows.length.toLocaleString('ko-KR');
         document.getElementById('sum-usd').textContent = usd(total);
         document.getElementById('sum-krw').textContent = krw(total);
 
+        document.getElementById('by-place').innerHTML = Object.entries(PLACES).map(([key, [name, desc]]) => {
+            const list = rows.filter(r => r.place === key), cost = sum(list), pct = total ? Math.round(cost / total * 100) : 0;
+            return `<tr class="border-b border-slate-100"><td class="px-2 py-2"><b>${name}</b><div class="text-[11px] text-slate-400">${desc}</div></td><td class="px-2 py-2 text-right">${list.length}</td><td class="px-2 py-2 text-right whitespace-nowrap"><b>${krw(cost)}</b> <span class="text-slate-400">(${usd(cost)})</span></td><td class="px-2 py-2"><div class="flex items-center gap-2"><div class="flex-1 h-2 bg-slate-100 rounded"><div class="h-2 bg-indigo-500 rounded" style="width:${pct}%"></div></div><span class="text-slate-500 w-8 text-right">${pct}%</span></div></td></tr>`;
+        }).join('');
+
+        const byDay = new Map();
+        rows.forEach(r => { const k = dayKey(r.created_at); const d = byDay.get(k) || { order: 0, chat: 0 }; d[r.place === 'order' ? 'order' : 'chat'] += Number(r.cost_usd || 0); byDay.set(k, d); });
+        document.getElementById('by-day').innerHTML = [...byDay.entries()].sort((a, b) => b[0].localeCompare(a[0]))
+            .map(([k, d]) => `<tr class="border-b border-slate-100"><td class="px-2 py-2 font-bold whitespace-nowrap">${k.slice(5).replace('-', '/')} (${'일월화수목금토'[new Date(k + 'T00:00:00').getDay()]})</td><td class="px-2 py-2 text-right">${krw(d.order)}</td><td class="px-2 py-2 text-right">${krw(d.chat)}</td><td class="px-2 py-2 text-right font-bold">${krw(d.order + d.chat)}</td></tr>`).join('')
+            || '<tr><td colspan="4" class="px-2 py-6 text-center text-slate-400">이 달에는 사용 기록이 없어요.</td></tr>';
+
         const by = new Map();
-        rows.forEach(r => { const b = by.get(r.company) || { n: 0, cost: 0 }; b.n++; b.cost += Number(r.cost_usd || 0); by.set(r.company, b); });
+        orderRows.forEach(r => { const b = by.get(r.company) || { n: 0, cost: 0 }; b.n++; b.cost += Number(r.cost_usd || 0); by.set(r.company, b); });
         document.getElementById('by-company').innerHTML = [...by.entries()].sort((a, b) => b[1].cost - a[1].cost)
-            .map(([c, b]) => `<tr class="border-b border-slate-100"><td class="px-2 py-2 font-bold">${esc(c)}</td><td class="px-2 py-2 text-right">${b.n}</td><td class="px-2 py-2 text-right">${usd(b.cost)} <span class="text-slate-400">(${krw(b.cost)})</span></td></tr>`).join('')
-            || '<tr><td colspan="3" class="px-2 py-6 text-center text-slate-400">이 달에는 사용 기록이 없어요.</td></tr>';
-        document.getElementById('recent').innerHTML = rows.slice(0, 100)
-            .map(r => `<tr class="border-b border-slate-100"><td class="px-2 py-2 whitespace-nowrap">${fmtTime(r.created_at)}</td><td class="px-2 py-2">${esc(r.company)}</td><td class="px-2 py-2 text-slate-500">${esc(r.note)}</td><td class="px-2 py-2 text-right">${usd(r.cost_usd)}</td></tr>`).join('')
+            .map(([co, b]) => `<tr class="border-b border-slate-100"><td class="px-2 py-2 font-bold">${esc(co)}</td><td class="px-2 py-2 text-right">${b.n}</td><td class="px-2 py-2 text-right">${usd(b.cost)} <span class="text-slate-400">(${krw(b.cost)})</span></td></tr>`).join('')
+            || '<tr><td colspan="3" class="px-2 py-6 text-center text-slate-400">이 달에는 주문서 읽기 기록이 없어요.</td></tr>';
+        document.getElementById('recent').innerHTML = rows.slice(0, 200)
+            .map(r => `<tr class="border-b border-slate-100"><td class="px-2 py-2 whitespace-nowrap">${fmtTime(r.created_at)}</td><td class="px-2 py-2 whitespace-nowrap">${PLACES[r.place][0]}</td><td class="px-2 py-2 text-slate-500 max-w-[420px] truncate" title="${esc(r.detail)}">${esc(r.detail)}</td><td class="px-2 py-2 text-right whitespace-nowrap">${krw(r.cost_usd)} <span class="text-slate-400">(${usd(r.cost_usd)})</span></td></tr>`).join('')
             || '<tr><td colspan="4" class="px-2 py-6 text-center text-slate-400">기록 없음</td></tr>';
         document.getElementById('formats').innerHTML = (f.data || [])
             .map(r => `<tr class="border-b border-slate-100"><td class="px-2 py-2 font-bold">${esc(r.company)}</td><td class="px-2 py-2">${esc(r.platform) || '-'}</td><td class="px-2 py-2 text-slate-500 max-w-[320px] truncate" title="${esc(r.signature)}">${esc(r.signature.split('|').filter(Boolean).slice(0, 8).join(', '))}</td><td class="px-2 py-2 text-right">${r.use_count}</td><td class="px-2 py-2 whitespace-nowrap">${fmtTime(r.last_used_at)}</td><td class="px-2 py-2 text-right"><button onclick="removeFormat(${r.id})" class="px-2 py-1 border border-rose-200 text-rose-600 rounded text-[11px] font-bold hover:bg-rose-50">지우기</button></td></tr>`).join('')
@@ -134,7 +169,6 @@
         document.getElementById('state').classList.add('hidden');
         document.getElementById('app').classList.remove('hidden');
     }
-
     async function removeFormat(id) {
         if (!confirm('이 양식 정보를 지울까요? 다음에 같은 양식을 올리면 AI 가 다시 읽어요.')) return;
         const { error } = await client.from('order_file_formats').delete().eq('id', id);

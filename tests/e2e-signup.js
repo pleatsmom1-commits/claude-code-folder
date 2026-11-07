@@ -31,12 +31,12 @@ const tables = {
     const t = (dayAgo, h, m) => { const d = new Date(); d.setDate(d.getDate() - dayAgo); d.setHours(h, m, 0, 0); return d.toISOString(); };
     const home = 'https://www.bamnatdelivery.com/', site = 'https://bamnat-delivery.bamnat.workers.dev/';
     return [
-      { id: 6, created_at: t(0, 14, 12), chat_id: 'a', question: '고객 반품은 어디로 보내면 돼요?', answer: '고객이 직접 보내는 경우: 서울시 중구 청계천로 400, 메가몰 2층 2072호 밤낮딜리버리로 보내 주세요. 반품봉투 겉에 구매한 업체 상호명을 꼭 적어 주세요.', needs_human: false, source: home },
-      { id: 5, created_at: t(0, 14, 10), chat_id: 'a', question: '카드로 결제할 수 있어요?', answer: '현재 카드결제는 불가하며, 계좌이체로만 가능합니다.', needs_human: false, source: home },
-      { id: 4, created_at: t(0, 10, 3), chat_id: 'b', question: '이번 주 금요일에 300장 들어가면 견적 얼마예요?', answer: '이 부분은 대표님이 직접 확인해서 연락드릴게요. 아래에 연락처를 남겨 주시면 답변을 보내 드려요.', needs_human: true, source: home },
-      { id: 3, created_at: t(1, 22, 40), chat_id: 'c', question: '모닝픽업은 몇시까지 신청해요?', answer: '모닝픽업은 오전 9시까지 받고 있으며, 낮시장에 한해 가능합니다. 픽업은 오전 9시 이후 진행됩니다.', needs_human: false, source: site },
-      { id: 2, created_at: t(3, 16, 5), chat_id: 'd', question: '풀필먼트 요금이 얼마예요?', answer: '풀필먼트는 기본 1건당 4,600원입니다(부가세 별도).', needs_human: false, source: home },
-      { id: 1, created_at: t(3, 16, 7), chat_id: 'd', question: '남대문도 사입 돼요?', answer: '남대문은 현재 어렵습니다.', needs_human: false, source: home },
+      { id: 6, created_at: t(0, 14, 12), chat_id: 'a', question: '고객 반품은 어디로 보내면 돼요?', answer: '고객이 직접 보내는 경우: 서울시 중구 청계천로 400, 메가몰 2층 2072호 밤낮딜리버리로 보내 주세요. 반품봉투 겉에 구매한 업체 상호명을 꼭 적어 주세요.', needs_human: false, source: home , cost_usd: 0.015 },
+      { id: 5, created_at: t(0, 14, 10), chat_id: 'a', question: '카드로 결제할 수 있어요?', answer: '현재 카드결제는 불가하며, 계좌이체로만 가능합니다.', needs_human: false, source: home , cost_usd: 0.015 },
+      { id: 4, created_at: t(0, 10, 3), chat_id: 'b', question: '이번 주 금요일에 300장 들어가면 견적 얼마예요?', answer: '이 부분은 대표님이 직접 확인해서 연락드릴게요. 아래에 연락처를 남겨 주시면 답변을 보내 드려요.', needs_human: true, source: home , cost_usd: 0.015 },
+      { id: 3, created_at: t(1, 22, 40), chat_id: 'c', question: '모닝픽업은 몇시까지 신청해요?', answer: '모닝픽업은 오전 9시까지 받고 있으며, 낮시장에 한해 가능합니다. 픽업은 오전 9시 이후 진행됩니다.', needs_human: false, source: site , cost_usd: 0.015 },
+      { id: 2, created_at: t(3, 16, 5), chat_id: 'd', question: '풀필먼트 요금이 얼마예요?', answer: '풀필먼트는 기본 1건당 4,600원입니다(부가세 별도).', needs_human: false, source: home , cost_usd: 0.015 },
+      { id: 1, created_at: t(3, 16, 7), chat_id: 'd', question: '남대문도 사입 돼요?', answer: '남대문은 현재 어렵습니다.', needs_human: false, source: home , cost_usd: 0.015 },
     ];
   })(),
 };

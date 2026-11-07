@@ -9,6 +9,8 @@ const SETTLE_PAGE_PATH = '/settle';
 const SETTLE_RESULT_MESSAGE = { '청구': '입금 부탁드립니다.', '이월': '결제완료, 잔여금입니다.', '영수': '결제완료' };
 
 let settleContacts = [];          // [{company, phone, memo}]
+let settleContactChecked = new Set(); // 연락처 표에서 공지 문자 보낼 업체 (정산서와 상관없음)
+let settleMsgMode = 'settle';     // 문자 창: 'settle' = 위 정산서 표, 'notice' = 연락처 표(일반 공지), 'unpaid' = 미납 업체 표
 let settleExcelRows = null;       // 엑셀에서 읽은 정산서 (정산일 무관 전체)
 let settleExcelFileName = '';
 let settleSaved = [];             // 선택한 정산일의 저장된 정산서
@@ -148,6 +150,7 @@ function settleContactPhone(company) {
 }
 
 function renderSettleContacts() {
+    if (settleUnpaidRows.length) renderSettleUnpaid(); // 연락처가 바뀌면 미납 표의 연락처·체크칸도 다시 그림
     const keyword = settleNorm(document.getElementById('settle-contact-search').value);
     const withPhone = settleContacts.filter(c => c.phone).length;
     document.getElementById('settle-contact-count').textContent =
@@ -155,13 +158,22 @@ function renderSettleContacts() {
 
     const list = settleContacts.filter(c =>
         !keyword || settleNorm(c.company).includes(keyword) || String(c.phone || '').includes(keyword.replace(/\D/g, '') || '@@'));
+    settleContactShown = list;
+    settleUpdateNoticeButton();
     const tbody = document.getElementById('settle-contact-list');
+    const all = document.getElementById('settle-contact-check-all');
+    if (all) {
+        const can = list.filter(c => c.phone);
+        all.checked = can.length > 0 && can.every(c => settleContactChecked.has(c.company));
+    }
     if (!list.length) {
-        tbody.innerHTML = `<tr><td colspan="3" class="p-6 text-center text-slate-400">${settleContacts.length ? '검색 결과가 없습니다.' : '등록된 연락처가 없습니다. [연락처 엑셀 올리기]로 등록하세요.'}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-400">${settleContacts.length ? '검색 결과가 없습니다.' : '등록된 연락처가 없습니다. [연락처 엑셀 올리기]로 등록하세요.'}</td></tr>`;
         return;
     }
     tbody.innerHTML = list.map(c => `
-        <tr class="hover:bg-slate-50">
+        <tr class="hover:bg-slate-50 ${settleContactChecked.has(c.company) ? 'bg-amber-50/60' : ''}">
+            <td class="p-2.5"><input type="checkbox" data-company="${escapeHtml(c.company)}" ${c.phone ? '' : 'disabled title="연락처가 없어 문자를 보낼 수 없습니다"'}
+                ${settleContactChecked.has(c.company) ? 'checked' : ''} onchange="toggleSettleContactCheck(this.dataset.company, this.checked)" class="w-4 h-4 align-middle cursor-pointer disabled:cursor-not-allowed"></td>
             <td class="p-2.5 font-bold">${escapeHtml(c.company)}</td>
             <td class="p-2.5">
                 <input type="text" value="${escapeHtml(settlePhoneLabel(c.phone))}" placeholder="연락처 없음"
@@ -173,6 +185,25 @@ function renderSettleContacts() {
                     class="px-2 py-1 text-[11px] text-rose-600 hover:bg-rose-50 rounded">삭제</button>
             </td>
         </tr>`).join('');
+}
+
+let settleContactShown = [];       // 지금 연락처 표에 보이는 업체 (검색 반영)
+
+function toggleSettleContactCheck(company, on) {
+    if (on) settleContactChecked.add(company); else settleContactChecked.delete(company);
+    renderSettleContacts();
+}
+
+// 머리줄 체크: 지금 보이는(검색된) 업체 중 연락처 있는 곳 전체 체크/해제
+function toggleSettleContactAll(on) {
+    settleContactShown.filter(c => c.phone).forEach(c => on ? settleContactChecked.add(c.company) : settleContactChecked.delete(c.company));
+    renderSettleContacts();
+}
+
+function settleUpdateNoticeButton() {
+    const n = settleContacts.filter(c => c.phone && settleContactChecked.has(c.company)).length;
+    const btn = document.getElementById('settle-notice-btn');
+    if (btn) btn.lastChild.textContent = ` 공지 문자 보내기 (${n}곳)`;
 }
 
 async function saveSettleContactPhone(input) {
@@ -805,13 +836,31 @@ function settleDuplicateMessage(date, list) {
 // 5. 문자 보내기: 체크한 업체에 직접 쓴 문자 (정정·긴급 안내용, 서버: /api/settle/message)
 // ---------------------------------------------------------------------
 function settleMessageTargets() {
+    if (settleMsgMode === 'unpaid') return settleUnpaidRows.filter(r => settleUnpaidChecked.has(r.company) && settleContactPhone(r.company)).map(r => ({ company: r.company, date: r.lastDate }));
+    if (settleMsgMode === 'notice') return settleContacts.filter(c => c.phone && settleContactChecked.has(c.company)).map(c => ({ company: c.company }));
     return settleCurrentList().filter(r => settleChecked.has(r.company));
 }
 
-function openSettleMessage() {
+// mode: 'settle' = 정산서 표에서 체크한 업체, 'notice' = 연락처 표에서 체크한 업체에 일반 공지 (정산서 링크 없음),
+//       'unpaid' = 미납 업체 표에서 체크한 업체 (링크는 그 업체 마지막 정산서)
+function openSettleMessage(mode = 'settle') {
+    settleMsgMode = mode;
     const targets = settleMessageTargets();
-    if (!targets.length) { alert('문자 보낼 업체를 표 왼쪽 칸에서 먼저 체크해 주세요.'); return; }
+    if (!targets.length) {
+        alert(mode === 'notice' ? '공지 보낼 거래처를 [정산 거래처 연락처] 표 왼쪽 칸에서 먼저 체크해 주세요.'
+            : mode === 'unpaid' ? '문자 보낼 미납 업체를 [미납 업체 조회] 표 왼쪽 칸에서 먼저 체크해 주세요. (연락처 있는 곳만 보낼 수 있습니다)'
+            : '문자 보낼 업체를 표 왼쪽 칸에서 먼저 체크해 주세요.');
+        return;
+    }
+    const linkBox = document.getElementById('settle-msg-link');
+    if (mode === 'notice') linkBox.checked = false;
+    document.getElementById('settle-msg-link-row').classList.toggle('hidden', mode === 'notice');
+    document.getElementById('settle-msg-title').textContent = mode === 'notice' ? '공지 문자 보내기' : mode === 'unpaid' ? '미납 안내 문자' : '문자 보내기';
     const box = document.getElementById('settle-msg-text');
+    if (mode === 'unpaid' && (!box.value.trim() || box.value.trim() === '[밤낮딜리버리] {상호}님,')) {
+        box.value = '[밤낮딜리버리] {상호}님, 보내드린 정산 청구금액의 입금이 아직 확인되지 않았습니다. 확인 후 입금 부탁드립니다. 이미 입금하셨다면 이 문자는 무시해 주세요.';
+        linkBox.checked = true;
+    }
     if (!box.value.trim()) box.value = '[밤낮딜리버리] {상호}님, ';
     document.getElementById('settle-msg-count').textContent = targets.length;
     document.getElementById('settle-msg-targets').textContent = targets
@@ -848,14 +897,17 @@ function updateSettleMessageInfo() {
 }
 
 async function sendSettleMessage(isTest) {
-    const date = document.getElementById('settle-date').value;
+    const notice = settleMsgMode === 'notice';
+    const date = (!notice && document.getElementById('settle-date').value) || settleDateOffset(0);
     const targets = settleMessageTargets();
     const text = document.getElementById('settle-msg-text').value.trim();
-    const includeLink = document.getElementById('settle-msg-link').checked;
+    const includeLink = !notice && document.getElementById('settle-msg-link').checked;
     if (!targets.length) { alert('문자 보낼 업체를 체크해 주세요.'); return; }
     if (!text || text === '[밤낮딜리버리] {상호}님,') { alert('보낼 내용을 입력해 주세요.'); return; }
 
     const payload = { date, companies: targets.map(r => r.company), text, includeLink };
+    // 미납 안내: 업체마다 마지막 정산일이 달라서, 링크를 그 업체 마지막 정산서로 붙이도록 날짜를 같이 보냄
+    if (settleMsgMode === 'unpaid') payload.companyDates = Object.fromEntries(targets.map(r => [r.company, r.date]));
     if (isTest) {
         const raw = prompt(`시험으로 받을 휴대폰 번호를 입력하세요.\n([${targets[0].company}] 기준 내용으로 1건만 갑니다. 거래처에게는 가지 않습니다)`, '');
         if (raw === null) return;
@@ -883,8 +935,9 @@ async function sendSettleMessage(isTest) {
         send.disabled = false;
         alert(settleResultReport(data).replace('발송 접수', '문자 접수'));
         closeSettleMessage();
-        settleChecked.clear();
-        renderSettleTable();
+        if (settleMsgMode === 'unpaid') { settleUnpaidChecked.clear(); renderSettleUnpaid(); }
+        else if (notice) { settleContactChecked.clear(); renderSettleContacts(); }
+        else { settleChecked.clear(); renderSettleTable(); }
     } catch (err) {
         alert('문자를 보내지 못했습니다.\n\n' + err.message);
     }
@@ -1430,4 +1483,99 @@ async function deleteSettleVersions(ids) {
         + (reverted ? `\n· ${reverted}곳은 정산서가 이전 회차 내용으로 돌아갔습니다.` : '')
         + (removed ? `\n· ${removed}곳은 남은 회차가 없어 정산서도 삭제됐습니다.` : '')
         + (blocked.length ? `\n· 이미 보낸 ${blocked.length}건은 그대로 두었습니다.` : ''));
+}
+
+// ---------------------------------------------------------------------
+// 미납 업체 조회: 정산서를 보낸 지 N일이 지났는데 입금 없이 청구금액이 그대로인 업체
+//  - 업체별로 가장 최근 정산서부터 거꾸로 보며, '그 다음 정산서에 입금액이 0이고 청구금액이 그대로이거나 늘어난'
+//    청구 정산서를 묶습니다. (매일 서비스를 받아 입금 없이 금액이 쌓이는 업체도 포함)
+//    입금이 있으면 다음 정산서에 입금액이 찍히거나 금액이 줄어 묶음이 끊깁니다.
+//  - 묶음 안에서 가장 먼저 보낸 날부터 N일(달력 날짜)이 지났으면 미납으로 봅니다.
+// ---------------------------------------------------------------------
+let settleUnpaidRows = [];
+let settleUnpaidShown = [];
+let settleUnpaidChecked = new Set();
+
+function settleFindUnpaid(rows, minDays, now = Date.now()) {
+    const byCompany = new Map();
+    for (const r of rows) {
+        if (!byCompany.has(r.company)) byCompany.set(r.company, []);
+        byCompany.get(r.company).push(r);
+    }
+    const out = [];
+    for (const [company, list] of byCompany) {
+        list.sort((a, b) => (a.settle_date < b.settle_date ? 1 : -1));
+        const latest = list[0];
+        const total = Number(latest.total) || 0;
+        if (latest.result !== '청구' || total <= 0) continue;
+        let chain = [latest];
+        for (let i = 1; i < list.length; i++) {
+            const newer = list[i - 1], older = list[i];
+            const olderTotal = Number(older.total) || 0;
+            if (older.result !== '청구' || olderTotal <= 0 || olderTotal > (Number(newer.total) || 0) || (Number(newer.paid) || 0) !== 0) break;
+            chain.push(older);
+        }
+        const sent = chain.filter(r => r.sent_at).sort((a, b) => (a.sent_at < b.sent_at ? -1 : 1))[0];
+        if (!sent) continue;
+        const day0 = t => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+        const days = Math.round((day0(now) - day0(sent.sent_at)) / 86400000); // 달력 날짜 기준 (11/3 보냄 → 11/5 = 2일)
+        if (days < minDays) continue;
+        out.push({ company, total, firstTotal: Number(sent.total) || 0, firstDate: sent.settle_date, firstSentAt: sent.sent_at, days, lastDate: latest.settle_date, token: latest.token });
+    }
+    return out.sort((a, b) => b.days - a.days || b.total - a.total);
+}
+
+async function loadSettleUnpaid() {
+    const tbody = document.getElementById('settle-unpaid-list');
+    tbody.innerHTML = '<tr><td colspan="8" class="p-6 text-center text-slate-400">불러오는 중...</td></tr>';
+    const { data, error } = await fetchAllRows(() => supabaseClient.from('settlements')
+        .select('company, settle_date, token, total, result, sent_at, paid:data->>paid')
+        .gte('settle_date', settleDateOffset(90)).order('settle_date', { ascending: false }).order('company'));
+    if (error) {
+        tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-rose-500">${escapeHtml('불러오지 못했습니다: ' + dbErrorMessage(error))}</td></tr>`;
+        return;
+    }
+    const minDays = Math.max(0, Number(document.getElementById('settle-unpaid-days').value) || 0);
+    settleUnpaidRows = settleFindUnpaid(data, minDays);
+    settleUnpaidChecked = new Set([...settleUnpaidChecked].filter(c => settleUnpaidRows.some(r => r.company === c)));
+    renderSettleUnpaid();
+}
+
+function renderSettleUnpaid() {
+    const keyword = settleNorm(document.getElementById('settle-unpaid-keyword').value);
+    const list = settleUnpaidRows.filter(r => !keyword || settleNorm(r.company).includes(keyword));
+    settleUnpaidShown = list;
+    const sum = list.reduce((n, r) => n + r.total, 0);
+    document.getElementById('settle-unpaid-count').textContent = `${list.length}곳 · ${settleWon(sum)}원`;
+    const n = settleUnpaidRows.filter(r => settleUnpaidChecked.has(r.company) && settleContactPhone(r.company)).length;
+    const btn = document.getElementById('settle-unpaid-msg-btn');
+    if (btn) btn.lastChild.textContent = ` 미납 안내 문자 (${n}곳)`;
+    const can = list.filter(r => settleContactPhone(r.company));
+    document.getElementById('settle-unpaid-check-all').checked = can.length > 0 && can.every(r => settleUnpaidChecked.has(r.company));
+    const tbody = document.getElementById('settle-unpaid-list');
+    if (!list.length) { tbody.innerHTML = '<tr><td colspan="8" class="p-6 text-center text-slate-400">미납 업체가 없습니다.</td></tr>'; return; }
+    tbody.innerHTML = list.map(r => {
+        const phone = settleContactPhone(r.company);
+        return `<tr class="hover:bg-slate-50 ${settleUnpaidChecked.has(r.company) ? 'bg-amber-50/60' : ''}">
+            <td class="p-2.5"><input type="checkbox" data-company="${escapeHtml(r.company)}" ${phone ? '' : 'disabled title="연락처가 없어 문자를 보낼 수 없습니다"'}
+                ${settleUnpaidChecked.has(r.company) ? 'checked' : ''} onchange="toggleSettleUnpaidCheck(this.dataset.company, this.checked)" class="w-4 h-4 align-middle cursor-pointer disabled:cursor-not-allowed"></td>
+            <td class="p-2.5 font-bold">${escapeHtml(r.company)}</td>
+            <td class="p-2.5 text-right font-bold text-rose-600">${settleWon(r.total)}${r.firstTotal && r.firstTotal !== r.total ? `<div class="text-[10px] font-normal text-slate-400">처음 보낸 금액 ${settleWon(r.firstTotal)}</div>` : ''}</td>
+            <td class="p-2.5 whitespace-nowrap">${escapeHtml(r.firstDate)} <span class="text-[10px] text-slate-400">(${escapeHtml(settleSentTime(r.firstSentAt))} 발송)</span></td>
+            <td class="p-2.5 font-bold ${r.days >= 7 ? 'text-rose-600' : 'text-orange-600'}">${r.days}일째</td>
+            <td class="p-2.5 whitespace-nowrap">${escapeHtml(r.lastDate)}</td>
+            <td class="p-2.5">${phone ? escapeHtml(settlePhoneLabel(phone)) : '<span class="text-rose-500 font-bold">연락처 없음</span>'}</td>
+            <td class="p-2.5 whitespace-nowrap">${r.token ? `<a href="${escapeHtml(settleLink(r.token))}" target="_blank" class="px-2 py-1 text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 rounded">보기</a>` : ''}</td>
+        </tr>`;
+    }).join('');
+}
+
+function toggleSettleUnpaidCheck(company, on) {
+    if (on) settleUnpaidChecked.add(company); else settleUnpaidChecked.delete(company);
+    renderSettleUnpaid();
+}
+
+function toggleSettleUnpaidAll(on) {
+    settleUnpaidShown.filter(r => settleContactPhone(r.company)).forEach(r => on ? settleUnpaidChecked.add(r.company) : settleUnpaidChecked.delete(r.company));
+    renderSettleUnpaid();
 }

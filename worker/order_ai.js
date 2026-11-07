@@ -15,7 +15,7 @@ const MAX_COLS = 80;
 const MAX_CELL = 40;       // 칸 하나 최대 글자 수
 const LIMIT_PER_MIN = 10;  // 같은 계정 1분당 AI 분석 수 (사용료 과다 방지)
 // 백만 토큰당 달러 (입력, 출력) — 비용 화면 계산용. 모르는 모델은 Opus 5.5 가격으로 계산
-const PRICES = { 'claude-opus-5-5': [4, 20], 'claude-sonnet-5-5': [3, 15], 'claude-haiku-5-5': [1, 5] };
+export const PRICES = { 'claude-opus-5-5': [4, 20], 'claude-sonnet-5-5': [3, 15], 'claude-haiku-5-5': [1, 5] };
 
 export const FIELDS = ['recipient', 'phone', 'phone2', 'zipcode', 'address', 'address_detail', 'product', 'option', 'qty', 'memo', 'order_no'];
 
