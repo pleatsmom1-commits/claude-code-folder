@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>비회원 간단 주문접수 - 밤낮딜리버리</title>
+<!-- 회원가입 없이 첫 주문을 받는 화면 (/quick). 질문에 하나씩 답하면 /api/quick-order (worker/quick_order.js) 로 보냅니다.
+     표: supabase/quick_orders.sql · 관리자 화면: [사입 픽업요청] 탭 맨 위 '비회원 간단 접수' (quick-admin.js) -->
+<style>
+*{box-sizing:border-box}
+:root{--g:#0d9488;--g2:#10c9a8;--gl:#f0fdfa;--r:#e11d48;--t:#0f172a;--m:#64748b}
+body{margin:0;background:#f1f5f9;font-family:'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:var(--t)}
+.wrap{max-width:520px;margin:0 auto;min-height:100vh;background:#fff;display:flex;flex-direction:column}
+header{background:var(--g2);color:#fff;padding:16px 18px 13px}
+header b{font-size:19px;display:block}
+header small{font-size:13px;opacity:.92}
+.bar{height:8px;background:#ccfbf1}.bar i{display:block;height:8px;background:var(--g);transition:width .25s;width:0}
+main{flex:1;padding:20px 18px 120px}
+.step{font-size:14px;color:var(--g);font-weight:800}
+h1{font-size:24px;line-height:1.35;margin:6px 0 8px}
+.hint{font-size:15px;color:var(--m);line-height:1.55;margin:0 0 14px}
+.warn{color:var(--r);font-weight:800}
+.f{margin-bottom:12px}
+.f label{display:block;font-size:15px;font-weight:800;margin-bottom:5px}
+.f label span{font-weight:500;color:var(--m);font-size:13px}
+input,textarea{width:100%;border:2px solid #cbd5e1;border-radius:12px;padding:13px;font-size:17px;font-family:inherit;color:var(--t);background:#fff}
+input:focus,textarea:focus{outline:none;border-color:var(--g)}
+input.bad,textarea.bad{border-color:var(--r);background:#fff1f2}
+.group{border:2px solid #e2e8f0;border-radius:16px;padding:14px;margin-bottom:14px;position:relative}
+.group .gt{font-size:14px;font-weight:900;color:var(--g);margin-bottom:10px}
+.group .del{position:absolute;right:12px;top:10px;border:0;background:none;color:var(--m);font-size:14px;font-weight:700;cursor:pointer}
+.add{width:100%;border:2px dashed #99f6e4;background:#fff;border-radius:14px;padding:13px;font-size:16px;font-weight:800;color:var(--g);cursor:pointer}
+.choice{display:block;width:100%;text-align:left;border:2px solid #e2e8f0;background:#fff;border-radius:14px;padding:16px;font-size:17px;font-weight:800;margin-bottom:10px;cursor:pointer;color:var(--t);font-family:inherit}
+.choice small{display:block;font-weight:500;font-size:14px;color:var(--m);margin-top:3px}
+.choice.on{border-color:var(--g);background:var(--gl);color:#0f766e}
+.q2{font-size:16px;font-weight:900;margin:16px 0 8px}
+.agree{display:flex;gap:10px;align-items:flex-start;border:2px solid var(--r);border-radius:14px;padding:13px;font-size:15px;line-height:1.5;margin-top:12px;cursor:pointer}
+.agree input{width:22px;height:22px;flex:none;margin-top:2px}
+.agree small{display:block;color:var(--m);font-size:13px}
+.notice{background:#fff7ed;border:2px solid #fdba74;border-radius:14px;padding:12px 14px;font-size:14.5px;line-height:1.55;color:#9a3412;margin-bottom:14px}
+.mic{font-size:14px;color:#475569;background:#f8fafc;border-radius:12px;padding:11px 13px;margin-top:6px}
+.sum{border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;font-size:15px}
+.sum div{padding:11px 13px;border-bottom:1px solid #f1f5f9;line-height:1.5;white-space:pre-wrap}
+.sum b{display:block;font-size:13px;color:var(--g)}
+.err{color:var(--r);font-weight:800;font-size:15px;margin-top:10px;min-height:1px}
+nav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #e2e8f0;padding:12px 18px 18px}
+nav .in{max-width:520px;margin:0 auto;display:flex;gap:10px}
+nav button{border-radius:14px;padding:16px;font-size:18px;font-weight:900;font-family:inherit;cursor:pointer}
+#btn-prev{flex:1;border:2px solid #cbd5e1;background:#fff;color:#475569}
+#btn-next{flex:2;border:0;background:var(--g);color:#fff}
+#btn-next.off{background:#cbd5e1}
+#btn-next:disabled{opacity:.7}
+.done{text-align:center;padding-top:40px}
+.done .big{font-size:64px}
+.done p{font-size:16px;color:#475569;line-height:1.65}
+.box{background:#eef2ff;border-radius:14px;padding:15px;font-size:15px;color:#3730a3;text-align:left;line-height:1.65;margin-top:18px}
+.hide{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><b>비회원 간단 주문접수</b><small id="sub">가입 없이 질문에 답하기만 하면 돼요</small></header>
+  <div class="bar"><i id="bar"></i></div>
+  <main id="main"></main>
+</div>
+<nav id="nav"><div class="in"><button id="btn-prev" type="button">이전</button><button id="btn-next" type="button">다음 ▶</button></div></nav>
+
+<script>
+(function () {
+  const TOTAL = 6;
+  const d = {
+    company: '', phone: '',
+    stores: [{ mall: '', store: '', floor: '', phone: '' }],
+    prepay: null, prepayMisong: null, agreed: false,
+    shipTo: '',
+    recipients: [{ name: '', phone: '', address: '', product: '', message: '' }],
+    memo: '', consent: false,
+  };
+  let step = 1, sending = false, tried = false;
+  const main = document.getElementById('main');
+  const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const digits = v => String(v || '').replace(/\D/g, '');
+  const okPhone = v => /^0\d{8,10}$/.test(digits(v));
+  const okMobile = v => /^01\d{8,9}$/.test(digits(v));
+  const kstHour = () => Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Seoul', hour: '2-digit', hour12: false }).format(new Date())) % 24;
+  const lateNotice = () => (kstHour() >= 23 || kstHour() < 1)
+    ? '<div class="notice">⏰ 지금은 <b>23시가 지났어요.</b> 23시 이후 픽업요청건은 사입팀 사정으로 인해 픽업이 불발될 수도 있습니다.</div>' : '';
+
+  const field = (key, label, val, opt = {}) => `
+    <div class="f"><label>${label}${opt.req === false ? ' <span>(선택)</span>' : ' *'}</label>
+    ${opt.area ? `<textarea rows="${opt.rows || 3}" data-k="${key}" placeholder="${esc(opt.ph || '')}" class="${opt.bad ? 'bad' : ''}">${esc(val)}</textarea>`
+      : `<input data-k="${key}" value="${esc(val)}" placeholder="${esc(opt.ph || '')}" ${opt.tel ? 'inputmode="tel"' : ''} class="${opt.bad ? 'bad' : ''}">`}</div>`;
+
+  // 단계마다 다 적었는지 확인 (못 적은 칸 이름 목록)
+  function missing(s = step) {
+    const m = [];
+    if (s === 1) {
+      if (!d.company.trim()) m.push('company');
+      if (!okMobile(d.phone)) m.push('phone');
+    }
+    if (s === 2) d.stores.forEach((x, i) => {
+      ['mall', 'store', 'floor'].forEach(k => { if (!x[k].trim()) m.push(`stores.${i}.${k}`); });
+      if (!okPhone(x.phone)) m.push(`stores.${i}.phone`);
+    });
+    if (s === 3) {
+      if (d.prepay === null) m.push('prepay');
+      if (d.prepayMisong === null) m.push('prepayMisong');
+      if ((d.prepay || d.prepayMisong) && !d.agreed) m.push('agreed');
+    }
+    if (s === 4 && !d.shipTo) m.push('shipTo');
+    if (s === 5) d.recipients.forEach((x, i) => {
+      if (!x.name.trim()) m.push(`recipients.${i}.name`);
+      if (!okPhone(x.phone)) m.push(`recipients.${i}.phone`);
+      if (!x.address.trim()) m.push(`recipients.${i}.address`);
+      if (d.shipTo === 'customer' && !x.product.trim()) m.push(`recipients.${i}.product`);
+    });
+    if (s === 7 && !d.consent) m.push('consent');
+    return m;
+  }
+  const bad = k => tried && missing().includes(k);
+
+  function render() {
+    const m = missing();
+    document.getElementById('bar').style.width = `${Math.min(step, TOTAL) / TOTAL * 100}%`;
+    document.getElementById('btn-prev').classList.toggle('hide', step === 1 || step === 8);
+    document.getElementById('nav').classList.toggle('hide', step === 8);
+    const next = document.getElementById('btn-next');
+    next.textContent = step === 7 ? (sending ? '접수하는 중…' : '접수하기') : '다음 ▶';
+    next.classList.toggle('off', m.length > 0);
+    next.disabled = sending;
+    document.getElementById('sub').textContent = step === 7 ? '내용을 확인하고 접수해주세요' : '가입 없이 질문에 답하기만 하면 돼요';
+    const head = (t, h) => `${step <= TOTAL ? `<div class="step">${step} / ${TOTAL}</div>` : ''}<h1>${t}</h1>${h ? `<p class="hint">${h}</p>` : ''}`;
+    let html = '';
+    if (step === 1) {
+      html = head('주문하시는 분을<br>알려주세요', '연락처로 접수 확인과 다음 이용 안내를 드려요.')
+        + field('company', '상호 (쇼핑몰명)', d.company, { ph: '예) 해피옷장', bad: bad('company') })
+        + field('phone', '휴대폰 번호', d.phone, { ph: '예) 010-1234-5678', tel: true, bad: bad('phone') })
+        + '<div class="mic">🎤 키보드의 <b>마이크 버튼</b>을 누르고 말로 불러도 돼요</div>';
+    } else if (step === 2) {
+      html = head('픽업할 매장 정보를<br>알려주세요', '<span class="warn">정확하지 않으면 픽업이 불가합니다.</span> 모두 적어야 다음으로 넘어가요.')
+        + lateNotice()
+        + d.stores.map((x, i) => `<div class="group">${d.stores.length > 1 ? `<div class="gt">매장 ${i + 1}</div><button class="del" data-del="stores.${i}">삭제</button>` : ''}
+            ${field(`stores.${i}.mall`, '상가명', x.mall, { ph: '예) 누죤', bad: bad(`stores.${i}.mall`) })}
+            ${field(`stores.${i}.store`, '매장상호', x.store, { ph: '예) 블루하우스', bad: bad(`stores.${i}.store`) })}
+            ${field(`stores.${i}.floor`, '층, 호수', x.floor, { ph: '예) 3층 B12호', bad: bad(`stores.${i}.floor`) })}
+            ${field(`stores.${i}.phone`, '매장 연락처', x.phone, { ph: '예) 02-1234-5678', tel: true, bad: bad(`stores.${i}.phone`) })}</div>`).join('')
+        + '<button class="add" data-add="stores">+ 픽업할 매장 더 추가하기</button>';
+    } else if (step === 3) {
+      const ch = (k, v, t, sm) => `<button class="choice ${d[k] === v ? 'on' : ''}" data-set="${k}" data-v="${v}">${d[k] === v ? '✅ ' : ''}${t}${sm ? `<small>${sm}</small>` : ''}</button>`;
+      html = head('상품값을 저희가<br>대신 내드릴까요?', '매장에서 상품값을 밤낮딜리버리가 대신 결제하는 것을 "대납"이라고 해요.')
+        + `<div class="q2">1) 대납 유무 *</div>${ch('prepay', true, '대납하고 픽업해주세요')}${ch('prepay', false, '대납없이 픽업해주세요')}`
+        + `<div class="q2">2) 매장에 재고가 없을 때 *</div>${ch('prepayMisong', true, '대납미송을 잡아주세요', '미리 상품값을 결제해 주문을 예약해요')}${ch('prepayMisong', false, '대납미송을 잡지 않아요')}`
+        + ((d.prepay || d.prepayMisong) ? `<div class="notice" style="margin-top:6px">⚠️ 대납금은 밤낮딜리버리 계좌로 <b>반드시 선입금</b> 해주셔야 합니다.<br><b>신한 110 359 193710 이현재</b><br>대납금을 선입금하지 않아서 발생하는 모든 문제에 대해선 이용자에게 책임이 있습니다.</div>
+            <label class="agree" style="${bad('agreed') ? '' : 'border-color:#fdba74'}"><input type="checkbox" data-chk="agreed" ${d.agreed ? 'checked' : ''}><span><b>위 내용을 확인했으며, 대납금을 선입금하는 것에 동의합니다. (필수)</b></span></label>` : '');
+    } else if (step === 4) {
+      const ch = (v, t, sm) => `<button class="choice ${d.shipTo === v ? 'on' : ''}" data-set="shipTo" data-v="${v}">${d.shipTo === v ? '✅ ' : ''}${t}<small>${sm}</small></button>`;
+      html = head('픽업한 상품을<br>어디로 보내드릴까요?')
+        + ch('store', '🏬 내 매장·사무실로 받을게요', '사무실 또는 매장에서 직접 받는 경우')
+        + ch('customer', '📦 고객에게 바로 보내주세요', '고객 풀필먼트 (내 손님 집으로 바로 배송)');
+    } else if (step === 5) {
+      const cust = d.shipTo === 'customer';
+      html = head(cust ? '받으실 고객 정보를<br>알려주세요' : '받으실 곳 정보를<br>알려주세요',
+        cust ? '고객이 여러 명이면 아래 [+ 받으실 분 추가하기]를 눌러주세요.' : '받는 분 이름은 <b>대표님 상호</b>로 적어주세요.')
+        + d.recipients.map((x, i) => `<div class="group">${d.recipients.length > 1 ? `<div class="gt">받으실 분 ${i + 1}</div><button class="del" data-del="recipients.${i}">삭제</button>` : ''}
+            ${field(`recipients.${i}.name`, cust ? '받으실 분 이름' : '받는 분 (대표님 상호)', x.name, { ph: cust ? '예) 김영희' : '예) 해피옷장', bad: bad(`recipients.${i}.name`) })}
+            ${field(`recipients.${i}.phone`, '받으실 분 연락처', x.phone, { ph: '예) 010-2222-3333', tel: true, bad: bad(`recipients.${i}.phone`) })}
+            ${field(`recipients.${i}.address`, '받으실 주소', x.address, { area: true, rows: 2, ph: '예) 서울 강남구 테헤란로 1, 101호', bad: bad(`recipients.${i}.address`) })}
+            ${field(`recipients.${i}.product`, '상품 정보', x.product, { area: true, rows: 2, req: cust, ph: cust ? '쇼핑몰 상품명, 도매상품명, 컬러, 사이즈, 수량 (예: 블라우스 / 블루하우스 / 아이보리 / F / 2장)' : '보통 생략해도 돼요', bad: bad(`recipients.${i}.product`) })}
+            ${field(`recipients.${i}.message`, '배송메세지', x.message, { req: false, ph: '예) 문 앞에 놓아주세요' })}</div>`).join('')
+        + (cust ? '<button class="add" data-add="recipients">+ 받으실 분 추가하기</button>' : '');
+    } else if (step === 6) {
+      html = head('더 전하실 말씀이<br>있으세요?', '없으면 비워두고 [다음]을 눌러주세요.')
+        + field('memo', '요청사항', d.memo, { area: true, rows: 4, req: false, ph: '예) 오늘 꼭 보내주세요' });
+    } else if (step === 7) {
+      const st = d.stores.map(x => `${x.mall} · ${x.store} · ${x.floor} · ${x.phone}`).join('\n');
+      const rc = d.recipients.map(x => [`${x.name} · ${x.phone}`, x.address, x.product, x.message && `배송메세지: ${x.message}`].filter(Boolean).join('\n')).join('\n\n');
+      html = `<h1 style="font-size:22px">이대로 접수할까요?</h1>
+        <div class="sum">
+          <div><b>상호 · 연락처</b>${esc(d.company)} · ${esc(d.phone)}</div>
+          <div><b>픽업할 매장</b>${esc(st)}</div>
+          <div><b>대납</b>${d.prepay ? '대납하고 픽업해주세요' : '대납없이 픽업해주세요'} / ${d.prepayMisong ? '대납미송 잡음' : '대납미송 안 잡음'}</div>
+          <div><b>${d.shipTo === 'customer' ? '받으실 고객 (고객에게 바로)' : '받으실 곳 (내 매장·사무실)'}</b>${esc(rc)}</div>
+          ${d.memo ? `<div><b>요청사항</b>${esc(d.memo)}</div>` : ''}
+        </div>
+        <label class="agree" style="${bad('consent') ? 'background:#fff1f2' : ''}"><input type="checkbox" data-chk="consent" ${d.consent ? 'checked' : ''}>
+          <span><b>개인정보 수집·이용에 동의합니다 (필수)</b><small>접수와 픽업·배송을 위해 주문자와 받으실 분의 이름·연락처·주소를 받습니다. 접수 후 1년이 지나면 지웁니다.</small></span></label>
+        <div class="err" id="err"></div>`;
+    } else if (step === 8) {
+      html = `<div class="done"><div class="big">✅</div><h1>접수됐어요!</h1>
+        <p>밤낮딜리버리에서 내용을 확인하고<br>연락드릴게요.</p>
+        <div class="box"><b>📌 다음 주문부터는</b><br>SO솔루션으로 픽업요청, 웹페이지로 배송접수를 하시면 더 빠르고 편해요.<br>가입과 사용법은 저희가 연락드려 도와드릴게요.</div>
+        <p style="font-size:14px;margin-top:18px">※ 배송접수는 24시간 가능, 단 사입요청은 23시 전까지 해주세요.<br>(사입되지 않은 배송건은 출고가 불가능합니다)<br>문의 010-5425-9060 · 카톡 bamnatdelivery</p></div>`;
+    }
+    main.innerHTML = html;
+    window.scrollTo(0, 0);
+  }
+
+  // 입력은 화면을 다시 그리지 않고 값만 저장 (글자 입력 중 커서가 튀지 않게)
+  main.addEventListener('input', e => {
+    const k = e.target.dataset.k;
+    if (!k) return;
+    const [a, i, b] = k.split('.');
+    if (b) d[a][i][b] = e.target.value; else d[a] = e.target.value;
+    e.target.classList.remove('bad');
+    document.getElementById('btn-next').classList.toggle('off', missing().length > 0);
+  });
+  main.addEventListener('change', e => {
+    const k = e.target.dataset.chk;
+    if (k) { d[k] = e.target.checked; render(); }
+  });
+  main.addEventListener('click', e => {
+    const t = e.target.closest('button');
+    if (!t) return;
+    if (t.dataset.set) {
+      const k = t.dataset.set;
+      d[k] = t.dataset.v === 'true' ? true : t.dataset.v === 'false' ? false : t.dataset.v;
+      if (k === 'shipTo') {
+        // 내 매장·사무실로: 받는 분 = 내 상호·연락처로 미리 채움
+        if (d.shipTo === 'store') d.recipients = [{ name: d.company, phone: d.phone, address: d.recipients[0].address, product: '', message: '' }];
+        else if (d.recipients.length === 1 && d.recipients[0].name === d.company) d.recipients = [{ name: '', phone: '', address: '', product: '', message: '' }];
+      }
+      render();
+    }
+    if (t.dataset.add) {
+      d[t.dataset.add].push(t.dataset.add === 'stores' ? { mall: '', store: '', floor: '', phone: '' } : { name: '', phone: '', address: '', product: '', message: '' });
+      render();
+    }
+    if (t.dataset.del) {
+      const [a, i] = t.dataset.del.split('.');
+      d[a].splice(Number(i), 1);
+      render();
+    }
+  });
+  document.getElementById('btn-prev').onclick = () => { if (step > 1) { step--; tried = false; render(); } };
+  document.getElementById('btn-next').onclick = async () => {
+    if (missing().length) {
+      tried = true;
+      render();
+      const first = main.querySelector('.bad');
+      if (first) { first.scrollIntoView({ block: 'center' }); first.focus && first.focus(); }
+      else if (step === 3 || step === 4) alert('하나를 골라주세요.');
+      return;
+    }
+    tried = false;
+    if (step < 7) { step++; render(); return; }
+    sending = true; render();
+    try {
+      const res = await fetch(new URL('/api/quick-order', location.href).href, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...d, source: document.referrer || location.href }),
+      });
+      const r = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(r.error || `접수 서버 오류 (HTTP ${res.status})`);
+      step = 8;
+    } catch (e) {
+      sending = false; render();
+      document.getElementById('err').textContent = '접수하지 못했어요: ' + e.message + ' (카톡 bamnatdelivery 또는 010-5425-9060으로 연락주세요)';
+      return;
+    }
+    sending = false; render();
+  };
+  render();
+})();
+</script>
+</body>
+</html>
