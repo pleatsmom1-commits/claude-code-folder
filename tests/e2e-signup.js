@@ -147,6 +147,12 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   // ---------- 1. 로그인 화면 ----------
   await page.goto(PAGE); await page.waitForTimeout(800);
   check('login screen shown', await vis('#login-form'));
+  check('plain address: signup modal closed', !(await vis('#signup-modal')));
+
+  // ---------- 1-1. 홈페이지 버튼 주소(?signup)로 오면 회원가입 창이 바로 열림 ----------
+  await page.goto(PAGE + '&signup'); await page.waitForTimeout(800);
+  check('?signup opens signup modal right away', (await vis('#login-form')) && (await vis('#signup-modal')));
+  await page.goto(PAGE); await page.waitForTimeout(800);
 
   // ---------- 2. 회원가입 ----------
   await page.click('button:has-text("회원가입하기")'); await page.waitForTimeout(200);
