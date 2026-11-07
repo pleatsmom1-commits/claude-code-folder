@@ -4,7 +4,9 @@
 //      방금 가입한 승인대기 계정만 한 번씩 보냄 (supabase/signup_notify.sql 의 claim_signup_notice)
 //  - POST /api/seller/approved : 관리자가 [승인]을 누르면 그 셀러 연락처로 "승인되었습니다" 문자
 //      테스트 사이트(미리보기 주소)에서는 셀러 대신 대표님 휴대폰으로 보냄
-//  - 알림톡은 카카오 승인 템플릿이 있어야 해서, 우선 문자(SMS)로 보냅니다.
+//  - 새 회원가입 알림: Cloudflare 설정에 SOLAPI_SIGNUP_TEMPLATE_ID(카카오 승인된 알림톡 템플릿)가 있으면
+//    카톡(알림톡)으로, 카톡이 안 되면 같은 내용 문자로 대신 보냅니다. 템플릿이 없으면 문자로 보냅니다.
+//  - 받는 번호(ADMIN_NOTIFY_PHONE)는 쉼표로 여러 개 적을 수 있습니다. 예: "01054259060,01012345678"
 // =====================================================================
 import { solapiSend, normPhone, maskPhone, json, PRODUCTION_HOSTS } from './alimtalk.js';
 
@@ -24,12 +26,16 @@ export async function handleSignupNotify(request, env) {
   const p = (await res.json())[0];
   if (!p) return json({ status: 'skipped', message: '알릴 새 가입이 없습니다.' });
 
-  const to = adminPhone(env);
-  if (!to || !env.SOLAPI_API_KEY || !env.SOLAPI_API_SECRET) return json({ status: 'skipped', message: '발송 설정 없음' }, 500);
+  const phones = adminPhones(env);
+  if (!phones.length || !env.SOLAPI_API_KEY || !env.SOLAPI_API_SECRET) return json({ status: 'skipped', message: '발송 설정 없음' }, 500);
   const origin = new URL(request.url).origin;
-  const text = `[밤낮딜리버리] 새 회원가입 (승인대기)\n상호: ${p.company || '-'}\n대표자: ${p.name || '-'}\n연락처: ${p.phone || '-'}\n\n관리자 화면 > 셀러 관리에서 [승인]해 주세요.\n${origin}`;
-  const r = await solapiSend(env, { to, from: normPhone(env.SOLAPI_SENDER), text });
-  return json(r, r.status === 'sent' ? 200 : 502);
+  const results = [];
+  for (const to of phones) {
+    const r = await solapiSend(env, signupMessage(env, to, p, origin));
+    results.push({ ...r, to: maskPhone(to) });
+  }
+  const ok = results.some(r => r.status === 'sent');
+  return json({ status: ok ? 'sent' : 'failed', results }, ok ? 200 : 502);
 }
 
 export async function handleSellerApproved(request, env) {
@@ -69,4 +75,36 @@ export async function handleSellerApproved(request, env) {
   return json({ ...r, to: maskPhone(to), test: !isProduction }, r.status === 'sent' ? 200 : 502);
 }
 
-function adminPhone(env) { return normPhone(env.ADMIN_NOTIFY_PHONE || env.SOLAPI_SENDER); }
+function adminPhone(env) { return adminPhones(env)[0] || null; }
+
+// ADMIN_NOTIFY_PHONE 에 쉼표(,)로 적은 번호들 (중복 제거)
+export function adminPhones(env) {
+  const list = String(env.ADMIN_NOTIFY_PHONE || env.SOLAPI_SENDER || '')
+    .split(/[,;/]+/).map(normPhone).filter(Boolean);
+  return [...new Set(list)];
+}
+
+// 알림톡 템플릿 변수 (카카오에 등록하는 템플릿과 이름이 같아야 함 → README 참고)
+export function signupTemplateVariables(p) {
+  return {
+    '#{상호}': p.company || '-',
+    '#{대표자}': p.name || '-',
+    '#{연락처}': p.phone || '-',
+  };
+}
+
+export function signupText(p, origin) {
+  return `[밤낮딜리버리] 새 회원가입 (승인대기)\n상호: ${p.company || '-'}\n대표자: ${p.name || '-'}\n연락처: ${p.phone || '-'}\n\n관리자 화면 > 셀러 관리에서 [승인]해 주세요.\n${origin}`;
+}
+
+// 알림톡 템플릿이 있으면 알림톡(실패 시 같은 내용 문자), 없으면 문자
+export function signupMessage(env, to, p, origin) {
+  const from = normPhone(env.SOLAPI_SENDER);
+  if (env.SOLAPI_SIGNUP_TEMPLATE_ID && env.SOLAPI_PF_ID) {
+    return {
+      to, from,
+      kakaoOptions: { pfId: env.SOLAPI_PF_ID, templateId: env.SOLAPI_SIGNUP_TEMPLATE_ID, disableSms: false, variables: signupTemplateVariables(p) },
+    };
+  }
+  return { to, from, text: signupText(p, origin) };
+}
