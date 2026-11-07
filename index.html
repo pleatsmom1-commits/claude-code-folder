@@ -77,6 +77,10 @@
             <a id="nav-stock-btn" href="/stock" class="hidden shrink-0 whitespace-nowrap ml-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
                 <i data-lucide="package" class="w-4 h-4"></i> 재고 확인
             </a>
+            <!-- 셀러 로그인 시에만 표시: 내 이용 현황 페이지 (usage.html) -->
+            <a id="nav-usage-btn" href="/usage" class="hidden shrink-0 whitespace-nowrap ml-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
+                <i data-lucide="bar-chart-3" class="w-4 h-4"></i> 이용 현황
+            </a>
             <!-- 셀러 로그인 시에만 표시: 내 상품관리 페이지 (products.html) -->
             <a id="nav-products-btn" href="/products" class="hidden shrink-0 whitespace-nowrap ml-2 px-3 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
                 <i data-lucide="tags" class="w-4 h-4"></i> 상품관리
@@ -1233,7 +1237,8 @@
                     <div class="flex justify-between items-start flex-wrap gap-3">
                         <div>
                             <h3 class="font-bold text-slate-900">업체별 이용 현황</h3>
-                            <p class="text-xs text-slate-500 mt-0.5">기간을 고르면 업체마다 픽업·대납·풀필먼트·택배비·세금계산서 금액 등을 합쳐서 보여줍니다. 업체 줄을 누르면 날짜별로 펼쳐집니다. 사이트에 저장된 정산서로 계산합니다.</p>
+                            <p class="text-xs text-slate-500 mt-0.5">기간을 고르면 업체마다 픽업·대납·풀필먼트·택배비·세금계산서 금액 등을 합쳐서 보여줍니다. 업체 줄을 누르면 날짜별로 펼쳐집니다. 사이트에 저장된 정산서로 계산합니다.
+                                업체도 로그인 후 위쪽 [이용 현황] 버튼으로 자기 업체 것만 볼 수 있습니다 (가입 상호와 정산서 상호가 같아야 연결).</p>
                         </div>
                         <button onclick="downloadSettleUsage()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm flex items-center gap-1">
                             <i data-lucide="download" class="w-3.5 h-3.5"></i> 엑셀 받기</button>
@@ -1247,6 +1252,7 @@
                         <button type="button" onclick="loadSettleUsage()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg">조회</button>
                         <span id="settle-usage-count" class="font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full"></span>
                     </div>
+                    <div id="settle-usage-unlinked" class="hidden text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3"></div>
                     <div class="overflow-auto max-h-[70vh] border border-slate-200 rounded-lg">
                         <table class="w-full text-left text-xs whitespace-nowrap">
                             <thead class="bg-slate-800 text-slate-200 font-bold sticky top-0 z-10" id="settle-usage-head"></thead>
@@ -3037,6 +3043,9 @@
             const stockBtn = document.getElementById('nav-stock-btn');
             stockBtn.classList.toggle('hidden', currentRole !== 'seller');
             stockBtn.classList.toggle('flex', currentRole === 'seller');
+            const usageBtn = document.getElementById('nav-usage-btn');
+            usageBtn.classList.toggle('hidden', currentRole !== 'seller');
+            usageBtn.classList.toggle('flex', currentRole === 'seller');
             const productsBtn = document.getElementById('nav-products-btn');
             productsBtn.classList.toggle('hidden', currentRole !== 'seller');
             productsBtn.classList.toggle('flex', currentRole === 'seller');

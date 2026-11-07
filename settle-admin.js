@@ -1601,6 +1601,7 @@ const SETTLE_USAGE_COLS = [
 ];
 let settleUsageRows = [];      // 정산서 한 장씩 (업체·날짜)
 let settleUsageOpen = new Set(); // 날짜별로 펼친 업체
+let settleUsageLinked = new Set(); // 승인된 셀러 상호(정규화) — 업체 화면 연결 여부
 
 function settleNum(v) {
     if (v == null || v === '') return 0;
@@ -1642,6 +1643,9 @@ async function loadSettleUsage() {
         o.taxInvoice = o.serviceTotal + o.vat;
         return o;
     });
+    // 승인된 셀러 상호 (업체가 로그인해서 볼 수 있는지 = 가입 상호와 정산서 상호가 같은지)
+    const { data: sellers } = await supabaseClient.from('profiles').select('company').eq('role', 'seller').eq('status', 'approved');
+    settleUsageLinked = new Set((sellers || []).map(p => settleNorm(p.company)));
     renderSettleUsage();
 }
 
@@ -1677,7 +1681,10 @@ function renderSettleUsage() {
     for (const g of groups) {
         const open = settleUsageOpen.has(g.company);
         html += `<tr class="hover:bg-slate-50 cursor-pointer" data-company="${escapeHtml(g.company)}" onclick="toggleSettleUsageOpen(this.dataset.company)">
-            <td class="p-2.5 font-bold sticky left-0 bg-white">${open ? '▾' : '▸'} ${escapeHtml(g.company)}</td>
+            <td class="p-2.5 font-bold sticky left-0 bg-white">${open ? '▾' : '▸'} ${escapeHtml(g.company)}
+                ${settleUsageLinked.has(settleNorm(g.company))
+                    ? `<a href="/usage?company=${encodeURIComponent(g.company)}" target="_blank" onclick="event.stopPropagation()" class="ml-1 px-1.5 py-0.5 text-[10px] font-bold text-indigo-600 border border-indigo-200 hover:bg-indigo-50 rounded" title="이 업체가 로그인하면 보이는 화면">업체 화면</a>`
+                    : '<span class="ml-1 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 bg-amber-50 rounded" title="같은 상호로 가입·승인된 셀러 계정이 없어 업체가 볼 수 없습니다">연결 안 됨</span>'}</td>
             <td class="p-2.5 text-right">${g.days}일</td>${cells(g)}
             <td class="p-2.5 text-right font-bold ${g.last.result === '청구' ? 'text-rose-600' : 'text-emerald-600'}">${settleWon(g.last.total)} <span class="text-[10px] font-normal text-slate-400">${escapeHtml(g.last.date.slice(5))}</span></td>
         </tr>`;
@@ -1692,6 +1699,10 @@ function renderSettleUsage() {
         }
     }
     tbody.innerHTML = html;
+    const unlinked = groups.filter(g => !settleUsageLinked.has(settleNorm(g.company)));
+    const box = document.getElementById('settle-usage-unlinked');
+    box.classList.toggle('hidden', !unlinked.length);
+    box.innerHTML = unlinked.length ? `<b>가입 연결 안 된 업체 ${unlinked.length}곳</b> — 같은 상호로 가입·승인된 셀러 계정이 없어, 이 업체들은 로그인해도 이용 현황이 비어 보입니다. 정산청구서의 상호와 회원가입 상호를 똑같이 맞춰 주세요 (띄어쓰기·영문 대소문자는 무시).<div class="mt-1 text-amber-700">${unlinked.map(g => escapeHtml(g.company)).join(', ')}</div>` : '';
 }
 
 function toggleSettleUsageOpen(company) {
