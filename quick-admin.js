@@ -83,7 +83,8 @@ function renderQuickOrders() {
     <span class="text-slate-400">${inquiryTime(r.created_at)}</span>
     <b class="text-slate-900 text-sm">${escapeHtml(r.company)}</b>
     <a href="tel:${escapeHtml(r.phone)}" class="text-indigo-600 font-bold">${escapeHtml(inquiryPhone(r.phone))}</a>
-    <span class="${r.prepay || r.prepay_misong ? 'text-rose-600 font-bold' : 'text-slate-500'}">${r.prepay ? '대납' : '대납없음'}${r.prepay_misong ? ' · 대납미송' : ''}</span>
+    <span class="px-2 py-0.5 rounded font-bold ${r.prepay ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-500'}">대납 ${r.prepay ? 'O' : 'X'}</span>
+    <span class="px-2 py-0.5 rounded font-bold ${r.prepay_misong ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-500'}" title="매장에 재고가 없을 때 상품값을 미리 결제해 주문을 예약할지">대납미송 ${r.prepay_misong ? 'O' : 'X'}</span>
     <span class="text-slate-500">${r.ship_to === 'customer' ? '📦 고객에게 바로' : '🏬 내 매장·사무실'}</span>
   </div>
   <div class="grid md:grid-cols-2 gap-2">
