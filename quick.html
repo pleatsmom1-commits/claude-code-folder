@@ -55,6 +55,35 @@ nav button{border-radius:14px;padding:16px;font-size:18px;font-weight:900;font-f
 .done p{font-size:16px;color:#475569;line-height:1.65}
 .box{background:#eef2ff;border-radius:14px;padding:15px;font-size:15px;color:#3730a3;text-align:left;line-height:1.65;margin-top:18px}
 .hide{display:none!important}
+/* PC(넓은 화면): 가운데 카드로 놓고 글씨·칸을 조금 줄이고, 매장·받으실 분 칸은 두 칸씩 나란히 (휴대폰은 그대로) */
+@media(min-width:768px){
+  body{padding:28px 0 0}
+  .wrap{max-width:720px;min-height:0;border-radius:16px 16px 0 0;overflow:hidden;box-shadow:0 8px 30px rgba(15,23,42,.08)}
+  header{padding:14px 24px 12px}
+  header b{font-size:17px}
+  header small{font-size:12.5px}
+  .bar,.bar i{height:6px}
+  main{padding:18px 24px 110px}
+  .step{font-size:13px}
+  h1{font-size:20px;margin:4px 0 6px}
+  .hint{font-size:14px;margin-bottom:12px}
+  .f{margin-bottom:10px}
+  .f label{font-size:14px;margin-bottom:4px}
+  input,textarea{padding:9px 12px;font-size:15px;border-radius:10px}
+  .group{display:grid;grid-template-columns:1fr 1fr;column-gap:14px;padding:14px 14px 4px;border-radius:14px}
+  .group > :not(.f), .group .f:has(textarea){grid-column:1/-1}
+  .add{padding:10px;font-size:14px;border-radius:12px}
+  .choice{padding:12px 14px;font-size:15px;border-radius:12px;margin-bottom:8px}
+  .choice small{font-size:13px}
+  .q2{font-size:15px;margin:12px 0 6px}
+  .agree{padding:10px 12px;font-size:14px}
+  .notice{font-size:13.5px;padding:10px 12px}
+  .sum{font-size:14px}
+  .sum div{padding:9px 12px}
+  nav{padding:10px 18px 14px}
+  nav .in{max-width:720px}
+  nav button{padding:12px;font-size:16px;border-radius:12px}
+}
 </style>
 </head>
 <body>
