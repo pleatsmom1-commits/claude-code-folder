@@ -62,36 +62,41 @@
     </div>
 
     <!-- Navigation Header -->
-    <nav class="bg-white border-b border-slate-200 px-6 py-3 flex flex-wrap gap-2 justify-between items-center shadow-sm">
-        <div class="flex items-center gap-3">
+    <nav class="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex flex-wrap gap-x-2 gap-y-3 justify-between items-center shadow-sm">
+        <!-- 휴대폰: 1줄 로고·제목 / 2줄 셀러 버튼(2개씩) / 3줄 DB·회원정보. 컴퓨터: 예전처럼 한 줄 -->
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-3 w-full sm:w-auto">
+            <div class="flex items-center gap-3 shrink-0">
             <div class="bg-indigo-600 text-white p-2 rounded-lg font-black tracking-wider text-sm">밤낮</div>
             <div>
                 <h1 class="font-bold text-lg leading-tight text-slate-900">밤낮딜리버리 풀필먼트</h1>
                 <p class="text-xs text-slate-500">통합 주문접수 및 관리 시스템</p>
             </div>
+            </div>
+            <div id="nav-seller-btns" class="hidden grid-cols-2 gap-2 w-full sm:w-auto sm:items-center">
             <!-- 셀러 로그인 시에만 표시: 사입팀 픽업요청 페이지로 이동 -->
-            <button id="nav-pickup-btn" type="button" onclick="openPickupPage()" class="hidden shrink-0 whitespace-nowrap ml-2 px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
+            <button id="nav-pickup-btn" type="button" onclick="openPickupPage()" class="hidden shrink-0 whitespace-nowrap sm:ml-2 justify-center px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
                 <i data-lucide="shopping-bag" class="w-4 h-4"></i> 사입팀 픽업요청
             </button>
             <!-- 셀러 로그인 시에만 표시: 내 재고 확인 페이지 (stock.html) -->
-            <a id="nav-stock-btn" href="/stock" class="hidden shrink-0 whitespace-nowrap ml-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
+            <a id="nav-stock-btn" href="/stock" class="hidden shrink-0 whitespace-nowrap sm:ml-2 justify-center px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
                 <i data-lucide="package" class="w-4 h-4"></i> 재고 확인
             </a>
             <!-- 셀러 로그인 시에만 표시: 내 이용 현황 페이지 (usage.html) -->
-            <a id="nav-usage-btn" href="/usage" class="hidden shrink-0 whitespace-nowrap ml-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
+            <a id="nav-usage-btn" href="/usage" class="hidden shrink-0 whitespace-nowrap sm:ml-2 justify-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
                 <i data-lucide="bar-chart-3" class="w-4 h-4"></i> 이용 현황
             </a>
             <!-- 셀러 로그인 시에만 표시: 내 상품관리 페이지 (products.html) -->
-            <a id="nav-products-btn" href="/products" class="hidden shrink-0 whitespace-nowrap ml-2 px-3 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
+            <a id="nav-products-btn" href="/products" class="hidden shrink-0 whitespace-nowrap sm:ml-2 justify-center px-3 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
                 <i data-lucide="tags" class="w-4 h-4"></i> 상품관리
             </a>
+            </div>
         </div>
-        <div class="flex items-center gap-3">
-            <div id="db-status-badge" class="px-2.5 py-1 bg-slate-100 text-slate-500 text-xs font-bold rounded-full flex items-center gap-1.5">
+        <div class="flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-2 w-full sm:w-auto">
+            <div id="db-status-badge" class="px-2.5 py-1 bg-slate-100 text-slate-500 text-xs font-bold rounded-full flex items-center gap-1.5 shrink-0 whitespace-nowrap">
                 <span class="w-2 h-2 rounded-full bg-slate-400"></span> DB 연결 확인 중...
             </div>
-            <div class="h-4 w-px bg-slate-200 my-auto"></div>
-            <div id="nav-user-area" class="flex items-center gap-2"></div>
+            <div class="hidden sm:block h-4 w-px bg-slate-200 my-auto"></div>
+            <div id="nav-user-area" class="flex items-center gap-2 sm:w-auto min-w-0"></div>
         </div>
     </nav>
 
@@ -2223,10 +2228,10 @@
         function setDbBadge(ok, message) {
             const badge = document.getElementById('db-status-badge');
             if (ok) {
-                badge.className = "px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full flex items-center gap-1.5 border border-emerald-200";
+                badge.className = "px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full flex items-center gap-1.5 shrink-0 whitespace-nowrap border border-emerald-200";
                 badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> ${escapeHtml(message)}`;
             } else {
-                badge.className = "px-2.5 py-1 bg-rose-50 text-rose-700 text-xs font-bold rounded-full flex items-center gap-1.5 border border-rose-200";
+                badge.className = "px-2.5 py-1 bg-rose-50 text-rose-700 text-xs font-bold rounded-full flex items-center gap-1.5 shrink-0 whitespace-nowrap border border-rose-200";
                 badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-500"></span> ${escapeHtml(message)}`;
             }
         }
@@ -3072,17 +3077,23 @@
             const productsBtn = document.getElementById('nav-products-btn');
             productsBtn.classList.toggle('hidden', currentRole !== 'seller');
             productsBtn.classList.toggle('flex', currentRole === 'seller');
+            // 휴대폰에서 셀러 버튼 묶음(2개씩)과 회원정보 줄은 로그인했을 때만 자리 차지
+            const sellerBtns = document.getElementById('nav-seller-btns');
+            sellerBtns.classList.toggle('hidden', currentRole !== 'seller');
+            sellerBtns.classList.toggle('grid', currentRole === 'seller');
+            sellerBtns.classList.toggle('sm:flex', currentRole === 'seller');
             const area = document.getElementById('nav-user-area');
+            area.classList.toggle('w-full', !!currentRole);
             if (!currentRole) {
                 area.innerHTML = `<span class="text-xs text-slate-400">로그인 필요</span>`;
             } else if (currentRole === 'seller') {
                 area.innerHTML = `
-                    <div class="text-right">
-                        <span class="text-xs font-bold text-slate-900 block">${escapeHtml(currentSellerAccount.company)}님</span>
-                        <span class="text-[10px] text-slate-400">${escapeHtml(currentSellerAccount.email || '셀러 회원')}</span>
+                    <div class="flex-1 sm:flex-none text-left sm:text-right min-w-0">
+                        <span class="text-xs font-bold text-slate-900 block truncate">${escapeHtml(currentSellerAccount.company)}님</span>
+                        <span class="text-[10px] text-slate-400 block truncate">${escapeHtml(currentSellerAccount.email || '셀러 회원')}</span>
                     </div>
-                    <button onclick="openMyPage()" class="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs rounded-lg font-bold">내정보</button>
-                    <button onclick="logout()" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-bold">로그아웃</button>
+                    <button onclick="openMyPage()" class="shrink-0 whitespace-nowrap px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs rounded-lg font-bold">내정보</button>
+                    <button onclick="logout()" class="shrink-0 whitespace-nowrap px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-bold">로그아웃</button>
                 `;
             } else {
                 area.innerHTML = `
@@ -3090,7 +3101,7 @@
                         <span class="text-xs font-bold text-indigo-600 block">밤낮딜리버리 관리자</span>
                         <span class="text-[10px] text-slate-400">${escapeHtml(currentSellerAccount.email || '최고 권한')}</span>
                     </div>
-                    <button onclick="logout()" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-bold">로그아웃</button>
+                    <button onclick="logout()" class="shrink-0 whitespace-nowrap px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-bold">로그아웃</button>
                 `;
             }
         }
