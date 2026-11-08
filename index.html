@@ -1848,6 +1848,18 @@
                     </div>
                 </div>
 
+                <!-- 가입 마무리: 밤낮딜리버리 카톡 친구추가 + 상호·연락처 메시지 (카카오톡 아이디를 알아야 안내 가능) -->
+                <div class="mt-1 border-2 border-yellow-300 bg-yellow-50 rounded-xl p-3 text-xs text-yellow-900 leading-relaxed">
+                    <p class="font-black text-[13px] text-yellow-800">📌 가입 후 꼭 해주세요</p>
+                    <p class="mt-1">1. 카카오톡에서 <b>010-5425-9060</b> 번호를 <b>친구추가</b>해주세요 <span class="text-slate-500">(친구 추가 → 연락처로 추가)</span></p>
+                    <p>2. 그 대화방에 <b>"회원가입 했습니다 + 상호 + 연락처"</b>를 보내주세요</p>
+                    <p class="mt-1 text-rose-700 font-bold">이것까지 해야 가입이 마무리돼요. (승인·이용 안내를 카카오톡으로 드려요)</p>
+                    <label class="mt-2 flex items-start gap-2 bg-white border border-yellow-300 rounded-lg p-2 cursor-pointer">
+                        <input type="checkbox" id="signup-kakao-ok" required class="mt-0.5 w-4 h-4 shrink-0">
+                        <span class="font-bold text-slate-800">가입 후 카카오톡 친구추가 + 메시지까지 보내야 마무리되는 것을 확인했어요 (필수)</span>
+                    </label>
+                </div>
+
                 <div class="pt-3 flex gap-2">
                     <button type="button" onclick="closeSignupModal()" class="flex-1 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-lg text-xs hover:bg-slate-200">
                         취소
@@ -1857,6 +1869,22 @@
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- MODAL: 가입 직후 카카오톡 친구추가 안내 (showKakaoDoneModal) -->
+    <div id="kakao-done-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-5 space-y-3 border border-slate-100">
+            <p id="kakao-done-title" class="text-sm font-bold text-slate-700"></p>
+            <div class="border-2 border-yellow-300 bg-yellow-50 rounded-xl p-3 text-sm text-yellow-900 leading-relaxed">
+                <p class="font-black text-base text-yellow-800">⚠️ 아직 끝나지 않았어요! 마지막 단계</p>
+                <p class="mt-1">1. 카카오톡에서 <b>010-5425-9060</b> 번호를 <b>친구추가</b>해주세요<br><span class="text-xs text-slate-500">카카오톡 → 친구 추가(👤+) → 연락처로 추가</span></p>
+                <p class="mt-1">2. 그 대화방에 아래 메시지를 보내주세요</p>
+                <div id="kakao-done-msg" class="mt-2 bg-white border border-dashed border-yellow-400 rounded-lg p-2 whitespace-pre-wrap text-slate-900"></div>
+                <button id="kakao-done-copy" type="button" class="mt-2 w-full py-2.5 bg-[#FEE500] text-[#191919] font-black rounded-lg">📋 메시지 복사하기</button>
+                <p class="mt-2 text-xs text-rose-700 font-bold">이것까지 해야 가입이 마무리돼요. (승인·이용 안내를 카카오톡으로 드려요)</p>
+            </div>
+            <button type="button" onclick="const m=document.getElementById('kakao-done-modal');m.classList.add('hidden');m.classList.remove('flex');" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-sm">확인했어요</button>
         </div>
     </div>
 
@@ -2658,16 +2686,31 @@
             }
 
             notifySignup(email);
+            const kakaoText = `회원가입 했습니다.\n상호: ${company}\n연락처: ${formatPhone(phone)}`;
             closeSignupModal();
             e.target.reset();
             signupCompanyOk = null;
             setSignupCompanyStatus('', true);
             if (data.session) {
-                alert(`회원가입 완료!\n상호명: ${company}`); // 자동으로 로그인됩니다
+                showKakaoDoneModal(`회원가입 완료! (상호명: ${company})`, kakaoText); // 자동으로 로그인됩니다
             } else {
-                alert(`회원가입 신청 완료!\n\n${email} 로 인증 메일을 보냈습니다.\n메일의 링크를 눌러 인증한 뒤 로그인해주세요.`);
+                showKakaoDoneModal(`회원가입 신청 완료! ${email} 로 인증 메일을 보냈습니다. 메일의 링크를 눌러 인증한 뒤 로그인해주세요.`, kakaoText);
                 document.getElementById('login-email').value = email;
             }
+        }
+
+        // 가입 직후: 카카오톡 친구추가 + 메시지 보내기 안내 창 (메시지 복사 버튼)
+        function showKakaoDoneModal(title, text) {
+            document.getElementById('kakao-done-title').innerText = title;
+            document.getElementById('kakao-done-msg').innerText = text;
+            const btn = document.getElementById('kakao-done-copy');
+            btn.innerText = '📋 메시지 복사하기';
+            btn.onclick = () => {
+                const ok = () => { btn.innerText = '✅ 복사됐어요! 카카오톡 대화방에 붙여넣어 주세요'; };
+                (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(ok).catch(() => prompt('아래 내용을 복사해주세요', text));
+            };
+            const m = document.getElementById('kakao-done-modal');
+            m.classList.remove('hidden'); m.classList.add('flex');
         }
 
         // 새 회원가입을 대표님 휴대폰으로 알림 (worker/notify.js). 실패해도 가입에는 영향 없음
