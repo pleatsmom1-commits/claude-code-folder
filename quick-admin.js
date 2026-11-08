@@ -3,6 +3,8 @@
 //  - 회원가입 없이 /quick 화면(quick.html)에서 들어온 첫 주문을 보고 [접수완료] / [취소] 처리합니다.
 //  - 같은 번호로 두 번째 이상 들어오면 'N번째 이용' 표시 → SO솔루션 가입 안내를 잊지 않게.
 //  - [복사]: 카톡·SO솔루션에 붙여넣기 좋은 글로 복사합니다.
+//  - [접수완료 + 주문관리로 넘기기]: 매장마다 사입 픽업요청, 받는 분마다 주문관리 주문을 자동으로 만듭니다.
+//    (supabase/quick_orders_transfer.sql 의 transfer_quick_order 함수, 두 번 옮겨지지 않음)
 //  표: supabase/quick_orders.sql
 //  index.html 의 supabaseClient, currentRole, escapeHtml, dbErrorMessage 를 사용합니다.
 // =====================================================================
@@ -95,10 +97,18 @@ function renderQuickOrders() {
   <div class="flex flex-wrap gap-2 justify-end items-center">
     ${r.handled_at ? `<span class="text-slate-400 mr-auto">처리: ${inquiryTime(r.handled_at)}</span>` : ''}
     <button onclick="copyQuickOrder(${r.id})" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold rounded-lg">📋 복사</button>
+    ${r.transferred_at ? `<span class="px-2 py-0.5 rounded font-bold bg-emerald-50 text-emerald-700">✅ 주문관리·픽업요청으로 옮김 (${inquiryTime(r.transferred_at)})</span>` : ''}
+    ${r.status === 'canceled' ? `
+    <button onclick="setQuickOrderStatus(${r.id}, 'waiting')" class="px-3 py-1.5 bg-white border border-slate-200 text-slate-500 font-bold rounded-lg">확인대기로 되돌리기</button>` : ''}
     ${r.status === 'waiting' ? `
     <button onclick="setQuickOrderStatus(${r.id}, 'canceled')" class="px-3 py-1.5 bg-white border border-slate-200 text-slate-500 font-bold rounded-lg">취소</button>
-    <button onclick="setQuickOrderStatus(${r.id}, 'done')" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg">접수완료</button>` : `
-    <button onclick="setQuickOrderStatus(${r.id}, 'waiting')" class="px-3 py-1.5 bg-white border border-slate-200 text-slate-500 font-bold rounded-lg">확인대기로 되돌리기</button>`}
+    <button onclick="setQuickOrderStatus(${r.id}, 'done')" class="px-3 py-1.5 bg-white border border-slate-200 text-slate-600 font-bold rounded-lg" title="주문관리로 옮기지 않고 상태만 접수완료로 바꿉니다">접수완료만</button>` : ''}
+    ${r.status === 'done' && !r.transferred_at ? `
+    <button onclick="setQuickOrderStatus(${r.id}, 'waiting')" class="px-3 py-1.5 bg-white border border-slate-200 text-slate-500 font-bold rounded-lg">확인대기로 되돌리기</button>` : ''}
+    ${r.status !== 'canceled' && !r.transferred_at ? `
+    ${r.ship_to === 'store' ? `<select id="quick-store-type-${r.id}" class="px-2 py-1.5 border border-slate-200 rounded-lg font-bold text-slate-700" title="내 매장·사무실로 받는 주문을 어떤 방법으로 보낼지">
+      <option value="store_post">우체국택배로</option><option value="store_sameday">당일배송으로</option></select>` : ''}
+    <button onclick="transferQuickOrder(${r.id})" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg">접수완료 + 주문관리로 넘기기</button>` : ''}
   </div>
 </div>`;
     }).join('');
@@ -118,4 +128,32 @@ async function setQuickOrderStatus(id, status) {
         .update({ status, handled_at: status === 'waiting' ? null : new Date().toISOString() }).eq('id', id);
     if (error) alert('저장하지 못했습니다: ' + dbErrorMessage(error));
     await fetchQuickOrders();
+}
+
+async function transferQuickOrder(id) {
+    const r = quickOrderRows.find(x => x.id === id);
+    if (!r) return;
+    const sel = document.getElementById(`quick-store-type-${id}`);
+    const storeType = sel ? sel.value : 'store_post';
+    const typeLabel = r.ship_to === 'customer' ? '고객풀필먼트' : (storeType === 'store_sameday' ? '매장배송(당일배송)' : '매장배송(우체국택배)');
+    const nStores = (r.stores || []).length;
+    const nRecs = (r.recipients || []).length;
+    const msg = `[${r.company}] 접수를 접수완료로 바꾸고 아래처럼 자동으로 넘길까요?\n\n`
+        + `· 사입 픽업요청 ${nStores}건 (픽업할 매장마다 1건)\n`
+        + `· 주문관리 주문 ${nRecs}건 (받으실 분마다 1건, ${typeLabel}, 접수대기)\n\n`
+        + '한 번 넘기면 다시 넘겨지지 않습니다. 잘못 넘긴 건은 주문관리·픽업요청에서 직접 지워 주세요.';
+    if (!confirm(msg)) return;
+    const { data, error } = await supabaseClient.rpc('transfer_quick_order', { p_id: id, p_store_type: storeType });
+    if (error) {
+        let m = dbErrorMessage(error);
+        if (['PGRST202', '42883'].includes(error.code)) m = 'DB 설정이 아직 적용되지 않았습니다.\n(Supabase SQL Editor 에서 supabase/quick_orders_transfer.sql 을 실행해 주세요)';
+        alert('넘기지 못했습니다.\n\n' + m);
+        await fetchQuickOrders();
+        return;
+    }
+    const res = (data && data[0]) || {};
+    alert(`넘겼습니다.\n\n· 사입 픽업요청 ${res.pickups ?? nStores}건\n· 주문관리 주문 ${res.orders ?? nRecs}건 (접수대기)\n\n주문관리 목록과 픽업요청 목록에서 확인할 수 있어요.`);
+    await fetchQuickOrders();
+    if (typeof fetchOrdersFromDB === 'function') fetchOrdersFromDB();
+    if (typeof fetchAdminPickupRequests === 'function') fetchAdminPickupRequests();
 }
