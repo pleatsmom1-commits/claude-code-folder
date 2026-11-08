@@ -55,6 +55,38 @@ nav button{border-radius:14px;padding:16px;font-size:18px;font-weight:900;font-f
 .done p{font-size:16px;color:#475569;line-height:1.65}
 .box{background:#eef2ff;border-radius:14px;padding:15px;font-size:15px;color:#3730a3;text-align:left;line-height:1.65;margin-top:18px}
 .hide{display:none!important}
+.kakao{background:#fefce8;border:2px solid #facc15;border-radius:14px;padding:13px 14px;margin-top:14px;text-align:left;font-size:14.5px;line-height:1.55;color:#422006}
+.kakao .kt{font-weight:900;font-size:15.5px;color:#a16207;margin-bottom:4px}
+.kakao ol{margin:4px 0 8px;padding-left:20px}
+.kakao ol small{color:#78716c;font-size:12.5px}
+.kakao .km{background:#fff;border:1px dashed #eab308;border-radius:10px;padding:9px 11px;white-space:pre-wrap;font-size:14px;color:#1c1917}
+.kakao .kcopy{width:100%;margin-top:8px;border:0;background:#fee500;color:#191919;border-radius:10px;padding:11px;font-size:15px;font-weight:900;font-family:inherit;cursor:pointer}
+.kakao .kf{margin-top:8px;font-size:13.5px;color:#b91c1c}
+/* PC(넓은 화면): 휴대폰과 같은 세로 모양 그대로, 크기는 원래와 작게 줄인 것의 중간쯤으로, 모니터 한가운데에 카드로 (휴대폰은 그대로) */
+@media(min-width:768px){
+  body{min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:28px 16px}
+  .wrap{width:100%;max-width:540px;min-height:0;border-radius:18px 18px 0 0;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,.08)}
+  header{padding:15px 20px 12px}
+  header b{font-size:18px}
+  .bar,.bar i{height:7px}
+  main{flex:none;min-height:470px;padding:18px 20px 18px}
+  h1{font-size:22px;margin:5px 0 7px}
+  .hint{font-size:14.5px;margin-bottom:13px}
+  .f{margin-bottom:11px}
+  .f label{font-size:14.5px}
+  input,textarea{padding:11px 13px;font-size:16px;border-radius:11px}
+  .group{padding:13px;border-radius:15px;margin-bottom:13px}
+  .add{padding:11px;font-size:15px;border-radius:13px}
+  .choice{padding:14px 15px;font-size:16px;border-radius:13px;margin-bottom:9px}
+  .choice small{font-size:13.5px}
+  .q2{font-size:15.5px;margin:14px 0 7px}
+  .agree{padding:12px;font-size:14.5px}
+  .notice{font-size:14px;padding:11px 13px}
+  .sum{font-size:14.5px}
+  .sum div{padding:10px 13px}
+  nav{position:sticky;bottom:0;width:100%;max-width:540px;border-radius:0 0 18px 18px;padding:12px 20px 16px;box-shadow:0 10px 30px rgba(15,23,42,.08)}
+  nav button{padding:14px;font-size:17px;border-radius:13px}
+}
 </style>
 </head>
 <body>
@@ -74,7 +106,7 @@ nav button{border-radius:14px;padding:16px;font-size:18px;font-weight:900;font-f
     prepay: null, prepayMisong: null, agreed: false,
     shipTo: '',
     recipients: [{ name: '', phone: '', address: '', product: '', message: '' }],
-    memo: '', consent: false,
+    memo: '', consent: false, kakao: false,
   };
   let step = 1, sending = false, tried = false;
   const main = document.getElementById('main');
@@ -85,6 +117,17 @@ nav button{border-radius:14px;padding:16px;font-size:18px;font-weight:900;font-f
   const kstHour = () => Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Seoul', hour: '2-digit', hour12: false }).format(new Date())) % 24;
   const lateNotice = () => (kstHour() >= 23 || kstHour() < 1)
     ? '<div class="notice">⏰ 지금은 <b>23시가 지났어요.</b> 23시 이후 픽업요청건은 사입팀 사정으로 인해 픽업이 불발될 수도 있습니다.</div>' : '';
+
+  // 카카오톡 친구추가 안내 (접수 마무리 단계). 밤낮딜리버리 카톡 번호를 친구추가하고 '접수했습니다 + 상호 + 연락처'를 보내야 접수 마무리
+  const KAKAO_PHONE = '010-5425-9060';
+  const kakaoMsg = () => `비회원 간단 주문접수 했습니다.\n상호: ${d.company}\n연락처: ${d.phone}`;
+  const kakaoBox = (done) => `<div class="kakao">
+      <div class="kt">${done ? '⚠️ 아직 끝나지 않았어요! 마지막 단계' : '📌 접수 후 꼭 해주세요'}</div>
+      <ol><li>카카오톡에서 <b>${KAKAO_PHONE}</b> 번호를 <b>친구추가</b>해주세요<br><small>카카오톡 → 친구 추가(👤+) → 연락처로 추가</small></li>
+      <li>그 대화방에 아래 메시지를 보내주세요</li></ol>
+      <div class="km">${esc(kakaoMsg())}</div>
+      ${done ? `<button class="kcopy" data-copy="1">📋 메시지 복사하기</button>` : ''}
+      <div class="kf">이것까지 해야 <b>접수가 마무리</b>돼요. (픽업·배송 안내를 카카오톡으로 드려요)</div></div>`;
 
   const field = (key, label, val, opt = {}) => `
     <div class="f"><label>${label}${opt.req === false ? ' <span>(선택)</span>' : ' *'}</label>
@@ -115,6 +158,7 @@ nav button{border-radius:14px;padding:16px;font-size:18px;font-weight:900;font-f
       if (d.shipTo === 'customer' && !x.product.trim()) m.push(`recipients.${i}.product`);
     });
     if (s === 7 && !d.consent) m.push('consent');
+    if (s === 7 && !d.kakao) m.push('kakao');
     return m;
   }
   const bad = k => tried && missing().includes(k);
@@ -184,10 +228,14 @@ nav button{border-radius:14px;padding:16px;font-size:18px;font-weight:900;font-f
         </div>
         <label class="agree" style="${bad('consent') ? 'background:#fff1f2' : ''}"><input type="checkbox" data-chk="consent" ${d.consent ? 'checked' : ''}>
           <span><b>개인정보 수집·이용에 동의합니다 (필수)</b><small>접수와 픽업·배송을 위해 주문자와 받으실 분의 이름·연락처·주소를 받습니다. 접수 후 1년이 지나면 지웁니다.</small></span></label>
+        ${kakaoBox()}
+        <label class="agree" style="border-color:#f59e0b;${bad('kakao') ? 'background:#fff1f2' : ''}"><input type="checkbox" data-chk="kakao" ${d.kakao ? 'checked' : ''}>
+          <span><b>접수 후 카카오톡 친구추가 + 메시지까지 보내야 접수가 마무리되는 것을 확인했어요 (필수)</b></span></label>
         <div class="err" id="err"></div>`;
     } else if (step === 8) {
       html = `<div class="done"><div class="big">✅</div><h1>접수됐어요!</h1>
         <p>밤낮딜리버리에서 내용을 확인하고<br>연락드릴게요.</p>
+        ${kakaoBox(true)}
         <div class="box"><b>📌 다음 주문부터는</b><br>SO솔루션으로 픽업요청, 웹페이지로 배송접수를 하시면 더 빠르고 편해요.<br>가입과 사용법은 저희가 연락드려 도와드릴게요.</div>
         <p style="font-size:14px;margin-top:18px">※ 배송접수는 24시간 가능, 단 사입요청은 23시 전까지 해주세요.<br>(사입되지 않은 배송건은 출고가 불가능합니다)<br>문의 010-5425-9060 · 카톡 bamnatdelivery</p></div>`;
     }
@@ -211,6 +259,11 @@ nav button{border-radius:14px;padding:16px;font-size:18px;font-weight:900;font-f
   main.addEventListener('click', e => {
     const t = e.target.closest('button');
     if (!t) return;
+    if (t.dataset.copy) {
+      const done = () => { t.textContent = '✅ 복사됐어요! 카카오톡 대화방에 붙여넣어 주세요'; };
+      (navigator.clipboard ? navigator.clipboard.writeText(kakaoMsg()) : Promise.reject()).then(done).catch(() => { prompt('아래 내용을 복사해주세요', kakaoMsg()); });
+      return;
+    }
     if (t.dataset.set) {
       const k = t.dataset.set;
       d[k] = t.dataset.v === 'true' ? true : t.dataset.v === 'false' ? false : t.dataset.v;

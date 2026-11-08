@@ -50,48 +50,53 @@
     </header>
 
     <!-- Operational Status Banner -->
-    <div id="status-banner" class="px-6 py-2.5 text-sm font-medium flex justify-between items-center transition-colors">
+    <div id="status-banner" class="px-4 sm:px-6 py-2.5 text-sm font-medium flex flex-col sm:flex-row gap-1.5 sm:gap-4 sm:justify-between sm:items-center transition-colors">
         <div class="flex items-center gap-2">
             <i id="status-icon" data-lucide="info" class="w-4 h-4"></i>
             <span id="status-text">상태 로딩 중...</span>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span id="status-subtext" class="text-xs opacity-90"></span>
             <span id="status-clock" class="font-mono text-xs font-bold bg-black/20 px-2 py-0.5 rounded whitespace-nowrap"></span>
         </div>
     </div>
 
     <!-- Navigation Header -->
-    <nav class="bg-white border-b border-slate-200 px-6 py-3 flex flex-wrap gap-2 justify-between items-center shadow-sm">
-        <div class="flex items-center gap-3">
+    <nav class="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex flex-wrap gap-x-2 gap-y-3 justify-between items-center shadow-sm">
+        <!-- 휴대폰: 1줄 로고·제목 / 2줄 셀러 버튼(2개씩) / 3줄 DB·회원정보. 컴퓨터: 예전처럼 한 줄 -->
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-3 w-full sm:w-auto">
+            <div class="flex items-center gap-3 shrink-0">
             <div class="bg-indigo-600 text-white p-2 rounded-lg font-black tracking-wider text-sm">밤낮</div>
             <div>
                 <h1 class="font-bold text-lg leading-tight text-slate-900">밤낮딜리버리 풀필먼트</h1>
                 <p class="text-xs text-slate-500">통합 주문접수 및 관리 시스템</p>
             </div>
+            </div>
+            <div id="nav-seller-btns" class="hidden grid-cols-2 gap-2 w-full sm:w-auto sm:items-center">
             <!-- 셀러 로그인 시에만 표시: 사입팀 픽업요청 페이지로 이동 -->
-            <button id="nav-pickup-btn" type="button" onclick="openPickupPage()" class="hidden shrink-0 whitespace-nowrap ml-2 px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
+            <button id="nav-pickup-btn" type="button" onclick="openPickupPage()" class="hidden shrink-0 whitespace-nowrap sm:ml-2 justify-center px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
                 <i data-lucide="shopping-bag" class="w-4 h-4"></i> 사입팀 픽업요청
             </button>
             <!-- 셀러 로그인 시에만 표시: 내 재고 확인 페이지 (stock.html) -->
-            <a id="nav-stock-btn" href="/stock" class="hidden shrink-0 whitespace-nowrap ml-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
+            <a id="nav-stock-btn" href="/stock" class="hidden shrink-0 whitespace-nowrap sm:ml-2 justify-center px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
                 <i data-lucide="package" class="w-4 h-4"></i> 재고 확인
             </a>
             <!-- 셀러 로그인 시에만 표시: 내 이용 현황 페이지 (usage.html) -->
-            <a id="nav-usage-btn" href="/usage" class="hidden shrink-0 whitespace-nowrap ml-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
+            <a id="nav-usage-btn" href="/usage" class="hidden shrink-0 whitespace-nowrap sm:ml-2 justify-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
                 <i data-lucide="bar-chart-3" class="w-4 h-4"></i> 이용 현황
             </a>
             <!-- 셀러 로그인 시에만 표시: 내 상품관리 페이지 (products.html) -->
-            <a id="nav-products-btn" href="/products" class="hidden shrink-0 whitespace-nowrap ml-2 px-3 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
+            <a id="nav-products-btn" href="/products" class="hidden shrink-0 whitespace-nowrap sm:ml-2 justify-center px-3 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
                 <i data-lucide="tags" class="w-4 h-4"></i> 상품관리
             </a>
+            </div>
         </div>
-        <div class="flex items-center gap-3">
-            <div id="db-status-badge" class="px-2.5 py-1 bg-slate-100 text-slate-500 text-xs font-bold rounded-full flex items-center gap-1.5">
+        <div class="flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-2 w-full sm:w-auto">
+            <div id="db-status-badge" class="px-2.5 py-1 bg-slate-100 text-slate-500 text-xs font-bold rounded-full flex items-center gap-1.5 shrink-0 whitespace-nowrap">
                 <span class="w-2 h-2 rounded-full bg-slate-400"></span> DB 연결 확인 중...
             </div>
-            <div class="h-4 w-px bg-slate-200 my-auto"></div>
-            <div id="nav-user-area" class="flex items-center gap-2"></div>
+            <div class="hidden sm:block h-4 w-px bg-slate-200 my-auto"></div>
+            <div id="nav-user-area" class="flex items-center gap-2 sm:w-auto min-w-0"></div>
         </div>
     </nav>
 
@@ -1851,6 +1856,18 @@
                     </div>
                 </div>
 
+                <!-- 가입 마무리: 밤낮딜리버리 카톡 친구추가 + 상호·연락처 메시지 (카카오톡 아이디를 알아야 안내 가능) -->
+                <div class="mt-1 border-2 border-yellow-300 bg-yellow-50 rounded-xl p-3 text-xs text-yellow-900 leading-relaxed">
+                    <p class="font-black text-[13px] text-yellow-800">📌 가입 후 꼭 해주세요</p>
+                    <p class="mt-1">1. 카카오톡에서 <b>010-5425-9060</b> 번호를 <b>친구추가</b>해주세요 <span class="text-slate-500">(친구 추가 → 연락처로 추가)</span></p>
+                    <p>2. 그 대화방에 <b>"회원가입 했습니다 + 상호 + 연락처"</b>를 보내주세요</p>
+                    <p class="mt-1 text-rose-700 font-bold">이것까지 해야 가입이 마무리돼요. (승인·이용 안내를 카카오톡으로 드려요)</p>
+                    <label class="mt-2 flex items-start gap-2 bg-white border border-yellow-300 rounded-lg p-2 cursor-pointer">
+                        <input type="checkbox" id="signup-kakao-ok" required class="mt-0.5 w-4 h-4 shrink-0">
+                        <span class="font-bold text-slate-800">가입 후 카카오톡 친구추가 + 메시지까지 보내야 마무리되는 것을 확인했어요 (필수)</span>
+                    </label>
+                </div>
+
                 <div class="pt-3 flex gap-2">
                     <button type="button" onclick="closeSignupModal()" class="flex-1 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-lg text-xs hover:bg-slate-200">
                         취소
@@ -1860,6 +1877,22 @@
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- MODAL: 가입 직후 카카오톡 친구추가 안내 (showKakaoDoneModal) -->
+    <div id="kakao-done-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-5 space-y-3 border border-slate-100">
+            <p id="kakao-done-title" class="text-sm font-bold text-slate-700"></p>
+            <div class="border-2 border-yellow-300 bg-yellow-50 rounded-xl p-3 text-sm text-yellow-900 leading-relaxed">
+                <p class="font-black text-base text-yellow-800">⚠️ 아직 끝나지 않았어요! 마지막 단계</p>
+                <p class="mt-1">1. 카카오톡에서 <b>010-5425-9060</b> 번호를 <b>친구추가</b>해주세요<br><span class="text-xs text-slate-500">카카오톡 → 친구 추가(👤+) → 연락처로 추가</span></p>
+                <p class="mt-1">2. 그 대화방에 아래 메시지를 보내주세요</p>
+                <div id="kakao-done-msg" class="mt-2 bg-white border border-dashed border-yellow-400 rounded-lg p-2 whitespace-pre-wrap text-slate-900"></div>
+                <button id="kakao-done-copy" type="button" class="mt-2 w-full py-2.5 bg-[#FEE500] text-[#191919] font-black rounded-lg">📋 메시지 복사하기</button>
+                <p class="mt-2 text-xs text-rose-700 font-bold">이것까지 해야 가입이 마무리돼요. (승인·이용 안내를 카카오톡으로 드려요)</p>
+            </div>
+            <button type="button" onclick="const m=document.getElementById('kakao-done-modal');m.classList.add('hidden');m.classList.remove('flex');" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-sm">확인했어요</button>
         </div>
     </div>
 
@@ -2231,10 +2264,10 @@
         function setDbBadge(ok, message) {
             const badge = document.getElementById('db-status-badge');
             if (ok) {
-                badge.className = "px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full flex items-center gap-1.5 border border-emerald-200";
+                badge.className = "px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full flex items-center gap-1.5 shrink-0 whitespace-nowrap border border-emerald-200";
                 badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> ${escapeHtml(message)}`;
             } else {
-                badge.className = "px-2.5 py-1 bg-rose-50 text-rose-700 text-xs font-bold rounded-full flex items-center gap-1.5 border border-rose-200";
+                badge.className = "px-2.5 py-1 bg-rose-50 text-rose-700 text-xs font-bold rounded-full flex items-center gap-1.5 shrink-0 whitespace-nowrap border border-rose-200";
                 badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-500"></span> ${escapeHtml(message)}`;
             }
         }
@@ -2425,11 +2458,11 @@
             const subtext = document.getElementById('status-subtext');
 
             if (phase === 'kakao') {
-                banner.className = "bg-amber-500 text-white px-6 py-2.5 text-sm font-medium flex justify-between items-center shadow-inner";
+                banner.className = "bg-amber-500 text-white px-4 sm:px-6 py-2.5 text-sm font-medium flex flex-col sm:flex-row gap-1.5 sm:gap-4 sm:justify-between sm:items-center shadow-inner";
                 text.innerText = "배송접수 24시간 가능 · 지금(07:30~14:00) 당일 출고 긴급건은 카카오톡 단톡방으로 꼭 알려주세요";
                 subtext.innerText = "접수누락 방지를 위해 당일 출고건은 단톡방 안내 메세지가 필수입니다.";
             } else {
-                banner.className = "bg-emerald-500 text-white px-6 py-2.5 text-sm font-medium flex justify-between items-center shadow-inner";
+                banner.className = "bg-emerald-500 text-white px-4 sm:px-6 py-2.5 text-sm font-medium flex flex-col sm:flex-row gap-1.5 sm:gap-4 sm:justify-between sm:items-center shadow-inner";
                 text.innerText = "배송접수는 24시간 가능 · 사입 픽업요청은 23시 전까지 접수해주세요";
                 subtext.innerText = "관리자 마감(접수완료) 전·출고 전 주문은 수정/삭제할 수 있습니다.";
             }
@@ -2661,16 +2694,31 @@
             }
 
             notifySignup(email);
+            const kakaoText = `회원가입 했습니다.\n상호: ${company}\n연락처: ${formatPhone(phone)}`;
             closeSignupModal();
             e.target.reset();
             signupCompanyOk = null;
             setSignupCompanyStatus('', true);
             if (data.session) {
-                alert(`회원가입 완료!\n상호명: ${company}`); // 자동으로 로그인됩니다
+                showKakaoDoneModal(`회원가입 완료! (상호명: ${company})`, kakaoText); // 자동으로 로그인됩니다
             } else {
-                alert(`회원가입 신청 완료!\n\n${email} 로 인증 메일을 보냈습니다.\n메일의 링크를 눌러 인증한 뒤 로그인해주세요.`);
+                showKakaoDoneModal(`회원가입 신청 완료! ${email} 로 인증 메일을 보냈습니다. 메일의 링크를 눌러 인증한 뒤 로그인해주세요.`, kakaoText);
                 document.getElementById('login-email').value = email;
             }
+        }
+
+        // 가입 직후: 카카오톡 친구추가 + 메시지 보내기 안내 창 (메시지 복사 버튼)
+        function showKakaoDoneModal(title, text) {
+            document.getElementById('kakao-done-title').innerText = title;
+            document.getElementById('kakao-done-msg').innerText = text;
+            const btn = document.getElementById('kakao-done-copy');
+            btn.innerText = '📋 메시지 복사하기';
+            btn.onclick = () => {
+                const ok = () => { btn.innerText = '✅ 복사됐어요! 카카오톡 대화방에 붙여넣어 주세요'; };
+                (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(ok).catch(() => prompt('아래 내용을 복사해주세요', text));
+            };
+            const m = document.getElementById('kakao-done-modal');
+            m.classList.remove('hidden'); m.classList.add('flex');
         }
 
         // 새 회원가입을 대표님 휴대폰으로 알림 (worker/notify.js). 실패해도 가입에는 영향 없음
@@ -3080,17 +3128,23 @@
             const productsBtn = document.getElementById('nav-products-btn');
             productsBtn.classList.toggle('hidden', currentRole !== 'seller');
             productsBtn.classList.toggle('flex', currentRole === 'seller');
+            // 휴대폰에서 셀러 버튼 묶음(2개씩)과 회원정보 줄은 로그인했을 때만 자리 차지
+            const sellerBtns = document.getElementById('nav-seller-btns');
+            sellerBtns.classList.toggle('hidden', currentRole !== 'seller');
+            sellerBtns.classList.toggle('grid', currentRole === 'seller');
+            sellerBtns.classList.toggle('sm:flex', currentRole === 'seller');
             const area = document.getElementById('nav-user-area');
+            area.classList.toggle('w-full', !!currentRole);
             if (!currentRole) {
                 area.innerHTML = `<span class="text-xs text-slate-400">로그인 필요</span>`;
             } else if (currentRole === 'seller') {
                 area.innerHTML = `
-                    <div class="text-right">
-                        <span class="text-xs font-bold text-slate-900 block">${escapeHtml(currentSellerAccount.company)}님</span>
-                        <span class="text-[10px] text-slate-400">${escapeHtml(currentSellerAccount.email || '셀러 회원')}</span>
+                    <div class="flex-1 sm:flex-none text-left sm:text-right min-w-0">
+                        <span class="text-xs font-bold text-slate-900 block truncate">${escapeHtml(currentSellerAccount.company)}님</span>
+                        <span class="text-[10px] text-slate-400 block truncate">${escapeHtml(currentSellerAccount.email || '셀러 회원')}</span>
                     </div>
-                    <button onclick="openMyPage()" class="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs rounded-lg font-bold">내정보</button>
-                    <button onclick="logout()" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-bold">로그아웃</button>
+                    <button onclick="openMyPage()" class="shrink-0 whitespace-nowrap px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs rounded-lg font-bold">내정보</button>
+                    <button onclick="logout()" class="shrink-0 whitespace-nowrap px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-bold">로그아웃</button>
                 `;
             } else {
                 area.innerHTML = `
@@ -3098,7 +3152,7 @@
                         <span class="text-xs font-bold text-indigo-600 block">밤낮딜리버리 관리자</span>
                         <span class="text-[10px] text-slate-400">${escapeHtml(currentSellerAccount.email || '최고 권한')}</span>
                     </div>
-                    <button onclick="logout()" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-bold">로그아웃</button>
+                    <button onclick="logout()" class="shrink-0 whitespace-nowrap px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-bold">로그아웃</button>
                 `;
             }
         }
