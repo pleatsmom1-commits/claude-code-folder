@@ -227,13 +227,28 @@ async function saveSettleContactPhone(input) {
 async function addSettleContact() {
     const company = (prompt('추가할 상호를 입력하세요 (정산청구서와 같은 표기)') || '').trim();
     if (!company) return;
+    // 이미 있는 상호면 추가하지 않습니다. (띄어쓰기·대소문자만 다른 상호도 같은 상호로 봅니다)
+    // 예전에는 같은 상호를 다시 추가하면서 연락처를 비우면 기존 연락처가 지워졌습니다.
+    const dupMsg = name => `이미 등록된 상호입니다: [${name}]\n\n추가하지 않았습니다. 연락처를 바꾸려면 표에서 그 상호의 연락처 칸을 고친 뒤 Enter 를 눌러 주세요.`;
+    const same = settleContacts.find(x => settleNorm(x.company) === settleNorm(company));
+    if (same) { alert(dupMsg(same.company)); settleShowContact(same.company); return; }
     const raw = (prompt(`[${company}] 연락처 (모르면 비워두세요)`) || '').trim();
     const phone = settlePhone(raw);
     if (raw && !phone) { alert('연락처 형식이 올바르지 않습니다.'); return; }
+    // upsert(덮어쓰기)가 아니라 insert(새로 넣기)라서, 혹시 화면에 없던 같은 상호가 DB 에 있어도 덮어쓰지 않습니다.
     const { error } = await supabaseClient.from('settle_contacts')
-        .upsert({ company, phone, updated_at: new Date().toISOString() });
+        .insert({ company, phone, updated_at: new Date().toISOString() });
+    if (error && error.code === '23505') { alert(dupMsg(company)); fetchSettleContacts(); return; }
     if (error) { alert('저장 실패: ' + dbErrorMessage(error)); return; }
     fetchSettleContacts();
+}
+
+// 검색칸에 상호를 넣어 그 거래처만 보이게 합니다.
+function settleShowContact(company) {
+    const box = document.getElementById('settle-contact-search');
+    if (!box) return;
+    box.value = company;
+    renderSettleContacts();
 }
 
 async function deleteSettleContact(company) {
@@ -270,9 +285,15 @@ function uploadSettleContacts(event) {
             }
             const map = new Map();
             for (const r of rows) map.set(r.company, settlePhone(r.raw)); // 같은 상호가 여러 번이면 마지막 값
-            const payload = [...map].map(([company, phone]) => ({ company, phone, updated_at: new Date().toISOString() }));
+            // 파일에 연락처가 비어 있으면, 이미 등록된 연락처는 지우지 않고 그대로 둡니다.
+            let kept = 0;
+            const payload = [...map].map(([company, phone]) => {
+                const old = settleContacts.find(x => x.company === company);
+                if (!phone && old && old.phone) { phone = old.phone; kept++; }
+                return { company, phone, updated_at: new Date().toISOString() };
+            });
             const withPhone = payload.filter(p => p.phone).length;
-            if (!confirm(`${payload.length}곳을 등록합니다. (연락처 있음 ${withPhone}곳 / 없음 ${payload.length - withPhone}곳)\n\n이미 등록된 상호는 이 파일의 연락처로 바뀝니다. 계속할까요?`)) return;
+            if (!confirm(`${payload.length}곳을 등록합니다. (연락처 있음 ${withPhone}곳 / 없음 ${payload.length - withPhone}곳)\n\n이미 등록된 상호는 이 파일의 연락처로 바뀝니다.${kept ? `\n(파일에 연락처가 비어 있는 ${kept}곳은 기존 연락처를 그대로 둡니다)` : ''} 계속할까요?`)) return;
 
             for (let i = 0; i < payload.length; i += 500) {
                 const { error } = await supabaseClient.from('settle_contacts').upsert(payload.slice(i, i + 500));
