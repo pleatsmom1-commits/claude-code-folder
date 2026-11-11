@@ -26,7 +26,7 @@ const tables = {
     { id: 'ORD-2', seller_id: ids.seller, seller_company: '가나 샵', sender_name: '밤낮딜리버리(가나 샵)', recipient: '테스트고객', phone: '010-4444-5555', address: '부산', product: '테스트상품', status: '접수대기', ship_status: '미출고', order_type: 'fulfillment', order_no: 2, item_no: 1, seller_order_no: 2, created_at: new Date().toISOString() }],
   couriers: [{ id: 'c1', name: '우체국택배', sort_order: 1 }],
   address_book: [], pickup_requests: [], settlements: [], settle_contacts: [{ company: '럭스걸', phone: '01077778888' }, { company: '유어피치', phone: '' }],
-  shipments: [], admin_hidden_orders: [],
+  shipments: [], admin_hidden_orders: [], admin_separate_orders: [],
 };
 let nextShipId = 1;
 const requests = [];
@@ -107,10 +107,11 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
       if (method === 'DELETE') { const rows = applyFilters(tables.shipments, url); tables.shipments = tables.shipments.filter(r => !rows.includes(r)); return json(200, rows); }
     }
     const table = url.pathname.replace('/rest/v1/', '');
-    if (table === 'admin_hidden_orders' && !(who && who.profile.role === 'admin')) return json(401, { message: 'permission denied' });
+    if (['admin_hidden_orders', 'admin_separate_orders'].includes(table) && !(who && who.profile.role === 'admin')) return json(401, { message: 'permission denied' });
     if (tables[table]) {
       if (method === 'GET') return json(200, applyFilters(tables[table], url));
       if (method === 'POST') { const list = Array.isArray(body) ? body : [body]; list.forEach(r => { if (!tables[table].some(x => x.order_id === r.order_id)) tables[table].push(r); }); return json(201, list); }
+      if (method === 'PATCH') { const rows = applyFilters(tables[table], url); rows.forEach(r => Object.assign(r, body)); return json(200, rows); }
       if (method === 'DELETE') { const rows = applyFilters(tables[table], url); tables[table] = tables[table].filter(r => !rows.includes(r)); return json(200, rows); }
     }
     return json(404, { message: 'unmocked ' + url.pathname });
@@ -137,7 +138,12 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   check('hidden order disappears from list', !(await listText()).includes('테스트고객') && (await listText()).includes('홍길동'));
   check('count + hidden count label', (await page.textContent('#admin-order-count')).includes('주문 1건') && (await page.textContent('#admin-hidden-count')).includes('1개'));
   await page.screenshot({ path: path.join(__dirname, 'out', 'hidden-1.png') });
-
+  await page.evaluate(() => confirmAdminBatch()); await page.waitForTimeout(400);
+  check('green button with nothing checked asks to select', dialogs[dialogs.length - 1].includes('체크박스로 선택'));
+  await page.check('#chk-all-admin'); await page.dispatchEvent('#chk-all-admin', 'change');
+  await page.evaluate(() => confirmAdminBatch()); await page.waitForTimeout(800);
+  const o = id => tables.orders.find(x => x.id === id).status;
+  check('green button: only checked (visible) orders, hidden untouched', o('ORD-1') === '접수완료' && o('ORD-2') === '접수대기', o('ORD-1') + '/' + o('ORD-2'));
   await page.check('#admin-show-hidden'); await page.waitForTimeout(300);
   check('[숨긴 접수건도 보기] shows it with 숨김 badge', (await listText()).includes('테스트고객') && (await listText()).includes('숨김') && (await page.isVisible('#btn-admin-unhide')));
   await page.screenshot({ path: path.join(__dirname, 'out', 'hidden-2.png') });
@@ -149,6 +155,15 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   check('unhidden order visible again', (await listText()).includes('테스트고객'));
 
   await page.check('#admin-show-hidden'); await page.evaluate(() => resetAdminSearch()); await page.waitForTimeout(300);
+  // 따로 처리됨
+  await page.check('.admin-chk-item[value="ORD-2"]');
+  await page.click('button:has-text("따로 처리됨")'); await page.waitForTimeout(800);
+  check('따로 처리됨 saved + order becomes 접수완료', tables.admin_separate_orders.some(r => r.order_id === 'ORD-2') && o('ORD-2') === '접수완료', o('ORD-2'));
+  check('따로 처리됨 badge in row', (await page.locator('#admin-order-list tr', { hasText: '테스트고객' }).textContent()).includes('따로 처리됨'));
+  await page.screenshot({ path: path.join(__dirname, 'out', 'separate.png') });
+  await page.check('.admin-chk-item[value="ORD-2"]');
+  await page.click('button:has-text("따로 처리됨")'); await page.waitForTimeout(800);
+  check('따로 처리됨 again → 표시 풀기', tables.admin_separate_orders.length === 0 && !(await page.locator('#admin-order-list tr', { hasText: '테스트고객' }).textContent()).includes('따로 처리됨'));
   check('초기화 unchecks 숨긴 접수건도 보기', !(await page.isChecked('#admin-show-hidden')));
   check('no page errors', pageErrors.length === 0, pageErrors.join(' | '));
   fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
