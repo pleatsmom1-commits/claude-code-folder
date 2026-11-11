@@ -901,7 +901,7 @@
                                     <th class="p-3 whitespace-nowrap">쇼핑몰 상품명</th>
                                     <th class="p-3 whitespace-nowrap">도매처/상품</th>
                                     <th class="p-3 whitespace-nowrap">밤낮 전달메세지</th>
-                                    <th class="p-3 whitespace-nowrap">접수시간</th>
+                                    <th class="p-3 whitespace-nowrap">접수시간<span class="block text-[10px] font-normal text-slate-400">셀러 접수 / 관리자 접수</span></th>
                                     <th class="p-3 whitespace-nowrap">상태</th>
                                     <th class="ship-ui p-3 whitespace-nowrap">출고</th>
                                 </tr>
@@ -1061,7 +1061,7 @@
                             <thead class="bg-slate-800 text-slate-200 font-bold">
                                 <tr>
                                     <th class="p-3 text-center w-10"><input type="checkbox" id="chk-all-pickup" onchange="document.querySelectorAll('.pickup-chk-item').forEach(c => c.checked = this.checked)" class="rounded border-slate-300"></th>
-                                    <th class="p-3">접수시각</th>
+                                    <th class="p-3 whitespace-nowrap">접수시각<span class="block text-[10px] font-normal text-slate-400">셀러 접수 / 관리자 처리</span></th>
                                     <th class="p-3">주문자</th>
                                     <th class="p-3">픽업할 매장</th>
                                     <th class="p-3">대납</th>
@@ -4485,7 +4485,7 @@
                         ${escapeHtml(o.bamnat_memo || '-')}
                         ${o.keep_request === '있음' && o.keep_memo && !isKeepOrder(o) ? `<span class="block mt-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 text-[10px] font-black">📦 보관요청: ${escapeHtml(o.keep_memo || '')}</span>` : ''}
                     </td>
-                    <td class="p-3 text-slate-400 whitespace-nowrap">${escapeHtml(formatKstDateTime(o.created_at))}</td>
+                    <td class="p-3 text-slate-400 whitespace-nowrap">${adminTimesHtml(o.origin_created_at, o.created_at, o.status === '접수완료' ? o.accepted_at : null, '관리자 접수', formatKstDateTime)}</td>
                     <td class="p-3">
                         <div class="flex items-center gap-1 whitespace-nowrap">
                             ${statusBadgeHtml(o.status)}${separateOrderIds.has(o.id) ? '<span class="ml-1 px-2 py-1 rounded text-[10px] font-bold whitespace-nowrap bg-violet-100 text-violet-700" title="이 사이트 밖에서 따로 처리·배송한 접수건">따로 처리됨</span>' : ''}
@@ -5012,6 +5012,16 @@
         // =====================================================================
         let pickupRequests = [];
 
+        // 관리자 목록의 시간 칸: 셀러(손님)가 처음 접수한 시각 + 관리자가 접수/처리한 시각
+        //  origin: 비회원 간단 접수에서 넘어온 건의 손님 접수 시각 (있으면 이것이 '셀러 접수')
+        //  done  : 관리자 접수/처리 시각 (supabase/order_times.sql 실행 후부터 기록, 없으면 '-')
+        function adminTimesHtml(origin, created, done, doneLabel, fmt) {
+            const line = (label, v, cls) => `<div class="${cls}"><span class="text-[10px] text-slate-400 mr-1">${label}</span>${escapeHtml(v ? fmt(v) : '-')}</div>`;
+            return line('셀러 접수', origin || created, 'text-slate-700')
+                + line(doneLabel, done, done ? 'text-emerald-700' : 'text-slate-300')
+                + (origin ? `<div class="text-[10px] text-slate-400" title="비회원 간단 접수를 주문관리로 넘긴 시각">간단접수에서 넘김 ${escapeHtml(fmt(created))}</div>` : '');
+        }
+
         function formatPickupTime(iso) {
             const d = new Date(iso);
             const k = new Date(d.getTime() + 9 * 3600 * 1000); // 한국시간
@@ -5348,7 +5358,7 @@
                 return `
                 <tr class="hover:bg-slate-50 ${draft ? 'bg-amber-50' : ''}">
                     <td class="p-3 text-center"><input type="checkbox" value="${id}" ${checked.has(r.id) ? 'checked' : ''} class="pickup-chk-item rounded border-slate-300"></td>
-                    <td class="p-3 whitespace-nowrap font-mono">${formatPickupTime(r.created_at)}</td>
+                    <td class="p-3 whitespace-nowrap font-mono">${adminTimesHtml(r.origin_created_at, r.created_at, r.status !== '접수' ? r.handled_at : null, '관리자 처리', formatPickupTime)}</td>
                     <td class="p-3">
                         <div class="font-bold">${escapeHtml(r.orderer_name || r.seller_company)}</div>
                         <div class="text-slate-500">${escapeHtml(r.orderer_phone || '')}</div>

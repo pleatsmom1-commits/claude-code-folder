@@ -23,9 +23,9 @@ const users = {
 };
 const tables = {
   orders: [{ id: 'ORD-1', seller_id: ids.seller, seller_company: '가나 샵', sender_name: '밤낮딜리버리(가나 샵)', recipient: '홍길동', phone: '010-2222-3333', address: '서울', product: '티셔츠', status: '접수대기', ship_status: '미출고', order_type: 'fulfillment', order_no: 1, item_no: 1, seller_order_no: 1, created_at: new Date().toISOString() },
-    { id: 'ORD-2', seller_id: ids.seller, seller_company: '가나 샵', sender_name: '밤낮딜리버리(가나 샵)', recipient: '테스트고객', phone: '010-4444-5555', address: '부산', product: '테스트상품', status: '접수대기', ship_status: '미출고', order_type: 'fulfillment', order_no: 2, item_no: 1, seller_order_no: 2, created_at: new Date().toISOString() }],
+    { id: 'ORD-2', seller_id: ids.seller, seller_company: '가나 샵', sender_name: '밤낮딜리버리(가나 샵)', recipient: '테스트고객', phone: '010-4444-5555', address: '부산', product: '테스트상품', status: '접수대기', ship_status: '미출고', order_type: 'fulfillment', order_no: 2, item_no: 1, seller_order_no: 2, created_at: '2026-11-11T03:42:00Z', origin_created_at: '2026-11-08T06:45:00Z' }],
   couriers: [{ id: 'c1', name: '우체국택배', sort_order: 1 }],
-  address_book: [], pickup_requests: [], settlements: [], settle_contacts: [{ company: '럭스걸', phone: '01077778888' }, { company: '유어피치', phone: '' }],
+  address_book: [], pickup_requests: [{ id: 'p1', seller_id: ids.admin, seller_company: '에이치제이', orderer_name: '에이치제이', orderer_phone: '01068626822', store_name: '엑시토', store_location: '벨포스트 3층 12호', store_phone: '01075049991', prepay: true, prepay_misong: false, agreed: true, memo: '비회원 간단접수 #5 오늘 픽업 부탁드립니다', status: '확인', created_at: new Date().toISOString(), origin_created_at: '2026-11-08T06:45:00Z', handled_at: '2026-11-11T09:00:00Z' }], settlements: [], settle_contacts: [{ company: '럭스걸', phone: '01077778888' }, { company: '유어피치', phone: '' }],
   shipments: [], admin_hidden_orders: [], admin_separate_orders: [],
 };
 let nextShipId = 1;
@@ -130,6 +130,14 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.click('#tab-btn-admin');
   await page.fill('#login-email', 'admin@x.com'); await page.fill('#login-pw', 'adminpass1');
   await page.click('#btn-login'); await page.waitForTimeout(1500);
+  const t2 = (await page.locator('#admin-order-list tr', { hasText: '테스트고객' }).textContent()).replace(/\s+/g, ' ');
+  check('order time cell: 셀러 접수 = 손님 접수(11/08 15:45) + 넘김 표시', t2.includes('셀러 접수2026-11-08 15:45') && t2.includes('관리자 접수-') && t2.includes('간단접수에서 넘김 2026-11-11 12:42'), t2);
+  await page.click('#admin-tab-pickup'); await page.waitForTimeout(600);
+  await page.evaluate(() => { pickupQuery.status = 'ALL'; renderAdminPickupTable(); });
+  const tp = (await page.textContent('#pickup-admin-list')).replace(/\s+/g, ' ');
+  check('pickup time cell: 셀러 접수 + 관리자 처리', tp.includes('셀러 접수11/8 15:45') && tp.includes('관리자 처리11/11 18:00'), tp.slice(0, 200));
+  await page.screenshot({ path: path.join(__dirname, 'out', 'times-pickup.png') });
+  await page.click('#admin-tab-orders'); await page.waitForTimeout(400);
   check('admin order list shows both orders', (await listText()).includes('홍길동') && (await listText()).includes('테스트고객'));
 
   await page.check('.admin-chk-item[value="ORD-2"]');
