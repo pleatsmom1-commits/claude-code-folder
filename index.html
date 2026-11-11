@@ -181,8 +181,14 @@
                 <div id="keep-request-box" class="col-span-2 lg:col-span-1 bg-amber-50 border-2 border-amber-300 rounded-xl px-4 py-2.5 space-y-1.5">
                     <div class="flex items-center gap-2 flex-wrap">
                         <span class="text-sm font-black text-amber-900">📥 픽업건 중 사무실 보관요청</span>
-                        <span class="text-[11px] font-bold text-rose-600">* 필수 체크</span>
+                        <span id="keep-required-tag" class="text-[11px] font-bold text-rose-600">* 하루 한 번 필수 체크</span>
                     </div>
+                    <!-- 오늘 이미 확인했으면 한 줄로 줄여서 보여줍니다 -->
+                    <div id="keep-done" class="hidden flex items-center justify-between gap-2 flex-wrap">
+                        <p id="keep-done-text" class="text-xs font-bold text-emerald-700"></p>
+                        <button type="button" onclick="openKeepForm()" class="shrink-0 px-3 py-1 bg-white border border-amber-300 hover:bg-amber-100 text-amber-800 font-bold text-[11px] rounded-lg">바꾸기 · 추가</button>
+                    </div>
+                    <div id="keep-form" class="space-y-1.5">
                     <div class="flex items-start gap-x-4 gap-y-1 flex-wrap">
                         <label class="flex items-center gap-1.5 text-xs font-bold text-slate-800 cursor-pointer">
                             <input type="radio" name="keep-request" value="있음" autocomplete="off" onchange="onKeepRequestChange()" class="w-4 h-4 text-amber-600"> 1. 보관건 있습니다
@@ -205,6 +211,7 @@
                         <button type="button" id="btn-keep-submit" onclick="submitKeepRequest()" class="shrink-0 px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs rounded-lg shadow">접수</button>
                     </div>
                     <p id="keep-status" class="hidden text-[11px] font-bold"></p>
+                    </div>
                 </div>
             </div>
 
@@ -2433,7 +2440,7 @@
                 refreshInquiryBadge();
             } else {
                 setupSellerUI();
-                resetKeepRequest(); // 로그인할 때마다 보관요청은 다시 선택
+                resetKeepRequest(); // 오늘 이미 골랐는지는 주문을 불러온 뒤 restoreKeepForToday 가 확인
                 switchSellerMode(loadSellerMode());
                 resetHistorySearch(false); // 기본: 오늘 접수한 모든 내역
                 loadAddressBook();
@@ -2479,7 +2486,7 @@
             setDbBadge(true, 'DB 연동 완료');
             ordersMaster = data;
             sortOrdersMaster();
-            if (currentRole === 'seller') renderSellerTable();
+            if (currentRole === 'seller') { renderSellerTable(); restoreKeepForToday(); }
             if (currentRole === 'admin') {
                 await fetchHiddenOrderIds();
                 populateAdminFilter();
@@ -3044,7 +3051,51 @@
         //  1. 보관건 있습니다 → 메모와 함께 '보관요청' 건(order_type = keep)으로 접수 목록에 올라갑니다.
         //  2. 없습니다 / 3. 이미 접수했습니다 → 확인만 하고 목록에는 올라가지 않습니다.
         // 로그인할 때마다 다시 [접수]해야 택배 접수를 할 수 있습니다.
-        let keepConfirmed = null;   // 이번 로그인에서 [접수]한 선택값 ('있음' / '없음' / '이미접수')
+        let keepConfirmed = null;   // 오늘 [접수]한 선택값 ('있음' / '없음' / '이미접수')
+        let keepConfirmedDate = null; // keepConfirmed 를 고른 날 (한국 날짜). 날이 바뀌면 다시 물어봅니다.
+        const KEEP_LABEL = { '있음': '보관건 있음', '없음': '보관건 없음', '이미접수': '이미 접수함' };
+        function kstDateKey(date = new Date()) { const p = getKstParts(date); return `${p.y}-${p.m}-${p.d}`; }
+
+        // 하루에 한 번만: 고르면 그날은 다시 묻지 않고 한 줄로 줄입니다.
+        function applyKeepConfirmed(choice, memoText) {
+            keepConfirmed = choice;
+            keepConfirmedDate = kstDateKey();
+            const p = getKstParts();
+            document.getElementById('keep-done-text').textContent =
+                `✅ 오늘(${Number(p.m)}/${Number(p.d)}) 보관요청 확인 완료 · ${KEEP_LABEL[choice] || choice}`
+                + (choice === '있음' ? ' (내용은 아래 주문목록에서 수정·삭제할 수 있어요)' : '');
+            document.getElementById('keep-done').classList.remove('hidden');
+            document.getElementById('keep-form').classList.add('hidden');
+            document.getElementById('keep-required-tag').classList.add('hidden');
+        }
+        function openKeepForm() {
+            document.getElementById('keep-form').classList.remove('hidden');
+            document.getElementById('keep-done').classList.add('hidden');
+            if (keepConfirmed) {
+                const r = document.querySelector(`input[name="keep-request"][value="${keepConfirmed}"]`);
+                if (r) r.checked = true;
+                onKeepRequestChange();
+                setKeepStatus('오늘은 이미 확인했어요. 바꾸거나 보관건을 추가하려면 고른 뒤 [접수]를 눌러주세요.', true);
+            }
+        }
+        // 고른 내용을 내 계정에 '오늘 날짜'와 함께 남겨, 다시 로그인하거나 휴대폰으로 바꿔도 그날은 묻지 않습니다.
+        function saveKeepCheck(choice) {
+            if (!supabaseClient) return;
+            supabaseClient.auth.updateUser({ data: { keep_check: { date: kstDateKey(), choice } } }).catch(() => {});
+        }
+        // 로그인 후: 오늘 보관요청을 이미 접수했거나 오늘 고른 기록이 있으면 다시 묻지 않습니다.
+        async function restoreKeepForToday() {
+            if (currentRole !== 'seller' || !supabaseClient || keepConfirmed) return;
+            const today = kstDateKey();
+            try {
+                const start = new Date(`${today}T00:00:00+09:00`).toISOString();
+                const { data: keeps } = await supabaseClient.from('orders').select('id').eq('order_type', 'keep').gte('created_at', start).limit(1);
+                if (keeps && keeps.length) { applyKeepConfirmed('있음'); return; }
+                const { data } = await supabaseClient.auth.getUser();
+                const k = data && data.user && data.user.user_metadata && data.user.user_metadata.keep_check;
+                if (k && k.date === today && KEEP_LABEL[k.choice]) applyKeepConfirmed(k.choice);
+            } catch (e) { /* 못 불러오면 예전처럼 직접 고르게 둡니다 */ }
+        }
 
         function onKeepRequestChange() {
             const checked = document.querySelector('input[name="keep-request"]:checked');
@@ -3066,7 +3117,11 @@
             document.querySelectorAll('input[name="keep-request"]').forEach(r => { r.checked = false; });
             onKeepRequestChange();
             keepConfirmed = null;
+            keepConfirmedDate = null;
             setKeepStatus('', false);
+            document.getElementById('keep-form').classList.remove('hidden');
+            document.getElementById('keep-done').classList.add('hidden');
+            document.getElementById('keep-required-tag').classList.remove('hidden');
         }
 
         async function submitKeepRequest() {
@@ -3082,9 +3137,10 @@
             const choice = checked.value;
             const p = getKstParts();
             if (choice !== '있음') {
-                keepConfirmed = choice;
-                setKeepStatus(`✅ ${p.hh}:${p.mm} 확인 완료 · ${choice === '없음' ? '보관건 없음' : '이미 접수함'} (접수 목록에는 올라가지 않습니다)`, true);
-                alert(choice === '없음' ? '보관건 없음으로 확인되었습니다.' : '이미 접수하신 것으로 확인되었습니다.');
+                applyKeepConfirmed(choice);
+                saveKeepCheck(choice);
+                setKeepStatus('', true);
+                alert((choice === '없음' ? '보관건 없음으로 확인되었습니다.' : '이미 접수하신 것으로 확인되었습니다.') + '\n오늘은 다시 묻지 않아요.');
                 return;
             }
             const memo = document.getElementById('keep-memo').value.trim();
@@ -3120,15 +3176,17 @@
             }
             ordersMaster.unshift(saved);
             sortOrdersMaster();
-            keepConfirmed = '있음';
+            applyKeepConfirmed('있음');
+            saveKeepCheck('있음');
             document.getElementById('keep-memo').value = '';
-            setKeepStatus(`✅ ${p.hh}:${p.mm} 보관요청 접수 완료 (NO. ${sellerNoLabel(saved)}) · 추가로 있으면 메모를 적고 다시 [접수]`, true);
+            setKeepStatus(`✅ ${p.hh}:${p.mm} 보관요청 접수 완료 (NO. ${sellerNoLabel(saved)})`, true);
             alert(`사무실 보관요청이 접수되었습니다. (NO. ${sellerNoLabel(saved)})`);
             renderSellerTable();
         }
 
         // 택배 접수 전 확인: 이번 로그인에서 보관요청 [접수]를 했는지
         function readKeepRequest() {
+            if (keepConfirmed && keepConfirmedDate && keepConfirmedDate !== kstDateKey()) resetKeepRequest(); // 자정이 지나면 새로 묻기
             if (keepConfirmed) return { keep_request: keepConfirmed, keep_memo: null };
             const checked = document.querySelector('input[name="keep-request"]:checked');
             alert(checked
@@ -3527,13 +3585,31 @@
             reader.readAsArrayBuffer(file);
         }
 
+        // 보관요청 건: 보관 내용(메모)만 고칩니다.
+        async function editKeepOrder(order) {
+            if (currentRole === 'seller' && !canEditOrder(order)) {
+                alert('관리자 마감(접수완료)된 보관요청은 수정할 수 없습니다. 카카오톡으로 말씀해주세요.');
+                return;
+            }
+            const now = order.keep_memo || order.product || '';
+            const memo = prompt('보관요청 내용을 고쳐주세요.\n예시) 풀필외 남은재고 킵해주세요', now);
+            if (memo === null) return;
+            const text = memo.trim();
+            if (!text) { alert('내용이 비어 있어요. 보관요청을 없애려면 [삭제]를 눌러주세요.'); return; }
+            if (text === now) return;
+            if (supabaseClient) {
+                const { error } = await supabaseClient.from('orders').update({ product: text, keep_memo: text }).eq('id', order.id);
+                if (error) { alert('보관요청 수정 중 오류가 발생했습니다.\n\n' + dbErrorMessage(error)); return; }
+            }
+            order.product = text; order.keep_memo = text;
+            renderSellerTable();
+            alert('보관요청 내용을 고쳤습니다.');
+        }
+
         function openEditModal(orderId) {
             const order = ordersMaster.find(o => o.id === orderId);
             if (!order) return;
-            if (isKeepOrder(order)) {
-                alert('보관요청 건은 수정할 수 없습니다. 삭제 후 다시 접수해주세요.');
-                return;
-            }
+            if (isKeepOrder(order)) { editKeepOrder(order); return; }
 
             if (currentRole === 'seller' && !canEditOrder(order)) {
                 alert('관리자 마감(접수완료) 또는 출고된 주문은 수정할 수 없습니다.');
@@ -3805,7 +3881,7 @@
                         <td class="col-manage p-3 text-center">
                             ${canEdit ? `
                                 <div class="flex items-center justify-center gap-1 whitespace-nowrap">
-                                    <button data-id="${id}" onclick="openEditModal(this.dataset.id)" ${keepRow ? 'style="display:none"' : ''} class="px-2 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold rounded text-[11px]">
+                                    <button data-id="${id}" onclick="openEditModal(this.dataset.id)" class="px-2 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold rounded text-[11px]">
                                         수정
                                     </button>
                                     <button data-id="${id}" onclick="deleteOrder(this.dataset.id)" class="px-2 py-1 bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold rounded text-[11px]">
