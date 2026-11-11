@@ -779,7 +779,7 @@
                         <i data-lucide="refresh-cw" class="w-4 h-4"></i> 새로고침
                     </button>
                     <button onclick="confirmAdminBatch()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow transition flex items-center gap-1.5">
-                        <i data-lucide="check-circle" class="w-4 h-4"></i> 주문접수완료 (마감 처리)
+                        <i data-lucide="check-circle" class="w-4 h-4"></i> 주문접수완료 (체크한 주문 마감)
                     </button>
                     <button onclick="downloadMasterExcel()" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow transition flex items-center gap-1.5">
                         <i data-lucide="file-down" class="w-4 h-4"></i> 엑셀 다운로드 (현재 필터 기준)
@@ -837,6 +837,8 @@
                             <button onclick="shipSelectedOrders()" class="ship-ui px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg shadow-sm">선택 출고완료</button>
                             <button onclick="setShipStatusForSelected('미출고')" class="ship-ui px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg shadow-sm">선택 출고취소</button>
                             <button onclick="editSelectedAdminOrder()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-sm">선택수정</button>
+                            <button onclick="markSeparateSelectedOrders()" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs rounded-lg shadow-sm" title="이 사이트 밖에서 이미 따로 처리·배송한 접수건에 표시합니다 (접수완료로 바뀜)">따로 처리됨</button>
+                            <button onclick="setHiddenSelectedOrders(true)" class="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg shadow-sm" title="테스트 접수건 등을 목록에서 안 보이게 합니다 (지우지 않음)">선택 숨기기</button>
                         </div>
                     </div>
 
@@ -879,6 +881,10 @@
                             </select>
                             <button type="button" id="btn-admin-search" onclick="runAdminSearch()" class="px-5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-black flex items-center gap-1"><i data-lucide="search" class="w-3.5 h-3.5"></i> 조회</button>
                             <button type="button" onclick="resetAdminSearch()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-bold">초기화</button>
+                            <label class="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 cursor-pointer" title="숨긴 접수건까지 한 번에 봅니다">
+                                <input type="checkbox" id="admin-show-hidden" onchange="runAdminSearch()" class="rounded border-slate-300"> 숨긴 접수건도 보기 <span id="admin-hidden-count" class="text-slate-400 font-normal"></span>
+                            </label>
+                            <button type="button" id="btn-admin-unhide" onclick="setHiddenSelectedOrders(false)" class="hidden px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-bold">선택 숨김해제</button>
                         </div>
                     </div>
 
@@ -899,7 +905,7 @@
                                     <th class="p-3 whitespace-nowrap">쇼핑몰 상품명</th>
                                     <th class="p-3 whitespace-nowrap">도매처/상품</th>
                                     <th class="p-3 whitespace-nowrap">밤낮 전달메세지</th>
-                                    <th class="p-3 whitespace-nowrap">접수시간</th>
+                                    <th class="p-3 whitespace-nowrap">접수시간<span class="block text-[10px] font-normal text-slate-400">셀러 접수 / 관리자 접수</span></th>
                                     <th class="p-3 whitespace-nowrap">상태</th>
                                     <th class="ship-ui p-3 whitespace-nowrap">출고</th>
                                 </tr>
@@ -1051,7 +1057,7 @@
                             <thead class="bg-slate-800 text-slate-200 font-bold">
                                 <tr>
                                     <th class="p-3 text-center w-10"><input type="checkbox" id="chk-all-pickup" onchange="document.querySelectorAll('.pickup-chk-item').forEach(c => c.checked = this.checked)" class="rounded border-slate-300"></th>
-                                    <th class="p-3">접수시각</th>
+                                    <th class="p-3 whitespace-nowrap">접수시각<span class="block text-[10px] font-normal text-slate-400">셀러 접수 / 관리자 처리</span></th>
                                     <th class="p-3">주문자</th>
                                     <th class="p-3">픽업할 매장</th>
                                     <th class="p-3">대납</th>
@@ -2479,6 +2485,7 @@
             sortOrdersMaster();
             if (currentRole === 'seller') { renderSellerTable(); restoreKeepForToday(); }
             if (currentRole === 'admin') {
+                await fetchHiddenOrderIds();
                 populateAdminFilter();
                 renderAdminTable();
                 renderSellerAdminTable();
@@ -4029,7 +4036,7 @@
         // 관리자: 주문 조회 (기간 / 검색) — [조회] 버튼(또는 기간 버튼)을 눌렀을 때만 바뀝니다.
         let adminFrom = null;
         let adminTo = null;
-        const ADMIN_QUERY_DEFAULT = { seller: 'ALL', type: 'all', ship: 'ALL', status: 'ALL', field: 'all', keyword: '', sort: 'desc' };
+        const ADMIN_QUERY_DEFAULT = { seller: 'ALL', type: 'all', ship: 'ALL', status: 'ALL', field: 'all', keyword: '', sort: 'desc', showHidden: false };
         let adminQuery = { ...ADMIN_QUERY_DEFAULT };
         function setAdminPreset(preset, run = true) {
             const [from, to] = presetRange(preset);
@@ -4059,7 +4066,8 @@
                 status: document.getElementById('admin-status-filter').value,
                 field: document.getElementById('admin-field').value,
                 keyword: document.getElementById('admin-keyword').value,
-                sort: document.getElementById('admin-sort').value
+                sort: document.getElementById('admin-sort').value,
+                showHidden: document.getElementById('admin-show-hidden').checked
             };
             renderAdminTable();
         }
@@ -4071,6 +4079,7 @@
             document.getElementById('admin-keyword').value = '';
             document.getElementById('admin-field').value = 'all';
             document.getElementById('admin-sort').value = 'desc';
+            document.getElementById('admin-show-hidden').checked = false;
             adminQuery = { ...ADMIN_QUERY_DEFAULT };
             setAdminPreset('all', run);
         }
@@ -4388,6 +4397,7 @@
             const { seller: sellerFilter, ship: shipFilter, type: typeFilter, status: statusFilter, field, keyword } = adminQuery;
             const groups = getOrderGroups();
             const list = ordersMaster.filter(o => {
+                if (!adminQuery.showHidden && hiddenOrderIds.has(o.id)) return false; // 숨긴 접수건 (테스트건 등)
                 if (sellerFilter !== 'ALL' && o.seller_company !== sellerFilter) return false;
                 if (statusFilter !== 'ALL' && o.status !== statusFilter) return false;
                 if (!matchesOrderType(o, typeFilter)) return false;
@@ -4426,6 +4436,9 @@
 
             const orderCount = new Set(filtered.map(o => o.order_no ?? o.id)).size;
             document.getElementById('admin-order-count').innerText = `주문 ${orderCount}건 · 상품 ${filtered.length}개`;
+            const hiddenNow = ordersMaster.filter(o => hiddenOrderIds.has(o.id)).length;
+            document.getElementById('admin-hidden-count').innerText = hiddenNow ? `(${hiddenNow}개)` : '';
+            document.getElementById('btn-admin-unhide').classList.toggle('hidden', !(adminQuery.showHidden && hiddenNow));
 
             if (filtered.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="14" class="text-center py-6 text-slate-400">${ordersMaster.length ? '조회 조건에 맞는 주문이 없습니다.' : '등록된 주문 내역이 없습니다.'}</td></tr>`;
@@ -4436,7 +4449,8 @@
             tbody.innerHTML = filtered.map(o => {
                 const id = escapeHtml(o.id);
                 const state = orderShipState(o, groups);
-                const rowBg = !SHOW_SHIPPING_UI ? '' : state === '부분출고' ? 'bg-orange-50/70' : state === '출고완료' ? 'bg-slate-50 text-slate-400' : '';
+                const isHidden = hiddenOrderIds.has(o.id);
+                const rowBg = isHidden ? 'bg-slate-100 opacity-60' : !SHOW_SHIPPING_UI ? '' : state === '부분출고' ? 'bg-orange-50/70' : state === '출고완료' ? 'bg-slate-50 text-slate-400' : '';
                 const newGroup = o.order_no !== prevNo;
                 prevNo = o.order_no;
                 const draftT = trackingDrafts[o.id] || {};
@@ -4445,7 +4459,7 @@
                 <tr class="hover:bg-slate-100/60 transition ${rowBg} ${newGroup ? 'border-t-2 border-slate-200' : ''}">
                     <td class="p-3 text-center"><input type="checkbox" value="${id}" class="admin-chk-item rounded border-slate-300"></td>
                     <td class="p-3 font-mono font-black text-indigo-700 whitespace-nowrap">
-                        ${escapeHtml(orderNoLabel(o, groups))}
+                        ${escapeHtml(orderNoLabel(o, groups))}${isHidden ? ' <span class="px-1.5 py-0.5 rounded bg-slate-500 text-white text-[10px] font-bold align-middle">숨김</span>' : ''}
                         ${o.seller_order_no != null ? `<span class="block text-[10px] font-normal text-slate-400" title="셀러 화면에 보이는 번호">셀러 #${escapeHtml(sellerNoLabel(o, groups))}</span>` : ''}
                         ${orderTypeBadgeHtml(o)}
                     </td>
@@ -4467,10 +4481,10 @@
                         ${escapeHtml(o.bamnat_memo || '-')}
                         ${o.keep_request === '있음' && o.keep_memo && !isKeepOrder(o) ? `<span class="block mt-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 text-[10px] font-black">📦 보관요청: ${escapeHtml(o.keep_memo || '')}</span>` : ''}
                     </td>
-                    <td class="p-3 text-slate-400 whitespace-nowrap">${escapeHtml(formatKstDateTime(o.created_at))}</td>
+                    <td class="p-3 text-slate-400 whitespace-nowrap">${adminTimesHtml(o.origin_created_at, o.created_at, o.status === '접수완료' ? o.accepted_at : null, '관리자 접수', formatKstDateTime)}</td>
                     <td class="p-3">
                         <div class="flex items-center gap-1 whitespace-nowrap">
-                            ${statusBadgeHtml(o.status)}
+                            ${statusBadgeHtml(o.status)}${separateOrderIds.has(o.id) ? '<span class="ml-1 px-2 py-1 rounded text-[10px] font-bold whitespace-nowrap bg-violet-100 text-violet-700" title="이 사이트 밖에서 따로 처리·배송한 접수건">따로 처리됨</span>' : ''}
                             ${o.status === '접수대기' ? `<button data-id="${id}" onclick="acceptOrders([this.dataset.id])" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded text-[11px]">접수</button>` : ''}
                         </div>
                     </td>
@@ -4565,6 +4579,100 @@
         }
 
         // 관리자: 접수완료 → 접수대기로 되돌리기 (셀러가 다시 수정·삭제할 수 있게 됩니다. 출고된 상품은 셀러가 고칠 수 없음)
+        // ---------------------------------------------------------------
+        // 관리자: 테스트 접수건 등 숨기기 (주문은 지우지 않음, supabase/order_hidden.sql)
+        // ---------------------------------------------------------------
+        let hiddenOrderIds = new Set();
+        let hiddenOrdersReady = false;   // order_hidden.sql 을 실행했는지
+        async function fetchHiddenOrderIds() {
+            if (!supabaseClient || currentRole !== 'admin') return;
+            const { data, error } = await fetchAllRows(() => supabaseClient.from('admin_hidden_orders').select('order_id'));
+            hiddenOrdersReady = !error;
+            hiddenOrderIds = new Set(error ? [] : (data || []).map(r => r.order_id));
+            const sep = await fetchAllRows(() => supabaseClient.from('admin_separate_orders').select('order_id'));
+            separateOrdersReady = !sep.error;
+            separateOrderIds = new Set(sep.error ? [] : (sep.data || []).map(r => r.order_id));
+        }
+
+        // '따로 처리됨': 이 사이트 밖에서 이미 따로 처리·배송한 접수건 표시 (supabase/order_separate.sql)
+        let separateOrderIds = new Set();
+        let separateOrdersReady = false;
+        async function markSeparateSelectedOrders() {
+            const ids = Array.from(document.querySelectorAll('.admin-chk-item:checked')).map(c => c.value);
+            if (ids.length === 0) {
+                alert('따로 처리된 접수건을 체크박스로 선택해주세요.');
+                return;
+            }
+            if (!separateOrdersReady) await fetchHiddenOrderIds();
+            if (!separateOrdersReady) {
+                alert('따로 처리됨 기능 DB 설정이 아직 적용되지 않았습니다.\n(Supabase SQL Editor 에서 supabase/order_separate.sql 을 실행해주세요)');
+                return;
+            }
+            const fresh = ids.filter(id => !separateOrderIds.has(id));
+            if (fresh.length === 0) {
+                // 이미 모두 표시된 건이면 표시 풀기
+                if (!confirm(`선택한 상품 ${ids.length}개는 이미 '따로 처리됨'입니다.\n표시를 풀까요? (접수 상태는 그대로 둡니다)`)) return;
+                const { error } = await supabaseClient.from('admin_separate_orders').delete().in('order_id', ids);
+                if (error) { alert('저장 중 오류가 발생했습니다.\n\n' + dbErrorMessage(error)); return; }
+                ids.forEach(id => separateOrderIds.delete(id));
+                renderAdminTable();
+                return;
+            }
+            const pending = fresh.filter(id => (ordersMaster.find(o => o.id === id) || {}).status === '접수대기');
+            if (!confirm(`선택한 상품 ${fresh.length}개에 '따로 처리됨' 표시를 할까요?\n\n이미 따로 처리·배송한 건이라는 표시입니다.`
+                + (pending.length ? `\n접수대기인 ${pending.length}개는 [접수완료]로 바뀌어 셀러가 수정/삭제할 수 없게 됩니다.` : ''))) return;
+            for (let i = 0; i < fresh.length; i += 200) {
+                const part = fresh.slice(i, i + 200);
+                const { error } = await supabaseClient.from('admin_separate_orders').upsert(part.map(order_id => ({ order_id })));
+                if (error) { alert('저장 중 오류가 발생했습니다.\n\n' + dbErrorMessage(error)); renderAdminTable(); return; }
+                part.forEach(id => separateOrderIds.add(id));
+            }
+            if (pending.length) {
+                const updated = [];
+                for (let i = 0; i < pending.length; i += 200) {
+                    const { data, error } = await supabaseClient.from('orders').update({ status: '접수완료' }).in('id', pending.slice(i, i + 200)).select();
+                    if (error) { alert('접수완료로 바꾸는 중 오류가 발생했습니다.\n\n' + dbErrorMessage(error)); break; }
+                    updated.push(...(data || []));
+                }
+                replaceOrders(updated);
+            }
+            renderAdminTable();
+        }
+
+        async function setHiddenSelectedOrders(hide) {
+            const ids = Array.from(document.querySelectorAll('.admin-chk-item:checked')).map(c => c.value);
+            if (ids.length === 0) {
+                alert(hide ? '숨길 접수건을 체크박스로 선택해주세요.' : '숨김을 풀 접수건을 체크박스로 선택해주세요.');
+                return;
+            }
+            if (!hiddenOrdersReady) await fetchHiddenOrderIds();
+            if (!hiddenOrdersReady) {
+                alert('숨기기 기능 DB 설정이 아직 적용되지 않았습니다.\n(Supabase SQL Editor 에서 supabase/order_hidden.sql 을 실행해주세요)');
+                return;
+            }
+            const targets = ids.filter(id => hiddenOrderIds.has(id) !== hide);
+            if (targets.length === 0) {
+                alert(hide ? '선택한 접수건은 이미 숨겨져 있습니다.' : '선택한 접수건 중 숨긴 접수건이 없습니다.');
+                return;
+            }
+            const msg = hide
+                ? `선택한 상품 ${targets.length}개를 주문관리 목록에서 숨길까요?\n\n지우는 것이 아니라 안 보이게만 합니다.\n[숨긴 접수건도 보기]를 체크하면 다시 볼 수 있고, 숨김해제도 할 수 있습니다.`
+                : `선택한 상품 ${targets.length}개의 숨김을 풀까요?`;
+            if (!confirm(msg)) return;
+            for (let i = 0; i < targets.length; i += 200) {
+                const part = targets.slice(i, i + 200);
+                const { error } = hide
+                    ? await supabaseClient.from('admin_hidden_orders').upsert(part.map(order_id => ({ order_id })))
+                    : await supabaseClient.from('admin_hidden_orders').delete().in('order_id', part);
+                if (error) {
+                    alert('저장 중 오류가 발생했습니다.\n\n' + dbErrorMessage(error));
+                    break;
+                }
+                part.forEach(id => hide ? hiddenOrderIds.add(id) : hiddenOrderIds.delete(id));
+            }
+            renderAdminTable();
+        }
+
         async function revertAcceptSelectedOrders() {
             const ids = Array.from(document.querySelectorAll('.admin-chk-item:checked')).map(c => c.value);
             if (ids.length === 0) {
@@ -4857,21 +4965,34 @@
         }
 
         async function confirmAdminBatch() {
-            const pendingIds = ordersMaster.filter(o => o.status === '접수대기').map(o => o.id);
-            if (pendingIds.length === 0) {
-                alert('마감 처리할 [접수대기] 주문이 없습니다.');
+            // 체크박스로 고른 주문만 마감 처리합니다. (전체를 하려면 표 맨 위 체크칸으로 모두 선택)
+            const checked = Array.from(document.querySelectorAll('.admin-chk-item:checked')).map(c => c.value);
+            if (checked.length === 0) {
+                alert('마감 처리할 주문을 체크박스로 선택해주세요.\n(보이는 주문 전체를 하려면 표 맨 위 체크칸을 누르세요)');
                 return;
             }
-            if (!confirm(`[접수대기] 주문 ${pendingIds.length}건을 [접수완료]로 마감 처리하시겠습니까?\n마감된 주문은 셀러가 수정/삭제할 수 없습니다.`)) return;
+            const pendingIds = checked.filter(id => (ordersMaster.find(o => o.id === id) || {}).status === '접수대기');
+            if (pendingIds.length === 0) {
+                alert('체크한 주문 중 [접수대기] 주문이 없습니다.');
+                return;
+            }
+            const skipped = checked.length - pendingIds.length;
+            if (!confirm(`체크한 [접수대기] 주문 ${pendingIds.length}건을 [접수완료]로 마감 처리하시겠습니까?\n마감된 주문은 셀러가 수정/삭제할 수 없습니다.`
+                + (skipped ? `\n(이미 접수완료인 ${skipped}건은 그대로 둡니다)` : ''))) return;
 
             if (supabaseClient) {
-                // id 목록 대신 상태 조건으로 한 번에 변경 (건수가 많아도 안전)
-                const { data, error } = await supabaseClient.from('orders').update({ status: '접수완료' }).eq('status', '접수대기').select('id');
-                if (error) {
-                    alert('마감 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.\n\n' + dbErrorMessage(error));
-                    return;
+                // 화면에서 고른 주문만 (숨긴 건 제외), 그중 아직 접수대기인 것만 바꿉니다.
+                const done = [];
+                for (let i = 0; i < pendingIds.length; i += 200) {
+                    const { data, error } = await supabaseClient.from('orders').update({ status: '접수완료' })
+                        .in('id', pendingIds.slice(i, i + 200)).eq('status', '접수대기').select('id');
+                    if (error) {
+                        alert('마감 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.\n\n' + dbErrorMessage(error));
+                        break;
+                    }
+                    done.push(...(data || []).map(r => r.id));
                 }
-                pendingIds.splice(0, pendingIds.length, ...(data || []).map(r => r.id));
+                pendingIds.splice(0, pendingIds.length, ...done);
             }
 
             ordersMaster.forEach(o => {
@@ -4886,6 +5007,16 @@
         // 셀러: 사입팀 픽업요청 (DB 테이블: supabase/pickup.sql)
         // =====================================================================
         let pickupRequests = [];
+
+        // 관리자 목록의 시간 칸: 셀러(손님)가 처음 접수한 시각 + 관리자가 접수/처리한 시각
+        //  origin: 비회원 간단 접수에서 넘어온 건의 손님 접수 시각 (있으면 이것이 '셀러 접수')
+        //  done  : 관리자 접수/처리 시각 (supabase/order_times.sql 실행 후부터 기록, 없으면 '-')
+        function adminTimesHtml(origin, created, done, doneLabel, fmt) {
+            const line = (label, v, cls) => `<div class="${cls}"><span class="text-[10px] text-slate-400 mr-1">${label}</span>${escapeHtml(v ? fmt(v) : '-')}</div>`;
+            return line('셀러 접수', origin || created, 'text-slate-700')
+                + line(doneLabel, done, done ? 'text-emerald-700' : 'text-slate-300')
+                + (origin ? `<div class="text-[10px] text-slate-400" title="비회원 간단 접수를 주문관리로 넘긴 시각">간단접수에서 넘김 ${escapeHtml(fmt(created))}</div>` : '');
+        }
 
         function formatPickupTime(iso) {
             const d = new Date(iso);
@@ -5170,7 +5301,7 @@
                 return `
                 <tr class="hover:bg-slate-50 ${draft ? 'bg-amber-50' : ''}">
                     <td class="p-3 text-center"><input type="checkbox" value="${id}" ${checked.has(r.id) ? 'checked' : ''} class="pickup-chk-item rounded border-slate-300"></td>
-                    <td class="p-3 whitespace-nowrap font-mono">${formatPickupTime(r.created_at)}</td>
+                    <td class="p-3 whitespace-nowrap font-mono">${adminTimesHtml(r.origin_created_at, r.created_at, r.status !== '접수' ? r.handled_at : null, '관리자 처리', formatPickupTime)}</td>
                     <td class="p-3">
                         <div class="font-bold">${escapeHtml(r.orderer_name || r.seller_company)}</div>
                         <div class="text-slate-500">${escapeHtml(r.orderer_phone || '')}</div>
