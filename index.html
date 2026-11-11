@@ -4920,21 +4920,29 @@
         }
 
         async function confirmAdminBatch() {
-            const pendingIds = ordersMaster.filter(o => o.status === '접수대기').map(o => o.id);
+            // 숨긴 접수건(테스트건 등)은 마감 처리하지 않고 그대로 둡니다.
+            const hiddenPending = ordersMaster.filter(o => o.status === '접수대기' && hiddenOrderIds.has(o.id)).length;
+            const pendingIds = ordersMaster.filter(o => o.status === '접수대기' && !hiddenOrderIds.has(o.id)).map(o => o.id);
             if (pendingIds.length === 0) {
-                alert('마감 처리할 [접수대기] 주문이 없습니다.');
+                alert('마감 처리할 [접수대기] 주문이 없습니다.' + (hiddenPending ? `\n(숨긴 접수건 ${hiddenPending}건은 건드리지 않습니다)` : ''));
                 return;
             }
-            if (!confirm(`[접수대기] 주문 ${pendingIds.length}건을 [접수완료]로 마감 처리하시겠습니까?\n마감된 주문은 셀러가 수정/삭제할 수 없습니다.`)) return;
+            if (!confirm(`[접수대기] 주문 ${pendingIds.length}건을 [접수완료]로 마감 처리하시겠습니까?\n마감된 주문은 셀러가 수정/삭제할 수 없습니다.`
+                + (hiddenPending ? `\n\n숨긴 접수건 ${hiddenPending}건은 건드리지 않습니다.` : ''))) return;
 
             if (supabaseClient) {
-                // id 목록 대신 상태 조건으로 한 번에 변경 (건수가 많아도 안전)
-                const { data, error } = await supabaseClient.from('orders').update({ status: '접수완료' }).eq('status', '접수대기').select('id');
-                if (error) {
-                    alert('마감 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.\n\n' + dbErrorMessage(error));
-                    return;
+                // 화면에서 고른 주문만 (숨긴 건 제외), 그중 아직 접수대기인 것만 바꿉니다.
+                const done = [];
+                for (let i = 0; i < pendingIds.length; i += 200) {
+                    const { data, error } = await supabaseClient.from('orders').update({ status: '접수완료' })
+                        .in('id', pendingIds.slice(i, i + 200)).eq('status', '접수대기').select('id');
+                    if (error) {
+                        alert('마감 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.\n\n' + dbErrorMessage(error));
+                        break;
+                    }
+                    done.push(...(data || []).map(r => r.id));
                 }
-                pendingIds.splice(0, pendingIds.length, ...(data || []).map(r => r.id));
+                pendingIds.splice(0, pendingIds.length, ...done);
             }
 
             ordersMaster.forEach(o => {

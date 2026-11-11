@@ -111,6 +111,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
     if (tables[table]) {
       if (method === 'GET') return json(200, applyFilters(tables[table], url));
       if (method === 'POST') { const list = Array.isArray(body) ? body : [body]; list.forEach(r => { if (!tables[table].some(x => x.order_id === r.order_id)) tables[table].push(r); }); return json(201, list); }
+      if (method === 'PATCH') { const rows = applyFilters(tables[table], url); rows.forEach(r => Object.assign(r, body)); return json(200, rows); }
       if (method === 'DELETE') { const rows = applyFilters(tables[table], url); tables[table] = tables[table].filter(r => !rows.includes(r)); return json(200, rows); }
     }
     return json(404, { message: 'unmocked ' + url.pathname });
@@ -137,6 +138,10 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   check('hidden order disappears from list', !(await listText()).includes('테스트고객') && (await listText()).includes('홍길동'));
   check('count + hidden count label', (await page.textContent('#admin-order-count')).includes('주문 1건') && (await page.textContent('#admin-hidden-count')).includes('1개'));
   await page.screenshot({ path: path.join(__dirname, 'out', 'hidden-1.png') });
+  await page.evaluate(() => confirmAdminBatch()); await page.waitForTimeout(800);
+  const o = id => tables.orders.find(x => x.id === id).status;
+  check('[주문접수완료 (마감 처리)] skips hidden order', o('ORD-1') === '접수완료' && o('ORD-2') === '접수대기', o('ORD-1') + '/' + o('ORD-2'));
+  check('마감 dialog mentions hidden', dialogs.some(d => d.includes('숨긴 접수건 1건은 건드리지 않습니다')), dialogs.slice(-3).join(' | '));
 
   await page.check('#admin-show-hidden'); await page.waitForTimeout(300);
   check('[숨긴 접수건도 보기] shows it with 숨김 badge', (await listText()).includes('테스트고객') && (await listText()).includes('숨김') && (await page.isVisible('#btn-admin-unhide')));
