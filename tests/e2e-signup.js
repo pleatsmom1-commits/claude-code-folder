@@ -170,6 +170,9 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.fill('#signup-company', '신규샵'); await page.click('#btn-signup-company-check'); await page.waitForTimeout(300);
   await page.fill('#signup-email', 'new@x.com');
   await page.fill('#signup-name', '박대표'); await page.fill('#signup-phone', '010.9999.8888');
+  // 필수 체크: 개인정보 동의는 안 하면 브라우저가 막음
+  check('privacy consent box + policy link', (await vis('#signup-privacy-ok')) && await page.$eval('#signup-privacy-ok', e => e.required) && (await page.getAttribute('#signup-modal a[href="/privacy"]', 'target')) === '_blank');
+  await page.check('#signup-kakao-ok'); await page.check('#signup-privacy-ok');
   // 비밀번호: 영문만 → 막힘
   await page.fill('#signup-pw', 'abcdefgh'); await page.fill('#signup-pw-confirm', 'abcdefgh');
   await page.click('#signup-modal button[type=submit]'); await page.waitForTimeout(300);
@@ -217,8 +220,10 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   check('signup modal closed after success', !(await vis('#signup-modal')));
   const sn = apiCalls.find(c => c.path === '/api/signup/notify');
   check('signup -> 대표님 알림 요청', !!sn && sn.body.email === signupCalls()[0].body.email, JSON.stringify(apiCalls));
-  // 세금계산서 정보는 비워도 가입 가능
+  // 세금계산서 정보는 비워도 가입 가능 (가입 후 뜨는 카톡 안내창은 [확인했어요]로 닫기)
+  if (await vis('#kakao-done-modal')) { await page.click('#kakao-done-modal button:has-text("확인했어요")'); await page.waitForTimeout(200); }
   await page.click('button:has-text("회원가입하기")'); await page.waitForTimeout(200);
+  await page.check('#signup-kakao-ok'); await page.check('#signup-privacy-ok');
   await page.fill('#signup-company', '빈세금샵'); await page.click('#btn-signup-company-check'); await page.waitForTimeout(300);
   await page.fill('#signup-email', 'new2@x.com'); await page.fill('#signup-name', '최'); await page.fill('#signup-phone', '01077776666');
   await page.fill('#signup-pw', 'abcdefg2'); await page.fill('#signup-pw-confirm', 'abcdefg2');
@@ -227,6 +232,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   const sc2 = signupCalls()[1];
   check('signup without tax info is allowed', !!sc2 && sc2.body.data.biz_no === null && sc2.body.data.tax_email === null, JSON.stringify(sc2 && sc2.body.data));
 
+  if (await vis('#kakao-done-modal')) { await page.click('#kakao-done-modal button:has-text("확인했어요")'); await page.waitForTimeout(200); }
   // ---------- 3. 셀러 로그인 · 주문 화면 · 내정보 주소 ----------
   await page.fill('#login-email', 'seller@x.com'); await page.fill('#login-pw', 'password1');
   await page.click('#btn-login'); await page.waitForTimeout(1500);

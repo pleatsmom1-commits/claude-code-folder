@@ -210,6 +210,18 @@ function aiRender() {
     const matched = live.filter(o => o.match).length;
     const groups = live.filter(o => o.groupSize > 1).length;
     const noWholesale = live.filter(o => !o.wholesaleCompany || !o.wholesaleProduct).length;
+    // [이대로 주문접수] 버튼이 왜 안 눌리는지 버튼 옆에 알려줌
+    let whyOff = '';
+    if (!live.length) whyOff = '접수할 주문이 없어요. 모두 [빼기] 되어 있어요.';
+    else if (bad.length) {
+        const cnt = {};
+        bad.forEach(o => { const k = aiProblem(o).join('·') + ' 없음'; cnt[k] = (cnt[k] || 0) + 1; });
+        const fields = Object.entries(cnt).map(([f, n]) => `${f} ${n}건`).join(', ');
+        const onlyWholesale = bad.every(o => aiProblem(o).every(f => f === '도매처명' || f === '도매상품명'));
+        whyOff = `<b>빈 칸이 있는 주문 ${bad.length}건 때문에 아직 접수할 수 없어요.</b> (${fields})<br>`
+            + (onlyWholesale ? '도매처명·도매상품명을 직접 적거나, 모르면 오른쪽 버튼을 눌러 주세요. 필요 없는 주문은 [빼기]를 누르면 돼요.'
+                : '빨간 줄의 빈 칸을 채우거나 [빼기]를 눌러 주세요.');
+    }
     const input = (i, field, v, ph) => `<input type="text" value="${aiEsc(v)}" placeholder="${ph}" onchange="aiSetField(${i}, '${field}', this.value)"
         class="w-full min-w-[110px] px-2 py-1 border rounded text-xs ${v ? 'border-slate-200' : 'border-rose-300 bg-white'}">`;
     const tr = aiOrder.rows.map((o, i) => {
@@ -265,6 +277,8 @@ function aiRender() {
             </table>
         </div>
         <div class="flex justify-end items-center gap-3 flex-wrap">
+            ${whyOff ? `<div id="ai-submit-why" class="flex-1 min-w-[240px] max-w-2xl text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">⚠️ ${whyOff}</div>` : ''}
+            ${whyOff && noWholesale ? `<button onclick="aiFillUnknownWholesale()" class="px-3 py-2 bg-white border border-amber-300 hover:bg-amber-100 text-amber-800 text-xs font-bold rounded-lg">빈 도매처 칸을 쇼핑몰상품명으로 채우기 (${noWholesale}건)</button>` : ''}
             <button id="btn-ai-submit" onclick="aiSubmit()" ${bad.length || !live.length ? 'disabled' : ''} class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold rounded-lg text-sm shadow">
                 이대로 주문접수 (${live.length}건)
             </button>
