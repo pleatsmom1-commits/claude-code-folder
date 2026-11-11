@@ -4827,6 +4827,7 @@
                 return alert('픽업요청을 접수하지 못했습니다.\n\n' + msg);
             }
             alert('픽업요청이 접수되었습니다. 감사합니다.');
+            document.getElementById('pickup-status-notice').classList.add('hidden');
             ['pk-store-name', 'pk-store-location', 'pk-store-phone', 'pk-memo'].forEach(id => { document.getElementById(id).value = ''; });
             document.querySelectorAll('input[name="pk-prepay"], input[name="pk-misong"]').forEach(r => { r.checked = false; });
             updatePickupAgree();
@@ -4834,10 +4835,12 @@
         }
 
         function pickupStatusBadge(status) {
-            const cls = { '접수': 'bg-orange-100 text-orange-700', '확인': 'bg-sky-100 text-sky-700', '완료': 'bg-emerald-100 text-emerald-700', '취소': 'bg-slate-200 text-slate-500' }[status] || '';
-            return `<span class="px-2 py-0.5 rounded text-[10px] font-bold ${cls}">${escapeHtml(status)}</span>`;
+            const cls = { '접수': 'bg-orange-50 text-orange-700 border-orange-200', '확인': 'bg-sky-50 text-sky-700 border-sky-200', '완료': 'bg-emerald-50 text-emerald-700 border-emerald-200', '취소': 'bg-slate-100 text-slate-500 border-slate-200' }[status] || '';
+            const label = { '접수': '접수됨', '확인': '사입팀 확인', '완료': '픽업완료', '취소': '취소됨' }[status] || status;
+            return `<span class="inline-block px-2 py-0.5 rounded-full border text-[10px] font-bold whitespace-nowrap ${cls}">${escapeHtml(label)}</span>`;
         }
 
+        let myPickupRequests = [];
         async function loadMyPickupRequests() {
             const box = document.getElementById('pickup-my-list');
             if (!supabaseClient || currentRole !== 'seller') return;
@@ -4847,14 +4850,60 @@
                 box.innerHTML = '<p class="text-slate-400">내역을 불러오지 못했습니다.</p>';
                 return;
             }
+            myPickupRequests = data;
+            const btn = 'px-2.5 py-1 rounded-lg text-[11px] font-bold border whitespace-nowrap';
             box.innerHTML = data.length ? data.map(r => `
-                <div class="flex items-start justify-between gap-2 border border-slate-100 rounded-lg px-3 py-2">
-                    <div>
-                        <div class="font-bold text-slate-800">${escapeHtml(r.store_name)} <span class="font-medium text-slate-500">· ${escapeHtml(r.store_location)}${r.store_phone ? ' · ' + escapeHtml(r.store_phone) : ''}</span></div>
-                        <div class="text-[11px] text-slate-500">${formatPickupTime(r.created_at)} · ${r.prepay ? '대납' : '대납없음'} · ${r.prepay_misong ? '대납미송 잡음' : '대납미송 안 잡음'}${r.memo ? ' · ' + escapeHtml(r.memo) : ''}</div>
+                <div class="flex items-start justify-between gap-2 border border-slate-100 rounded-lg px-3 py-2 ${r.status === '취소' ? 'bg-slate-50' : ''}">
+                    <div class="min-w-0">
+                        <div class="font-bold text-slate-800">${pickupStatusBadge(r.status)} ${escapeHtml(r.store_name)} <span class="font-medium text-slate-500">· ${escapeHtml(r.store_location)}${r.store_phone ? ' · ' + escapeHtml(r.store_phone) : ''}</span></div>
+                        <div class="text-[11px] text-slate-500 mt-0.5">${formatPickupTime(r.created_at)} · ${r.prepay ? '대납' : '대납없음'} · ${r.prepay_misong ? '대납미송 잡음' : '대납미송 안 잡음'}${r.memo ? ' · ' + escapeHtml(r.memo) : ''}</div>
                     </div>
-                    ${pickupStatusBadge(r.status)}
-                </div>`).join('') : '<p class="text-slate-400">아직 접수한 픽업요청이 없습니다.</p>';
+                    <div class="flex shrink-0 gap-1.5">
+                        ${r.status === '접수' ? `<button type="button" data-pk-cancel="${escapeHtml(r.id)}" onclick="cancelMyPickup(this.dataset.pkCancel)" class="${btn} bg-white border-rose-300 text-rose-600 hover:bg-rose-50">취소</button>` : ''}
+                        <button type="button" data-pk-redo="${escapeHtml(r.id)}" onclick="redoMyPickup(this.dataset.pkRedo)" class="${btn} bg-white border-orange-300 text-orange-600 hover:bg-orange-50">재등록</button>
+                    </div>
+                </div>`).join('') + '<p class="text-[11px] text-slate-400 pt-1">· [취소]는 사입팀이 확인하기 전(접수됨)까지만 할 수 있어요. 확인 후 취소는 카톡으로 문의해주세요.<br>· [재등록]을 누르면 같은 내용이 위 접수칸에 채워집니다. 확인 후 [픽업요청 접수]를 눌러주세요.</p>'
+                : '<p class="text-slate-400">아직 접수한 픽업요청이 없습니다.</p>';
+        }
+
+        // 셀러가 자기 픽업요청 취소 ('접수' 상태일 때만, DB 함수: supabase/pickup_cancel.sql)
+        async function cancelMyPickup(id) {
+            const r = myPickupRequests.find(x => x.id === id);
+            if (!r || r.status !== '접수') return;
+            if (!confirm(`이 픽업요청을 취소할까요?\n\n${r.store_name} / ${r.store_location}\n${formatPickupTime(r.created_at)} 접수`)) return;
+            const { data, error } = await supabaseClient.rpc('cancel_my_pickup', { p_id: id });
+            if (error) {
+                console.error('픽업요청 취소 오류:', error);
+                let msg = dbErrorMessage(error);
+                if (['PGRST202', '42883'].includes(error.code)) msg = 'DB 설정이 아직 적용되지 않았습니다.\n(관리자: Supabase SQL Editor에서 supabase/pickup_cancel.sql 을 실행해주세요)';
+                return alert('취소하지 못했습니다.\n\n' + msg);
+            }
+            alert(data ? '픽업요청을 취소했습니다.' : '이미 사입팀이 확인한 요청이라 여기서 취소할 수 없습니다.\n카톡으로 문의해주세요.');
+            loadMyPickupRequests();
+        }
+
+        // 지난 요청 내용을 접수칸에 다시 채움 (바로 접수하지 않고, 확인 후 [픽업요청 접수]를 눌러야 접수됨)
+        function redoMyPickup(id) {
+            const r = myPickupRequests.find(x => x.id === id);
+            if (!r) return;
+            const set = (elId, v) => { document.getElementById(elId).value = v || ''; };
+            if (r.orderer_name) set('pk-orderer-name', r.orderer_name);
+            if (r.orderer_phone) set('pk-orderer-phone', r.orderer_phone);
+            set('pk-store-name', r.store_name);
+            set('pk-store-location', r.store_location);
+            set('pk-store-phone', r.store_phone);
+            set('pk-memo', r.memo);
+            document.querySelectorAll('input[name="pk-prepay"], input[name="pk-misong"]').forEach(el => { el.checked = false; });
+            document.querySelector(`input[name="pk-prepay"][value="${r.prepay ? 'yes' : 'no'}"]`).checked = true;
+            document.querySelector(`input[name="pk-misong"][value="${r.prepay_misong ? 'yes' : 'no'}"]`).checked = true;
+            updatePickupAgree();
+            document.getElementById('pk-agree').checked = false; // 동의는 매번 직접 체크
+            document.getElementById('pickup-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            const note = document.getElementById('pickup-status-notice');
+            if (!document.getElementById('btn-pickup-submit').disabled) {
+                note.innerText = `'${r.store_name}' 요청 내용을 채웠어요. 내용을 확인하고 맨 아래 [픽업요청 접수]를 눌러주세요.`;
+                note.classList.remove('hidden');
+            }
         }
 
         // ---- 관리자: 사입 픽업요청 목록 ----
