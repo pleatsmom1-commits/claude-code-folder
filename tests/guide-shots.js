@@ -53,7 +53,7 @@ const settleRows = [
 ];
 const b64url = o => Buffer.from(JSON.stringify(o)).toString('base64url');
 const tokenFor = u => b64url({ alg: 'HS256', typ: 'JWT' }) + '.' + b64url({ sub: u.id, email: u.profile.email, exp: Math.floor(Date.now() / 1000) + 3600, role: 'authenticated', aud: 'authenticated' }) + '.sig';
-const userObj = u => ({ id: u.id, email: u.profile.email, aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {}, created_at: '2026-01-01T00:00:00Z' });
+const userObj = u => ({ id: u.id, email: u.profile.email, aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: u.meta || {}, created_at: '2026-01-01T00:00:00Z' });
 function whoFrom(headers) {
   const parts = (headers['authorization'] || '').replace('Bearer ', '').split('.');
   if (parts.length !== 3) return null;
@@ -89,7 +89,11 @@ async function setup(context) {
       if (!u || u.pw !== body.password) return json(400, { error: 'invalid_grant', msg: 'Invalid login credentials' });
       return json(200, { access_token: tokenFor(u), token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'r', user: userObj(u) });
     }
-    if (url.pathname === '/auth/v1/user') return who ? json(200, userObj(who)) : json(401, { msg: 'no' });
+    if (url.pathname === '/auth/v1/user') {
+      if (!who) return json(401, { msg: 'no' });
+      if (method === 'PUT' && body && body.data) who.meta = { ...(who.meta || {}), ...body.data };
+      return json(200, userObj(who));
+    }
     if (url.pathname === '/auth/v1/logout') return route.fulfill({ status: 204, headers: cors });
     if (url.pathname === '/rest/v1/rpc/company_available') return json(200, true);
     if (url.pathname === '/rest/v1/rpc/get_my_settlements') return json(200, settleRows);
@@ -103,7 +107,8 @@ async function setup(context) {
     if (tables[table]) {
       let rows = tables[table].filter(r => !('seller_id' in r) || (who && r.seller_id === who.id));
       if (method === 'GET') return json(200, applyFilters(rows, url));
-      if (method === 'POST') { const list = (Array.isArray(body) ? body : [body]).map(r => ({ id: 'n' + Math.random(), ...r, seller_id: who && who.id, created_at: new Date().toISOString() })); return json(201, list); }
+      if (method === 'POST') { const list = (Array.isArray(body) ? body : [body]).map(r => ({ id: 'n' + Math.random(), ...r, seller_id: who && who.id, created_at: new Date().toISOString() })); tables[table].push(...list); return json(201, list); }
+      if (method === 'PATCH') { const hit = applyFilters(rows, url); hit.forEach(r => Object.assign(r, body)); return json(200, hit); }
       return json(200, []);
     }
     return json(200, []);
