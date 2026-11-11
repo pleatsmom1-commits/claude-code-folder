@@ -1007,9 +1007,10 @@
                             <select id="pickup-status-filter" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
                                 <option value="ALL">전체 상태</option>
                                 <option value="접수" selected>접수 (미처리)</option>
-                                <option value="확인">확인</option>
-                                <option value="완료">완료</option>
-                                <option value="취소">취소</option>
+                                <option value="확인">사입팀접수확인</option>
+                                <option value="완료">픽업완료</option>
+                                <option value="실패">픽업실패</option>
+                                <option value="취소">접수취소</option>
                             </select>
                             <select id="pickup-prepay-filter" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
                                 <option value="all">대납 전체</option>
@@ -1039,9 +1040,10 @@
                         </div>
                         <div class="flex gap-2 items-center flex-wrap">
                             <select id="pickup-bulk-status" class="px-2 py-1.5 border rounded-lg text-xs font-bold bg-white">
-                                <option value="확인">확인</option>
-                                <option value="완료">완료</option>
-                                <option value="취소">취소</option>
+                                <option value="확인">사입팀접수확인</option>
+                                <option value="완료">픽업완료</option>
+                                <option value="실패">픽업실패</option>
+                                <option value="취소">접수취소</option>
                                 <option value="접수">접수</option>
                             </select>
                             <button onclick="applyPickupBulkStatus()" class="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm">선택 항목 상태변경</button>
@@ -5116,8 +5118,8 @@
         }
 
         function pickupStatusBadge(status) {
-            const cls = { '접수': 'bg-orange-50 text-orange-700 border-orange-200', '확인': 'bg-sky-50 text-sky-700 border-sky-200', '완료': 'bg-emerald-50 text-emerald-700 border-emerald-200', '취소': 'bg-slate-100 text-slate-500 border-slate-200' }[status] || '';
-            const label = { '접수': '접수됨', '확인': '사입팀 확인', '완료': '픽업완료', '취소': '취소됨' }[status] || status;
+            const cls = { '접수': 'bg-orange-50 text-orange-700 border-orange-200', '확인': 'bg-sky-50 text-sky-700 border-sky-200', '완료': 'bg-emerald-50 text-emerald-700 border-emerald-200', '실패': 'bg-rose-50 text-rose-700 border-rose-200', '취소': 'bg-slate-100 text-slate-500 border-slate-200' }[status] || '';
+            const label = { '접수': '접수됨', '확인': '사입팀 접수확인', '완료': '픽업완료', '실패': '픽업실패', '취소': '접수취소' }[status] || status;
             return `<span class="inline-block px-2 py-0.5 rounded-full border text-[10px] font-bold whitespace-nowrap ${cls}">${escapeHtml(label)}</span>`;
         }
 
@@ -5317,15 +5319,19 @@
                     <td class="p-3">${escapeHtml(r.memo || '')}</td>
                     <td class="p-3 text-center whitespace-nowrap">
                         <select data-id="${id}" onchange="setPickupDraft(this.dataset.id, this.value)" class="pickup-status-select px-2 py-1 border rounded text-[11px] font-bold ${draft ? 'border-amber-400 bg-amber-100' : ''}">
-                            ${['접수', '확인', '완료', '취소'].map(st => `<option value="${st}" ${st === (draft || r.status) ? 'selected' : ''}>${st}</option>`).join('')}
+                            ${PICKUP_STATUS_ORDER.map(st => `<option value="${st}" ${st === (draft || r.status) ? 'selected' : ''}>${PICKUP_STATUS_LABEL[st]}</option>`).join('')}
                         </select>
-                        ${draft ? `<span class="block mt-1 text-[10px] font-bold text-amber-700">변경됨 (저장 전 · 원래 ${escapeHtml(r.status)})</span>` : ''}
+                        ${draft ? `<span class="block mt-1 text-[10px] font-bold text-amber-700">변경됨 (저장 전 · 원래 ${escapeHtml(PICKUP_STATUS_LABEL[r.status] || r.status)})</span>` : ''}
                     </td>
                 </tr>`;
             }).join('') : `<tr><td colspan="8" class="p-6 text-center text-slate-400">해당하는 픽업요청이 없습니다.</td></tr>`;
         }
 
         // 상태를 바꾸면 바로 저장하지 않고 '변경됨'으로 표시만 합니다.
+        // 픽업요청 상태: DB 값은 그대로(접수/확인/완료/실패/취소), 화면 이름만 대표님이 정한 이름으로 (2026-11-11)
+        const PICKUP_STATUS_ORDER = ['접수', '확인', '완료', '실패', '취소'];
+        const PICKUP_STATUS_LABEL = { '접수': '접수', '확인': '사입팀접수확인', '완료': '픽업완료', '실패': '픽업실패', '취소': '접수취소' };
+
         function setPickupDraft(id, status) {
             const r = pickupRequests.find(x => x.id === id);
             if (!r) return;
