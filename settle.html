@@ -91,12 +91,12 @@
         return list.map(([k, v, cls, note]) => `<tr class="${cls || ''}"><td class="k">${k}</td><td class="v">${v}</td></tr>`
             + (note ? `<tr class="paynote"><td colspan="2">${note}</td></tr>` : '')).join('');
     }
-    // 입금액 줄 아래 안내: 이 정산서에 반영된 입금의 기준 시각 (정산일 오전 8시까지 확인된 입금)
+    // 입금액 줄 아래 안내: 입금은 정산일 오전에 입금 확인한 시점까지 반영 (확인 시각은 날마다 조금씩 다름)
     function payNote(key) {
         const m = String(key || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
         if (!m) return '';
         const day = '일월화수목금토'[new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getDay()];
-        return `* 이 정산서에는 <b>${Number(m[2])}월 ${Number(m[3])}일(${day}) 오전 8시까지</b> 들어온 입금이 반영되어 있어요.<br>`
+        return `* 입금액은 <b>${Number(m[2])}월 ${Number(m[3])}일(${day}) 오전에 입금 확인한 시점까지</b> 들어온 금액이에요.<br>`
             + `그 이후에 입금하셨다면 <b>다음 정산서에 반영</b>되니 걱정하지 않으셔도 돼요.`;
     }
 
