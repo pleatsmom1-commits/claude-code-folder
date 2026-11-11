@@ -40,6 +40,8 @@
     td.v { text-align: right; font-weight: 600; word-break: break-all; }
     tr.total td { font-weight: 800; font-size: 16px; border-top: 2px solid var(--head); }
     tr.total td.v { color: var(--red); }
+    tr.paynote td { padding: 2px 4px 10px; color: var(--red); font-size: 12.5px; line-height: 1.55; word-break: keep-all; }
+    tr.paynote b { font-weight: 800; }
     .stores th { text-align: left; font-size: 12px; color: var(--sub); font-weight: 600; white-space: nowrap; }
     .stores th:last-child, .stores td:last-child { text-align: right; }
     .stores td { font-size: 14px; }
@@ -86,7 +88,16 @@
         return m ? `${m[1]}년 ${Number(m[2])}월 ${Number(m[3])}일` : esc(key);
     }
     function rows(list) {
-        return list.map(([k, v, cls]) => `<tr class="${cls || ''}"><td class="k">${k}</td><td class="v">${v}</td></tr>`).join('');
+        return list.map(([k, v, cls, note]) => `<tr class="${cls || ''}"><td class="k">${k}</td><td class="v">${v}</td></tr>`
+            + (note ? `<tr class="paynote"><td colspan="2">${note}</td></tr>` : '')).join('');
+    }
+    // 입금액 줄 아래 안내: 이 정산서에 반영된 입금의 기준 시각 (정산일 오전 8시까지 확인된 입금)
+    function payNote(key) {
+        const m = String(key || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!m) return '';
+        const day = '일월화수목금토'[new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getDay()];
+        return `* 이 정산서에는 <b>${Number(m[2])}월 ${Number(m[3])}일(${day}) 오전 8시까지</b> 들어온 입금이 반영되어 있어요.<br>`
+            + `그 이후에 입금하셨다면 <b>다음 정산서에 반영</b>되니 걱정하지 않으셔도 돼요.`;
     }
 
     function render(s) {
@@ -132,7 +143,7 @@
                 ['② 총 대납금액', won(d.prepaid)],
                 ['⑧ 부가세 합계 <small>(대납금액 제외)</small>', won(d.vat)],
                 ['⑨ 전일 청구금 / 이월잔여금<br><small>(+전일청구금, -이월잔여금)</small>', won(d.carryOver)],
-                ['입금액 (-)', won(d.paid)],
+                ['입금액 (-)', won(d.paid), '', payNote(s.settle_date || d.date)],
                 ['총 청구금액<br><small>(②+⑦+⑧+⑨-입금액)</small>', won(d.total), 'total'],
             ])}</table>
         </div>
