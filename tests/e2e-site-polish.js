@@ -41,7 +41,7 @@ const ROOT = path.join(__dirname, '..');
   const hasPrivacy = fs.existsSync(path.join(ROOT, 'privacy.html'));
   if (hasPrivacy) await G.go(page, G.P('privacy.html'));
   const ptxt = hasPrivacy ? await page.innerText('body') : '';
-  check('privacy page: 항목·보관·위탁·국외·책임자', ['모으는 개인정보', '보관 기간', '처리 위탁', '국외', '보호책임자'].every(t => ptxt.includes(t)));
+  check('privacy page: 항목·보관·위탁·국외·책임자', ['이레앤컴퍼니', '처리하는 개인정보의 항목', '보유 기간', '처리업무의 위탁', '국외 이전', '보호책임자', '권익침해'].every(t => ptxt.includes(t)));
   if (ptxt) await page.screenshot({ path: shotPath('privacy'), fullPage: false });
 
   // 4. 승인 대기: 접수 화면 대신 안내
