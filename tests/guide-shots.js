@@ -98,6 +98,7 @@ async function setup(context) {
     if (url.pathname === '/rest/v1/rpc/company_available') return json(200, true);
     if (url.pathname === '/rest/v1/rpc/get_my_settlements') return json(200, settleRows);
     if (url.pathname === '/rest/v1/rpc/cancel_my_pickup') return json(200, true);
+    if (url.pathname === '/rest/v1/rpc/get_settlement') return json(200, { company: '예시샵', settle_date: '2026-11-10', data: { date: '2026-11-10', result: '청구', account: '신한은행 110-359-193710 이현재', carryOver: 0, paid: 0, total: 186500, prepaid: 127100, pickupStores: 3, pickupCost: 9000, unsentStores: 1, unsentCost: 2000, deliveryType: '풀필', shippingFee: 7000, trackingNo: '', fulfillCount: 12, fulfillExtraCount: 0, fulfillExtraShipping: 0, fulfillCost: 36000, etcCost: 0, etcNote: '', serviceTotal: 54000, vat: 5400, stores: [{ name: '청평화 가나', info: '울PT 블랙 2', amount: 64000 }, { name: '디오트 다라', info: '머플러 아이보리 1', amount: 18000 }, { name: '신평화 마바', info: '플라워OPS 베이지 1', amount: 45100 }] } });
     if (url.pathname === '/rest/v1/profiles') {
       const rows = who ? [who.profile] : [];
       if ((headers['accept'] || '').includes('vnd.pgrst.object')) return rows.length ? json(200, rows[0]) : json(406, { code: 'PGRST116', message: 'no rows' });
