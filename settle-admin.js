@@ -329,7 +329,7 @@ function settleRowToData(r) {
         pickupCost: v(8),           // ① 총 픽업/반납 비용
         prepaid: v(9),              // ② 총 대납금액
         unsentStores: v(10),
-        unsentCost: v(12),          // ③ 총 대납미송 비용
+        unsentCost: v(12),          // ③ 총 대납미송/기타방문 비용
         shippingFee: v(13),         // ④ 적용택배비
         trackingNo: v(14),
         fulfillCount: v(15),
@@ -857,15 +857,17 @@ function settleDuplicateMessage(date, list) {
 // 5. 문자 보내기: 체크한 업체에 직접 쓴 문자 (정정·긴급 안내용, 서버: /api/settle/message)
 // ---------------------------------------------------------------------
 function settleMessageTargets() {
-    if (settleMsgMode === 'unpaid') return settleUnpaidRows.filter(r => settleUnpaidChecked.has(r.company) && settleContactPhone(r.company)).map(r => ({ company: r.company, date: r.lastDate }));
+    if (settleMsgMode === 'unpaid') return settleUnpaidRows.filter(r => (settleUnpaidOne ? r.company === settleUnpaidOne : settleUnpaidChecked.has(r.company)) && settleContactPhone(r.company)).map(r => ({ company: r.company, date: r.lastDate }));
     if (settleMsgMode === 'notice') return settleContacts.filter(c => c.phone && settleContactChecked.has(c.company)).map(c => ({ company: c.company }));
     return settleCurrentList().filter(r => settleChecked.has(r.company));
 }
 
 // mode: 'settle' = 정산서 표에서 체크한 업체, 'notice' = 연락처 표에서 체크한 업체에 일반 공지 (정산서 링크 없음),
 //       'unpaid' = 미납 업체 표에서 체크한 업체 (링크는 그 업체 마지막 정산서)
-function openSettleMessage(mode = 'settle') {
+function openSettleMessage(mode = 'settle', one = null) {
+    const prevMode = settleMsgMode;
     settleMsgMode = mode;
+    settleUnpaidOne = mode === 'unpaid' ? one : null; // 미납 표 줄마다 [독촉 문자]: 그 업체 1곳만
     const targets = settleMessageTargets();
     if (!targets.length) {
         alert(mode === 'notice' ? '공지 보낼 거래처를 [정산 거래처 연락처] 표 왼쪽 칸에서 먼저 체크해 주세요.'
@@ -878,8 +880,8 @@ function openSettleMessage(mode = 'settle') {
     document.getElementById('settle-msg-link-row').classList.toggle('hidden', mode === 'notice');
     document.getElementById('settle-msg-title').textContent = mode === 'notice' ? '공지 문자 보내기' : mode === 'unpaid' ? '미납 안내 문자' : '문자 보내기';
     const box = document.getElementById('settle-msg-text');
-    if (mode === 'unpaid' && (!box.value.trim() || box.value.trim() === '[밤낮딜리버리] {상호}님,')) {
-        box.value = '[밤낮딜리버리] {상호}님, 보내드린 정산 청구금액의 입금이 아직 확인되지 않았습니다. 확인 후 입금 부탁드립니다. 이미 입금하셨다면 이 문자는 무시해 주세요.';
+    if (mode === 'unpaid' && (prevMode !== 'unpaid' || !box.value.trim() || box.value.trim() === '[밤낮딜리버리] {상호}님,')) {
+        box.value = SETTLE_UNPAID_TEXT;
         linkBox.checked = true;
     }
     if (!box.value.trim()) box.value = '[밤낮딜리버리] {상호}님, ';
@@ -897,6 +899,7 @@ function openSettleMessage(mode = 'settle') {
 }
 
 function closeSettleMessage() {
+    settleUnpaidOne = null;
     const modal = document.getElementById('settle-msg-modal');
     modal.classList.add('hidden');
     modal.classList.remove('flex');
@@ -919,6 +922,7 @@ function updateSettleMessageInfo() {
 
 async function sendSettleMessage(isTest) {
     const notice = settleMsgMode === 'notice';
+    const one = settleUnpaidOne;
     const date = (!notice && document.getElementById('settle-date').value) || settleDateOffset(0);
     const targets = settleMessageTargets();
     const text = document.getElementById('settle-msg-text').value.trim();
@@ -937,7 +941,7 @@ async function sendSettleMessage(isTest) {
         payload.testPhone = phone;
     } else {
         const noPhone = targets.filter(r => !settleContactPhone(r.company)).length;
-        let msg = `체크한 ${targets.length}곳에 문자를 보냅니다.\n(${targets.slice(0, 5).map(r => r.company).join(', ')}${targets.length > 5 ? ` 외 ${targets.length - 5}곳` : ''})`;
+        let msg = `${one ? '' : '체크한 '}${targets.length}곳에 문자를 보냅니다.\n(${targets.slice(0, 5).map(r => r.company).join(', ')}${targets.length > 5 ? ` 외 ${targets.length - 5}곳` : ''})`;
         if (noPhone) msg += `\n· 연락처 없는 ${noPhone}곳은 건너뜁니다`;
         if (!confirm(msg + '\n\n보낼까요?')) return;
     }
@@ -956,7 +960,7 @@ async function sendSettleMessage(isTest) {
         send.disabled = false;
         alert(settleResultReport(data).replace('발송 접수', '문자 접수'));
         closeSettleMessage();
-        if (settleMsgMode === 'unpaid') { settleUnpaidChecked.clear(); renderSettleUnpaid(); }
+        if (settleMsgMode === 'unpaid') { if (!one) settleUnpaidChecked.clear(); renderSettleUnpaid(); }
         else if (notice) { settleContactChecked.clear(); renderSettleContacts(); }
         else { settleChecked.clear(); renderSettleTable(); }
     } catch (err) {
@@ -991,8 +995,8 @@ function settleApplyStale(s) {
 const SETTLE_DIFF_FIELDS = [
     ['total', '총 청구금액', true], ['result', '결과'], ['serviceTotal', '서비스 비용', true], ['vat', '부가세', true],
     ['carryOver', '전일 청구금/이월', true], ['paid', '입금액', true], ['prepaid', '대납금액', true],
-    ['pickupStores', '픽업/반납 매장 수'], ['pickupCost', '픽업/반납 비용', true], ['unsentStores', '대납미송 매장 수'],
-    ['unsentCost', '대납미송 비용', true], ['shippingFee', '택배비', true], ['trackingNo', '송장번호'],
+    ['pickupStores', '픽업/반납 매장 수'], ['pickupCost', '픽업/반납 비용', true], ['unsentStores', '대납미송/기타방문 매장 수'],
+    ['unsentCost', '대납미송/기타방문 비용', true], ['shippingFee', '택배비', true], ['trackingNo', '송장번호'],
     ['fulfillCount', '풀필 건수'], ['fulfillExtraCount', '풀필 추가 개수'], ['fulfillExtraShipping', '풀필 추가 택배요금', true],
     ['fulfillCost', '풀필 비용', true], ['etcCost', '기타비용', true], ['etcNote', '기타청구 내용'],
     ['deliveryType', '택배유형'], ['account', '입금계좌'],
@@ -1516,6 +1520,29 @@ async function deleteSettleVersions(ids) {
 let settleUnpaidRows = [];
 let settleUnpaidShown = [];
 let settleUnpaidChecked = new Set();
+let settleUnpaidOne = null; // [독촉 문자] 를 누른 업체 (체크칸과 상관없이 그 1곳에만 보냄)
+const SETTLE_UNPAID_TEXT = '[밤낮딜리버리] {상호} 대표님, 결제가 아직 확인되지 않고 있습니다. 정산서 확인 후 빠른 결제 부탁드립니다. 이미 결제하셨다면 이 문자는 무시해 주세요.';
+
+// 미납 표 [링크 복사]: 독촉 안내문 + 미납 금액 + 마지막 정산서 링크를 복사 (카톡방에 붙여넣기용)
+async function copySettleUnpaidLink(company) {
+    const r = settleUnpaidRows.find(x => x.company === company);
+    if (!r || !r.token) { alert(`[${company}] 정산서 링크가 없습니다.`); return; }
+    const text = [
+        `[밤낮딜리버리 결제 안내]`,
+        `${company} 대표님, 결제가 아직 확인되지 않고 있습니다.`,
+        `정산서 확인 후 빠른 결제 부탁드립니다.`,
+        ``,
+        `■ 미납 청구금액: ${settleWon(r.total)}원 (${settleShortDate(r.lastDate)} 정산서 기준)`,
+        ``,
+        `상세 정산서: ${settleLink(r.token)}`,
+    ].join('\n');
+    try {
+        await navigator.clipboard.writeText(text);
+        alert(`[${company}] 결제 안내문과 링크를 복사했습니다. 카톡방에 붙여넣으세요.`);
+    } catch (e) {
+        prompt('아래 내용을 복사하세요 (Ctrl+C)', text);
+    }
+}
 
 function settleFindUnpaid(rows, minDays, now = Date.now()) {
     const byCompany = new Map();
@@ -1586,7 +1613,7 @@ function renderSettleUnpaid() {
             <td class="p-2.5 font-bold ${r.days >= 7 ? 'text-rose-600' : 'text-orange-600'}">${r.days}일째</td>
             <td class="p-2.5 whitespace-nowrap">${escapeHtml(r.lastDate)}</td>
             <td class="p-2.5">${phone ? escapeHtml(settlePhoneLabel(phone)) : '<span class="text-rose-500 font-bold">연락처 없음</span>'}</td>
-            <td class="p-2.5 whitespace-nowrap">${r.token ? `<a href="${escapeHtml(settleLink(r.token))}" target="_blank" class="px-2 py-1 text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 rounded">보기</a>` : ''}</td>
+            <td class="p-2.5 whitespace-nowrap">${r.token ? `<a href="${escapeHtml(settleLink(r.token))}" target="_blank" class="px-2 py-1 text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 rounded">보기</a><button data-company="${escapeHtml(r.company)}" onclick="copySettleUnpaidLink(this.dataset.company)" class="px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded" title="결제 안내문과 정산서 링크를 복사합니다 (카톡 붙여넣기용)">링크 복사</button>` : ''}${phone ? `<button data-company="${escapeHtml(r.company)}" onclick="openSettleMessage('unpaid', this.dataset.company)" class="ml-1 px-2 py-1 text-[11px] font-bold text-white bg-rose-500 hover:bg-rose-600 rounded" title="이 업체 1곳에 결제 독촉 문자를 보냅니다">독촉 문자</button>` : ''}</td>
         </tr>`;
     }).join('');
 }
@@ -1609,8 +1636,8 @@ const SETTLE_USAGE_COLS = [
     { key: 'pickupStores', label: '픽업/반납 매장', count: true },
     { key: 'pickupCost', label: '① 픽업/반납' },
     { key: 'prepaid', label: '② 대납금액' },
-    { key: 'unsentStores', label: '대납미송 매장', count: true },
-    { key: 'unsentCost', label: '③ 대납미송' },
+    { key: 'unsentStores', label: '대납미송/기타방문 매장', count: true },
+    { key: 'unsentCost', label: '③ 대납미송/기타방문' },
     { key: 'shippingFee', label: '④ 택배비' },
     { key: 'fulfillCount', label: '풀필 건수', count: true },
     { key: 'fulfillCost', label: '⑤ 풀필' },
