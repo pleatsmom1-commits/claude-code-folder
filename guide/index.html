@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="처음 이용하는 셀러 대표님을 위한 밤낮딜리버리 주문접수 홈페이지 사용법">
+<meta property="og:type" content="website">
+<meta property="og:title" content="밤낮딜리버리 이용 설명서">
+<meta property="og:description" content="회원가입부터 픽업요청·택배접수·정산서까지, 화면 그림과 함께 차례대로 안내합니다.">
+<meta property="og:image" content="https://bamnat-delivery.bamnat.workers.dev/og.png">
+<title>밤낮딜리버리 이용 설명서</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@500;700&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* Layout: 한 줄 읽기 폭(720px) 안내서. 장마다 번호 붙은 실제 순서, 화면 그림은 회색 틀 안에 */
+:root{
+  --bg:#f5f6fb; --paper:#ffffff; --ink:#1b1d2e; --muted:#5b6078; --line:#dfe2ee;
+  --brand:#4f3df0; --brand-soft:#ecebff; --pick:#ea5a0c; --pick-soft:#fff1e7;
+  --warn:#b42318; --warn-soft:#fdecea; --ok:#067647; --ok-soft:#e7f6ee;
+  --shot:#e9ebf3;
+  --f-head:"IBM Plex Sans KR","Noto Sans KR",system-ui,sans-serif;
+  --f-body:"Noto Sans KR",system-ui,-apple-system,"Malgun Gothic",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12131c; --paper:#1b1d2a; --ink:#eceefa; --muted:#a3a8c3; --line:#2f3245;
+  --brand:#9d93ff; --brand-soft:#26244a; --pick:#ff9a5c; --pick-soft:#3a2416;
+  --warn:#ff8a80; --warn-soft:#3a1c1c; --ok:#6fd8a4; --ok-soft:#163327; --shot:#262838; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12131c; --paper:#1b1d2a; --ink:#eceefa; --muted:#a3a8c3; --line:#2f3245;
+  --brand:#9d93ff; --brand-soft:#26244a; --pick:#ff9a5c; --pick-soft:#3a2416;
+  --warn:#ff8a80; --warn-soft:#3a1c1c; --ok:#6fd8a4; --ok-soft:#163327; --shot:#262838; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.75;word-break:keep-all;overflow-wrap:break-word}
+.wrap{max-width:760px;margin:0 auto;padding-block:32px 80px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--f-head);line-height:1.35;text-wrap:balance;margin:0}
+h1{font-size:30px}
+h2{font-size:24px}
+h3{font-size:18px;margin-top:28px}
+p{margin:10px 0}
+a{color:var(--brand)}
+b{font-weight:700}
+.eyebrow{font-size:13px;letter-spacing:.06em;color:var(--brand);font-weight:700}
+header.top{display:grid;gap:12px;padding-bottom:24px;border-bottom:1px solid var(--line)}
+.lead{color:var(--muted);font-size:17px;margin:0}
+.url{display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:15px;max-width:100%}
+.url code{font-family:ui-monospace,Menlo,monospace;font-size:14px;overflow-wrap:anywhere}
+.copy{border:1px solid var(--line);background:var(--brand-soft);color:var(--brand);font:700 13px var(--f-body);padding:4px 10px;border-radius:8px;cursor:pointer}
+.copy:focus-visible,.toc a:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+
+.flow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:18px 0 4px;font-weight:700;font-size:15px}
+.flow span{background:var(--paper);border:1px solid var(--line);padding:6px 12px;border-radius:999px}
+.flow i{font-style:normal;color:var(--muted)}
+
+.routes{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:22px 0 8px}
+.route{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
+.route h3{margin:0 0 6px;font-size:17px}
+.route ol{margin:0;padding-left:20px;font-size:15px;color:var(--muted)}
+.route.a{border-top:4px solid var(--brand)}
+.route.b{border-top:4px solid var(--pick)}
+@media (max-width:600px){.routes{grid-template-columns:1fr}}
+
+.toc{display:flex;flex-wrap:wrap;gap:6px;margin:18px 0 0;font-size:14px}
+.toc a{text-decoration:none;background:var(--paper);border:1px solid var(--line);color:var(--ink);padding:5px 11px;border-radius:8px}
+
+section.ch{padding-top:44px}
+.chhead{display:flex;gap:14px;align-items:flex-start;margin-bottom:6px}
+.num{flex:none;width:40px;height:40px;border-radius:10px;background:var(--brand);color:var(--paper);display:grid;place-items:center;font:700 18px var(--f-head);font-variant-numeric:tabular-nums}
+.ch.pick .num{background:var(--pick)}
+.chhead p{margin:2px 0 0;color:var(--muted);font-size:15px}
+
+.steps{list-style:none;padding:0;margin:14px 0;counter-reset:s;display:grid;gap:10px}
+.steps li{counter-increment:s;position:relative;padding-left:36px}
+.steps li::before{content:counter(s);position:absolute;left:0;top:2px;width:24px;height:24px;border-radius:50%;background:var(--brand-soft);color:var(--brand);font:700 13px/24px var(--f-head);text-align:center}
+.ch.pick .steps li::before{background:var(--pick-soft);color:var(--pick)}
+
+figure{margin:16px 0;background:var(--shot);border-radius:12px;padding:10px}
+figure img{display:block;width:100%;height:auto;border-radius:6px;border:1px solid var(--line);background:#fff}
+figure.narrow img{max-width:420px;margin:0 auto}
+figure.phone img{max-width:300px;margin:0 auto}
+figure.tall{max-height:720px;overflow:auto}
+figcaption{font-size:13px;color:var(--muted);padding:8px 4px 0}
+
+.note{border-radius:12px;padding:14px 16px;margin:14px 0;font-size:15px}
+.note p{margin:4px 0}
+.note.warn{background:var(--warn-soft);color:var(--ink);border-left:4px solid var(--warn)}
+.note.warn b.t{color:var(--warn)}
+.note.tip{background:var(--brand-soft);border-left:4px solid var(--brand)}
+.note.ok{background:var(--ok-soft);border-left:4px solid var(--ok)}
+.note.pick{background:var(--pick-soft);border-left:4px solid var(--pick)}
+.acct{font-family:ui-monospace,Menlo,monospace;font-weight:700;font-size:16px;background:var(--paper);padding:2px 8px;border-radius:6px;border:1px solid var(--line)}
+
+.terms{display:grid;grid-template-columns:max-content 1fr;gap:8px 16px;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:16px;font-size:15px}
+.terms dt{font-weight:700}
+.terms dd{margin:0;color:var(--muted)}
+@media (max-width:520px){.terms{grid-template-columns:1fr}.terms dd{margin-bottom:6px}}
+
+.tbl{overflow-x:auto;background:var(--paper);border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:700;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.t{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:700}
+
+.faq details{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:8px 0}
+.faq summary{cursor:pointer;font-weight:700}
+footer{margin-top:48px;padding-top:20px;border-top:1px solid var(--line);color:var(--muted);font-size:14px}
+@media (max-width:520px){h1{font-size:25px}h2{font-size:21px}body{font-size:15.5px}}
+
+.pick-q{margin-top:22px;font-size:17px}
+.choose{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
+.choice{display:grid;gap:4px;text-align:left;cursor:pointer;background:var(--paper);color:var(--ink);border:2px solid var(--line);border-radius:16px;padding:18px;font-family:var(--f-body);min-width:0;transition:border-color .15s,box-shadow .15s,transform .15s}
+.choice .ico{font-size:30px;line-height:1}
+.choice .ct{font:700 19px/1.4 var(--f-head)}
+.choice .cs{font-size:14px;color:var(--muted)}
+.choice:hover{transform:translateY(-1px)}
+.choice.a:hover,.choice.a[aria-pressed="true"]{border-color:var(--brand)}
+.choice.b:hover,.choice.b[aria-pressed="true"]{border-color:var(--pick)}
+.choice.a[aria-pressed="true"]{background:var(--brand-soft);box-shadow:0 0 0 3px var(--brand-soft)}
+.choice.b[aria-pressed="true"]{background:var(--pick-soft);box-shadow:0 0 0 3px var(--pick-soft)}
+.choice:focus-visible,.sw-change:focus-visible{outline:2px solid var(--brand);outline-offset:3px}
+@media (max-width:560px){.choose{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.choice{transition:none}.choice:hover{transform:none}}
+.only-route{display:none}
+body.route-a .only-route,body.route-b .only-route{display:block}
+body.route-a [data-only="b"],body.route-b [data-only="a"]{display:none!important}
+.switch{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:22px;padding:10px 14px;border-radius:12px;background:var(--paper);border:1px solid var(--line);box-shadow:0 4px 14px rgba(20,20,40,.08);font-size:14px}
+.sw-now{font-weight:700}
+.sw-change{border:1px solid var(--line);background:var(--bg);color:var(--ink);font:700 13px var(--f-body);padding:6px 12px;border-radius:8px;cursor:pointer}
+.summary{margin-top:18px;background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:20px}
+body.route-a .summary{border-top:4px solid var(--brand)}
+body.route-b .summary{border-top:4px solid var(--pick)}
+.sum-steps{list-style:none;counter-reset:q;padding:0;margin:14px 0 6px;display:grid;gap:8px}
+.sum-steps li{counter-increment:q;display:flex;gap:12px;align-items:center}
+.sum-steps li::before{content:counter(q);flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font:700 15px var(--f-head);color:var(--paper);background:var(--brand)}
+body.route-b .sum-steps li::before{background:var(--pick)}
+.sum-steps a{color:var(--ink);text-decoration:none;border-bottom:1px dashed var(--line)}
+.sum-end{color:var(--ok);font-weight:700;font-size:15px}
+.feat-q{margin-top:26px;font-weight:700;font-size:15px}
+.feats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}
+.feat-btn{display:flex;align-items:center;gap:10px;text-align:left;cursor:pointer;background:var(--paper);color:var(--ink);border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;font:700 15px/1.35 var(--f-body);min-width:0;transition:border-color .15s}
+.feat-btn .fi{font-size:22px;line-height:1;flex:none}
+.feat-btn small{display:block;font-weight:400;font-size:12.5px;color:var(--muted)}
+.feat-btn:hover,.feat-btn[aria-pressed="true"]{border-color:var(--ink)}
+.feat-btn[aria-pressed="true"]{background:var(--bg);box-shadow:0 0 0 3px var(--line)}
+.feat-btn:focus-visible{outline:2px solid var(--brand);outline-offset:3px}
+@media (max-width:720px){.feats{grid-template-columns:1fr 1fr}}
+@media (max-width:420px){.feats{grid-template-columns:1fr}}
+.feat-view,.feat{display:none}
+body.route-f .feat-view{display:block}
+body.route-f .feat.on{display:block}
+.steps-n{counter-reset:s;list-style:none;padding:0;display:grid;gap:10px}
+.steps-n>li{counter-increment:s;position:relative;padding-left:40px}
+.steps-n>li::before{content:counter(s);position:absolute;left:0;top:0;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font:700 14px var(--f-head);background:var(--ink);color:var(--paper)}
+.more-links{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 18px}
+.more-links .feat-btn{padding:8px 12px;font-size:14px}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+<header class="top">
+  <div class="eyebrow">처음 이용하는 셀러 대표님을 위한</div>
+  <h1>밤낮딜리버리 이용 설명서</h1>
+  <p class="lead">도매매장에 주문만 넣으면, 픽업부터 포장·배송까지 밤낮딜리버리가 대신해 드립니다. 이 설명서는 주문접수 홈페이지를 처음 쓰는 분도 그대로 따라 할 수 있게 화면 그림과 함께 차례대로 안내합니다.</p>
+  <div class="url">주문접수 홈페이지 <code id="site-url">https://bamnat-delivery.bamnat.workers.dev/</code><button class="copy" id="copy-url" type="button">주소 복사</button></div>
+
+  <div class="pick-q">어떤 서비스를 이용하시나요? <b>하나를 눌러주세요.</b></div>
+  <div class="choose" role="group" aria-label="서비스 고르기">
+    <button type="button" class="choice a" id="pick-a" data-route="a" aria-pressed="false">
+      <span class="ico">🏬</span>
+      <span class="ct">물건을 매장·사무실로 받을래요</span>
+      <span class="cs">픽업한 물건을 대표님 매장이나 사무실로 택배로 받아요</span>
+    </button>
+    <button type="button" class="choice b" id="pick-b" data-route="b" aria-pressed="false">
+      <span class="ico">📦</span>
+      <span class="ct">손님에게 바로 보내주세요</span>
+      <span class="cs">풀필먼트: 검수·포장해서 쇼핑몰 손님에게 바로 배송해요</span>
+    </button>
+  </div>
+
+  <div class="feat-q">기능별 사용법도 볼 수 있어요. <b>궁금한 기능을 눌러주세요.</b></div>
+  <div class="feats" role="group" aria-label="기능별 사용법">
+    <button type="button" class="feat-btn" data-feat="products" aria-pressed="false"><span class="fi">🟦</span><span>상품등록·관리<small>도매처·쇼핑몰 상품명 묶어두기</small></span></button>
+    <button type="button" class="feat-btn" data-feat="stock" aria-pressed="false"><span class="fi">🟩</span><span>재고 확인<small>사무실에 있는 내 물건·출고 내역</small></span></button>
+    <button type="button" class="feat-btn" data-feat="usage" aria-pressed="false"><span class="fi">🟪</span><span>이용 현황<small>이번 달 이용 금액·세금계산서 금액</small></span></button>
+    <button type="button" class="feat-btn" data-feat="settle" aria-pressed="false"><span class="fi">🧾</span><span>정산서 보고 입금하기<small>문자로 받은 정산서 보는 법</small></span></button>
+    <button type="button" class="feat-btn" data-feat="orders" aria-pressed="false"><span class="fi">📋</span><span>내 주문 확인·수정<small>접수한 주문 찾기·고치기·엑셀</small></span></button>
+    <button type="button" class="feat-btn" data-feat="mypage" aria-pressed="false"><span class="fi">👤</span><span>내정보<small>연락처·주소·비밀번호 바꾸기</small></span></button>
+  </div>
+</header>
+
+<div class="only-route">
+<nav class="switch" aria-label="보고 있는 안내">
+  <span class="sw-now"></span>
+  <button type="button" class="sw-change" id="sw-change">다른 서비스 보기</button>
+</nav>
+
+<section class="summary">
+  <h2 class="sum-title"></h2>
+  <ol class="sum-steps">
+    <li><a href="#join"><b>회원가입</b>하고 승인받기</a></li>
+    <li><a href="#order"><span data-only="b">쇼핑몰 주문 확인 → </span><b>도매매장 주문</b></a></li>
+    <li><a href="#pickup"><b>사입팀 픽업요청</b> 넣기</a></li>
+    <li data-only="a"><a href="#store"><b>매장/사무실 택배접수</b></a></li>
+    <li data-only="b"><a href="#fulfill"><b>고객풀필먼트 택배접수</b></a></li>
+  </ol>
+  <p class="sum-end">여기까지 하면 끝입니다. 나머지 <span data-only="a">픽업·택배 발송</span><span data-only="b">픽업·검수·포장·배송</span>은 밤낮딜리버리가 합니다.</p>
+  <nav class="toc" aria-label="더 보기"><a href="#list">접수 확인·수정</a><a href="#time">시간 안내</a><a href="#faq">자주 묻는 질문</a></nav>
+</section>
+
+
+<!-- 1 -->
+<section class="ch" id="join">
+  <div class="chhead"><div class="num">1</div><div><h2>회원가입하고 승인받기</h2><p>처음 한 번만 하면 됩니다. 승인이 나야 주문과 픽업요청을 넣을 수 있어요.</p></div></div>
+  <ol class="steps">
+    <li>위의 주문접수 홈페이지 주소를 엽니다. 로그인 칸 아래 <b>[회원가입하기]</b>를 누릅니다.</li>
+  </ol>
+  <figure><img src="img/login.webp" alt="로그인 화면. 아래쪽에 회원가입하기 글자가 있습니다." loading="lazy"><figcaption>로그인 화면. 맨 아래 파란 글씨 [회원가입하기]를 누르세요.</figcaption></figure>
+  <ol class="steps" start="2" style="counter-reset:s 1">
+    <li><b>상호명</b>을 적고 <b>[중복확인]</b>을 누릅니다. 이 상호는 택배 보내는 사람 이름에 <b>밤낮딜리버리(상호명)</b>으로 자동으로 들어갑니다.</li>
+    <li>로그인에 쓸 <b>이메일</b>과 <b>비밀번호</b>(8자 이상, 숫자나 특수문자 1개 이상)를 적습니다.</li>
+    <li>대표자명, C/S 연락처, 매장·사무실 주소를 적습니다. 주소는 <b>[주소 검색]</b>으로 찾은 뒤 층·호수를 적어주세요.</li>
+    <li>세금계산서가 필요하면 하늘색 칸에 사업자 정보를 적습니다. 지금 몰라도 괜찮아요. 나중에 [내정보]에서 넣을 수 있습니다.</li>
+    <li>노란 칸의 안내를 읽고 체크한 뒤 <b>[회원가입 완료]</b>를 누릅니다.</li>
+  </ol>
+  <figure class="narrow"><img src="img/signup.webp" alt="셀러 회원가입 창. 상호명, 이메일, 비밀번호, 대표자명, 연락처, 주소, 세금계산서 정보 칸이 있습니다." loading="lazy"><figcaption>회원가입 창 (예시로 채운 모습)</figcaption></figure>
+  <ol class="steps" start="7" style="counter-reset:s 6">
+    <li>가입이 끝나면 아래 창이 뜹니다. 카카오톡에서 <b>010-5425-9060</b>을 친구추가하고, <b>[메시지 복사하기]</b>를 눌러 그 대화방에 붙여넣어 보내주세요. 이것까지 해야 가입이 마무리됩니다.</li>
+  </ol>
+  <figure class="narrow"><img src="img/kakao.webp" alt="가입 후 카카오톡 친구추가 안내 창" loading="lazy"><figcaption>가입 직후 뜨는 마지막 단계 안내</figcaption></figure>
+  <ol class="steps" start="8" style="counter-reset:s 7">
+    <li>승인 전에는 화면 위에 <b>"관리자 승인 대기 중입니다"</b>가 보입니다. 화면은 볼 수 있지만 접수는 막혀 있어요. 승인 안내를 카톡으로 받으면 화면을 <b>새로고침</b>하세요.</li>
+  </ol>
+  <figure><img src="img/pending.webp" alt="관리자 승인 대기 중 안내가 위에 보이는 화면" loading="lazy"><figcaption>승인 대기 중인 화면</figcaption></figure>
+  <div class="note tip"><p>💡 비밀번호를 잊었다면 로그인 화면의 <b>[비밀번호를 잊으셨나요?]</b>를 누르면 이메일로 다시 설정하는 링크가 옵니다.</p></div>
+</section>
+
+<!-- 2 -->
+<section class="ch" id="order">
+  <div class="chhead"><div class="num">2</div><div><h2><span data-only="b">쇼핑몰 주문 확인하고 </span>도매매장에 주문 넣기</h2><p>이 단계는 홈페이지가 아니라 평소처럼 신상마켓·카카오톡 등으로 매장에 직접 합니다.</p></div></div>
+  <ol class="steps">
+    <li data-only="b">먼저 내 쇼핑몰·플랫폼에 들어온 <b>손님 주문을 확인</b>합니다.</li>
+    <li>주문할 상품을 신상마켓이나 카카오톡 등으로 도매매장에 주문합니다.</li>
+    <li>주문할 때 <b>결제를 어떻게 할지</b> 정합니다. 매장에 직접 온라인 결제를 하거나, 사입팀 <b>대납</b>을 이용합니다.</li>
+    <li>대납을 이용한다면, 매장에 재고가 없을 때 <b>대납미송</b>을 잡을지도 함께 정해 두세요. 3장 픽업요청 때 같이 알려주셔야 합니다.</li>
+  </ol>
+  <dl class="terms">
+    <dt>대납</dt><dd>사입팀이 매장에 상품값을 대신 현금으로 결제해 드리는 서비스입니다. 대납 수수료는 따로 없습니다. 대납금은 <b>반드시 미리 계좌로 입금</b>해 주셔야 합니다 (3장).</dd>
+    <dt>대납미송</dt><dd>매장에 물건이 당장 없을 때, 상품값을 미리 결제하고 재고를 예약해 두는 것입니다.</dd>
+    <dt>온라인 결제</dt><dd>대표님이 매장에 직접 결제하는 방법입니다. 요즘은 부가세를 함께 입금해 달라는 매장이 많으니 참고하세요.</dd>
+  </dl>
+</section>
+
+<!-- 3 -->
+<section class="ch pick" id="pickup">
+  <div class="chhead"><div class="num">3</div><div><h2>사입팀 픽업요청 넣기</h2><p>매장 주문이 끝났으면, 어느 매장에서 물건을 가져올지 사입팀에 알려줍니다.</p></div></div>
+  <div class="note pick">
+    <p>처음 이용하시는 대표님은 <b>주문접수 홈페이지</b>(https://bamnat-delivery.bamnat.workers.dev/)에 로그인한 뒤 아래처럼 픽업요청을 접수하시면 됩니다.</p>
+    <p>그다음부터는 <b>SO솔루션(사입접수 프로그램)</b>으로 더 간편하게 접수하실 수 있어요. 상호와 연락처를 카톡으로 남겨주시면 프로그램 아이디를 만들어 사용법과 함께 보내드립니다.</p>
+  </div>
+  <ol class="steps">
+    <li>로그인 후 화면 맨 위 왼쪽에 있는 주황색 <b>[사입팀 픽업요청]</b> 버튼을 누릅니다.</li>
+  </ol>
+  <figure><img src="img/nav.webp" alt="화면 맨 위 메뉴. 주황색 사입팀 픽업요청, 초록 재고 확인, 보라 이용 현황, 파랑 상품관리 버튼" loading="lazy"><figcaption>맨 위 메뉴. 주황색이 [사입팀 픽업요청]입니다.</figcaption></figure>
+  <figure><img src="img/pickup-notice.webp" alt="픽업요청은 매일 23시 전까지 접수해 달라는 공지" loading="lazy"></figure>
+  <ol class="steps" start="2" style="counter-reset:s 1">
+    <li><b>주문자 정보</b>: 매장에 주문할 때 쓴 상호(또는 쇼핑몰명)와 연락처입니다. 보통 자동으로 채워져 있어요.</li>
+    <li><b>픽업할 매장정보</b>: 매장 상호, 위치(예: 디오트 2층 B-123), 매장 연락처를 적습니다. 매장이 여러 곳이면 한 곳씩 따로 접수합니다.</li>
+    <li><b>대납 유무</b>와 <b>대납미송 유무</b>를 고릅니다.</li>
+    <li>가져올 상품·수량 등 전할 말이 있으면 <b>사입팀 요청사항</b>에 적습니다.</li>
+    <li>대납이나 대납미송을 골랐다면 빨간 칸의 <b>동의</b>에 체크합니다. 그다음 <b>[픽업요청 접수]</b>를 누릅니다.</li>
+  </ol>
+  <figure class="narrow tall"><img src="img/pickup.webp" alt="사입팀 픽업요청 입력 화면. 주문자 정보, 픽업할 매장정보, 대납 유무, 대납미송 유무, 요청사항, 중요안내 동의 칸" loading="lazy"><figcaption>픽업요청 화면 (예시로 채운 모습)</figcaption></figure>
+  <div class="note warn">
+    <p><b class="t">⚠️ 중요</b> 사입팀 대납을 요청했다면 대납금은 반드시 계좌로 <b>먼저 입금</b>해야 합니다.</p>
+    <p>입금계좌 <span class="acct">신한은행 110-359-193710 이현재</span></p>
+    <p>대납금을 뺀 나머지 서비스 비용은 물건이 출고된 뒤 청구서(정산서)로 따로 보내드립니다.</p>
+  </div>
+  <h3>접수한 픽업요청 확인·취소·다시 넣기</h3>
+  <p>픽업요청 화면 맨 아래 <b>내 픽업요청 내역</b>에 최근 30건이 보입니다.</p>
+  <figure><img src="img/pickup-list.webp" alt="내 픽업요청 내역. 접수됨 상태에는 취소와 재등록 버튼, 픽업완료 상태에는 재등록 버튼" loading="lazy"><figcaption>내 픽업요청 내역</figcaption></figure>
+  <ul>
+    <li><b>[취소]</b>: 사입팀이 확인하기 전(<b>접수됨</b> 상태)까지만 직접 취소할 수 있어요. 그 뒤에는 카톡으로 말씀해 주세요.</li>
+    <li><b>[재등록]</b>: 같은 매장에 또 주문했을 때 누르면, 예전 내용이 위 입력칸에 그대로 채워집니다. 내용을 확인하고 [픽업요청 접수]를 눌러야 새로 접수됩니다.</li>
+  </ul>
+</section>
+
+<!-- keep box: 4·5 공통 -->
+<section class="ch" id="keep">
+  <div class="chhead"><div class="num">!</div><div><h2>택배 접수 전에 꼭: 사무실 보관요청</h2><p>4장 택배접수를 하기 전에 이 노란 칸부터 골라야 접수가 됩니다. <b>하루에 한 번만</b> 하면 돼요.</p></div></div>
+  <figure class="narrow"><img src="img/keep.webp" alt="픽업건 중 사무실 보관요청 칸. 하루 한 번 필수 체크. 보관건 있습니다, 보관건 없습니다, 이미 접수했습니다 중 고르고 접수 버튼" loading="lazy"><figcaption>오늘 처음 들어왔을 때: 택배접수 화면 오른쪽 위의 노란 칸</figcaption></figure>
+  <ul>
+    <li><b>1. 보관건 있습니다</b>: 오늘 픽업한 물건 중 보내지 말고 사무실에 보관(킵)할 것이 있을 때. 아래 칸에 무엇을 보관할지 적고 <b>[접수]</b>를 누르세요. 예) 풀필 외 남은 재고 킵해주세요</li>
+    <li><b>2. 보관건 없습니다</b>: 보관할 것이 없을 때. 고르고 <b>[접수]</b>를 누르세요.</li>
+    <li><b>3. 이미 접수했습니다</b>: 오늘 보관 내용을 이미 다른 방법으로 접수했을 때.</li>
+  </ul>
+  <h3>한 번 고르면 그날은 끝</h3>
+  <p>[접수]를 누르면 노란 칸이 한 줄로 줄어들어요. 그날은 로그인을 다시 해도, 다른 컴퓨터나 휴대폰에서 들어와도 다시 고르지 않아도 됩니다. 다음 날이 되면(밤 12시가 지나면) 다시 한 번 골라주세요.</p>
+  <figure class="narrow"><img src="img/keep-done.webp" alt="오늘 보관요청 확인 완료, 보관건 없음 이라고 한 줄로 줄어든 칸과 바꾸기·추가 버튼" loading="lazy"><figcaption>오늘 고른 뒤: 한 줄로 줄어든 모습</figcaption></figure>
+  <div class="note tip"><p>✏️ 보관할 물건이 생기거나 내용을 바꾸고 싶으면 <b>[바꾸기 · 추가]</b>를 누르세요. 이미 적은 보관 내용은 <b>내 접수 주문목록</b>의 보관요청 줄에서 <b>[수정]</b>으로 고칠 수 있어요. 밤낮딜리버리가 접수를 마감(접수완료)하기 전까지 고칠 수 있습니다.</p></div>
+</section>
+
+<!-- 4 -->
+<section class="ch" id="store" data-only="a">
+  <div class="chhead"><div class="num">4</div><div><h2>매장/사무실로 받기: 택배 접수</h2><p>픽업한 물건을 대표님 매장이나 사무실로 보내 달라고 접수합니다.</p></div></div>
+  <ol class="steps">
+    <li>로그인 후 첫 화면에서 <b>[🏬 매장/사무실 택배접수]</b> 카드를 누릅니다.</li>
+    <li><b>우체국택배</b>와 <b>당일택배</b> 중 하나를 고릅니다. 당일택배가 되는 지역인지는 오른쪽 <b>[당일택배 가능지역 조회]</b>로 확인할 수 있어요.</li>
+    <li>받는사람에 <b>내 상호</b>, 받는 연락처, 매장·사무실 주소를 적습니다. 보내는 사람(밤낮딜리버리)은 자동으로 들어가 있어요.</li>
+    <li>상품명은 비워둬도 됩니다. 보통 그날 픽업한 물건을 한꺼번에 보내드리기 때문이에요.</li>
+    <li>특별히 부탁할 것은 <b>밤낮딜리버리 전달메세지</b>에 적습니다. 예) 풀필먼트 출고건을 제외하고 나머지 상품을 보내주세요</li>
+    <li><b>[주문 등록하기]</b>를 누르면 끝입니다.</li>
+  </ol>
+  <figure><img src="img/store.webp" alt="매장/사무실 우체국택배 접수 화면" loading="lazy"><figcaption>매장/사무실 우체국택배 접수 (예시로 채운 모습)</figcaption></figure>
+  <div class="note tip"><p>💡 지난번과 같은 주소라면 오른쪽 위 주황 <b>[최근 접수내용 재등록]</b>을 누르면 한 번에 채워집니다.</p></div>
+</section>
+
+<!-- 5 -->
+<section class="ch" id="fulfill" data-only="b">
+  <div class="chhead"><div class="num">4</div><div><h2>손님에게 바로 보내기: 고객풀필먼트 접수</h2><p>픽업요청을 마쳤다면, 이제 물건을 받을 손님 정보를 넣습니다. 방법은 세 가지예요.</p></div></div>
+  <p>로그인 후 첫 화면에서 <b>[📦 고객풀필먼트 택배접수]</b> 카드를 누르면 아래에 접수 화면이 나옵니다.</p>
+  <figure><img src="img/home.webp" alt="로그인 후 첫 화면. 매장/사무실 택배접수, 고객풀필먼트 택배접수 카드와 보관요청 칸, 아래 단건 주문 등록 화면" loading="lazy"><figcaption>로그인 후 첫 화면</figcaption></figure>
+
+  <div class="tbl"><table>
+    <thead><tr><th>방법</th><th>이럴 때 좋아요</th></tr></thead>
+    <tbody>
+      <tr><td><b>단건 주문 등록</b></td><td>주문이 몇 건 안 될 때, 한 건씩 직접 입력</td></tr>
+      <tr><td><b>엑셀 일괄 등록</b></td><td>밤낮딜리버리 엑셀 양식에 여러 건을 적어 한 번에 올릴 때</td></tr>
+      <tr><td><b>쇼핑몰 주문서 그대로 올리기</b></td><td>스마트스토어·쿠팡·지그재그·에이블리 등에서 받은 주문서 엑셀을 손대지 않고 바로 올릴 때</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>방법 1. 단건 주문 등록</h3>
+  <ol class="steps">
+    <li><b>[단건 주문 등록]</b> 탭을 누릅니다.</li>
+    <li>받는사람 이름, 연락처, 주소(<b>[주소 검색]</b>)를 적습니다. 보내는사람 <b>밤낮딜리버리(내 상호)</b>와 C/S 연락처는 자동으로 들어가 있어요.</li>
+    <li><b>쇼핑몰 상품명</b>을 "상품명 / 컬러 / 사이즈 / 수량개" 순서로 적습니다. 예) 울 와이드 팬츠 / 블랙 / 1개</li>
+    <li><b>도매거래처명</b>(매장 이름)과 <b>도매 상품명</b>을 적습니다. 도매 상품명을 모르면 쇼핑몰 상품명과 똑같이 적어도 됩니다.</li>
+    <li><b>[주문 등록하기]</b>를 누릅니다.</li>
+  </ol>
+  <figure><img src="img/single.webp" alt="고객풀필먼트 단건 주문 등록 화면" loading="lazy"><figcaption>단건 주문 등록 (예시로 채운 모습)</figcaption></figure>
+  <dl class="terms">
+    <dt>(합)</dt><dd>한 손님이 여러 개를 샀을 때, <b>다 모아서 한 박스로</b> 보내 달라는 표시입니다. 상품명 앞에 (합)을 붙여주세요.</dd>
+    <dt>(킵)</dt><dd>사무실에 보관 중인 물건으로 보낼 때 붙입니다.</dd>
+    <dt>킵건 / 고객반품건</dt><dd>사무실 보관 물건이나 손님이 반품한 물건을 다시 보낼 때는 도매거래처명 칸에 "킵건" 또는 "고객반품건"이라고 적어주세요.</dd>
+  </dl>
+  <div class="note tip"><p>💡 자주 보내는 손님은 주소 칸 아래 <b>[+ 지금 입력한 주소 저장]</b>을 눌러 두면, 다음부터 <b>[주소록]</b>에서 한 번에 불러올 수 있어요.</p></div>
+
+  <h3>방법 2. 엑셀 일괄 등록</h3>
+  <ol class="steps">
+    <li>오른쪽 위 초록 <b>[풀필먼트 일괄접수 엑셀양식 다운로드]</b>를 눌러 양식을 받습니다.</li>
+    <li>받은 파일의 <b>2번 시트(풀필먼트 엑셀양식)</b>에 주문을 적고 저장합니다.</li>
+    <li><b>[엑셀 일괄 등록]</b> 탭에서 <b>[엑셀 파일 업로드]</b>를 누르고 그 파일을 고릅니다.</li>
+  </ol>
+  <figure><img src="img/batch.webp" alt="엑셀 일괄 등록 탭" loading="lazy"><figcaption>엑셀 일괄 등록</figcaption></figure>
+
+  <h3>방법 3. 쇼핑몰 주문서 그대로 올리기</h3>
+  <ol class="steps">
+    <li>쇼핑몰·플랫폼 관리자 화면에서 <b>주문서(발주서) 엑셀</b>을 내려받습니다.</li>
+    <li><b>[쇼핑몰 주문서 그대로 올리기]</b> 탭에서 <b>[주문서 파일 선택]</b>을 눌러 그 파일을 고릅니다.</li>
+    <li>AI가 받는분·주소·연락처·상품 칸을 찾아 <b>확인표</b>로 보여줍니다. 내용을 확인하세요.</li>
+    <li><b>빨간 줄</b>은 빈 칸이 있는 주문입니다. 빈 칸을 채우거나 오른쪽 <b>[빼기]</b>를 누르세요. 도매처를 모르면 <b>[빈 도매처 칸을 쇼핑몰상품명으로 채우기]</b>를 눌러도 됩니다.</li>
+    <li>같은 손님이 여러 개를 샀다면 <b>(합)</b>에 체크하면 모아서 한 번에 보내드려요.</li>
+    <li>마지막으로 <b>[이대로 주문접수]</b>를 누릅니다.</li>
+  </ol>
+  <figure><img src="img/ai-confirm.webp" alt="쇼핑몰 주문서 확인표. 빨간 줄에 빈 칸이 있고, 아래에 접수할 수 없는 이유와 이대로 주문접수 버튼" loading="lazy"><figcaption>확인표. [이대로 주문접수] 버튼이 회색으로 꺼져 있으면 버튼 옆 빨간 상자에 이유가 나옵니다.</figcaption></figure>
+  <div class="note warn"><p><b class="t">잘 안 될 때</b> 쇼핑몰 주문서로 접수가 잘 안 되면, 방법 2의 <b>엑셀 양식</b>을 내려받아 옮겨 적은 뒤 올려주세요.</p></div>
+
+  <div class="note ok"><p>✅ <b>여기까지 하면 끝입니다.</b> 쇼핑몰 주문 확인 → 도매매장 주문 → 픽업요청 → 고객풀필먼트 접수. 나머지 픽업·검수·포장·배송은 밤낮딜리버리가 합니다.</p></div>
+  <div class="note tip"><p>📢 모든 출고는 <b>밤낮딜리버리 사무실에 있는 내 재고부터 먼저</b> 나갑니다. 출고 후 사무실 재고는 자동으로 빠집니다.</p></div>
+</section>
+
+<!-- 6 -->
+<section class="ch" id="list">
+  <div class="chhead"><div class="num">5</div><div><h2>접수한 주문 확인·수정하기</h2><p>택배접수 화면 아래 <b>내 접수 주문목록</b>에서 내가 넣은 주문을 모두 볼 수 있어요.</p></div></div>
+  <figure><img src="img/orders.webp" alt="내 접수 주문목록. 기간, 검색 조건과 주문 표" loading="lazy"><figcaption>내 접수 주문목록 (예시)</figcaption></figure>
+  <ul>
+    <li><b>기간 버튼</b>(오늘·어제·1주일·1개월…)과 <b>검색</b>으로 지난 주문을 찾을 수 있어요. 받는분 이름, 연락처, 주소, 상품명으로 찾습니다.</li>
+    <li>표가 옆으로 길어요. 표 위에서 <b>옆으로 밀면</b> 상태·출고·관리(수정·삭제) 칸이 나옵니다.</li>
+    <li><b>수정·삭제</b>는 밤낮딜리버리가 마감(접수완료)하기 전, 출고 전 주문만 할 수 있어요.</li>
+    <li><b>[조회결과 엑셀]</b>로 찾은 주문을 엑셀로 받을 수 있습니다.</li>
+  </ul>
+</section>
+
+<!-- time -->
+<section class="ch" id="time">
+  <div class="chhead"><div class="num">⏰</div><div><h2>시간 안내</h2></div></div>
+  <div class="tbl"><table>
+    <thead><tr><th>무엇</th><th>언제까지</th></tr></thead>
+    <tbody>
+      <tr><td>택배 접수 (매장/사무실 · 고객풀필먼트)</td><td class="t">24시간 가능</td></tr>
+      <tr><td>웹페이지를 통한 픽업요청</td><td class="t">매일 23시 전</td></tr>
+      <tr><td>SO솔루션 픽업요청</td><td>새벽 1시까지 가능 (24시 이후 건은 픽업이 안 될 수도 있어요)</td></tr>
+      <tr><td>오전 7시 30분 ~ 오후 2시 접수 중 급한 당일 출고 건</td><td>카카오톡 단톡방으로 꼭 따로 알려주세요</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- faq -->
+<section class="ch faq" id="faq">
+  <div class="chhead"><div class="num">?</div><div><h2>자주 묻는 질문</h2></div></div>
+  <details><summary>가입했는데 접수 버튼을 누르면 안 돼요.</summary><p>아직 승인 전일 수 있어요. 카톡으로 "회원가입 했습니다 + 상호 + 연락처"를 보내셨는지 확인해 주세요. 승인 후에는 화면을 새로고침하세요.</p></details>
+  <details><summary>주문 등록하기를 눌렀는데 "사무실 보관요청 버튼을 체크하고 [접수] 버튼을 눌러주세요"가 떠요.</summary><p>오늘 처음 택배접수를 하기 전에 노란 <b>사무실 보관요청</b> 칸에서 하나를 고르고 [접수]를 먼저 눌러주세요. 하루에 한 번만 하면 되고, 그날은 다시 묻지 않아요.</p></details>
+  <details><summary>접수한 주문을 고치고 싶어요.</summary><p>내 접수 주문목록에서 표를 옆으로 밀어 [수정]을 누르세요. 마감(접수완료)됐거나 출고된 주문은 고칠 수 없으니 카톡으로 말씀해 주세요.</p></details>
+  <details><summary>대납금은 언제 입금하나요?</summary><p>픽업요청을 넣을 때 <b>미리</b> 입금해 주세요. 신한은행 110-359-193710 이현재. 나머지 서비스 비용은 출고 후 정산서로 보내드립니다.</p></details>
+  <details><summary>[이대로 주문접수] 버튼이 회색이라 안 눌려요.</summary><p>버튼 옆 빨간 상자에 이유가 나옵니다. 빨간 줄의 빈 칸(연락처·도매처 등)을 채우거나 [빼기]를 누르면 버튼이 켜집니다.</p></details>
+</section>
+
+</div><!-- /only-route -->
+
+<div class="feat-view">
+<nav class="switch" aria-label="보고 있는 기능 안내">
+  <span class="sw-now" id="feat-now"></span>
+  <button type="button" class="sw-change" id="feat-home">처음으로</button>
+</nav>
+
+<section class="ch feat" id="f-products">
+  <div class="chhead"><div class="num">🟦</div><div><h2>상품등록·관리</h2><p>화면 맨 위 파란 <b>[상품관리]</b> 버튼을 누르면 열려요. 한 번 등록해 두면 쇼핑몰 주문서를 올릴 때 도매처가 <b>자동으로 채워져서</b> 훨씬 편해집니다.</p></div></div>
+  <figure><img src="img/products.webp" alt="상품관리 화면. 상품코드, 도매업체명, 도매상품명, 컬러, 사이즈, 플랫폼별 쇼핑몰상품명" loading="lazy"><figcaption>상품관리 화면 (예시)</figcaption></figure>
+  <h3>하나씩 등록하기</h3>
+  <ol class="steps-n">
+    <li><b>[+ 상품 등록]</b>을 누릅니다.</li>
+    <li><b>도매업체명</b>과 <b>도매상품명</b>을 적어요. (이 두 칸은 꼭 적어야 해요.) 컬러·사이즈도 적어주세요.</li>
+    <li><b>플랫폼별 쇼핑몰상품명</b>에 스마트스토어·쿠팡 등 플랫폼 이름과, 거기서 쓰는 상품명을 적어요. 플랫폼마다 이름이 다르면 <b>[+ 줄 추가]</b>로 더 적을 수 있어요.</li>
+    <li>컬러가 보이는 <b>사진 1장</b>과 메모를 넣고 싶으면 넣고 <b>[저장]</b>을 누릅니다. 상품코드는 자동으로 붙어요.</li>
+  </ol>
+  <figure><img src="img/product-add.webp" alt="상품 등록 창. 도매업체명, 도매상품명, 컬러, 사이즈, 플랫폼별 쇼핑몰상품명, 사진, 메모" loading="lazy"><figcaption>상품 등록 창 (예시)</figcaption></figure>
+  <h3>엑셀로 한꺼번에 등록하기</h3>
+  <ol class="steps-n">
+    <li><b>[등록 양식 받기]</b>로 빈 엑셀 파일을 받아요.</li>
+    <li>엑셀에 상품을 한 줄에 하나씩 적고 저장합니다.</li>
+    <li><b>[엑셀로 등록]</b>으로 그 파일을 올리고, 확인 창에서 내용을 본 뒤 <b>[등록하기]</b>를 누릅니다.</li>
+  </ol>
+  <h3>찾기·고치기·지우기</h3>
+  <ul>
+    <li>위쪽 <b>검색 칸</b>에 상품코드나 상품명을 넣으면 도매처·도매상품명·플랫폼별 상품명이 바로 나와요.</li>
+    <li>고칠 때는 그 줄의 <b>[수정]</b>을 누르세요. 바꾼 내용은 모두 <b>[기록]</b>에 남아서 언제 무엇을 바꿨는지 볼 수 있어요.</li>
+    <li>지우고 싶으면 <b>[삭제 요청]</b>을 누르세요. 실수로 지워지지 않도록 밤낮딜리버리가 확인한 뒤 지워집니다.</li>
+    <li><b>[엑셀 다운로드]</b>로 등록한 상품 목록 전체를 엑셀로 받을 수 있어요.</li>
+  </ul>
+  <div class="note tip"><p>💡 등록해 두면 <b>[쇼핑몰 주문서 그대로 올리기]</b>에서 쇼핑몰 상품명만 보고도 어느 도매처 물건인지 자동으로 찾아주고, 사무실에 있는 재고도 함께 보여줘요.</p></div>
+</section>
+
+<section class="ch feat" id="f-stock">
+  <div class="chhead"><div class="num">🟩</div><div><h2>재고 확인</h2><p>화면 맨 위 초록 <b>[재고 확인]</b> 버튼을 누르면 열려요. 밤낮딜리버리 사무실에 맡겨둔 내 물건이 얼마나 있는지 봅니다.</p></div></div>
+  <ol class="steps-n">
+    <li><b>[보관중 재고]</b> 탭에서 지금 사무실에 있는 내 물건을 봅니다. 위쪽 숫자 칸에서 보관중 건수·수량을 한눈에 볼 수 있어요.</li>
+    <li><b>[출고 내역]</b> 탭을 누르면 이미 나간 물건과 <b>재고출고일</b>을 볼 수 있어요.</li>
+    <li>검색 칸에 상품명을 넣어 찾고, <b>[엑셀 다운로드]</b>로 엑셀 파일로 받을 수 있어요.</li>
+  </ol>
+  <figure><img src="img/stock.webp" alt="재고 확인 화면. 보관중 건수, 수량, 출고된 건수와 재고 표" loading="lazy"><figcaption>보관중 재고 (예시)</figcaption></figure>
+  <figure><img src="img/stock-out.webp" alt="재고 확인 화면의 출고 내역 탭" loading="lazy"><figcaption>출고 내역 (예시)</figcaption></figure>
+  <div class="note tip"><p>📢 손님 주문을 접수하면 <b>사무실에 있는 내 재고부터 먼저</b> 나가고, 나간 만큼 재고에서 자동으로 빠집니다.</p></div>
+</section>
+
+<section class="ch feat" id="f-usage">
+  <div class="chhead"><div class="num">🟪</div><div><h2>이용 현황</h2><p>화면 맨 위 보라 <b>[이용 현황]</b> 버튼을 누르면 열려요. 한 달 동안 얼마를 이용했는지 봅니다.</p></div></div>
+  <ol class="steps-n">
+    <li>위쪽에서 <b>[이번 달]</b>, <b>[지난 달]</b>, <b>[최근 3개월]</b> 중에 고르거나 날짜를 직접 정합니다.</li>
+    <li>픽업·풀필·택배비·대납금 같은 <b>항목별 합계</b>와 <b>세금계산서 금액</b>이 나와요.</li>
+    <li>아래 <b>날짜별 내역</b>에서 <b>[보기]</b>를 누르면 그날 정산서가 열립니다.</li>
+    <li><b>[엑셀 다운로드]</b>로 내역을 엑셀로 받을 수 있어요.</li>
+  </ol>
+  <figure><img src="img/usage.webp" alt="내 이용 현황 화면. 세금계산서 금액, 이용 일수, 풀필 건수, 항목별 합계, 날짜별 내역" loading="lazy"><figcaption>이용 현황 (예시 숫자)</figcaption></figure>
+</section>
+
+<section class="ch feat" id="f-settle">
+  <div class="chhead"><div class="num">🧾</div><div><h2>정산서 보고 입금하기</h2><p>출고한 날에는 <b>알림톡(또는 문자)</b>으로 정산서 링크를 보내드려요. 링크를 누르면 휴대폰에서도 바로 열립니다. 지난 정산서는 [이용 현황]에서 [보기]로 다시 볼 수 있어요.</p></div></div>
+  <ol class="steps-n">
+    <li>맨 위 <b>총 청구금액</b>이 입금하실 금액이에요.</li>
+    <li><b>입금계좌</b> 옆 <b>[복사]</b>를 누르면 계좌번호가 복사돼요. 은행 앱에 붙여넣어 입금하세요.</li>
+    <li>입금하실 때 보내는 분 이름은 꼭 <b>상호명</b>으로 해주세요. (예: 마가렛 ⭕ / 김태희(마가렛) ❌ / 김태희 ❌)</li>
+    <li>아래 <b>총 정산내역</b>에서 서비스 비용·대납금액·부가세가 어떻게 더해졌는지 볼 수 있고, <b>사입내역서</b>에서 어느 매장에서 무엇을 얼마에 샀는지 확인할 수 있어요.</li>
+  </ol>
+  <figure class="narrow"><img src="img/settle.webp" alt="정산서 윗부분. 총 청구금액, 입금계좌와 복사 버튼, 총 정산내역" loading="lazy"><figcaption>정산서 윗부분 (예시 숫자). 아래로 내리면 항목별 내역과 사입내역서가 나와요.</figcaption></figure>
+  <ul>
+    <li><b>세금계산서</b>는 다음 달 초에 <b>"이레앤컴퍼니"</b> 상호로 전자발급돼요. <b>사업자등록증 사본</b>을 꼭 카톡으로 보내주세요.</li>
+    <li><b>입금액</b> 칸에는 정산서를 만든 시점까지 확인된 입금만 들어가요. 그 뒤에 입금하셨다면 다음 정산서에 반영되니 걱정하지 않으셔도 돼요.</li>
+    <li><b>⑨ 전일 청구금 / 이월잔여금</b>: 지난번에 덜 입금하셨으면 남은 금액이 더해지고(+), 더 입금하셨으면 남은 금액만큼 빠집니다(−).</li>
+  </ul>
+</section>
+
+<section class="ch feat" id="f-orders">
+  <div class="chhead"><div class="num">📋</div><div><h2>내 주문 확인·수정</h2><p>택배접수 화면 아래 <b>내 접수 주문목록</b>에서 내가 넣은 주문을 모두 볼 수 있어요.</p></div></div>
+  <figure><img src="img/orders.webp" alt="내 접수 주문목록. 기간, 검색 조건과 주문 표" loading="lazy"><figcaption>내 접수 주문목록 (예시)</figcaption></figure>
+  <ol class="steps-n">
+    <li><b>기간 버튼</b>(오늘·어제·1주일·1개월…)을 누르거나 <b>검색</b> 칸에 받는분 이름·연락처·주소·상품명을 넣어 찾습니다.</li>
+    <li>고치거나 지우려면 그 줄 오른쪽 끝 <b>[수정]</b>·<b>[삭제]</b>를 누르세요. 휴대폰에서는 표를 옆으로 밀면 나와요.</li>
+    <li><b>[조회결과 엑셀]</b>로 찾은 주문을 엑셀로 받을 수 있어요.</li>
+  </ol>
+  <div class="note"><p>✏️ 수정·삭제는 밤낮딜리버리가 접수를 마감(접수완료)하기 전, 출고 전 주문만 할 수 있어요. 그 뒤에는 카톡으로 말씀해 주세요.</p></div>
+</section>
+
+<section class="ch feat" id="f-mypage">
+  <div class="chhead"><div class="num">👤</div><div><h2>내정보</h2><p>오른쪽 위 <b>[내정보]</b>를 누르면 열려요.</p></div></div>
+  <ul>
+    <li>연락처·주소를 바꿀 수 있어요. 여기 적힌 내용이 택배 보내는 분 정보로 쓰여요.</li>
+    <li>세금계산서 받을 정보(사업자 정보·이메일)를 적고 고칠 수 있어요.</li>
+    <li>비밀번호를 바꿀 수 있어요.</li>
+    <li>상호명은 직접 바꿀 수 없어요. 바꾸려면 카톡으로 말씀해 주세요.</li>
+  </ul>
+  <figure class="narrow"><img src="img/mypage.webp" alt="내 정보 창" loading="lazy"><figcaption>내정보 창</figcaption></figure>
+</section>
+</div><!-- /feat-view -->
+
+
+<footer>
+  <p>문의: 밤낮딜리버리 카카오톡 <b>010-5425-9060</b></p>
+  <p>이 설명서의 화면 그림은 실제 손님 정보가 아닌 예시 데이터로 만들었습니다.</p>
+</footer>
+</div>
+
+<script>
+document.getElementById('copy-url').addEventListener('click', function () {
+  var btn = this, text = document.getElementById('site-url').textContent;
+  var done = function () { btn.textContent = '복사됨'; setTimeout(function () { btn.textContent = '주소 복사'; }, 1500); };
+  var fallback = function () { var r = document.createRange(); r.selectNodeContents(document.getElementById('site-url')); var s = getSelection(); s.removeAllRanges(); s.addRange(r); btn.textContent = '선택됨, 복사하세요'; };
+  try { navigator.clipboard.writeText(text).then(done, fallback); } catch (e) { fallback(); }
+});
+
+(function () {
+  var NAMES = { a: '🏬 물건을 매장·사무실로 받기', b: '📦 손님에게 바로 보내기 (풀필먼트)' };
+  var FEAT = {"products": "🟦 상품등록·관리", "stock": "🟩 재고 확인", "usage": "🟪 이용 현황", "settle": "🧾 정산서 보고 입금하기", "orders": "📋 내 주문 확인·수정", "mypage": "👤 내정보"};
+  var HASH = { a: 'route-store', b: 'route-fulfill' };
+  var lastRoute = null;
+  function press() {
+    var r = document.body.classList.contains('route-a') ? 'a' : document.body.classList.contains('route-b') ? 'b' : null;
+    ['a', 'b'].forEach(function (k) { document.getElementById('pick-' + k).setAttribute('aria-pressed', String(k === r)); });
+    var f = document.body.dataset.feat || '';
+    document.querySelectorAll('.feats .feat-btn').forEach(function (b) { b.setAttribute('aria-pressed', String(document.body.classList.contains('route-f') && b.dataset.feat === f)); });
+  }
+  function show(r, scroll) {
+    document.body.classList.remove('route-a', 'route-b', 'route-f');
+    if (r) document.body.classList.add('route-' + r);
+    if (r) lastRoute = r;
+    press();
+    if (!r) return;
+    document.querySelector('.only-route .sw-now').textContent = '지금 보는 안내: ' + NAMES[r];
+    document.querySelector('.sum-title').textContent = NAMES[r] + ' 이용 순서';
+    try { history.replaceState(null, '', '#' + HASH[r]); } catch (e) {}
+    if (scroll) document.querySelector('.only-route .switch').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  function showFeat(f, scroll) {
+    if (!FEAT[f]) return;
+    document.body.classList.remove('route-a', 'route-b');
+    document.body.classList.add('route-f');
+    document.body.dataset.feat = f;
+    document.querySelectorAll('.feat').forEach(function (s) { s.classList.toggle('on', s.id === 'f-' + f); });
+    document.getElementById('feat-now').textContent = '지금 보는 사용법: ' + FEAT[f];
+    press();
+    try { history.replaceState(null, '', '#guide-' + f); } catch (e) {}
+    if (scroll) document.querySelector('.feat-view .switch').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  function fromHash() {
+    var h = location.hash.slice(1);
+    if (h === HASH.a) { show('a', false); return true; }
+    if (h === HASH.b) { show('b', false); return true; }
+    if (h.indexOf('guide-') === 0 && FEAT[h.slice(6)]) { showFeat(h.slice(6), false); return true; }
+    return false;
+  }
+  document.querySelectorAll('.choice').forEach(function (b) { b.addEventListener('click', function () { show(b.dataset.route, true); }); });
+  document.querySelectorAll('.feat-btn').forEach(function (b) { b.addEventListener('click', function () { showFeat(b.dataset.feat, true); }); });
+  document.getElementById('sw-change').addEventListener('click', function () {
+    var cur = document.body.classList.contains('route-a') ? 'a' : 'b';
+    show(cur === 'a' ? 'b' : 'a', false);
+  });
+  document.getElementById('feat-home').addEventListener('click', function () {
+    document.body.classList.remove('route-f');
+    if (lastRoute) show(lastRoute, false); else { press(); try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+  window.addEventListener('hashchange', fromHash);
+  fromHash();
+})();
+</script>
+
+</body>
+</html>
