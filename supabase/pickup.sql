@@ -14,7 +14,7 @@ create table if not exists public.pickup_requests (
     prepay_misong   boolean not null,           -- true: 재고 없으면 대납미송 잡음 / false: 잡지 않음
     agreed          boolean not null default false, -- 대납금 선입금 안내 동의
     memo            text,
-    status          text not null default '접수' check (status in ('접수', '확인', '완료', '취소')),
+    status          text not null default '접수' check (status in ('접수', '확인', '완료', '실패', '취소')),
     created_at      timestamptz not null default now(),
     -- 대납하거나 대납미송을 잡는 경우에는 선입금 안내에 동의해야만 접수됩니다.
     constraint pickup_requests_agree_chk check (agreed or not (prepay or prepay_misong))
