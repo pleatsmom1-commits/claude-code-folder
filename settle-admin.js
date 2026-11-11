@@ -329,7 +329,7 @@ function settleRowToData(r) {
         pickupCost: v(8),           // ① 총 픽업/반납 비용
         prepaid: v(9),              // ② 총 대납금액
         unsentStores: v(10),
-        unsentCost: v(12),          // ③ 총 대납미송/방문 비용
+        unsentCost: v(12),          // ③ 총 대납미송/기타방문 비용
         shippingFee: v(13),         // ④ 적용택배비
         trackingNo: v(14),
         fulfillCount: v(15),
@@ -991,8 +991,8 @@ function settleApplyStale(s) {
 const SETTLE_DIFF_FIELDS = [
     ['total', '총 청구금액', true], ['result', '결과'], ['serviceTotal', '서비스 비용', true], ['vat', '부가세', true],
     ['carryOver', '전일 청구금/이월', true], ['paid', '입금액', true], ['prepaid', '대납금액', true],
-    ['pickupStores', '픽업/반납 매장 수'], ['pickupCost', '픽업/반납 비용', true], ['unsentStores', '대납미송/방문 매장 수'],
-    ['unsentCost', '대납미송/방문 비용', true], ['shippingFee', '택배비', true], ['trackingNo', '송장번호'],
+    ['pickupStores', '픽업/반납 매장 수'], ['pickupCost', '픽업/반납 비용', true], ['unsentStores', '대납미송/기타방문 매장 수'],
+    ['unsentCost', '대납미송/기타방문 비용', true], ['shippingFee', '택배비', true], ['trackingNo', '송장번호'],
     ['fulfillCount', '풀필 건수'], ['fulfillExtraCount', '풀필 추가 개수'], ['fulfillExtraShipping', '풀필 추가 택배요금', true],
     ['fulfillCost', '풀필 비용', true], ['etcCost', '기타비용', true], ['etcNote', '기타청구 내용'],
     ['deliveryType', '택배유형'], ['account', '입금계좌'],
@@ -1609,8 +1609,8 @@ const SETTLE_USAGE_COLS = [
     { key: 'pickupStores', label: '픽업/반납 매장', count: true },
     { key: 'pickupCost', label: '① 픽업/반납' },
     { key: 'prepaid', label: '② 대납금액' },
-    { key: 'unsentStores', label: '대납미송/방문 매장', count: true },
-    { key: 'unsentCost', label: '③ 대납미송/방문' },
+    { key: 'unsentStores', label: '대납미송/기타방문 매장', count: true },
+    { key: 'unsentCost', label: '③ 대납미송/기타방문' },
     { key: 'shippingFee', label: '④ 택배비' },
     { key: 'fulfillCount', label: '풀필 건수', count: true },
     { key: 'fulfillCost', label: '⑤ 풀필' },
