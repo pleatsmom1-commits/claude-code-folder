@@ -768,7 +768,7 @@
                         <i data-lucide="refresh-cw" class="w-4 h-4"></i> 새로고침
                     </button>
                     <button onclick="confirmAdminBatch()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow transition flex items-center gap-1.5">
-                        <i data-lucide="check-circle" class="w-4 h-4"></i> 주문접수완료 (마감 처리)
+                        <i data-lucide="check-circle" class="w-4 h-4"></i> 주문접수완료 (체크한 주문 마감)
                     </button>
                     <button onclick="downloadMasterExcel()" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow transition flex items-center gap-1.5">
                         <i data-lucide="file-down" class="w-4 h-4"></i> 엑셀 다운로드 (현재 필터 기준)
@@ -826,6 +826,7 @@
                             <button onclick="shipSelectedOrders()" class="ship-ui px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg shadow-sm">선택 출고완료</button>
                             <button onclick="setShipStatusForSelected('미출고')" class="ship-ui px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg shadow-sm">선택 출고취소</button>
                             <button onclick="editSelectedAdminOrder()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-sm">선택수정</button>
+                            <button onclick="markSeparateSelectedOrders()" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs rounded-lg shadow-sm" title="이 사이트 밖에서 이미 따로 처리·배송한 접수건에 표시합니다 (접수완료로 바뀜)">따로 처리됨</button>
                             <button onclick="setHiddenSelectedOrders(true)" class="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg shadow-sm" title="테스트 접수건 등을 목록에서 안 보이게 합니다 (지우지 않음)">선택 숨기기</button>
                         </div>
                     </div>
@@ -4403,7 +4404,7 @@
                     <td class="p-3 text-slate-400 whitespace-nowrap">${escapeHtml(formatKstDateTime(o.created_at))}</td>
                     <td class="p-3">
                         <div class="flex items-center gap-1 whitespace-nowrap">
-                            ${statusBadgeHtml(o.status)}
+                            ${statusBadgeHtml(o.status)}${separateOrderIds.has(o.id) ? '<span class="ml-1 px-2 py-1 rounded text-[10px] font-bold whitespace-nowrap bg-violet-100 text-violet-700" title="이 사이트 밖에서 따로 처리·배송한 접수건">따로 처리됨</span>' : ''}
                             ${o.status === '접수대기' ? `<button data-id="${id}" onclick="acceptOrders([this.dataset.id])" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded text-[11px]">접수</button>` : ''}
                         </div>
                     </td>
@@ -4508,6 +4509,54 @@
             const { data, error } = await fetchAllRows(() => supabaseClient.from('admin_hidden_orders').select('order_id'));
             hiddenOrdersReady = !error;
             hiddenOrderIds = new Set(error ? [] : (data || []).map(r => r.order_id));
+            const sep = await fetchAllRows(() => supabaseClient.from('admin_separate_orders').select('order_id'));
+            separateOrdersReady = !sep.error;
+            separateOrderIds = new Set(sep.error ? [] : (sep.data || []).map(r => r.order_id));
+        }
+
+        // '따로 처리됨': 이 사이트 밖에서 이미 따로 처리·배송한 접수건 표시 (supabase/order_separate.sql)
+        let separateOrderIds = new Set();
+        let separateOrdersReady = false;
+        async function markSeparateSelectedOrders() {
+            const ids = Array.from(document.querySelectorAll('.admin-chk-item:checked')).map(c => c.value);
+            if (ids.length === 0) {
+                alert('따로 처리된 접수건을 체크박스로 선택해주세요.');
+                return;
+            }
+            if (!separateOrdersReady) await fetchHiddenOrderIds();
+            if (!separateOrdersReady) {
+                alert('따로 처리됨 기능 DB 설정이 아직 적용되지 않았습니다.\n(Supabase SQL Editor 에서 supabase/order_separate.sql 을 실행해주세요)');
+                return;
+            }
+            const fresh = ids.filter(id => !separateOrderIds.has(id));
+            if (fresh.length === 0) {
+                // 이미 모두 표시된 건이면 표시 풀기
+                if (!confirm(`선택한 상품 ${ids.length}개는 이미 '따로 처리됨'입니다.\n표시를 풀까요? (접수 상태는 그대로 둡니다)`)) return;
+                const { error } = await supabaseClient.from('admin_separate_orders').delete().in('order_id', ids);
+                if (error) { alert('저장 중 오류가 발생했습니다.\n\n' + dbErrorMessage(error)); return; }
+                ids.forEach(id => separateOrderIds.delete(id));
+                renderAdminTable();
+                return;
+            }
+            const pending = fresh.filter(id => (ordersMaster.find(o => o.id === id) || {}).status === '접수대기');
+            if (!confirm(`선택한 상품 ${fresh.length}개에 '따로 처리됨' 표시를 할까요?\n\n이미 따로 처리·배송한 건이라는 표시입니다.`
+                + (pending.length ? `\n접수대기인 ${pending.length}개는 [접수완료]로 바뀌어 셀러가 수정/삭제할 수 없게 됩니다.` : ''))) return;
+            for (let i = 0; i < fresh.length; i += 200) {
+                const part = fresh.slice(i, i + 200);
+                const { error } = await supabaseClient.from('admin_separate_orders').upsert(part.map(order_id => ({ order_id })));
+                if (error) { alert('저장 중 오류가 발생했습니다.\n\n' + dbErrorMessage(error)); renderAdminTable(); return; }
+                part.forEach(id => separateOrderIds.add(id));
+            }
+            if (pending.length) {
+                const updated = [];
+                for (let i = 0; i < pending.length; i += 200) {
+                    const { data, error } = await supabaseClient.from('orders').update({ status: '접수완료' }).in('id', pending.slice(i, i + 200)).select();
+                    if (error) { alert('접수완료로 바꾸는 중 오류가 발생했습니다.\n\n' + dbErrorMessage(error)); break; }
+                    updated.push(...(data || []));
+                }
+                replaceOrders(updated);
+            }
+            renderAdminTable();
         }
 
         async function setHiddenSelectedOrders(hide) {
@@ -4836,15 +4885,20 @@
         }
 
         async function confirmAdminBatch() {
-            // 숨긴 접수건(테스트건 등)은 마감 처리하지 않고 그대로 둡니다.
-            const hiddenPending = ordersMaster.filter(o => o.status === '접수대기' && hiddenOrderIds.has(o.id)).length;
-            const pendingIds = ordersMaster.filter(o => o.status === '접수대기' && !hiddenOrderIds.has(o.id)).map(o => o.id);
-            if (pendingIds.length === 0) {
-                alert('마감 처리할 [접수대기] 주문이 없습니다.' + (hiddenPending ? `\n(숨긴 접수건 ${hiddenPending}건은 건드리지 않습니다)` : ''));
+            // 체크박스로 고른 주문만 마감 처리합니다. (전체를 하려면 표 맨 위 체크칸으로 모두 선택)
+            const checked = Array.from(document.querySelectorAll('.admin-chk-item:checked')).map(c => c.value);
+            if (checked.length === 0) {
+                alert('마감 처리할 주문을 체크박스로 선택해주세요.\n(보이는 주문 전체를 하려면 표 맨 위 체크칸을 누르세요)');
                 return;
             }
-            if (!confirm(`[접수대기] 주문 ${pendingIds.length}건을 [접수완료]로 마감 처리하시겠습니까?\n마감된 주문은 셀러가 수정/삭제할 수 없습니다.`
-                + (hiddenPending ? `\n\n숨긴 접수건 ${hiddenPending}건은 건드리지 않습니다.` : ''))) return;
+            const pendingIds = checked.filter(id => (ordersMaster.find(o => o.id === id) || {}).status === '접수대기');
+            if (pendingIds.length === 0) {
+                alert('체크한 주문 중 [접수대기] 주문이 없습니다.');
+                return;
+            }
+            const skipped = checked.length - pendingIds.length;
+            if (!confirm(`체크한 [접수대기] 주문 ${pendingIds.length}건을 [접수완료]로 마감 처리하시겠습니까?\n마감된 주문은 셀러가 수정/삭제할 수 없습니다.`
+                + (skipped ? `\n(이미 접수완료인 ${skipped}건은 그대로 둡니다)` : ''))) return;
 
             if (supabaseClient) {
                 // 화면에서 고른 주문만 (숨긴 건 제외), 그중 아직 접수대기인 것만 바꿉니다.
