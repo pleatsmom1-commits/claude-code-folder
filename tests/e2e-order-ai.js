@@ -198,6 +198,10 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   check('duplicate text', (await row(3).innerText()).includes('최근 3일안에 동일한 주문건이 있으니 확인해주세요.'));
   check('unknown-wholesale button + disclaimer', table.includes('빈 도매처 칸을 쇼핑몰상품명으로 채우기') && table.includes('책임질 수 없습니다'));
   check('submit blocked while rows are missing info', await page.isDisabled('#btn-ai-submit'));
+  const why = await page.isVisible('#ai-submit-why') ? await page.innerText('#ai-submit-why') : '';
+  check('reason shown next to submit button', why.includes('빈 칸이 있는 주문 3건') && why.includes('연락처 없음 1건') && why.includes('도매처명·도매상품명 없음 2건'), why);
+  { await page.addStyleTag({ content: "#bn-chat-btn{display:none!important}" }); const sy = await page.evaluate(() => window.scrollY); const b0 = await page.locator("#ai-result").boundingBox(); const bb = { ...b0, y: b0.y + sy }; const vp = page.viewportSize();
+    await page.screenshot({ path: path.join(__dirname, 'out', `${process.env.SHOT || 'shot'}-ai-submit-why.png`), fullPage: true, clip: { x: bb.x, y: bb.y + bb.height - 300, width: Math.min(bb.width, vp.width), height: 300 } }); }
   await page.screenshot({ path: path.join(__dirname, 'out', 'shot-ai-confirm.png'), fullPage: true });
 
   // 연락처 없는 줄 빼기 → 아직 도매처 빈 줄 때문에 막힘
@@ -210,6 +214,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.click('button:has-text("빈 도매처 칸을 쇼핑몰상품명으로 채우기")'); await page.waitForTimeout(100);
   check('unknown filled with mall name', (await row(3).locator('input[type=text]').nth(1).inputValue()) === '가디건 / 아이보리' && (await row(3).innerText()).includes('모름'));
   check('now submit enabled (3건)', !(await page.isDisabled('#btn-ai-submit')) && (await page.innerText('#btn-ai-submit')).includes('3건'));
+  check('reason box gone when submit enabled', !(await page.isVisible('#ai-submit-why')));
   // (합) 체크: 같은 받는분 2건 함께
   await row(1).locator('input[type=checkbox]').check(); await page.waitForTimeout(100);
   check('(합) checks whole group', (await row(0).locator('input[type=checkbox]').isChecked()) && (await row(0).innerText()).includes('(합) 고랭'));
