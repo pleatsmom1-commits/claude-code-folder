@@ -17,7 +17,8 @@ const LIB = {
 
 const ids = { seller: '00000000-0000-0000-0000-00000000000a', admin: '00000000-0000-0000-0000-0000000000ad' };
 const users = {
-  'seller@x.com': { id: ids.seller, pw: 'password1', profile: { id: ids.seller, email: 'seller@x.com', company: '애플샵', name: '김', phone: '010-1111-2222', role: 'seller', status: 'approved', created_at: '2026-09-01T00:00:00Z' } },
+  'seller@x.com': { id: ids.seller, pw: 'password1', profile: { id: ids.seller, email: 'seller@x.com', company: '애플샵', name: '김', phone: '010-1111-2222', role: 'seller', status: 'approved', ai_order: true, created_at: '2026-09-01T00:00:00Z' } },
+  'basic@x.com': { id: '00000000-0000-0000-0000-0000000000b1', pw: 'basicpass1', profile: { id: '00000000-0000-0000-0000-0000000000b1', email: 'basic@x.com', company: '일반샵', name: '박', phone: '010-9999-0000', role: 'seller', status: 'approved', ai_order: false, created_at: '2026-10-01T00:00:00Z' } },
   'wait@x.com': { id: '00000000-0000-0000-0000-0000000000c1', pw: 'waitpass1', profile: { id: '00000000-0000-0000-0000-0000000000c1', email: 'wait@x.com', company: '대기샵', name: '이', phone: '010-3333-4444', role: 'seller', status: 'pending', created_at: '2026-10-28T00:00:00Z' } },
   'admin@x.com': { id: ids.admin, pw: 'adminpass1', profile: { id: ids.admin, email: 'admin@x.com', company: '밤낮', name: '관리', phone: '', role: 'admin', status: 'approved', created_at: '2026-08-01T00:00:00Z' } },
 };
@@ -156,6 +157,19 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   const file = path.join(__dirname, 'out', 'smartstore-orders.xlsx');
   XLSX.writeFile(wb, file);
 
+  const OUT = n => path.join(__dirname, 'out', `${process.env.SHOT || 'after'}-${n}.png`);
+  // ---------- 0. 풀필먼트 아닌 셀러: 잠금 안내 ----------
+  await page.goto(PAGE); await page.waitForTimeout(800);
+  await page.fill('#login-email', 'basic@x.com'); await page.fill('#login-pw', 'basicpass1');
+  await page.click('#btn-login'); await page.waitForTimeout(1500);
+  await page.click('#reg-tab-ai'); await page.waitForTimeout(300);
+  check('non-fulfillment: locked notice, no upload zone', (await vis('#ai-locked')) && !(await vis('#ai-drop-zone')) && (await vis('#reg-tab-ai-lock')));
+  await page.locator('#fulfillment-section').screenshot({ path: OUT('seller-locked') }).catch(() => page.screenshot({ path: OUT('seller-locked') }));
+  await page.click('#reg-tab-batch'); await page.waitForTimeout(100);
+  check('non-fulfillment: batch tab still works', await vis('#batch-order-form'));
+  await page.evaluate(() => logout()); await page.waitForTimeout(800);
+  await page.click('#tab-btn-seller').catch(() => {});
+
   // ---------- 1. 셀러: 새 탭 ----------
   await page.goto(PAGE); await page.waitForTimeout(800);
   check('login screen shown', await vis('#login-form'));
@@ -164,6 +178,8 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   check('seller dashboard shown', await vis('#seller-dashboard'));
   check('3 order tabs', (await vis('#reg-tab-single')) && (await vis('#reg-tab-batch')) && (await vis('#reg-tab-ai')));
   await page.click('#reg-tab-ai'); await page.waitForTimeout(200);
+  check('fulfillment seller: no lock badge', !(await vis('#reg-tab-ai-lock')) && !(await vis('#ai-locked')));
+  await page.locator('#fulfillment-section').screenshot({ path: OUT('seller-open') }).catch(() => {});
   check('AI tab shows upload zone only', (await vis('#ai-drop-zone')) && !(await vis('#single-order-form')) && !(await vis('#batch-order-form')));
   await page.locator('#seller-dashboard').screenshot({ path: path.join(__dirname, 'out', 'shot-ai-tab.png') });
   await page.click('#reg-tab-batch'); await page.waitForTimeout(100);
@@ -267,6 +283,12 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.setViewportSize({ width: 1400, height: 900 });
   await page.click('#admin-group-sellers'); await page.waitForTimeout(200);
   check('seller admin tab still works', (await vis('#admin-sellers-panel')) && !(await vis('#admin-aicost-panel')));
+  await page.click('#admin-tab-sellers').catch(() => {}); await page.waitForTimeout(500);
+  const sl = await page.innerText('#seller-admin-list').catch(() => '');
+  check('admin: AI toggle buttons shown', sl.includes('AI 주문서 켜짐') && sl.includes('AI 주문서 꺼짐'), sl.slice(0, 200));
+  await page.locator('#admin-sellers-panel').screenshot({ path: OUT('admin-sellers') }).catch(() => {});
+  await page.click('#seller-admin-list tr:has-text("일반샵") button:has-text("AI 주문서 꺼짐")'); await page.waitForTimeout(800);
+  check('admin: toggle saves ai_order=true', users['basic@x.com'].profile.ai_order === true);
 
   check('no page script errors', pageErrors.length === 0, pageErrors.join(' | '));
   const fails = results.filter(r => r.startsWith('FAIL'));

@@ -15,6 +15,23 @@ const aiEsc = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').
 const aiNorm = v => String(v ?? '').replace(/\s+/g, '').toLowerCase();
 const aiCell = v => (v === undefined || v === null) ? '' : String(v).trim();
 
+// 풀필먼트 이용 업체(관리자가 셀러 관리에서 켠 계정)만 사용. 서버(/api/order-ai)에서도 한 번 더 막습니다.
+function aiAllowed() {
+    if (typeof currentRole !== 'undefined' && currentRole === 'admin') return true;
+    return !!(currentSellerAccount && currentSellerAccount.ai_order === true);
+}
+
+function aiApplyAccess() {
+    const ok = aiAllowed();
+    const drop = document.getElementById('ai-drop-zone');
+    const lock = document.getElementById('ai-locked');
+    if (drop) drop.classList.toggle('hidden', !ok);
+    if (lock) lock.classList.toggle('hidden', ok);
+    if (!ok) document.getElementById('ai-result')?.classList.add('hidden');
+    const tabLock = document.getElementById('reg-tab-ai-lock');
+    if (tabLock) tabLock.classList.toggle('hidden', ok);
+}
+
 function aiDrop(e) {
     e.preventDefault();
     e.stopPropagation();
@@ -28,6 +45,7 @@ async function aiFileChosen(e) {
     const file = e.target.files[0];
     e.target.value = '';
     if (!file) return;
+    if (!aiAllowed()) { aiApplyAccess(); return; }
     if (!canAddOrders()) { alert('관리자 승인 전이거나 이용이 정지된 계정은 주문을 등록할 수 없습니다.'); return; }
     if (!/\.(xlsx|xls|csv)$/i.test(file.name)) { alert('엑셀 파일(.xlsx, .xls, .csv)만 올릴 수 있습니다.'); return; }
     aiStatus('📄 주문서를 읽는 중…');

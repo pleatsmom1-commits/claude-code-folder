@@ -340,7 +340,7 @@
                         엑셀 일괄 등록 (2번 시트 양식)
                     </button>
                     <button id="reg-tab-ai" onclick="switchRegTab('ai')" class="px-6 py-3 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700">
-                        쇼핑몰 주문서 그대로 올리기 <span class="ml-1 px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px]">AI</span>
+                        쇼핑몰 주문서 그대로 올리기 <span class="ml-1 px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px]">AI</span><span id="reg-tab-ai-lock" class="hidden ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px]">풀필먼트 전용</span>
                     </button>
                 </div>
 
@@ -466,6 +466,15 @@
 
                     <!-- 쇼핑몰 주문서 그대로 올리기 (order-ai.js) -->
                     <div id="ai-order-form" class="hidden space-y-4">
+                        <div id="ai-locked" class="hidden border border-amber-200 rounded-xl p-8 text-center bg-amber-50/60">
+                            <i data-lucide="lock" class="w-10 h-10 text-amber-500 mx-auto mb-2"></i>
+                            <p class="text-sm font-black text-slate-800">풀필먼트 이용 업체 전용 기능입니다</p>
+                            <p class="text-xs text-slate-600 mt-2 leading-relaxed">
+                                이 기능은 밤낮딜리버리 창고에 재고를 맡기고 <b>풀필먼트(재고 보관·배송대행)</b>를 이용하시는 업체에게<br class="hidden md:inline">
+                                먼저 제공하고 있어요. 이용을 원하시면 밤낮딜리버리로 문의해 주세요.
+                            </p>
+                            <p class="text-xs text-slate-500 mt-3">지금은 위의 <b>[단건 주문 등록]</b>, <b>[엑셀 일괄 등록]</b>으로 주문을 접수하실 수 있어요.</p>
+                        </div>
                         <div id="ai-drop-zone" class="border-2 border-dashed border-indigo-200 rounded-xl p-8 text-center bg-indigo-50/40 transition"
                             ondragover="event.preventDefault(); this.classList.add('border-indigo-500', 'bg-indigo-50')"
                             ondragleave="this.classList.remove('border-indigo-500', 'bg-indigo-50')"
@@ -2424,6 +2433,7 @@
             currentUserId = user.id;
             currentSellerAccount = { ...profile, email: user.email };
             currentRole = profile.role === 'admin' ? 'admin' : 'seller';
+            if (typeof aiApplyAccess === 'function') aiApplyAccess();
 
             document.getElementById('auth-screen').classList.add('hidden');
             if (currentRole === 'admin') {
@@ -3312,6 +3322,7 @@
                 document.getElementById(`reg-tab-${key}`).className = key === tab ? on : off;
                 document.getElementById(formId).classList.toggle('hidden', key !== tab);
             });
+            if (tab === 'ai' && typeof aiApplyAccess === 'function') aiApplyAccess();
         }
 
         async function handleSingleOrderSubmit(e) {
@@ -5527,6 +5538,9 @@
                     if (p.status === 'pending') actions += btn('승인', "setSellerStatus(this.dataset.id, 'approved')", 'bg-emerald-600 text-white hover:bg-emerald-700');
                     if (p.status === 'approved') actions += btn('정지', "setSellerStatus(this.dataset.id, 'suspended')", 'bg-rose-50 text-rose-600 hover:bg-rose-100');
                     if (p.status === 'suspended') actions += btn('정지해제', "setSellerStatus(this.dataset.id, 'approved')", 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100');
+                    actions += p.ai_order
+                        ? btn('AI 주문서 켜짐', 'toggleSellerAiOrder(this.dataset.id)', 'bg-indigo-600 text-white hover:bg-indigo-700')
+                        : btn('AI 주문서 꺼짐', 'toggleSellerAiOrder(this.dataset.id)', 'bg-slate-100 text-slate-500 hover:bg-slate-200');
                     actions += btn('정보수정', 'openSellerEditModal(this.dataset.id)', 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100');
                 }
                 return `
@@ -5546,6 +5560,16 @@
                     </tr>
                 `;
             }).join('');
+        }
+
+        // 쇼핑몰 주문서 그대로 올리기(AI) 사용 허용 — 풀필먼트 이용 업체만 켬 (supabase/ai_order_access.sql)
+        async function toggleSellerAiOrder(id) {
+            const p = sellerProfiles.find(x => x.id === id);
+            if (!p) return;
+            if (!('ai_order' in p)) { alert('DB 설정이 필요합니다. (supabase/ai_order_access.sql 실행)'); return; }
+            const on = !p.ai_order;
+            if (!confirm(`${p.company} 업체의 '쇼핑몰 주문서 그대로 올리기(AI)'를 ${on ? '켤까요?' : '끌까요?'}`)) return;
+            await updateSellerProfile(id, { ai_order: on });
         }
 
         async function updateSellerProfile(id, changes) {

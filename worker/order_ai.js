@@ -83,6 +83,10 @@ export async function handleOrderAi(request, env) {
   const compRes = await sb('/rest/v1/rpc/my_stock_company', { method: 'POST', body: '{}' });
   const company = compRes.ok ? await compRes.json() : null;
   if (!company) return json({ error: '관리자 승인된 셀러만 쓸 수 있습니다.' }, 403);
+  // 풀필먼트 이용 업체만 (관리자가 셀러 관리에서 켠 계정) — supabase/ai_order_access.sql
+  const okRes = await sb('/rest/v1/rpc/my_ai_order_ok', { method: 'POST', body: '{}' });
+  if (!okRes.ok) return json({ error: 'DB 설정이 최신이 아닙니다. (관리자: supabase/ai_order_access.sql 실행 필요)' }, 500);
+  if ((await okRes.json()) !== true) return json({ error: '풀필먼트 이용 업체 전용 기능입니다. 이용을 원하시면 밤낮딜리버리로 문의해 주세요.', code: 'not_fulfillment' }, 403);
 
   let body;
   try { body = await request.json(); } catch { return json({ error: '요청 형식이 올바르지 않습니다.' }, 400); }

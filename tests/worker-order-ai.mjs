@@ -3,11 +3,12 @@ const W = new URL('..', import.meta.url).href.replace(/\/$/, '');
 const { handleOrderAi, cleanMapping } = await import(W + '/worker/order_ai.js');
 const env = { SUPABASE_URL: 'https://sb', SUPABASE_KEY: 'k', ANTHROPIC_API_KEY: 'sk-test' };
 const AI_OUT = { header_row: 1, platform: '스마트스토어', columns: { recipient: 2, phone: 3, phone2: -1, zipcode: -1, address: 4, address_detail: 5, product: 6, option: 7, qty: 8, memo: 9, order_no: 0 } };
-let company = '애플샵', formats = [], usage = [], claude = [], patches = [], claudeReply = null;
+let aiOk = true, company = '애플샵', formats = [], usage = [], claude = [], patches = [], claudeReply = null;
 globalThis.fetch = async (url, init = {}) => {
   const u = String(url);
   if (u.endsWith('/auth/v1/user')) return init.headers.Authorization === 'Bearer bad' ? new Response('{}', { status: 401 }) : new Response(JSON.stringify({ id: 'u1' }));
   if (u.includes('my_stock_company')) return new Response(JSON.stringify(company));
+  if (u.includes('my_ai_order_ok')) return aiOk === 'missing' ? new Response('{}', { status: 404 }) : new Response(JSON.stringify(aiOk));
   if (u.includes('/order_file_formats?company=')) {
     const sig = decodeURIComponent(new URL(u).searchParams.get('signature').slice(3));
     return new Response(JSON.stringify(formats.filter(f => f.signature === sig)));
@@ -47,6 +48,13 @@ company = null;
 res = await handleOrderAi(post(body), env);
 ok(res.status === 403, 'not approved seller blocked');
 company = '애플샵';
+aiOk = false; let n0 = claude.length;
+res = await handleOrderAi(post({ ...body, signature: 'nf' }), env); r = await res.json();
+ok(res.status === 403 && r.code === 'not_fulfillment' && claude.length === n0, 'non-fulfillment seller blocked on server (no AI cost)', r.error);
+aiOk = 'missing';
+res = await handleOrderAi(post({ ...body, signature: 'nf' }), env);
+ok(res.status === 500 && claude.length === n0, 'SQL not run yet: blocked, not open');
+aiOk = true;
 res = await handleOrderAi(post(body, 'good', 'https://evil.example'), env);
 ok(res.status === 403, 'other site blocked');
 
