@@ -283,6 +283,15 @@
                             <label class="block text-xs font-bold text-slate-700 mb-1">상품명 <span class="font-normal text-slate-400">· 보통 픽업된 건들을 보내드리므로 생략 가능 (추가 내용은 아래 밤낮 전달메세지에)</span></label>
                             <input type="text" id="st-product" placeholder="생략 가능" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
                         </div>
+                        <!-- 어떤 상품을 보낼지 버튼으로 고르기 (누르면 밤낮딜리버리 전달메세지가 자동으로 채워짐) -->
+                        <div class="rounded-xl border-2 border-indigo-200 bg-indigo-50 p-3">
+                            <p class="text-sm font-black text-indigo-900">어떤 상품을 보내드릴까요? <span class="text-xs font-bold text-indigo-500">· 누르면 아래 전달메세지가 자동으로 채워져요</span></p>
+                            <div class="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                <button type="button" data-st-preset="except" onclick="toggleStorePreset('except')" class="st-preset">풀필먼트 건 빼고 나머지<span class="block text-[11px] font-bold">풀필먼트로 나간 상품 외 남는 상품</span></button>
+                                <button type="button" data-st-preset="all" onclick="toggleStorePreset('all')" class="st-preset">오늘 픽업건 전부<span class="block text-[11px] font-bold">풀필먼트 이용 안 하는 날</span></button>
+                                <button type="button" data-st-preset="keep" onclick="toggleStorePreset('keep')" class="st-preset">＋ 사무실 킵 상품도 같이<span class="block text-[11px] font-bold">보관 중인 상품을 함께 출고</span></button>
+                            </div>
+                        </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-xs font-bold text-slate-700 mb-1">배송메세지 <span class="font-normal text-slate-400">· 필요시</span></label>
@@ -290,12 +299,8 @@
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-slate-700 mb-1">밤낮딜리버리 전달메세지 <span class="font-normal text-slate-400">· 필요시</span></label>
-                                <input type="text" id="st-bamnat-memo" placeholder="예: 풀필먼트 출고건을 제외하고 나머지 상품을 보내주세요" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
-                                <ul class="mt-1 text-[11px] text-slate-400 leading-5">
-                                    <li>예1) 풀필먼트 출고건을 제외하고 나머지 상품을 보내주세요</li>
-                                    <li>예2) 사무실에 킵되어있는 상품을 픽업건과 같이 출고해주세요</li>
-                                    <li>예3) 반품들어온 ㅇㅇㅇ님 상품을 픽업건과 같이 보내주세요</li>
-                                </ul>
+                                <input type="text" id="st-bamnat-memo" oninput="paintStorePresets()" placeholder="위 버튼을 누르거나 직접 적어주세요" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                                <p class="mt-1 text-[11px] text-slate-400 leading-5">다른 부탁이 있으면 이어서 적어주세요. 예) 반품들어온 ㅇㅇㅇ님 상품도 같이 보내주세요</p>
                             </div>
                         </div>
                         <div class="flex justify-end items-center gap-3 pt-2 flex-wrap">
@@ -1938,6 +1943,21 @@
         </div>
     </div>
 
+    <!-- MODAL: 풀필먼트 주문 등록 직후 '남는 상품' 안내 (showLeftoverModal) -->
+    <div id="leftover-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-5 space-y-3 border border-slate-100">
+            <p id="leftover-title" class="text-sm font-black text-emerald-700"></p>
+            <div id="leftover-kakao" class="hidden rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800 whitespace-pre-line leading-relaxed"></div>
+            <div class="rounded-xl border-2 border-amber-300 bg-amber-50 p-3">
+                <p class="font-black text-amber-900">풀필먼트 외에 남는 상품이 있나요?</p>
+                <p class="mt-1 text-xs text-amber-800">오늘 픽업한 상품 중 풀필먼트로 나가지 않는 상품은 어떻게 할지 알려주세요.</p>
+                <button type="button" id="btn-leftover-store" onclick="leftoverToStore()" class="mt-3 w-full py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm">🏬 매장/사무실로 보내기<span class="block text-[11px] font-bold text-indigo-100">우체국·당일택배 접수 화면으로 이동</span></button>
+                <button type="button" id="btn-leftover-keep" onclick="leftoverToKeep()" class="mt-2 w-full py-2.5 rounded-lg bg-white hover:bg-amber-100 border-2 border-amber-400 text-amber-900 font-black text-sm">📥 사무실에 보관(킵)하기<span class="block text-[11px] font-bold text-amber-600">보관요청에 '풀필외 남은재고 킵' 자동 입력</span></button>
+            </div>
+            <button type="button" id="btn-leftover-close" onclick="closeLeftoverModal()" class="w-full py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-sm">남는 상품 없어요 · 닫기</button>
+        </div>
+    </div>
+
     <!-- MODAL: 가입 직후 카카오톡 친구추가 안내 (showKakaoDoneModal) -->
     <div id="kakao-done-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
         <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-5 space-y-3 border border-slate-100">
@@ -2978,6 +2998,78 @@
                 document.getElementById('st-recipient').value = currentSellerAccount.company || '';
                 document.getElementById('st-phone').value = currentSellerAccount.phone || '';
             }
+            paintStorePresets();
+        }
+
+        // ---------------- 매장/사무실 접수: 보낼 상품 버튼 ----------------
+        // 버튼을 누르면 '밤낮딜리버리 전달메세지'에 정해진 문장을 넣고 빼요. 직접 적은 내용은 그대로 둡니다.
+        // 'except'(풀필먼트 건 빼고 나머지)와 'all'(오늘 픽업건 전부)은 둘 중 하나만, 'keep'은 따로 켜고 끕니다.
+        const STORE_PRESETS = {
+            except: '풀필먼트 출고건을 제외하고 나머지 상품을 보내주세요',
+            all: '오늘 픽업건 모두 보내주세요',
+            keep: '사무실에 킵되어있는 상품도 픽업건과 같이 출고해주세요'
+        };
+        const STORE_PRESET_SEP = ' / ';
+        function storeMemoParts() {
+            return document.getElementById('st-bamnat-memo').value.split(STORE_PRESET_SEP).map(t => t.trim()).filter(Boolean);
+        }
+        function toggleStorePreset(key) {
+            const parts = storeMemoParts();
+            const has = parts.includes(STORE_PRESETS[key]);
+            const presetTexts = Object.values(STORE_PRESETS);
+            const rest = parts.filter(t => !presetTexts.includes(t));
+            let main = ['except', 'all'].find(k => parts.includes(STORE_PRESETS[k])) || null;
+            let keep = parts.includes(STORE_PRESETS.keep);
+            if (key === 'keep') keep = !has;
+            else main = has ? null : key;
+            const next = [];
+            if (main) next.push(STORE_PRESETS[main]);
+            if (keep) next.push(STORE_PRESETS.keep);
+            document.getElementById('st-bamnat-memo').value = next.concat(rest).join(STORE_PRESET_SEP);
+            paintStorePresets();
+        }
+        function paintStorePresets() {
+            const parts = storeMemoParts();
+            document.querySelectorAll('[data-st-preset]').forEach(btn => {
+                const on = parts.includes(STORE_PRESETS[btn.dataset.stPreset]);
+                btn.className = 'st-preset px-3 py-2.5 rounded-lg border-2 text-sm font-black text-left transition '
+                    + (on ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-200 bg-white text-slate-800 hover:border-indigo-300');
+                btn.querySelector('span').className = 'block text-[11px] font-bold ' + (on ? 'text-indigo-100' : 'text-slate-400');
+                btn.firstChild.textContent = (on && btn.dataset.stPreset !== 'keep' ? '✅ ' : '') + btn.firstChild.textContent.replace(/^✅ /, '');
+            });
+        }
+
+        // ---------------- 풀필먼트 주문 등록 직후: 남는 상품 안내 ----------------
+        function showLeftoverModal(title) {
+            document.getElementById('leftover-title').textContent = '✅ ' + title;
+            const k = document.getElementById('leftover-kakao');
+            const notice = isKakaoNoticeTime();
+            k.textContent = notice ? KAKAO_NOTICE_MESSAGE : '';
+            k.classList.toggle('hidden', !notice);
+            const m = document.getElementById('leftover-modal');
+            m.classList.remove('hidden'); m.classList.add('flex');
+        }
+        function closeLeftoverModal() {
+            const m = document.getElementById('leftover-modal');
+            m.classList.add('hidden'); m.classList.remove('flex');
+        }
+        function leftoverToStore() {
+            closeLeftoverModal();
+            switchSellerMode('store');
+            if (!storeMemoParts().includes(STORE_PRESETS.except)) toggleStorePreset('except');
+            document.getElementById('store-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        function leftoverToKeep() {
+            closeLeftoverModal();
+            openKeepForm();
+            const r = document.querySelector('input[name="keep-request"][value="있음"]');
+            if (r) r.checked = true;
+            onKeepRequestChange();
+            const memo = document.getElementById('keep-memo');
+            if (!memo.value.trim()) memo.value = '풀필외 남은재고 킵해주세요';
+            setKeepStatus('내용을 확인하고 [접수]를 눌러주세요.', true);
+            document.getElementById('keep-request-box').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            document.getElementById('btn-keep-submit').focus();
         }
 
         // [최근 접수내용 재등록]: 같은 종류(우체국/당일)로 가장 최근에 접수한 내용을 그대로 채웁니다.
@@ -2998,6 +3090,7 @@
             set('st-product', recent.product);
             set('st-memo', recent.memo);
             set('st-bamnat-memo', recent.bamnat_memo);
+            paintStorePresets();
             document.getElementById('btn-store-submit').focus();
         }
 
@@ -3251,6 +3344,7 @@
         }
 
         async function logout() {
+            closeLeftoverModal();
             if (supabaseClient) await supabaseClient.auth.signOut();
             showLoginScreen();
         }
@@ -3385,8 +3479,7 @@
 
             ordersMaster.unshift(savedOrder);
             sortOrdersMaster();
-            alert(`주문이 성공적으로 등록되었습니다. (NO. ${sellerNoLabel(savedOrder)})`);
-            if (isKakaoNoticeTime()) alert(KAKAO_NOTICE_MESSAGE);
+            showLeftoverModal(`풀필먼트 주문이 등록되었어요 (NO. ${sellerNoLabel(savedOrder)})`);
             e.target.reset();
             setupSellerUI(); // 송화인명/C/S 연락처 기본값 복원
             renderSellerTable();
@@ -3579,8 +3672,7 @@
 
                     ordersMaster.unshift(...savedOrders);
                     sortOrdersMaster();
-                    alert(`총 ${batchOrders.length}건의 주문이 성공적으로 접수되었습니다!`);
-                    if (isKakaoNoticeTime()) alert(KAKAO_NOTICE_MESSAGE);
+                    showLeftoverModal(`풀필먼트 주문 총 ${batchOrders.length}건이 접수되었어요`);
                     e.target.value = '';
                     renderSellerTable();
                 } catch (err) {
