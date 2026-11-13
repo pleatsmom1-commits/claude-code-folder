@@ -231,22 +231,23 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   check('company filter', (await page.textContent('#list')).includes('목걸이') && !(await page.textContent('#list')).includes('꽃니트'));
   await page.selectOption('#f-company', '');
 
-  // 등록 양식 받기 → 채워서 올리기 (새 상품 2줄을 하나로 합침 + 기존 상품코드에 이름 추가 + 잘못된 줄)
+  // 등록 양식 받기 → 채워서 올리기 (새 상품 2줄을 하나로 합침 + 기존 상품(도매처·상품명·컬러·사이즈로 찾음)에 이름 추가 + 잘못된 줄)
+  // 양식에는 상품코드 칸이 없음 (항상 자동)
   const [fdl] = await Promise.all([page.waitForEvent('download'), page.click('button:has-text("등록 양식 받기")')]);
   const formPath = path.join(__dirname, 'out', 'products-form.xlsx'); await fdl.saveAs(formPath);
   const fwb = XLSX.readFile(formPath);
   const head = XLSX.utils.sheet_to_json(fwb.Sheets['상품등록'], { header: 1 })[0];
-  check('form has admin columns + 작성방법 sheet', head.join() === '거래처명,상품코드,도매업체명,도매상품명,컬러,사이즈,플랫폼,쇼핑몰상품명,메모' && fwb.SheetNames.includes('작성방법'), head.join());
+  check('form has admin columns + 작성방법 sheet', head.join() === '거래처명,도매업체명,도매상품명,컬러,사이즈,플랫폼,쇼핑몰상품명,메모' && fwb.SheetNames.includes('작성방법'), head.join());
   const flower = byProd('꽃니트');
   const upPath = path.join(__dirname, 'out', 'products-upload.xlsx');
   const uwb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(uwb, XLSX.utils.aoa_to_sheet([head,
-    ['사아샵', '', '도매S', '114', '검정', 'F', '스마트스토어', '코지 가디건', ''],
-    ['사아샵', '', '도매S', '114', '검정', 'F', '지그재그', '[당일] 코지', ''],
-    ['', flower.code, '', '', '', '', '쿠팡', '플라워 니트 쿠팡', ''],
-    ['', flower.code, '', '', '', '', '스마트스토어', '플라워 니트', ''],
-    ['', 'P999999', '', '', '', '', '쿠팡', '없는코드', ''],
-    ['', '', '도매X', '이름만', '', '', '', '', ''],
+    ['사아샵', '도매S', '114', '검정', 'F', '스마트스토어', '코지 가디건', ''],
+    ['사아샵', '도매S', '114', '검정', 'F', '지그재그', '[당일] 코지', ''],
+    ['가나샵', '도매A', '꽃니트', '검정', 'F', '쿠팡', '플라워 니트 쿠팡', ''],
+    ['가나샵', '도매A', '꽃니트', '검정', 'F', '스마트스토어', '플라워 니트', ''],
+    ['', '도매Z', '없는상품', '', '', '쿠팡', '거래처없음', ''],
+    ['사아샵', '', '이름만', '', '', '', '', ''],
   ]), '상품등록');
   XLSX.writeFile(uwb, upPath);
   await page.setInputFiles('#upload-input', upPath); await page.waitForTimeout(800);
@@ -256,12 +257,24 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   const cozy = byProd('114');
   check('excel rows merged into one product with 2 names', cozy.company === '사아샵' && cozy.mall_names?.length === 2, JSON.stringify(cozy));
   check('existing product got only the new mall name', byProd('꽃니트').mall_names.length === 2 && byProd('꽃니트').mall_names[1].platform === '쿠팡', JSON.stringify(byProd('꽃니트').mall_names));
+  check('new product got automatic next code', /^P\d{6}$/.test(cozy.code) && cozy.code > flower.code, cozy.code);
 
   // 목록 다운로드: 플랫폼마다 한 줄
   const [ldl] = await Promise.all([page.waitForEvent('download'), page.click('button:has-text("엑셀 다운로드")')]);
   const listPath = path.join(__dirname, 'out', 'products-list.xlsx'); await ldl.saveAs(listPath);
   const lrows = XLSX.utils.sheet_to_json(XLSX.readFile(listPath).Sheets['상품등록'], { header: 1 });
   check('list download: one row per platform name', lrows.filter(r => r[3] === '꽃니트').length === 2 && lrows.filter(r => r[3] === '청바지').length === 2, JSON.stringify(lrows.slice(0, 4)));
+  check('list download shows 상품코드(자동) column', lrows[0][1] === '상품코드(자동)' && lrows.some(r => r[1] === flower.code), JSON.stringify(lrows[0]));
+  // 받은 목록에 상품코드를 마음대로 적어 다시 올려도 코드는 무시 → 새 상품·코드 안 생김
+  const countBefore = tables.products.length;
+  const relist = lrows.map((r, i) => (i ? [r[0], 'P123456', ...r.slice(2)] : r));
+  const rePath = path.join(__dirname, 'out', 'products-reupload.xlsx');
+  const rwb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(rwb, XLSX.utils.aoa_to_sheet(relist), '상품등록'); XLSX.writeFile(rwb, rePath);
+  await page.setInputFiles('#upload-input', rePath); await page.waitForTimeout(800);
+  const reinfo = await page.textContent('#upload-info');
+  check('re-upload of list: typed codes ignored, nothing new', reinfo.includes('새 상품 0개') && reinfo.includes('쇼핑몰상품명 추가 0개') && !reinfo.includes('건너뜀'), reinfo);
+  await page.evaluate(() => closeModal('upload-modal')); await page.waitForTimeout(200);
+  check('no products added by re-upload', tables.products.length === countBefore);
   await page.screenshot({ path: path.join(__dirname, 'out', 'shot-products-admin.png'), fullPage: true });
 
   // ---------- 3. 셀러: [상품관리] 버튼 → 자기 상품만, 삭제는 요청만 ----------
