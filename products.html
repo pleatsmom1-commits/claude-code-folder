@@ -554,7 +554,6 @@
     // -----------------------------------------------------------------
     const FORM_COLS = [
         { key: 'company', label: '거래처명', adminOnly: true },
-        { key: 'code', label: '상품코드' },
         { key: 'wholesale_company', label: '도매업체명' },
         { key: 'wholesale_product', label: '도매상품명' },
         { key: 'color', label: '컬러' },
@@ -564,13 +563,17 @@
         { key: 'memo', label: '메모' },
     ];
     function formCols() { return FORM_COLS.filter(c => isAdmin || !c.adminOnly); }
+    // 상품코드는 항상 시스템이 순서대로 자동으로 붙입니다. (모든 거래처 통틀어 겹치지 않음)
+    // 등록 양식에는 상품코드 칸이 없고, 올릴 때 상품코드 칸이 있어도 읽지 않습니다.
+    // 이미 등록된 상품인지는 도매업체명·도매상품명·컬러·사이즈로 찾습니다.
+    const CODE_COL = { key: 'code', label: '상품코드(자동)' };
 
     function downloadForm() {
         const cols = formCols();
         const sample = [
-            { company: '예시상회', code: '', wholesale_company: '홍은동', wholesale_product: '114', color: '검정', size: 'F', platform: '스마트스토어', name: '코지플라워 가디건', memo: '' },
-            { company: '예시상회', code: '', wholesale_company: '홍은동', wholesale_product: '114', color: '검정', size: 'F', platform: '지그재그', name: '[당일출고] 코지 가디건', memo: '' },
-            { company: '예시상회', code: '', wholesale_company: '파티파티', wholesale_product: '087벨루니버튼조끼', color: '그레이', size: '', platform: '', name: '벨루니 버튼 조끼', memo: '' },
+            { company: '예시상회', wholesale_company: '홍은동', wholesale_product: '114', color: '검정', size: 'F', platform: '스마트스토어', name: '코지플라워 가디건', memo: '' },
+            { company: '예시상회', wholesale_company: '홍은동', wholesale_product: '114', color: '검정', size: 'F', platform: '지그재그', name: '[당일출고] 코지 가디건', memo: '' },
+            { company: '예시상회', wholesale_company: '파티파티', wholesale_product: '087벨루니버튼조끼', color: '그레이', size: '', platform: '', name: '벨루니 버튼 조끼', memo: '' },
         ];
         const ws = XLSX.utils.aoa_to_sheet([cols.map(c => c.label), ...sample.map(s => cols.map(c => s[c.key]))]);
         ws['!cols'] = cols.map(c => ({ wch: c.key === 'name' ? 30 : c.key === 'wholesale_product' ? 20 : 12 }));
@@ -586,7 +589,8 @@
             ['· 파란 칸(도매업체명, 도매상품명' + (isAdmin ? ', 거래처명' : '') + ')은 꼭 적어주세요. 나머지는 비워도 됩니다.'],
             ['· 컬러·사이즈가 다르면 다른 상품입니다. 한 줄에 하나씩 적어주세요.'],
             ['· 플랫폼마다 쇼핑몰상품명이 다르면, 같은 도매업체명·도매상품명·컬러·사이즈를 한 줄 더 적고 플랫폼과 상품명만 바꿔주세요. (예시 1·2번 줄)'],
-            ['· 상품코드는 비워두세요. 등록하면 자동으로 붙습니다. 이미 등록된 상품에 플랫폼 상품명을 더할 때만 상품코드를 적으면 됩니다.'],
+            ['· 상품코드는 적지 않습니다. 등록하면 시스템이 순서대로 자동으로 붙입니다.'],
+            ['· 이미 등록된 상품에 플랫폼 상품명을 더하려면, 그 상품과 같은 도매업체명·도매상품명·컬러·사이즈를 적고 플랫폼과 상품명을 적어주세요.'],
             ['· 예시 줄은 지우고 작성해주세요.'],
         ];
         const ws2 = XLSX.utils.aoa_to_sheet(guide);
@@ -618,7 +622,6 @@
             }
             const cell = (r, k) => (idx[k] >= 0 ? String(r[idx[k]] ?? '').trim() : '');
             const byKey = new Map(products.filter(p => !p.deleted_at).map(p => [itemKey(p), p]));
-            const byCode = new Map(products.filter(p => !p.deleted_at).map(p => [p.code.toUpperCase(), p]));
             const creates = new Map(), merges = new Map(), skipped = [];
             rows.slice(1).forEach((r, i) => {
                 if (!r.some(v => String(v).trim())) return;
@@ -628,10 +631,8 @@
                     color: cell(r, 'color'), size: cell(r, 'size'), memo: cell(r, 'memo'),
                 };
                 const name = { platform: cell(r, 'platform'), name: cell(r, 'name') };
-                const code = cell(r, 'code').toUpperCase();
                 const line = i + 2;
-                const existing = code ? byCode.get(code) : byKey.get(itemKey(item));
-                if (code && !existing) { skipped.push({ line, reason: `상품코드 ${code} 를 찾지 못함` }); return; }
+                const existing = byKey.get(itemKey(item));
                 if (!existing) {
                     if (isAdmin && !item.company) { skipped.push({ line, reason: '거래처명 없음' }); return; }
                     if (!item.wholesale_company || !item.wholesale_product) { skipped.push({ line, reason: '도매업체명·도매상품명 없음' }); return; }
@@ -700,7 +701,9 @@
     function downloadList() {
         const list = filtered();
         if (!list.length) { alert('다운로드할 상품이 없습니다.'); return; }
+        // 다운로드 목록에는 확인용으로 상품코드(자동)를 보여줍니다. 다시 올려도 이 칸은 읽지 않습니다.
         const cols = formCols();
+        cols.splice(isAdmin ? 1 : 0, 0, CODE_COL);
         const rows = [];
         list.forEach(p => {
             const names = p.mall_names.length ? p.mall_names : [{ platform: '', name: '' }];
@@ -708,6 +711,8 @@
         });
         const ws = XLSX.utils.aoa_to_sheet([cols.map(c => c.label), ...rows]);
         ws['!cols'] = cols.map(c => ({ wch: c.key === 'name' ? 30 : 14 }));
+        const codeCell = ws[XLSX.utils.encode_cell({ r: 0, c: cols.indexOf(CODE_COL) })];
+        codeCell.s = { font: { bold: true, color: { rgb: '64748B' } }, fill: { fgColor: { rgb: 'E2E8F0' } } };
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, '상품등록');
         XLSX.writeFile(wb, `상품목록_${today()}.xlsx`);
