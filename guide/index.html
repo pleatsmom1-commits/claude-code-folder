@@ -152,12 +152,52 @@ body.route-f .feat.on{display:block}
 .steps-n>li::before{content:counter(s);position:absolute;left:0;top:0;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font:700 14px var(--f-head);background:var(--ink);color:var(--paper)}
 .more-links{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 18px}
 .more-links .feat-btn{padding:8px 12px;font-size:14px}
+.top{position:relative}
+.print-bar{display:flex;justify-content:flex-end;gap:6px;margin:0}
+@media (min-width:561px){.print-bar{position:absolute;top:0;right:0}}
+.pb-btn{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);background:var(--paper);color:var(--muted);font:700 12.5px var(--f-body);padding:5px 10px;border-radius:8px;cursor:pointer;text-decoration:none;white-space:nowrap}
+.pb-btn:hover{border-color:var(--ink);color:var(--ink)}
+.pb-btn:focus-visible{outline:2px solid var(--brand);outline-offset:3px}
+.pb-note{font-size:13px;color:var(--muted)}
+@media print{
+  :root,:root:not([data-theme="light"]),:root[data-theme="dark"]{
+    --bg:#ffffff; --paper:#ffffff; --ink:#1b1d2e; --muted:#5b6078; --line:#dfe2ee;
+    --brand:#4f3df0; --brand-soft:#ecebff; --pick:#ea5a0c; --pick-soft:#fff1e7;
+    --warn:#b42318; --warn-soft:#fdecea; --ok:#067647; --ok-soft:#e7f6ee; --shot:#eef0f6; color-scheme:light}
+  @page{size:A4;margin:14mm 12mm}
+  html,body{background:#fff!important}
+  body{font-size:12.5pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .wrap{max-width:none;padding:0}
+  .print-bar,.pick-q,.choose,.feat-q,.feats,.switch,.summary,.copy,.more-links{display:none!important}
+  .only-route,.feat-view,.feat,[data-only]{display:block!important}
+  li[data-only]{display:list-item!important}
+  span[data-only]{display:none!important}
+  .ch{break-inside:auto;margin-top:22px}
+  figure,.note,.tbl,details,.steps-n>li,.steps>li{break-inside:avoid}
+  h2,h3,.chhead{break-after:avoid}
+  figure img{max-height:92mm;width:auto;max-width:100%;margin:0 auto;display:block}
+  figure.phone img,figure.tall img{max-height:125mm}
+  #store,#fulfill,.feat-view,#faq{break-before:page}
+  #store .chhead h2::before{content:"🏬 매장·사무실로 받는 분 · ";color:var(--brand)}
+  #fulfill .chhead h2::before{content:"📦 손님에게 바로 보내는 분 · ";color:var(--pick)}
+  .feat-view::before{content:"기능별 사용법";display:block;font:700 22pt var(--f-head);margin:0 0 6mm;padding-bottom:3mm;border-bottom:2px solid var(--ink)}
+  details{display:block}
+  details>summary{list-style:none;font-weight:700}
+  details>summary::-webkit-details-marker{display:none}
+  details>*:not(summary){display:block!important}
+  a{color:inherit;text-decoration:none}
+  footer{break-before:avoid}
+}
 </style>
 </head>
 <body>
 
 <div class="wrap">
 <header class="top">
+  <div class="print-bar">
+    <button type="button" class="pb-btn" id="btn-print" title="두 가지 서비스 안내와 기능별 사용법을 모두 인쇄하거나 PDF로 저장해요">🖨️ 인쇄 · PDF 저장</button>
+    <a class="pb-btn pb-pdf" href="bamnat-guide.pdf" download="밤낮딜리버리_이용설명서.pdf">📄 PDF 받기</a>
+  </div>
   <div class="eyebrow">처음 이용하는 셀러 대표님을 위한</div>
   <h1>밤낮딜리버리 이용 설명서</h1>
   <p class="lead">도매매장에 주문만 넣으면, 픽업부터 포장·배송까지 밤낮딜리버리가 대신해 드립니다. 이 설명서는 주문접수 홈페이지를 처음 쓰는 분도 그대로 따라 할 수 있게 화면 그림과 함께 차례대로 안내합니다.</p>
@@ -367,6 +407,7 @@ body.route-f .feat.on{display:block}
 
   <div class="note ok"><p>✅ <b>여기까지 하면 끝입니다.</b> 쇼핑몰 주문 확인 → 도매매장 주문 → 픽업요청 → 고객풀필먼트 접수. 나머지 픽업·검수·포장·배송은 밤낮딜리버리가 합니다.</p></div>
   <div class="note tip"><p>📢 모든 출고는 <b>밤낮딜리버리 사무실에 있는 내 재고부터 먼저</b> 나갑니다. 출고 후 사무실 재고는 자동으로 빠집니다.</p></div>
+  <div class="note pick"><p>🏬 <b>풀필먼트 하고 남는 물건을 매장·사무실로 받고 싶을 때</b><br>풀필먼트 접수와 함께 <b>[🏬 매장/사무실 택배접수]</b>도 한 건 넣어주세요. 우체국택배나 당일택배 중에 고르면 돼요. 밤낮딜리버리 전달메세지에 <b>"풀필먼트 출고건 제외하고 나머지 보내주세요"</b>라고 적어주세요.<br>남는 물건을 사무실에 맡겨두고 싶으면 노란 보관요청 칸에서 <b>[1. 보관건 있습니다]</b>를 고르세요.</p></div>
 </section>
 
 <!-- 6 -->
@@ -487,7 +528,7 @@ body.route-f .feat.on{display:block}
     <li>고치거나 지우려면 그 줄 오른쪽 끝 <b>[수정]</b>·<b>[삭제]</b>를 누르세요. 휴대폰에서는 표를 옆으로 밀면 나와요.</li>
     <li><b>[조회결과 엑셀]</b>로 찾은 주문을 엑셀로 받을 수 있어요.</li>
   </ol>
-  <div class="note"><p>✏️ 수정·삭제는 밤낮딜리버리가 접수를 마감(접수완료)하기 전, 출고 전 주문만 할 수 있어요. 그 뒤에는 카톡으로 말씀해 주세요.</p></div>
+  <div class="note tip"><p>✏️ 수정·삭제는 밤낮딜리버리가 접수를 마감(접수완료)하기 전, 출고 전 주문만 할 수 있어요. 그 뒤에는 카톡으로 말씀해 주세요.</p></div>
 </section>
 
 <section class="ch feat" id="f-mypage">
@@ -570,6 +611,23 @@ document.getElementById('copy-url').addEventListener('click', function () {
   });
   window.addEventListener('hashchange', fromHash);
   fromHash();
+})();
+// 인쇄·PDF 저장: 그림을 모두 불러온 뒤 인쇄 창을 엽니다 (아래로 내리기 전 그림은 아직 안 불러와져 있어서)
+(function () {
+  function eagerAll() {
+    var imgs = [].slice.call(document.images);
+    imgs.forEach(function (i) { i.loading = 'eager'; });
+    return Promise.all(imgs.map(function (i) { return i.complete ? 0 : new Promise(function (r) { i.onload = i.onerror = r; }); }));
+  }
+  window.addEventListener('beforeprint', function () { document.querySelectorAll('details').forEach(function (d) { d.open = true; }); eagerAll(); });
+  var btn = document.getElementById('btn-print');
+  if (btn) btn.addEventListener('click', function () {
+    btn.disabled = true; var t = btn.textContent; btn.textContent = '준비 중…';
+    document.querySelectorAll('details').forEach(function (d) { d.open = true; });
+    Promise.race([eagerAll(), new Promise(function (r) { setTimeout(r, 8000); })]).then(function () {
+      btn.disabled = false; btn.textContent = t; window.print();
+    });
+  });
 })();
 </script>
 
