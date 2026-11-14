@@ -46,6 +46,7 @@ const kst = (d = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'As
   await page.click('#btn-submit-order'); await page.waitForTimeout(1000);
   const added = G.tables.orders.slice(before);
   check('order saved without asking keep again', added.length === 1 && added[0].keep_request === '없음' && !dialogs.some(d => d.includes('보관요청 버튼')), dialogs.join(' / '));
+  if (await vis('#leftover-modal')) await page.click('#btn-leftover-close');
 
   // [바꾸기 · 추가] → 있음 + 메모 → 보관요청 줄 생김
   await page.click('#keep-done button'); await page.waitForTimeout(200);

@@ -236,7 +236,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   check('product text = (합) + name / option', o1.product === '(합)고랭 울 팬츠 / 컬러: 블랙 / 사이즈: M' && added[1].product === '(합)니트 머플러' && added[1].qty === 2 && added[2].product === '가디건 / 아이보리', added.map(o => o.product).join(' | '));
   check('wholesale saved (match / typed / unknown)', o1.wholesale_company === '청평화A' && added[1].wholesale_company === '신평화B' && added[1].wholesale_product === '머플러' && added[2].wholesale_company === '가디건 / 아이보리' && added[2].wholesale_product === '가디건 / 아이보리');
   check('excel-type id + 접수대기 + keep', added.every(o => o.id.startsWith('ORD-EXCEL-') && o.status === '접수대기' && o.keep_request === '없음'));
-  check('success message + table reset', dialogs.some(d => d.includes('총 3건의 주문이 접수')) && (await vis('#ai-drop-zone')) && !(await vis('#ai-result')));
+  check('success message + table reset', (await page.innerText('#leftover-title')).includes('총 3건') && (await vis('#leftover-modal')) && (await vis('#ai-drop-zone')) && !(await vis('#ai-result')));
   check('new orders in my list', (await page.textContent('#seller-order-list')).includes('박민수'));
 
   // AI 오류 메세지
