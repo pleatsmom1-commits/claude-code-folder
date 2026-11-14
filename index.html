@@ -3035,7 +3035,7 @@
                 btn.className = 'st-preset px-3 py-2.5 rounded-lg border-2 text-sm font-black text-left transition '
                     + (on ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-200 bg-white text-slate-800 hover:border-indigo-300');
                 btn.querySelector('span').className = 'block text-[11px] font-bold ' + (on ? 'text-indigo-100' : 'text-slate-400');
-                btn.firstChild.textContent = (on && btn.dataset.stPreset !== 'keep' ? '✅ ' : '') + btn.firstChild.textContent.replace(/^✅ /, '');
+                btn.firstChild.textContent = (on ? '✅ ' : '') + btn.firstChild.textContent.replace(/^(✅ |＋ )/, '').replace(/^/, !on && btn.dataset.stPreset === 'keep' ? '＋ ' : '');
             });
         }
 
