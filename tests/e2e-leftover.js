@@ -34,6 +34,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? '✅ ' : '❌ ') + m); if 
     await page.click('#btn-store-submit'); await page.waitForTimeout(600);
     const saved = G.tables.orders.filter(o => o.order_type === 'store_post').pop();
     ok(saved && saved.bamnat_memo === '오늘 픽업건 모두 보내주세요 / 반품 상품도 같이', '매장 접수에 전달메세지 저장');
+    ok(saved && saved.product === '의류', "상품명 비우면 '의류'로 저장");
     // 2) 풀필먼트 단건 등록 → 안내창
     await page.evaluate(() => switchSellerMode('fulfillment')); await page.click('#reg-tab-single'); await page.waitForTimeout(200);
     await page.fill('#so-recipient', '홍길동'); await page.fill('#so-phone', '010-2222-3333');
