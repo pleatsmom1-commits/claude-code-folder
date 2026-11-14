@@ -37,6 +37,7 @@ const HOMEPAGE_ORIGINS = [
   'https://bamnatdelivery.com', 'http://bamnatdelivery.com',
   'https://bamnatdelivery.cafe24.com', 'http://bamnatdelivery.cafe24.com',
   'https://m.bamnatdelivery.com', 'http://m.bamnatdelivery.com',
+  'https://bamnat1.dothome.co.kr', 'http://bamnat1.dothome.co.kr',
 ];
 
 const hits = new Map();
