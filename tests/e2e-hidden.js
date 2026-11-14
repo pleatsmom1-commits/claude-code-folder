@@ -136,6 +136,8 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.evaluate(() => { pickupQuery.status = 'ALL'; renderAdminPickupTable(); });
   const tp = (await page.textContent('#pickup-admin-list')).replace(/\s+/g, ' ');
   check('pickup time cell: 셀러 접수 + 관리자 처리', tp.includes('셀러 접수11/8 15:45') && tp.includes('관리자 처리11/11 18:00'), tp.slice(0, 200));
+  const opts = await page.locator('#pickup-admin-list select option').allTextContents();
+  check('pickup status names', opts.join(',') === '접수,사입팀접수확인,픽업완료,픽업실패,접수취소', opts.join(','));
   await page.screenshot({ path: path.join(__dirname, 'out', 'times-pickup.png') });
   await page.click('#admin-tab-orders'); await page.waitForTimeout(400);
   check('admin order list shows both orders', (await listText()).includes('홍길동') && (await listText()).includes('테스트고객'));
