@@ -387,7 +387,7 @@ async function aiSubmit() {
     ordersMaster.unshift(...saved);
     sortOrdersMaster();
     renderSellerTable();
-    alert(`총 ${batch.length}건의 주문이 접수되었습니다!`);
-    if (isKakaoNoticeTime()) alert(KAKAO_NOTICE_MESSAGE);
+    if (typeof showLeftoverModal === 'function') showLeftoverModal(`풀필먼트 주문 총 ${batch.length}건이 접수되었어요`);
+    else { alert(`총 ${batch.length}건의 주문이 접수되었습니다!`); if (isKakaoNoticeTime()) alert(KAKAO_NOTICE_MESSAGE); }
     aiReset();
 }

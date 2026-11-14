@@ -10,7 +10,7 @@
 //    · class="bn-chat-open"  : 홈페이지의 아무 버튼에나 붙이면, 누를 때 상담창이 열림 (예: "신규업체 상담전용" 버튼)
 //  - AI 가 모르는 질문이면 연락처 남기기 칸을 띄워 /api/inquiry (worker/inquiry.js) 로 보냅니다.
 //    대표님이 관리자 화면 > AI 상담에서 답하면 손님 휴대폰으로 문자가 갑니다.
-//  - 상담창 안의 노란 "사람과 상담하기" 버튼을 누르면 카카오톡 채널(밤낮딜리버리) 채팅방이 열립니다.
+//  - 상담창 안의 노란 "관리자와 상담하기" 버튼을 누르면 카카오톡 채널(밤낮딜리버리) 채팅방이 열립니다.
 //    AI 가 답할 수 없는 질문(사고·파손·분실·정산 다툼 등)에는 이 버튼을 크게 한 번 더 보여 줍니다.
 //  - 질문과 AI 답변은 관리자 화면 > AI 상담 > 상담 기록에 남습니다 (연락처·IP 는 저장 안 함, 1년 후 삭제).
 //    손님 화면의 대화는 창을 새로 고치면 사라집니다.
@@ -84,11 +84,11 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
     const box = document.createElement('div');
     box.id = 'bn-chat';
     box.innerHTML = `
-<header><b>밤낮딜리버리 AI 안내</b><button type="button" aria-label="닫기">×</button></header>
+<header><b>밤낮딜리버리 궁금한 점 물어보기</b><button type="button" aria-label="닫기">×</button></header>
 <div class="bn-log"></div>
 <div class="bn-note">AI 안내는 참고용이며, 정확한 견적·일정은 상담으로 확정됩니다. 상담 품질을 위해 질문·답변이 저장되며 1년 후 삭제됩니다. 개인정보(주민번호·카드번호 등)는 적지 마세요.
- <a href="#" class="bn-lead-link">대표님께 문의 남기기</a> · 전화 010-5425-9060</div>
-<div class="bn-human-bar"><a class="bn-kakao" href="${KAKAO}" target="_blank" rel="noopener">💬 사람과 상담하기 <small>(카카오톡 채널)</small></a><span class="bn-hint"></span></div>
+ <a href="#" class="bn-lead-link">관리자에게 문의하기</a> · 전화 010-5425-9060</div>
+<div class="bn-human-bar"><a class="bn-kakao" href="${KAKAO}" target="_blank" rel="noopener">💬 관리자와 상담하기 <small>(카카오톡 채널)</small></a><span class="bn-hint"></span></div>
 <form><textarea maxlength="500" placeholder="예) 풀필먼트 요금이 얼마예요?"></textarea><button type="submit">보내기</button></form>`;
 
     const log = box.querySelector('.bn-log');
@@ -118,17 +118,17 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
     const human = document.createElement('button');
     human.type = 'button';
     human.className = 'bn-ask-human';
-    human.textContent = '✍️ 대표님께 직접 문의 남기기';
+    human.textContent = '✍️ 관리자에게 문의하기';
     human.onclick = () => showLeadForm('');
     quick.appendChild(human);
     log.appendChild(quick);
 
-    // AI 가 답할 수 없을 때: 카카오톡 채널로 바로 사람과 상담하도록 크게 안내
+    // AI 가 답할 수 없을 때: 카카오톡 채널로 바로 관리자와 상담하도록 크게 안내
     function showHumanCard() {
         const card = document.createElement('div');
         card.className = 'bn-human-card';
-        card.innerHTML = `<span>바로 사람과 이야기하고 싶으시면 카카오톡 채널로 상담해 주세요.</span>
-<a class="bn-kakao" href="${KAKAO}" target="_blank" rel="noopener">💬 사람과 상담하기 <small>(카카오톡 채널)</small></a>
+        card.innerHTML = `<span>바로 관리자와 이야기하고 싶으시면 카카오톡 채널로 상담해 주세요.</span>
+<a class="bn-kakao" href="${KAKAO}" target="_blank" rel="noopener">💬 관리자와 상담하기 <small>(카카오톡 채널)</small></a>
 <span class="bn-hint">${kakaoHint()}</span>
 <span>카톡이 어려우시면 아래에 연락처를 남겨 주세요. 확인 후 문자로 답변드려요.</span>`;
         log.appendChild(card);
@@ -140,7 +140,7 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
         leadBox = document.createElement('div');
         leadBox.className = 'bn-lead';
         leadBox.innerHTML = `
-<b>대표님께 문의 남기기</b>
+<b>관리자에게 문의하기</b>
 <span style="font-size:12px;color:#475569">확인 후 남겨 주신 휴대폰으로 답변을 보내 드려요.</span>
 <input name="company" maxlength="100" placeholder="상호 (예: 밤낮샵)">
 <input name="name" maxlength="50" placeholder="담당자 이름">
@@ -174,12 +174,12 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
                 if (res.ok) {
                     leadBox.remove();
                     leadBox = null;
-                    add('문의가 접수됐어요. 대표님이 확인 후 남겨 주신 번호로 답변을 보내 드릴게요. 감사합니다 🙏', 'ai');
+                    add('문의가 접수됐어요. 관리자가 확인 후 남겨 주신 번호로 답변을 보내 드릴게요. 감사합니다 🙏', 'ai');
                     return;
                 }
                 msg = data.error;
             } catch { /* 아래 안내 */ }
-            err.textContent = msg || '연결이 원활하지 않아요. 아래 "사람과 상담하기"(카카오톡 채널) 또는 010-5425-9060으로 문의해 주세요.';
+            err.textContent = msg || '연결이 원활하지 않아요. 아래 "관리자와 상담하기"(카카오톡 채널) 또는 010-5425-9060으로 문의해 주세요.';
             sendBtn.disabled = false;
             sendBtn.textContent = '문의 남기기';
         };
@@ -211,7 +211,7 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
         } catch {
             history.pop();
         }
-        wait.textContent = answer || '연결이 원활하지 않아요. 아래 "사람과 상담하기"(카카오톡 채널) 또는 010-5425-9060으로 문의해 주세요.';
+        wait.textContent = answer || '연결이 원활하지 않아요. 아래 "관리자와 상담하기"(카카오톡 채널) 또는 010-5425-9060으로 문의해 주세요.';
         if (needsHuman) { showHumanCard(); showLeadForm(q); }
         send.disabled = false;
         input.focus();
