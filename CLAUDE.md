@@ -40,3 +40,11 @@
 
 - 개인정보(거래처 연락처 엑셀 등)는 저장소에 커밋하지 않습니다.
 - 사이트에 올리지 않을 폴더/파일은 `.assetsignore` 에 추가합니다 (Cloudflare 가 저장소 폴더 전체를 사이트로 올림).
+
+## 화면 꾸밈 파일 (tailwind.css)
+
+- 화면 디자인은 외부 주소(cdn.tailwindcss.com) 대신 저장소 안의 `tailwind.css` 를 씁니다.
+  (외부 주소를 가끔 못 받아오면 화면이 글자·기본 버튼만 보이게 깨지고, 로그인 화면과 셀러 화면이 함께 보였음 — 2026-11-15 수정)
+- `*.html`, `*.js` 에 새 꾸밈 이름(class)을 쓰면 반드시 다시 만들어 함께 커밋합니다:
+  `npx tailwindcss@3.4.19 -c tailwind/tailwind.config.js -i tailwind/input.css -o tailwind.css --minify`
+- 새 화면 파일에 `<script src="https://cdn.tailwindcss.com">` 를 넣지 말고 `<link rel="stylesheet" href="tailwind.css">` 를 씁니다.
