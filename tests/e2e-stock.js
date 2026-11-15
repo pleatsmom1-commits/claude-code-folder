@@ -26,11 +26,19 @@ const tables = {
   orders: [{ id: 'ORD-1', seller_id: ids.seller, seller_company: '가나 샵', sender_name: '밤낮딜리버리(가나 샵)', recipient: '홍길동', phone: '010-2222-3333', address: '서울', product: '티셔츠', status: '접수대기', ship_status: '미출고', order_type: 'fulfillment', order_no: 1, item_no: 1, seller_order_no: 1, created_at: new Date().toISOString() }],
   couriers: [{ id: 'c1', name: '우체국택배', sort_order: 1 }],
   address_book: [], pickup_requests: [], settlements: [], settle_contacts: [],
+  stock_visibility: [], products: [{ id: 1, company: '재고표만샵', deleted_at: null }],
   stock_items: [{ id: 1, company: '가나샵', wholesale_company: '옛도매', wholesale_product: '지워질상품', retail_product: '', color: '', size: '', quantity: 1, location: '', stocked_on: '2026-01-01', shipped_on: null, customer: '', label: '', memo: '' }],
 };
 let nextStockId = 100;
 const requests = [];
 const norm = v => String(v || '').replace(/\s/g, '').toLowerCase();
+// supabase/stock_hide.sql 흉내: 업체별 설정 → 없으면 전체 설정 → 없으면 보임
+const hiddenFor = c => {
+  const row = tables.stock_visibility.find(r => r.company_key === norm(c) && r.company_key !== '*');
+  if (row) return row.hidden;
+  const all = tables.stock_visibility.find(r => r.company_key === '*');
+  return !!(all && all.hidden);
+};
 
 const b64url = o => Buffer.from(JSON.stringify(o)).toString('base64url');
 const tokenFor = u => b64url({ alg: 'HS256', typ: 'JWT' }) + '.' + b64url({ sub: u.id, email: u.profile.email, exp: Math.floor(Date.now() / 1000) + 3600, role: 'authenticated', aud: 'authenticated' }) + '.sig';
@@ -117,10 +125,24 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
       if ((headers['accept'] || '').includes('vnd.pgrst.object')) return rows.length ? json(200, rows[0]) : json(406, { code: 'PGRST116', message: 'no rows' });
       return json(200, rows);
     }
+    if (url.pathname === '/rest/v1/rpc/my_stock_visible') return json(200, !!(who && who.profile.status === 'approved' && !hiddenFor(who.profile.company)));
+    if (url.pathname === '/rest/v1/rpc/stock_set_hide_all' || url.pathname === '/rest/v1/rpc/stock_set_company_hidden') {
+      if (!(who && who.profile.role === 'admin')) return json(403, { code: '42501', message: '관리자만 바꿀 수 있습니다.' });
+      if (url.pathname.endsWith('stock_set_hide_all')) {
+        tables.stock_visibility = [{ company_key: '*', company: '전체', hidden: !!body.p_hidden }];
+      } else {
+        const key = norm(body.p_company);
+        const all = tables.stock_visibility.find(r => r.company_key === '*');
+        tables.stock_visibility = tables.stock_visibility.filter(r => r.company_key !== key);
+        if (!!(all && all.hidden) !== !!body.p_hidden) tables.stock_visibility.push({ company_key: key, company: body.p_company.trim(), hidden: !!body.p_hidden });
+      }
+      return route.fulfill({ status: 204, headers: cors });
+    }
+    if (url.pathname === '/rest/v1/stock_visibility' && !(who && who.profile.role === 'admin')) return json(200, []);
     if (url.pathname === '/rest/v1/stock_items') {
-      // RLS 흉내: 관리자는 전부, 승인된 셀러는 자기 상호(띄어쓰기 무시)만 읽기
+      // RLS 흉내: 관리자는 전부, 승인된 셀러는 자기 상호(띄어쓰기 무시)만 읽기 (숨긴 셀러는 아무것도 안 보임)
       const isAdmin = who && who.profile.role === 'admin';
-      const visible = tables.stock_items.filter(r => isAdmin || (who && who.profile.status === 'approved' && norm(r.company) === norm(who.profile.company)));
+      const visible = tables.stock_items.filter(r => isAdmin || (who && who.profile.status === 'approved' && norm(r.company) === norm(who.profile.company) && !hiddenFor(who.profile.company)));
       if (method === 'GET') return json(200, applyFilters(visible, url));
       if (!isAdmin) return json(403, { code: '42501', message: 'permission denied' });
       if (method === 'POST') { const list = (Array.isArray(body) ? body : [body]).map(r => ({ memo: '', label: '', ...r, id: nextStockId++ })); tables.stock_items.push(...list); return json(201, list); }
@@ -253,6 +275,75 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.screenshot({ path: path.join(__dirname, 'out', 'shot-stock-seller.png'), fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: path.join(__dirname, 'out', 'shot-stock-seller-mobile.png'), fullPage: true });
+
+  await page.setViewportSize({ width: 1400, height: 900 });
+
+  // ---------- 4. 셀러에게 재고 숨기기 (전체 / 업체별) ----------
+  await page.goto(PAGE); await page.waitForTimeout(1200);
+  await page.evaluate(() => logout()); await page.waitForTimeout(800);
+  await page.click('#tab-btn-admin');
+  await page.fill('#login-email', 'admin@x.com'); await page.fill('#login-pw', 'adminpass1');
+  await page.click('#btn-login'); await page.waitForTimeout(1500);
+  await page.click('#admin-group-stock'); await page.waitForTimeout(300);
+  await page.click('#admin-tab-stock'); await page.waitForTimeout(900);
+  check('hide box: starts all visible', (await vis('#stock-hide-box')) && !(await page.isChecked('#stock-hide-all')) && (await page.textContent('#stock-hide-status')).includes('보임'), await page.textContent('#stock-hide-status'));
+  await page.screenshot({ path: path.join(__dirname, 'out', 'shot-stock-hide-off.png'), clip: { x: 0, y: 0, width: 1400, height: 560 } });
+  // 업체명 조회 → 가나샵만 숨기기
+  await page.fill('#stock-hide-q', '가나'); await page.waitForTimeout(200);
+  check('search lists 가나샵 with 보임 + 숨기기 button', (await page.textContent('#stock-hide-list')).includes('가나샵') && (await page.textContent('#stock-hide-list')).includes('셀러에게 보임'));
+  await page.fill('#stock-hide-q', '재고표만'); await page.waitForTimeout(200);
+  check('search also finds 재고표(products) company', (await page.textContent('#stock-hide-list')).includes('재고표만샵'));
+  await page.fill('#stock-hide-q', '가나'); await page.waitForTimeout(200);
+  await page.locator('#stock-hide-list button', { hasText: '숨기기' }).first().click(); await page.waitForTimeout(800);
+  check('company hidden saved as exception', tables.stock_visibility.length === 1 && tables.stock_visibility[0].company_key === '가나샵' && tables.stock_visibility[0].hidden === true, JSON.stringify(tables.stock_visibility));
+  check('status shows 숨긴 업체 1곳 and row shows 숨김', (await page.textContent('#stock-hide-status')).includes('숨긴 업체 1곳') && (await page.textContent('#stock-hide-list')).includes('셀러에게 숨김'));
+  await page.fill('#stock-hide-q', ''); await page.waitForTimeout(200);
+  check('empty search shows the exception list', (await page.textContent('#stock-hide-list')).includes('따로 숨긴 업체') && (await page.textContent('#stock-hide-list')).includes('가나샵'));
+  check('admin still sees 가나샵 stock', (await page.textContent('#stock-list')).includes('청바지'));
+  await page.screenshot({ path: path.join(__dirname, 'out', 'shot-stock-hide-one.png'), clip: { x: 0, y: 0, width: 1400, height: 620 } });
+
+  // 셀러로 확인 (같은 탭에서 로그아웃 → 셀러 로그인)
+  const asSeller = async () => {
+    await page.goto(PAGE); await page.waitForTimeout(1200);
+    await page.evaluate(() => logout()); await page.waitForTimeout(800);
+    await page.click('#tab-btn-seller');
+    await page.fill('#login-email', 'seller@x.com'); await page.fill('#login-pw', 'password1');
+    await page.click('#btn-login'); await page.waitForTimeout(1500);
+  };
+  const asAdmin = async () => {
+    await page.goto(PAGE); await page.waitForTimeout(1200);
+    await page.evaluate(() => logout()); await page.waitForTimeout(800);
+    await page.click('#tab-btn-admin');
+    await page.fill('#login-email', 'admin@x.com'); await page.fill('#login-pw', 'adminpass1');
+    await page.click('#btn-login'); await page.waitForTimeout(1500);
+    await page.click('#admin-group-stock'); await page.waitForTimeout(300);
+    await page.click('#admin-tab-stock'); await page.waitForTimeout(900);
+  };
+  await asSeller();
+  check('hidden seller: 재고 확인 button hidden, orders still work', !(await vis('#nav-stock-btn')) && (await vis('#seller-dashboard')));
+  await page.goto(STOCK_PAGE); await page.waitForTimeout(1500);
+  check('hidden seller: stock page says 준비 중, no items', (await page.textContent('body')).includes('준비 중') && !(await page.textContent('body')).includes('청바지'));
+  await page.screenshot({ path: path.join(__dirname, 'out', 'shot-stock-hide-seller.png'), clip: { x: 0, y: 0, width: 1400, height: 420 } });
+  await page.goto('file://' + path.join(ROOT, 'inventory.html')); await page.waitForTimeout(1500);
+  check('hidden seller: 재고표 page says 준비 중', (await page.textContent('body')).includes('재고표를 준비 중'));
+
+  // 전체 숨기기 체크 → 가나샵만 다시 보이기
+  await asAdmin();
+  await page.check('#stock-hide-all'); await page.waitForTimeout(900);
+  check('hide all: exceptions cleared, * hidden', tables.stock_visibility.length === 1 && tables.stock_visibility[0].company_key === '*' && tables.stock_visibility[0].hidden, JSON.stringify(tables.stock_visibility));
+  check('hide all: status 모든 셀러 숨김', (await page.isChecked('#stock-hide-all')) && (await page.textContent('#stock-hide-status')).includes('모든 셀러 숨김'));
+  await page.fill('#stock-hide-q', '가나'); await page.waitForTimeout(200);
+  await page.screenshot({ path: path.join(__dirname, 'out', 'shot-stock-hide-all.png'), clip: { x: 0, y: 0, width: 1400, height: 620 } });
+  await page.locator('#stock-hide-list button', { hasText: '보이기' }).first().click(); await page.waitForTimeout(800);
+  check('hide all + 가나샵 보이기 exception', tables.stock_visibility.some(r => r.company_key === '가나샵' && r.hidden === false));
+  await asSeller();
+  check('exception seller sees 재고 확인 button again', await vis('#nav-stock-btn'));
+  await page.goto(STOCK_PAGE); await page.waitForTimeout(1500);
+  check('exception seller sees own stock', (await page.textContent('#app')).includes('청바지'));
+  // 다시 전체 보이기
+  await asAdmin();
+  await page.uncheck('#stock-hide-all'); await page.waitForTimeout(900);
+  check('uncheck all: everyone visible', tables.stock_visibility.length === 1 && tables.stock_visibility[0].hidden === false && !hiddenFor('가나샵'));
 
   check('no page script errors', pageErrors.length === 0, pageErrors.join(' | '));
   const fails = results.filter(r => r.startsWith('FAIL'));
