@@ -5969,6 +5969,39 @@
                 + '</worksheet>';
         }
 
+        // 풀필 도소매명 (업체별): 업체(셀러)명을 노란 바탕 한 줄로 먼저 쓰고, 그 아래에
+        //   고객명 / 쇼핑몰상품명 / 도매거래처명 / 도매상품명 을 한 줄씩. 업체 순서는 목록에 처음 나온 순서.
+        function buildGroupedRetailSheetXml(orders) {
+            const YELLOW = 17; // 원본 양식 서식의 노란 바탕
+            const groups = new Map();
+            orders.forEach(o => {
+                const name = senderCompanyOf(o);
+                if (!groups.has(name)) groups.set(name, []);
+                groups.get(name).push(o);
+            });
+            const headers = ['고객명', '쇼핑몰상품명', '도매거래처명', '도매상품명'];
+            const rowsXml = [`<row r="1" ht="30" customHeight="1">${headers.map((h, c) => xlsxCell(`${colLetter(c)}1`, h, 2)).join('')}</row>`];
+            let r = 2;
+            groups.forEach((list, name) => {
+                rowsXml.push(`<row r="${r}">${xlsxCell(`A${r}`, '', null)}${xlsxCell(`B${r}`, name, YELLOW)}${xlsxCell(`C${r}`, '', YELLOW)}${xlsxCell(`D${r}`, '', YELLOW)}</row>`);
+                r++;
+                list.forEach(o => {
+                    const vals = [o.recipient || '', o.product || '', o.wholesale_company || '', o.wholesale_product || ''];
+                    rowsXml.push(`<row r="${r}">${vals.map((v, c) => xlsxCell(`${colLetter(c)}${r}`, v, null)).join('')}</row>`);
+                    r++;
+                });
+            });
+            return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+                + '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+                + `<dimension ref="A1:D${r - 1}"/>`
+                + '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A2" sqref="A2"/></sheetView></sheetViews>'
+                + '<sheetFormatPr defaultRowHeight="16.5"/>'
+                + `<cols>${[10, 48, 18, 30].map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('')}</cols>`
+                + `<sheetData>${rowsXml.join('')}</sheetData>`
+                + '<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/>'
+                + '</worksheet>';
+        }
+
         // 원본 양식 파일의 서식(styles)을 그대로 쓰면서 시트를 sheets 목록으로 교체한 엑셀 파일
         async function buildWorkbookFromTemplate(sheets) {
             const zip = await loadFulfillmentTemplate();
@@ -6139,6 +6172,7 @@
                 { name: '사무실 보관 요청건 (킵)', xml: buildTableSheetXml(['셀러 가입상호', '보내는사람 상호명', '보관요청 메모', '접수일', '접수시간', '일반택배', '당일택배', '풀필먼트'], keepRows, [16, 18, 50, 12, 10, 10, 10, 10]) },
                 { name: '셀러별 접수유형', xml: buildTableSheetXml(['셀러 가입상호', '접수유형', '풀필 상품수', '일반 상품수', '당택 상품수', '킵 요청수'], typeRows, [16, 30, 12, 12, 12, 10]) },
                 { name: '풀필도소매명', xml: buildTableSheetXml(retailHeaders, fulfill.map(retailRow), retailWidths) },
+                { name: '풀필도소매명(업체별)', xml: buildGroupedRetailSheetXml(fulfill) },
                 { name: '킵출고리스트', xml: buildTableSheetXml([...retailHeaders, '밤낮딜리버리 전달메세지'], keepShip.map(o => [...retailRow(o), o.bamnat_memo || '']), [...retailWidths, 40]) },
                 { name: '밤낮전달메세지리스트', xml: buildTableSheetXml([...retailHeaders, '밤낮딜리버리 전달메세지'], withMemo.map(o => [...retailRow(o), o.bamnat_memo || '']), [...retailWidths, 40]) }
             ];
