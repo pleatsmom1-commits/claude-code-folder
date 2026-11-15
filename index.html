@@ -786,6 +786,9 @@
                     <button onclick="confirmAdminBatch()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow transition flex items-center gap-1.5">
                         <i data-lucide="check-circle" class="w-4 h-4"></i> 주문접수완료 (체크한 주문 마감)
                     </button>
+                    <button id="excel-no-order-btn" onclick="toggleExcelNoOrder()" title="엑셀로 받을 때 NO. 순서를 바꿉니다 (화면 순서는 그대로)" class="px-3 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm transition flex items-center gap-1.5">
+                        <i data-lucide="arrow-up-down" class="w-4 h-4"></i> <span id="excel-no-order-label">엑셀 NO: 큰 번호 위로</span>
+                    </button>
                     <button onclick="downloadMasterExcel()" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow transition flex items-center gap-1.5">
                         <i data-lucide="file-down" class="w-4 h-4"></i> 엑셀 다운로드 (현재 필터 기준)
                     </button>
@@ -6141,8 +6144,34 @@
             ];
         }
 
+        // 관리자 엑셀 다운로드의 NO. 순서: 'desc' = 큰 번호가 위 (기본) / 'asc' = 작은 번호가 위
+        //   화면 목록 순서는 바꾸지 않고, 엑셀로 받을 때만 적용합니다. 이 컴퓨터에 기억해 둡니다.
+        let excelNoOrder = 'desc';
+        try { if (localStorage.getItem('bamnat_excel_no_order') === 'asc') excelNoOrder = 'asc'; } catch (e) {}
+        function renderExcelNoOrderBtn() {
+            const label = document.getElementById('excel-no-order-label');
+            if (label) label.textContent = excelNoOrder === 'asc' ? '엑셀 NO: 작은 번호 위로' : '엑셀 NO: 큰 번호 위로';
+        }
+        function toggleExcelNoOrder() {
+            excelNoOrder = excelNoOrder === 'asc' ? 'desc' : 'asc';
+            try { localStorage.setItem('bamnat_excel_no_order', excelNoOrder); } catch (e) {}
+            renderExcelNoOrderBtn();
+        }
+        document.addEventListener('DOMContentLoaded', renderExcelNoOrderBtn);
+
         async function downloadMasterExcel() {
-            const list = getAdminFilteredOrders();
+            const dir = excelNoOrder === 'asc' ? 1 : -1;
+            const noOf = o => (o.order_no == null ? null : Number(o.order_no));
+            const list = [...getAdminFilteredOrders()].sort((a, b) => {
+                const na = noOf(a), nb = noOf(b);
+                if (na !== nb) {
+                    if (na == null) return 1;   // 번호 없는 건은 맨 아래
+                    if (nb == null) return -1;
+                    return (na - nb) * dir;
+                }
+                return (Number(a.item_no) || 0) - (Number(b.item_no) || 0)  // 합배송 15-1, 15-2 순서 유지
+                    || String(a.created_at || '').localeCompare(String(b.created_at || '')) * dir;
+            });
             if (list.length === 0) {
                 alert('다운로드할 주문이 없습니다. (필터를 확인해주세요)');
                 return;
