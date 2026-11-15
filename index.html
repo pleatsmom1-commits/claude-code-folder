@@ -1525,11 +1525,33 @@
             </div>
 
             <div id="admin-stock-panel" class="hidden space-y-4">
+                <!-- 셀러에게 재고 숨기기 (stock-admin.js, supabase/stock_hide.sql) -->
+                <div id="stock-hide-box" class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+                    <div class="flex justify-between items-start flex-wrap gap-3">
+                        <div>
+                            <h3 class="font-bold text-slate-900 flex items-center gap-1.5"><i data-lucide="eye-off" class="w-4 h-4 text-rose-500"></i> 셀러에게 재고 숨기기</h3>
+                            <p class="text-xs text-slate-500 mt-0.5">재고는 <b>지우지 않고</b> 셀러 화면(재고 확인 · 재고표)에만 안 보이게 합니다. 관리자 화면에는 그대로 보입니다.</p>
+                        </div>
+                        <span id="stock-hide-status" class="text-xs font-bold px-3 py-1.5 rounded-full bg-slate-100 text-slate-500">불러오는 중…</span>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-x-6 gap-y-2">
+                        <label class="flex items-center gap-2 text-sm font-bold text-slate-800 cursor-pointer select-none">
+                            <input type="checkbox" id="stock-hide-all" onchange="toggleStockHideAll(this)" class="w-4 h-4 accent-rose-600">
+                            모든 셀러에게 재고 숨기기
+                        </label>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-bold text-slate-600">업체명 조회</span>
+                            <input type="text" id="stock-hide-q" oninput="renderStockHide()" placeholder="업체명 입력 (예: HWH)" class="px-3 py-1.5 border rounded-lg text-xs bg-white w-56">
+                        </div>
+                    </div>
+                    <div id="stock-hide-list" class="text-xs"></div>
+                </div>
+
                 <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
                     <div class="flex justify-between items-start flex-wrap gap-3">
                         <div>
                             <h3 class="font-bold text-slate-900">거래처 재고</h3>
-                            <p class="text-xs text-slate-500 mt-0.5">거래처 재고표(통합본) 엑셀을 올리면 <b>업체마다 탭</b>을 읽어 업체별 재고로 저장합니다. 회원가입 상호와 같은 업체는 로그인해서 자기 재고를 바로 봅니다.</p>
+                            <p class="text-xs text-slate-500 mt-0.5">거래처 재고표(통합본) 엑셀을 올리면 <b>업체마다 탭</b>을 읽어 업체별 재고로 저장합니다. 회원가입 상호와 같은 업체는 로그인해서 자기 재고를 봅니다 (위에서 숨긴 업체는 안 보임).</p>
                         </div>
                         <div class="flex gap-2 flex-wrap">
                             <label class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow flex items-center gap-1 cursor-pointer">
@@ -3349,6 +3371,17 @@
             showLoginScreen();
         }
 
+        // 관리자가 [셀러에게 재고 숨기기]로 숨긴 셀러는 [재고 확인] 버튼을 감춥니다 (supabase/stock_hide.sql).
+        // DB 설정 전이거나 확인을 못 하면 버튼은 그대로 둡니다.
+        async function refreshNavStockBtn() {
+            if (!supabaseClient) return;
+            const { data, error } = await supabaseClient.rpc('my_stock_visible');
+            if (error || data !== false || currentRole !== 'seller') return;
+            const stockBtn = document.getElementById('nav-stock-btn');
+            stockBtn.classList.add('hidden');
+            stockBtn.classList.remove('flex');
+        }
+
         function updateNavUserArea() {
             refreshDbBadgeVisibility();
             const pickupBtn = document.getElementById('nav-pickup-btn');
@@ -3357,6 +3390,7 @@
             const stockBtn = document.getElementById('nav-stock-btn');
             stockBtn.classList.toggle('hidden', currentRole !== 'seller');
             stockBtn.classList.toggle('flex', currentRole === 'seller');
+            if (currentRole === 'seller') refreshNavStockBtn();
             const usageBtn = document.getElementById('nav-usage-btn');
             usageBtn.classList.toggle('hidden', currentRole !== 'seller');
             usageBtn.classList.toggle('flex', currentRole === 'seller');
