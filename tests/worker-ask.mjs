@@ -4,7 +4,8 @@ const { handleAsk } = await import(W + '/worker/ask.js');
 let last, reply = { stop_reason: 'end_turn', content: [{ type: 'text', text: '픽업비는 매장당 1,800원입니다.' }] }, status = 200;
 let faq = [{ question: '토요일 픽업?', answer: '토요일도 픽업합니다.' }];
 const logs = [];
-globalThis.fetch = async (url, init) => { if (String(url).includes('/ai_faq')) return new Response(JSON.stringify(faq)); if (String(url).includes('/rpc/log_ai_chat')) { logs.push(JSON.parse(init.body)); return new Response('', { status: 204 }); } last = { url: String(url), headers: init.headers, body: JSON.parse(init.body) }; return new Response(JSON.stringify(reply), { status }); };
+const pages = [];
+globalThis.fetch = async (url, init) => { if (/bamnatdelivery\.com|dothome/.test(String(url))) { pages.push(String(url)); return new Response(String(url).includes('m3') ? '<html><head><title>x</title></head><body><nav>메뉴</nav><p>웹 회원가입 주문접수 추천</p><p>구글폼 접수 <a href="https://forms.gle/abc">폼</a></p><div style="display:none">숨긴 옛 안내</div></body></html>' : '<p>메뉴</p><p>픽업비 1,800원</p>'); } if (String(url).includes('/ai_faq')) return new Response(JSON.stringify(faq)); if (String(url).includes('/rpc/log_ai_chat')) { logs.push(JSON.parse(init.body)); return new Response('', { status: 204 }); } last = { url: String(url), headers: init.headers, body: JSON.parse(init.body) }; return new Response(JSON.stringify(reply), { status }); };
 const req = (body, origin = 'https://test-bamnat-delivery.bamnat.workers.dev', ip = '1.1.1.1') => new Request('https://test-bamnat-delivery.bamnat.workers.dev/api/ask',
   { method: 'POST', body: JSON.stringify(body), headers: { Origin: origin, 'CF-Connecting-IP': ip } });
 const ok = (c, m) => console.log(c ? 'PASS' : 'FAIL', m);
@@ -12,7 +13,14 @@ const env = { ANTHROPIC_API_KEY: 'k', SUPABASE_URL: 'https://sb', SUPABASE_KEY: 
 let r = await handleAsk(req({ messages: [{ role: 'user', content: '픽업비?' }] }), env), d = await r.json();
 ok(r.status === 200 && d.answer.includes('1,800'), 'answer returned');
 ok(last.body.model === 'claude-opus-5-5' && last.body.system[0].text.includes('매장당 1,800원') && last.headers['x-api-key'] === 'k', 'system prompt has knowledge');
-ok(last.body.system[1].text.includes('토요일도 픽업합니다') && d.needsHuman === false, 'faq included, no handoff');
+ok(last.body.system[2].text.includes('토요일도 픽업합니다') && d.needsHuman === false, 'faq included, no handoff');
+{ const site = last.body.system[1].text;
+  ok(site.includes('웹 회원가입 주문접수 추천') && site.includes('픽업비 1,800원') && site.includes('m3.html'), 'homepage text included');
+  ok(!/forms\.gle|구글폼|숨긴 옛 안내/.test(site), 'google form lines and hidden parts removed');
+  ok(site.split('메뉴').length === 2, 'repeated menu lines removed');
+  ok(last.body.system[1].cache_control && last.body.system[0].text.includes('forms.gle') && last.body.system[0].text.includes('절대 안내하지 않습니다'), 'site block cached + no-form rule'); }
+{ const n = pages.length; await handleAsk(req({ messages: [{ role: 'user', content: '또?' }] }, undefined, '8.8.4.4'), env);
+  ok(pages.length === n, 'homepage re-used (not read again within 6h)'); }
 r = await handleAsk(req({ messages: [{ role: 'user', content: 'x' }] }), {}); ok(r.status === 503, 'no key -> 503');
 r = await handleAsk(req({ messages: [{ role: 'user', content: 'x' }] }, 'https://evil.com'), env); ok(r.status === 403, 'other origin blocked');
 r = await handleAsk(req({ messages: [{ role: 'user', content: 'a'.repeat(501) }] }, undefined, '2.2.2.2'), env); ok(r.status === 400, 'too long blocked');
