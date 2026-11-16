@@ -122,7 +122,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   const pageErrors = [];
   let aiReply = { cached: false, platform: '스마트스토어', mapping: { header_row: 1, columns: { recipient: 2, phone: 3, phone2: -1, zipcode: 4, address: 5, address_detail: 6, product: 7, option: 8, qty: 9, memo: 10, order_no: 0 } } };
   await page.exposeFunction('__apiCall', c => { apiCalls.push(c); });
-  await page.exposeFunction('__aiReply', () => aiReply);
+  await page.exposeFunction('__aiReply', b => (typeof aiReply === 'function' ? aiReply(b) : aiReply));
   await page.addInitScript(() => {
     const orig = window.fetch;
     window.fetch = async (input, init = {}) => {
@@ -130,7 +130,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
       if (!u.startsWith('/api/')) return orig(input, init);
       const h = init.headers || {};
       window.__apiCall({ path: u, body: JSON.parse(init.body || '{}'), auth: h.Authorization || '' });
-      const reply = u === '/api/order-ai' ? await window.__aiReply() : { status: 'sent' };
+      const reply = u === '/api/order-ai' ? await window.__aiReply(JSON.parse(init.body || '{}')) : { status: 'sent' };
       return new Response(JSON.stringify(reply), { status: reply.error ? 502 : 200, headers: { 'Content-Type': 'application/json' } });
     };
   });
@@ -243,6 +243,30 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   aiReply = { error: 'AI 분석이 아직 준비 중입니다.' };
   await page.setInputFiles('#ai-file-input', file); await page.waitForTimeout(800);
   check('AI error shown in zone', (await page.innerText('#ai-status')).includes('준비 중') && !(await vis('#ai-result')));
+
+  // 에이블리 발송관리 양식 (맨 위가 바로 제목줄) + 저장된 칸 정보의 제목줄 위치가 이번 파일과 다른 경우 (2026-11-16 거래처 오류)
+  const ably = [
+    ['결제일', '상품주문번호', '주문번호', '택배사', '택배사 코드', '송장번호', '상품명', '판매자 상품코드', '옵션 정보', '수량', '주문자명', '연락처', '판매채널', '수취인명', '수취인 연락처', '우편번호', '배송지 주소', '배송 메모', '주문상태', '배송타입', '솔루션사 고유코드', '개인통관고유부호'],
+    ['2026-11-15 23:41:34', '600000001', '1700000000001', 'CJ대한통운', '1', '', '테스트 맨투맨세트', '맨투맨', '블랙/FREE', '1', '가나다', '010-1000-2000', '4910', '가나다', '010-1000-2000', '12345', '서울 중구 테스트로 1 101호', '문 앞', '상품 준비중', '일반배송', '', ''],
+    ['2026-11-15 22:56:10', '600000002', '1700000000002', 'CJ대한통운', '1', '', '테스트 집업자켓', '자켓', '차콜/FREE', '1', 'buyer_1', '010-3000-4000', '4910', '라마바', '010-3000-4000', '23456', '경기 광명시 테스트로 2', '', '상품 준비중', '일반배송', '', ''],
+  ];
+  const ablyWb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(ablyWb, XLSX.utils.aoa_to_sheet(ably), '에이블리_발송 관리');
+  const ablyFile = path.join(__dirname, 'out', 'ably-orders.xlsx');
+  XLSX.writeFile(ablyWb, ablyFile);
+  const ablyCols = { recipient: 13, phone: 14, phone2: -1, zipcode: 15, address: 16, address_detail: -1, product: 6, option: 8, qty: 9, memo: 17, order_no: 1 };
+  const aiBodies = [];
+  aiReply = b => { aiBodies.push(b); return { cached: true, platform: '에이블리', mapping: { header_row: 5, columns: ablyCols } }; };
+  await page.setInputFiles('#ai-file-input', ablyFile); await page.waitForTimeout(1200);
+  let ablyText = await page.innerText('#ai-result').catch(() => '');
+  check('ably: saved header row off → still reads rows', (await vis('#ai-result')) && ablyText.includes('주문 2건') && ablyText.includes('가나다') && ablyText.includes('라마바'), (await page.innerText('#ai-status')) + ablyText.slice(0, 200));
+  await page.evaluate(() => aiReset && aiReset()).catch(() => {});
+  // 저장된 칸 정보가 아예 엉뚱하면 → AI 에 새로 물어봄 (fresh)
+  aiBodies.length = 0;
+  aiReply = b => { aiBodies.push(b); return b.fresh ? { cached: false, platform: '에이블리', mapping: { header_row: 0, columns: ablyCols } } : { cached: true, platform: '에이블리', mapping: { header_row: 0, columns: { ...ablyCols, recipient: 20, address: 21, product: 5 } } }; };
+  await page.setInputFiles('#ai-file-input', ablyFile); await page.waitForTimeout(1200);
+  ablyText = await page.innerText('#ai-result').catch(() => '');
+  check('ably: bad saved mapping → asks AI fresh once', aiBodies.length === 2 && !aiBodies[0].fresh && aiBodies[1].fresh === true && ablyText.includes('주문 2건'), JSON.stringify(aiBodies.map(b => !!b.fresh)) + ' ' + (await page.innerText('#ai-status')));
 
   // ---------- 3. 관리자 AI 사용료 ----------
   await page.evaluate(() => logout()); await page.waitForTimeout(800);

@@ -54,28 +54,42 @@ async function aiFileChosen(e) {
     const sample = rows.slice(0, Math.min(rows.length, cand + 4, 10)).map((r, i) => (r || []).map(c => i === cand ? aiCell(c) : aiMask(c)));
 
     aiStatus('🤖 AI 가 주문서 칸(받는분·주소·연락처·상품…)을 확인하는 중… (처음 보는 양식은 10초 정도 걸려요)');
-    let res;
+    let res = await aiAskMapping({ signature, rows: sample, file_name: file.name });
+    if (res.error) { aiStatus('❌ ' + res.error, true); return; }
+
+    await aiLoadProducts();
+    aiOrder.fileName = file.name;
+    // 저장된 칸 정보의 제목줄 위치가 이번 파일과 다를 수 있음(같은 양식이라도 위쪽 안내줄 수가 다른 경우)
+    // → 저장된 위치로 못 읽으면 이번 파일의 제목줄(cand)로 다시 읽고, 그래도 안 되면 AI 에 새로 물어봄
+    let built = aiBuildRows(rows, res.mapping);
+    if (built.length === 0 && res.mapping.header_row !== cand) built = aiBuildRows(rows, { ...res.mapping, header_row: cand });
+    if (built.length === 0 && res.cached) {
+        const fresh = await aiAskMapping({ signature, rows: sample, file_name: file.name, fresh: true });
+        if (!fresh.error) { res = fresh; built = aiBuildRows(rows, res.mapping); }
+    }
+    aiOrder.platform = res.platform || '';
+    aiOrder.rows = built;
+    if (aiOrder.rows.length === 0) { aiStatus('주문서에서 주문 줄을 찾지 못했어요. 받는분·주소·상품명 칸이 있는 주문서인지 확인해 주세요.', true); return; }
+    aiStatus('');
+    aiRender();
+}
+
+// /api/order-ai 에 칸 구성 묻기. fresh: true 면 저장된 칸 정보를 쓰지 않고 AI 에 새로 물어봄
+async function aiAskMapping(payload) {
     try {
         const { data: { session } } = await supabaseClient.auth.getSession();
         const r = await fetch('/api/order-ai', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
-            body: JSON.stringify({ signature, rows: sample, file_name: file.name }),
+            body: JSON.stringify(payload),
         });
-        res = await r.json().catch(() => ({ error: `서버 응답 오류 (HTTP ${r.status})` }));
+        const res = await r.json().catch(() => ({ error: `서버 응답 오류 (HTTP ${r.status})` }));
         if (!r.ok && !res.error) res.error = `서버 응답 오류 (HTTP ${r.status})`;
+        if (!res.error && !(res.mapping && res.mapping.columns)) res.error = '주문서의 칸 구성을 알아내지 못했어요.';
+        return res;
     } catch (err) {
-        res = { error: '인터넷 연결을 확인해 주세요.' };
+        return { error: '인터넷 연결을 확인해 주세요.' };
     }
-    if (res.error) { aiStatus('❌ ' + res.error, true); return; }
-
-    await aiLoadProducts();
-    aiOrder.fileName = file.name;
-    aiOrder.platform = res.platform || '';
-    aiOrder.rows = aiBuildRows(rows, res.mapping);
-    if (aiOrder.rows.length === 0) { aiStatus('주문서에서 주문 줄을 찾지 못했어요.', true); return; }
-    aiStatus('');
-    aiRender();
 }
 
 // 엑셀·CSV → 2차원 배열. CSV 는 한글이 깨지지 않게 UTF-8 → 안 되면 EUC-KR 로 읽음

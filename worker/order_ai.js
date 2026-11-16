@@ -96,7 +96,8 @@ export async function handleOrderAi(request, env) {
   const cacheRes = await sb(`/rest/v1/order_file_formats?company=eq.${encodeURIComponent(company)}&signature=eq.${encodeURIComponent(signature)}&select=id,platform,mapping,use_count`);
   if (!cacheRes.ok) return json({ error: 'DB 설정이 최신이 아닙니다. (관리자: supabase/order_ai.sql 실행 필요)' }, 500);
   const cached = (await cacheRes.json())[0];
-  if (cached) {
+  // fresh: 저장된 칸 정보로 주문 줄을 못 읽은 경우 → AI 에 새로 묻고 저장된 정보를 덮어씀
+  if (cached && !body.fresh) {
     await sb(`/rest/v1/order_file_formats?id=eq.${cached.id}`, {
       method: 'PATCH', body: JSON.stringify({ use_count: (cached.use_count || 0) + 1, last_used_at: new Date().toISOString() }),
     });
