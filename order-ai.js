@@ -8,7 +8,7 @@
 //     보내는사람 = 밤낮딜리버리(상호), C/S 연락처 = 직전 풀필먼트 접수 번호 → 없으면 가입 연락처
 // index.html 의 전역 값(supabaseClient, currentSellerAccount, ordersMaster …)을 그대로 씁니다.
 // =====================================================================
-let aiOrder = { fileName: '', platform: '', rows: [], products: null, stock: new Map() };
+let aiOrder = { fileName: '', sheetName: '', platform: '', rows: [], products: null, stock: new Map() };
 
 const AI_FIELD_LABEL = { recipient: '받는분', phone: '연락처', address: '주소', product: '상품명', option: '옵션', qty: '수량', memo: '배송메세지' };
 const aiEsc = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -54,28 +54,42 @@ async function aiFileChosen(e) {
     const sample = rows.slice(0, Math.min(rows.length, cand + 4, 10)).map((r, i) => (r || []).map(c => i === cand ? aiCell(c) : aiMask(c)));
 
     aiStatus('🤖 AI 가 주문서 칸(받는분·주소·연락처·상품…)을 확인하는 중… (처음 보는 양식은 10초 정도 걸려요)');
-    let res;
+    let res = await aiAskMapping({ signature, rows: sample, file_name: file.name });
+    if (res.error) { aiStatus('❌ ' + res.error, true); return; }
+
+    await aiLoadProducts();
+    aiOrder.fileName = file.name;
+    // 저장된 칸 정보의 제목줄 위치가 이번 파일과 다를 수 있음(같은 양식이라도 위쪽 안내줄 수가 다른 경우)
+    // → 저장된 위치로 못 읽으면 이번 파일의 제목줄(cand)로 다시 읽고, 그래도 안 되면 AI 에 새로 물어봄
+    let built = aiBuildRows(rows, res.mapping);
+    if (built.length === 0 && res.mapping.header_row !== cand) built = aiBuildRows(rows, { ...res.mapping, header_row: cand });
+    if (built.length === 0 && res.cached) {
+        const fresh = await aiAskMapping({ signature, rows: sample, file_name: file.name, fresh: true });
+        if (!fresh.error) { res = fresh; built = aiBuildRows(rows, res.mapping); }
+    }
+    aiOrder.platform = res.platform || '';
+    aiOrder.rows = built;
+    if (aiOrder.rows.length === 0) { aiStatus('주문서에서 주문 줄을 찾지 못했어요. 받는분·주소·상품명 칸이 있는 주문서인지 확인해 주세요.', true); return; }
+    aiStatus('');
+    aiRender();
+}
+
+// /api/order-ai 에 칸 구성 묻기. fresh: true 면 저장된 칸 정보를 쓰지 않고 AI 에 새로 물어봄
+async function aiAskMapping(payload) {
     try {
         const { data: { session } } = await supabaseClient.auth.getSession();
         const r = await fetch('/api/order-ai', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
-            body: JSON.stringify({ signature, rows: sample, file_name: file.name }),
+            body: JSON.stringify(payload),
         });
-        res = await r.json().catch(() => ({ error: `서버 응답 오류 (HTTP ${r.status})` }));
+        const res = await r.json().catch(() => ({ error: `서버 응답 오류 (HTTP ${r.status})` }));
         if (!r.ok && !res.error) res.error = `서버 응답 오류 (HTTP ${r.status})`;
+        if (!res.error && !(res.mapping && res.mapping.columns)) res.error = '주문서의 칸 구성을 알아내지 못했어요.';
+        return res;
     } catch (err) {
-        res = { error: '인터넷 연결을 확인해 주세요.' };
+        return { error: '인터넷 연결을 확인해 주세요.' };
     }
-    if (res.error) { aiStatus('❌ ' + res.error, true); return; }
-
-    await aiLoadProducts();
-    aiOrder.fileName = file.name;
-    aiOrder.platform = res.platform || '';
-    aiOrder.rows = aiBuildRows(rows, res.mapping);
-    if (aiOrder.rows.length === 0) { aiStatus('주문서에서 주문 줄을 찾지 못했어요.', true); return; }
-    aiStatus('');
-    aiRender();
 }
 
 // 엑셀·CSV → 2차원 배열. CSV 는 한글이 깨지지 않게 UTF-8 → 안 되면 EUC-KR 로 읽음
@@ -89,13 +103,36 @@ async function aiReadSheet(file) {
     } else {
         wb = XLSX.read(buf, { type: 'array' });
     }
-    // 줄이 가장 많은 시트 (안내 시트가 앞에 있는 양식 대비)
-    let rows = [];
+    // 시트가 여러 개면 "진짜 주문서" 시트를 고름 (작성안내·예시 시트는 피함) → aiPickSheet
+    const picked = aiPickSheet(wb);
+    aiOrder.sheetName = wb.SheetNames.length > 1 ? picked.name : '';
+    return picked.rows;
+}
+
+// 주문서 시트 고르기
+//  1) 맨 위 10줄 안에 받는분·주소·상품명 같은 제목줄이 있는 시트만 후보 (제목 글자 2개 이상)
+//  2) 예시·작성안내 시트는 뒤로: 시트 이름에 안내/예시/샘플/작성방법/설명 이 있거나,
+//     칸 안에 "작성예시", "예시)", "홍길동" 같은 예시 표시가 있으면 예시 시트로 봄
+//  3) 남은 것 중 제목줄 아래 주문 줄이 가장 많은 시트
+const AI_HEAD = /수취인|수령인|수화인|받는\s*(분|사람)|받으시는|배송지|주소|상품명|옵션|수량|연락처|전화|휴대폰/;
+const AI_GUIDE_NAME = /안내|예시|샘플|작성\s*방법|작성법|설명|sample|example|guide/i;
+const AI_GUIDE_CELL = /작성\s*예시|예시\s*\)|^예\)|홍길동|\(예시\)|샘플/;
+function aiPickSheet(wb) {
+    let best = null;
     for (const name of wb.SheetNames) {
-        const r = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '', raw: false });
-        if (r.length > rows.length) rows = r;
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '', raw: false });
+        let headIdx = -1, head = 0;
+        rows.slice(0, 10).forEach((x, i) => {
+            const n = (x || []).filter(c => { const t = aiCell(c); return t.length <= 40 && AI_HEAD.test(t); }).length;
+            if (n > head) { head = n; headIdx = i; }
+        });
+        const data = headIdx < 0 ? 0 : rows.slice(headIdx + 1).filter(x => (x || []).filter(c => aiCell(c)).length >= 3).length;
+        const guide = AI_GUIDE_NAME.test(name) || rows.some(x => (x || []).some(c => AI_GUIDE_CELL.test(aiCell(c))));
+        // 점수: 제목줄 있음 > 예시 시트 아님 > 제목 글자 수(주문서다움) > 주문 줄 수 > (같으면 앞 시트)
+        const score = (head >= 2 ? 1e9 : 0) + (guide ? 0 : 5e8) + Math.min(head, 10) * 1e6 + Math.min(data, 1e6 - 1) + (head >= 2 ? 0 : Math.min(rows.length, 1e5) / 1e6);
+        if (!best || score > best.score) best = { name, rows, score };
     }
-    return rows;
+    return best || { name: '', rows: [] };
 }
 
 // AI 에 보내는 줄의 개인정보 가리기: 숫자가 많은 칸(연락처·주문번호)은 앞 3자리만, 긴 칸은 앞부분만
@@ -253,7 +290,7 @@ function aiRender() {
     box.innerHTML = `
         <div class="flex flex-wrap items-center justify-between gap-2">
             <div>
-                <p class="text-sm font-bold text-slate-800">📋 ${aiEsc(aiOrder.fileName)} ${aiOrder.platform ? `<span class="ml-1 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[11px]">${aiEsc(aiOrder.platform)} 양식</span>` : ''}</p>
+                <p class="text-sm font-bold text-slate-800">📋 ${aiEsc(aiOrder.fileName)}${aiOrder.sheetName ? ` <span class="text-xs font-normal text-slate-500">· '${aiEsc(aiOrder.sheetName)}' 시트를 읽었어요</span>` : ''} ${aiOrder.platform ? `<span class="ml-1 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[11px]">${aiEsc(aiOrder.platform)} 양식</span>` : ''}</p>
                 <p class="text-xs text-slate-500 mt-0.5">주문 ${live.length}건 · 상품관리 매칭 ${matched}건 · 보내는사람 <b>밤낮딜리버리(${aiEsc(currentSellerAccount.company)})</b> · C/S 연락처 <b>${aiEsc(aiCsPhone() || '(없음)')}</b></p>
             </div>
             <button onclick="aiReset()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold rounded-lg">다른 파일 올리기</button>

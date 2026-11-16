@@ -122,7 +122,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   const pageErrors = [];
   let aiReply = { cached: false, platform: '스마트스토어', mapping: { header_row: 1, columns: { recipient: 2, phone: 3, phone2: -1, zipcode: 4, address: 5, address_detail: 6, product: 7, option: 8, qty: 9, memo: 10, order_no: 0 } } };
   await page.exposeFunction('__apiCall', c => { apiCalls.push(c); });
-  await page.exposeFunction('__aiReply', () => aiReply);
+  await page.exposeFunction('__aiReply', b => (typeof aiReply === 'function' ? aiReply(b) : aiReply));
   await page.addInitScript(() => {
     const orig = window.fetch;
     window.fetch = async (input, init = {}) => {
@@ -130,7 +130,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
       if (!u.startsWith('/api/')) return orig(input, init);
       const h = init.headers || {};
       window.__apiCall({ path: u, body: JSON.parse(init.body || '{}'), auth: h.Authorization || '' });
-      const reply = u === '/api/order-ai' ? await window.__aiReply() : { status: 'sent' };
+      const reply = u === '/api/order-ai' ? await window.__aiReply(JSON.parse(init.body || '{}')) : { status: 'sent' };
       return new Response(JSON.stringify(reply), { status: reply.error ? 502 : 200, headers: { 'Content-Type': 'application/json' } });
     };
   });
@@ -243,6 +243,61 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   aiReply = { error: 'AI 분석이 아직 준비 중입니다.' };
   await page.setInputFiles('#ai-file-input', file); await page.waitForTimeout(800);
   check('AI error shown in zone', (await page.innerText('#ai-status')).includes('준비 중') && !(await vis('#ai-result')));
+
+  // 에이블리 발송관리 양식 (맨 위가 바로 제목줄) + 저장된 칸 정보의 제목줄 위치가 이번 파일과 다른 경우 (2026-11-16 거래처 오류)
+  const ably = [
+    ['결제일', '상품주문번호', '주문번호', '택배사', '택배사 코드', '송장번호', '상품명', '판매자 상품코드', '옵션 정보', '수량', '주문자명', '연락처', '판매채널', '수취인명', '수취인 연락처', '우편번호', '배송지 주소', '배송 메모', '주문상태', '배송타입', '솔루션사 고유코드', '개인통관고유부호'],
+    ['2026-11-15 23:41:34', '600000001', '1700000000001', 'CJ대한통운', '1', '', '테스트 맨투맨세트', '맨투맨', '블랙/FREE', '1', '가나다', '010-1000-2000', '4910', '가나다', '010-1000-2000', '12345', '서울 중구 테스트로 1 101호', '문 앞', '상품 준비중', '일반배송', '', ''],
+    ['2026-11-15 22:56:10', '600000002', '1700000000002', 'CJ대한통운', '1', '', '테스트 집업자켓', '자켓', '차콜/FREE', '1', 'buyer_1', '010-3000-4000', '4910', '라마바', '010-3000-4000', '23456', '경기 광명시 테스트로 2', '', '상품 준비중', '일반배송', '', ''],
+  ];
+  const ablyWb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(ablyWb, XLSX.utils.aoa_to_sheet(ably), '에이블리_발송 관리');
+  const ablyFile = path.join(__dirname, 'out', 'ably-orders.xlsx');
+  XLSX.writeFile(ablyWb, ablyFile);
+  const ablyCols = { recipient: 13, phone: 14, phone2: -1, zipcode: 15, address: 16, address_detail: -1, product: 6, option: 8, qty: 9, memo: 17, order_no: 1 };
+  const aiBodies = [];
+  aiReply = b => { aiBodies.push(b); return { cached: true, platform: '에이블리', mapping: { header_row: 5, columns: ablyCols } }; };
+  await page.setInputFiles('#ai-file-input', ablyFile); await page.waitForTimeout(1200);
+  let ablyText = await page.innerText('#ai-result').catch(() => '');
+  check('ably: saved header row off → still reads rows', (await vis('#ai-result')) && ablyText.includes('주문 2건') && ablyText.includes('가나다') && ablyText.includes('라마바'), (await page.innerText('#ai-status')) + ablyText.slice(0, 200));
+  await page.evaluate(() => aiReset && aiReset()).catch(() => {});
+  // 저장된 칸 정보가 아예 엉뚱하면 → AI 에 새로 물어봄 (fresh)
+  aiBodies.length = 0;
+  aiReply = b => { aiBodies.push(b); return b.fresh ? { cached: false, platform: '에이블리', mapping: { header_row: 0, columns: ablyCols } } : { cached: true, platform: '에이블리', mapping: { header_row: 0, columns: { ...ablyCols, recipient: 20, address: 21, product: 5 } } }; };
+  await page.setInputFiles('#ai-file-input', ablyFile); await page.waitForTimeout(1200);
+  ablyText = await page.innerText('#ai-result').catch(() => '');
+  check('ably: bad saved mapping → asks AI fresh once', aiBodies.length === 2 && !aiBodies[0].fresh && aiBodies[1].fresh === true && ablyText.includes('주문 2건'), JSON.stringify(aiBodies.map(b => !!b.fresh)) + ' ' + (await page.innerText('#ai-status')));
+
+  // 우리 옛 '사입발송대행 요청서' 양식: 앞쪽 안내 시트가 주문 시트보다 길어도 주문 시트를 읽어야 함 (2026-11-16 거래처 오류)
+  const guideWb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(guideWb, XLSX.utils.aoa_to_sheet([['이용안내'], ['입금계좌 안내']]), '밤낮딜리버리 이용안내');
+  XLSX.utils.book_append_sheet(guideWb, XLSX.utils.aoa_to_sheet(Array.from({ length: 40 }, (_, i) => [`작성 안내 문장 ${i + 1} 입니다`])), '발송대행(풀필먼트)작성안내');
+  XLSX.utils.book_append_sheet(guideWb, XLSX.utils.aoa_to_sheet([
+    ['풀필요청서) 아래 작성해서 전달주시면 되세요', '초록색은 고정값'],
+    ['송화인명(보내는사람)', '대표님C/S연락처', '수화인명(받는사람)', '전화번호,휴대폰(받는사람)', '우편번호', '주소', '상품명', '컬러/사이즈', '밤낮딜리버리 전달메세지', '수량(값 고정)'],
+    ['밤낮딜리버리(애플샵)', '070-1111-2222', '가나다', '01012345678', '12345', '서울 중구 테스트로 1', '테스트 후드', '블랙/FREE', '', '1'],
+  ]), '발송대행(풀필먼트)주문서');
+  const guideFile = path.join(__dirname, 'out', 'old-request-form.xlsx');
+  XLSX.writeFile(guideWb, guideFile);
+  aiBodies.length = 0;
+  aiReply = b => { aiBodies.push(b); return { cached: false, platform: '', mapping: { header_row: 1, columns: { recipient: 2, phone: 3, phone2: -1, zipcode: 4, address: 5, address_detail: -1, product: 6, option: 7, qty: 9, memo: 8, order_no: -1 } } }; };
+  await page.setInputFiles('#ai-file-input', guideFile); await page.waitForTimeout(1200);
+  const gText = await page.innerText('#ai-result').catch(() => '');
+  check('old request form: order sheet picked (not guide sheet)', aiBodies[0] && aiBodies[0].signature.includes('수화인명') && gText.includes('주문 1건') && gText.includes('가나다') && gText.includes("'발송대행(풀필먼트)주문서' 시트를 읽었어요"), aiBodies[0] && aiBodies[0].signature);
+
+  // 예시 시트에도 제목줄 + 예시 주문(홍길동)이 있고 줄이 더 많아도 → 진짜 주문서 시트를 읽음 + 읽은 시트 이름 표시
+  const exWb = XLSX.utils.book_new();
+  const head = ['수취인명', '수취인연락처', '주소', '상품명', '옵션', '수량'];
+  XLSX.utils.book_append_sheet(exWb, XLSX.utils.aoa_to_sheet([head, ...Array.from({ length: 6 }, () => ['홍길동', '010-0000-0000', '서울 예시로 1', '예시 상품', '블랙', '1'])]), '주문서 작성법');
+  XLSX.utils.book_append_sheet(exWb, XLSX.utils.aoa_to_sheet([['작성예시) 이렇게 적어주세요'], head, ...Array.from({ length: 6 }, () => ['김예시', '010-0000-0000', '서울 예시로 1', '예시 상품', '블랙', '1'])]), 'Sheet2');
+  XLSX.utils.book_append_sheet(exWb, XLSX.utils.aoa_to_sheet([head, ['진짜고객', '010-9999-8888', '부산 진짜로 5', '진짜 상품', '화이트', '2'], ['', '', '', '', '', '1'], ['', '', '', '', '', '1']]), 'Sheet3');
+  const exFile = path.join(__dirname, 'out', 'example-sheets.xlsx');
+  XLSX.writeFile(exWb, exFile);
+  aiBodies.length = 0;
+  aiReply = b => { aiBodies.push(b); return { cached: false, platform: '', mapping: { header_row: 0, columns: { recipient: 0, phone: 1, phone2: -1, zipcode: -1, address: 2, address_detail: -1, product: 3, option: 4, qty: 5, memo: -1, order_no: -1 } } }; };
+  await page.setInputFiles('#ai-file-input', exFile); await page.waitForTimeout(1200);
+  const exText = await page.innerText('#ai-result').catch(() => '');
+  check('example sheets skipped, real sheet read, blank rows ignored', exText.includes('주문 1건') && exText.includes('진짜고객') && !exText.includes('홍길동') && exText.includes("'Sheet3' 시트를 읽었어요"), exText.slice(0, 200));
 
   // ---------- 3. 관리자 AI 사용료 ----------
   await page.evaluate(() => logout()); await page.waitForTimeout(800);
