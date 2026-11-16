@@ -283,7 +283,21 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   aiReply = b => { aiBodies.push(b); return { cached: false, platform: '', mapping: { header_row: 1, columns: { recipient: 2, phone: 3, phone2: -1, zipcode: 4, address: 5, address_detail: -1, product: 6, option: 7, qty: 9, memo: 8, order_no: -1 } } }; };
   await page.setInputFiles('#ai-file-input', guideFile); await page.waitForTimeout(1200);
   const gText = await page.innerText('#ai-result').catch(() => '');
-  check('old request form: order sheet picked (not guide sheet)', aiBodies[0] && aiBodies[0].signature.includes('수화인명') && gText.includes('주문 1건') && gText.includes('가나다'), aiBodies[0] && aiBodies[0].signature);
+  check('old request form: order sheet picked (not guide sheet)', aiBodies[0] && aiBodies[0].signature.includes('수화인명') && gText.includes('주문 1건') && gText.includes('가나다') && gText.includes("'발송대행(풀필먼트)주문서' 시트를 읽었어요"), aiBodies[0] && aiBodies[0].signature);
+
+  // 예시 시트에도 제목줄 + 예시 주문(홍길동)이 있고 줄이 더 많아도 → 진짜 주문서 시트를 읽음 + 읽은 시트 이름 표시
+  const exWb = XLSX.utils.book_new();
+  const head = ['수취인명', '수취인연락처', '주소', '상품명', '옵션', '수량'];
+  XLSX.utils.book_append_sheet(exWb, XLSX.utils.aoa_to_sheet([head, ...Array.from({ length: 6 }, () => ['홍길동', '010-0000-0000', '서울 예시로 1', '예시 상품', '블랙', '1'])]), '주문서 작성법');
+  XLSX.utils.book_append_sheet(exWb, XLSX.utils.aoa_to_sheet([['작성예시) 이렇게 적어주세요'], head, ...Array.from({ length: 6 }, () => ['김예시', '010-0000-0000', '서울 예시로 1', '예시 상품', '블랙', '1'])]), 'Sheet2');
+  XLSX.utils.book_append_sheet(exWb, XLSX.utils.aoa_to_sheet([head, ['진짜고객', '010-9999-8888', '부산 진짜로 5', '진짜 상품', '화이트', '2'], ['', '', '', '', '', '1'], ['', '', '', '', '', '1']]), 'Sheet3');
+  const exFile = path.join(__dirname, 'out', 'example-sheets.xlsx');
+  XLSX.writeFile(exWb, exFile);
+  aiBodies.length = 0;
+  aiReply = b => { aiBodies.push(b); return { cached: false, platform: '', mapping: { header_row: 0, columns: { recipient: 0, phone: 1, phone2: -1, zipcode: -1, address: 2, address_detail: -1, product: 3, option: 4, qty: 5, memo: -1, order_no: -1 } } }; };
+  await page.setInputFiles('#ai-file-input', exFile); await page.waitForTimeout(1200);
+  const exText = await page.innerText('#ai-result').catch(() => '');
+  check('example sheets skipped, real sheet read, blank rows ignored', exText.includes('주문 1건') && exText.includes('진짜고객') && !exText.includes('홍길동') && exText.includes("'Sheet3' 시트를 읽었어요"), exText.slice(0, 200));
 
   // ---------- 3. 관리자 AI 사용료 ----------
   await page.evaluate(() => logout()); await page.waitForTimeout(800);
