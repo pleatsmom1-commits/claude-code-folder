@@ -6194,8 +6194,8 @@
             const sameday = list.filter(o => orderTypeOf(o) === 'store_sameday');
 
             const shipHeaders = SHOW_SHIPPING_UI ? ['상품 출고상태', '주문 출고상태', '택배사', '송장번호'] : [];
-            const extraHeaders = [...shipHeaders, '셀러 가입상호', '접수일시', '처리상태', '사무실 보관요청', '보관요청 메모'];
-            const extraWidths = [...(SHOW_SHIPPING_UI ? [14, 18, 16, 18] : []), 16, 18, 12, 14, 36];
+            const extraHeaders = [...shipHeaders, '셀러 가입상호', '접수일시', '처리상태', '관리자 접수시간', '사무실 보관요청', '보관요청 메모'];
+            const extraWidths = [...(SHOW_SHIPPING_UI ? [14, 18, 16, 18] : []), 16, 18, 12, 18, 14, 36];
             const formRows = arr => arr.map(o => {
                 const state = orderShipState(o, groups);
                 const g = groups[o.order_no];
@@ -6210,6 +6210,8 @@
                     o.seller_company || '',
                     formatKstDateTime(o.created_at),
                     o.status || '',
+                    // 관리자가 [접수]를 눌러 접수완료가 된 시각 (예전 주문·접수대기는 빈칸)
+                    o.status === '접수완료' && o.accepted_at ? formatKstDateTime(o.accepted_at) : '',
                     o.keep_request || '',
                     o.keep_memo || ''
                 ];
