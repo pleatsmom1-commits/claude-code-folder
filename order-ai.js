@@ -383,6 +383,51 @@ function aiCsPhone() {
     return formatPhone((recent && recent.cs_phone) || currentSellerAccount.phone || '');
 }
 
+// [이대로 주문접수] 전 최종 확인창: 접수될 내용을 표로 한 번 더 보여주고 "이대로 접수하겠습니까?" (2026-11-16 대표님 요청)
+function aiFinalCheck(live, notes) {
+    return new Promise(resolve => {
+        document.getElementById('ai-final-modal')?.remove();
+        const wrap = document.createElement('div');
+        wrap.id = 'ai-final-modal';
+        wrap.className = 'fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50';
+        const rows = live.map((o, i) => `<tr class="border-b border-slate-100 align-top">
+            <td class="px-2 py-1.5 text-slate-400">${i + 1}</td>
+            <td class="px-2 py-1.5 font-bold whitespace-nowrap">${aiEsc(o.recipient)}</td>
+            <td class="px-2 py-1.5 whitespace-nowrap">${aiEsc(o.phone)}</td>
+            <td class="px-2 py-1.5 min-w-[160px]">${aiEsc(o.address)}</td>
+            <td class="px-2 py-1.5 min-w-[200px] font-bold text-indigo-700">${aiEsc(aiProductText(o))}</td>
+            <td class="px-2 py-1.5 text-center">${o.qty}</td>
+            <td class="px-2 py-1.5 min-w-[120px]">${aiEsc(o.wholesaleCompany)}<div class="text-slate-500">${aiEsc(o.wholesaleProduct)}</div></td>
+        </tr>`).join('');
+        wrap.innerHTML = `<div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-5 space-y-3 border border-slate-100 max-h-[90vh] flex flex-col">
+            <div>
+                <p class="text-base font-black text-slate-800">📋 최종 확인: 아래 내용으로 접수돼요</p>
+                <p class="text-xs text-slate-500 mt-0.5">받는분·주소·상품명·수량·도매처가 맞는지 한 번 더 확인해 주세요. 틀린 곳이 있으면 [다시 확인할게요]를 눌러 고친 뒤 접수하세요.</p>
+            </div>
+            <div class="overflow-auto border border-slate-200 rounded-xl">
+                <table class="w-full text-xs">
+                    <thead class="bg-slate-50 text-slate-500 sticky top-0"><tr>
+                        <th class="px-2 py-2 text-left"></th><th class="px-2 py-2 text-left">받는분</th><th class="px-2 py-2 text-left">연락처</th><th class="px-2 py-2 text-left">주소</th>
+                        <th class="px-2 py-2 text-left">상품명 (접수되는 그대로)</th><th class="px-2 py-2">수량</th><th class="px-2 py-2 text-left">도매처 / 도매상품</th>
+                    </tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>
+            <div class="text-xs text-slate-700 space-y-1 whitespace-pre-line">${notes.map(n => `<p>${aiEsc(n.trim())}</p>`).join('')}</div>
+            <p class="text-sm font-black text-slate-800 text-center">총 ${live.length}건, 이대로 접수하시겠습니까?</p>
+            <div class="flex gap-2">
+                <button type="button" id="btn-ai-final-cancel" class="flex-1 py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm">다시 확인할게요</button>
+                <button type="button" id="btn-ai-final-ok" class="flex-1 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm">네, 이대로 접수할게요 (${live.length}건)</button>
+            </div>
+        </div>`;
+        const done = ok => { wrap.remove(); resolve(ok); };
+        wrap.addEventListener('click', e => { if (e.target === wrap) done(false); });
+        document.body.appendChild(wrap);
+        document.getElementById('btn-ai-final-cancel').onclick = () => done(false);
+        document.getElementById('btn-ai-final-ok').onclick = () => done(true);
+    });
+}
+
 async function aiSubmit() {
     if (!canAddOrders()) { alert('관리자 승인 전이거나 이용이 정지된 계정은 주문을 등록할 수 없습니다.'); return; }
     const live = aiOrder.rows.filter(o => !o.removed);
@@ -396,8 +441,8 @@ async function aiSubmit() {
     const lines = [`총 ${live.length}건을 풀필먼트 주문으로 접수할까요?`];
     lines.push(combined ? `\n📦 (합) 합배송 ${combined}건: 부분출고 없이 모두 모아서 한 번에 출고됩니다.` : '\n📦 (합) 체크한 주문 없음: 준비된 상품부터 출고될 수 있습니다.');
     if (unknown) lines.push(`\n⚠️ 도매처를 모르는 주문 ${unknown}건: ${AI_UNKNOWN_TEXT}`);
-    if (dups) lines.push(`\n⚠️ ${dups}건: ${AI_DUP_TEXT} 중복이면 [취소] 후 [빼기]를 눌러 주세요.`);
-    if (!confirm(lines.join('\n'))) return;
+    if (dups) lines.push(`\n⚠️ ${dups}건: ${AI_DUP_TEXT} 중복이면 [다시 확인할게요] 후 [빼기]를 눌러 주세요.`);
+    if (!(await aiFinalCheck(live, lines.slice(1)))) return;
 
     const company = currentSellerAccount.company;
     const csPhone = aiCsPhone();
