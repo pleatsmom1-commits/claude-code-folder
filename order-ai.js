@@ -103,11 +103,16 @@ async function aiReadSheet(file) {
     } else {
         wb = XLSX.read(buf, { type: 'array' });
     }
-    // 줄이 가장 많은 시트 (안내 시트가 앞에 있는 양식 대비)
-    let rows = [];
+    // 주문이 들어 있는 시트 고르기 (안내 시트가 앞에 있거나 안내 시트가 더 긴 양식 대비)
+    //  점수: 맨 위 10줄 안에 받는분·주소·상품 같은 제목 글자가 있는지 → 같으면 이름에 '안내'가 없는 시트 → 줄이 많은 시트
+    const HEAD = /수취인|수령인|수화인|받는\s*(분|사람)|받으시는|배송지|주소|상품명|옵션|수량|연락처|전화|휴대폰/;
+    let rows = [], best = -1;
     for (const name of wb.SheetNames) {
         const r = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '', raw: false });
-        if (r.length > rows.length) rows = r;
+        const filled = r.filter(x => (x || []).some(c => aiCell(c))).length;
+        const head = Math.max(0, ...r.slice(0, 10).map(x => (x || []).filter(c => { const t = aiCell(c); return t.length <= 40 && HEAD.test(t); }).length));
+        const score = Math.min(head, 6) * 100000 + (/안내/.test(name) ? 0 : 50000) + filled;
+        if (score > best) { best = score; rows = r; }
     }
     return rows;
 }

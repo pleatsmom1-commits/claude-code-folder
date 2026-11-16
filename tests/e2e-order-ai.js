@@ -268,6 +268,23 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   ablyText = await page.innerText('#ai-result').catch(() => '');
   check('ably: bad saved mapping → asks AI fresh once', aiBodies.length === 2 && !aiBodies[0].fresh && aiBodies[1].fresh === true && ablyText.includes('주문 2건'), JSON.stringify(aiBodies.map(b => !!b.fresh)) + ' ' + (await page.innerText('#ai-status')));
 
+  // 우리 옛 '사입발송대행 요청서' 양식: 앞쪽 안내 시트가 주문 시트보다 길어도 주문 시트를 읽어야 함 (2026-11-16 거래처 오류)
+  const guideWb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(guideWb, XLSX.utils.aoa_to_sheet([['이용안내'], ['입금계좌 안내']]), '밤낮딜리버리 이용안내');
+  XLSX.utils.book_append_sheet(guideWb, XLSX.utils.aoa_to_sheet(Array.from({ length: 40 }, (_, i) => [`작성 안내 문장 ${i + 1} 입니다`])), '발송대행(풀필먼트)작성안내');
+  XLSX.utils.book_append_sheet(guideWb, XLSX.utils.aoa_to_sheet([
+    ['풀필요청서) 아래 작성해서 전달주시면 되세요', '초록색은 고정값'],
+    ['송화인명(보내는사람)', '대표님C/S연락처', '수화인명(받는사람)', '전화번호,휴대폰(받는사람)', '우편번호', '주소', '상품명', '컬러/사이즈', '밤낮딜리버리 전달메세지', '수량(값 고정)'],
+    ['밤낮딜리버리(애플샵)', '070-1111-2222', '가나다', '01012345678', '12345', '서울 중구 테스트로 1', '테스트 후드', '블랙/FREE', '', '1'],
+  ]), '발송대행(풀필먼트)주문서');
+  const guideFile = path.join(__dirname, 'out', 'old-request-form.xlsx');
+  XLSX.writeFile(guideWb, guideFile);
+  aiBodies.length = 0;
+  aiReply = b => { aiBodies.push(b); return { cached: false, platform: '', mapping: { header_row: 1, columns: { recipient: 2, phone: 3, phone2: -1, zipcode: 4, address: 5, address_detail: -1, product: 6, option: 7, qty: 9, memo: 8, order_no: -1 } } }; };
+  await page.setInputFiles('#ai-file-input', guideFile); await page.waitForTimeout(1200);
+  const gText = await page.innerText('#ai-result').catch(() => '');
+  check('old request form: order sheet picked (not guide sheet)', aiBodies[0] && aiBodies[0].signature.includes('수화인명') && gText.includes('주문 1건') && gText.includes('가나다'), aiBodies[0] && aiBodies[0].signature);
+
   // ---------- 3. 관리자 AI 사용료 ----------
   await page.evaluate(() => logout()); await page.waitForTimeout(800);
   await page.click('#tab-btn-seller').catch(() => {});
