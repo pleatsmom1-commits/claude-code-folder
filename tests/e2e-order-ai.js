@@ -233,7 +233,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   const o1 = added[0] || {};
   check('sender/cs phone rules', added.every(o => o.sender_name === '밤낮딜리버리(애플샵)' && o.cs_phone === '010-7777-8888' && o.seller_company === '애플샵'), JSON.stringify(o1));
   check('fields from file', o1.recipient === '박민수' && o1.phone === '010-1234-5678' && o1.zipcode === '06000' && o1.address === '서울 강남구 테헤란로 1 101호' && o1.memo === '문 앞', JSON.stringify(o1));
-  check('product text = (합) + name / option', o1.product === '(합)고랭 울 팬츠 / 컬러: 블랙 / 사이즈: M' && added[1].product === '(합)니트 머플러' && added[1].qty === 2 && added[2].product === '가디건 / 아이보리', added.map(o => o.product).join(' | '));
+  check('product text = (합) + name / option', o1.product === '(합)고랭 울 팬츠 / 블랙 / M / 1개' && added[1].product === '(합)니트 머플러 / 2개' && added[1].qty === 2 && added[2].product === '가디건 / 아이보리 / 1개', added.map(o => o.product).join(' | '));
   check('wholesale saved (match / typed / unknown)', o1.wholesale_company === '청평화A' && added[1].wholesale_company === '신평화B' && added[1].wholesale_product === '머플러' && added[2].wholesale_company === '가디건 / 아이보리' && added[2].wholesale_product === '가디건 / 아이보리');
   check('excel-type id + 접수대기 + keep', added.every(o => o.id.startsWith('ORD-EXCEL-') && o.status === '접수대기' && o.keep_request === '없음'));
   check('success message + table reset', (await page.innerText('#leftover-title')).includes('총 3건') && (await vis('#leftover-modal')) && (await vis('#ai-drop-zone')) && !(await vis('#ai-result')));
@@ -275,7 +275,9 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   XLSX.utils.book_append_sheet(guideWb, XLSX.utils.aoa_to_sheet([
     ['풀필요청서) 아래 작성해서 전달주시면 되세요', '초록색은 고정값'],
     ['송화인명(보내는사람)', '대표님C/S연락처', '수화인명(받는사람)', '전화번호,휴대폰(받는사람)', '우편번호', '주소', '상품명', '컬러/사이즈', '밤낮딜리버리 전달메세지', '수량(값 고정)'],
-    ['밤낮딜리버리(애플샵)', '070-1111-2222', '가나다', '01012345678', '12345', '서울 중구 테스트로 1', '테스트 후드', '블랙/FREE', '', '1'],
+    ['밤낮딜리버리(애플샵)', '070-1111-2222', '가나다', '01012345678', '12345', '서울 중구 테스트로 1', '(하의만)심스후드집업', '블랙/FREE', '', '1'],
+    ['밤낮딜리버리(애플샵)', '070-1111-2222', '마바사', '01022223333', '23456', '부산 진구 테스트로 2', '다이아 보아 맨투맨세트', '그레이/FREE', '', '2'],
+    ['밤낮딜리버리(애플샵)', '070-1111-2222', '아자차', '01044445555', '34567', '경기 성남시 테스트로 3', '12번면슬렉스', '화이트/S', '', '1'],
   ]), '발송대행(풀필먼트)주문서');
   const guideFile = path.join(__dirname, 'out', 'old-request-form.xlsx');
   XLSX.writeFile(guideWb, guideFile);
@@ -283,7 +285,9 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   aiReply = b => { aiBodies.push(b); return { cached: false, platform: '', mapping: { header_row: 1, columns: { recipient: 2, phone: 3, phone2: -1, zipcode: 4, address: 5, address_detail: -1, product: 6, option: 7, qty: 9, memo: 8, order_no: -1 } } }; };
   await page.setInputFiles('#ai-file-input', guideFile); await page.waitForTimeout(1200);
   const gText = await page.innerText('#ai-result').catch(() => '');
-  check('old request form: order sheet picked (not guide sheet)', aiBodies[0] && aiBodies[0].signature.includes('수화인명') && gText.includes('주문 1건') && gText.includes('가나다') && gText.includes("'발송대행(풀필먼트)주문서' 시트를 읽었어요"), aiBodies[0] && aiBodies[0].signature);
+  await page.evaluate(() => document.getElementById('leftover-modal').classList.add('hidden'));
+  await page.locator('#ai-result').screenshot({ path: path.join(__dirname, 'out', 'shot-ai-product-text.png') });
+  check('old request form: order sheet picked (not guide sheet)', aiBodies[0] && aiBodies[0].signature.includes('수화인명') && gText.includes('주문 3건') && gText.includes('다이아 보아 맨투맨세트 / 그레이 / FREE / 2개') && gText.includes('가나다') && gText.includes("'발송대행(풀필먼트)주문서' 시트를 읽었어요"), aiBodies[0] && aiBodies[0].signature);
 
   // 예시 시트에도 제목줄 + 예시 주문(홍길동)이 있고 줄이 더 많아도 → 진짜 주문서 시트를 읽음 + 읽은 시트 이름 표시
   const exWb = XLSX.utils.book_new();

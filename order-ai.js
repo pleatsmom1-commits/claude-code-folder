@@ -235,8 +235,20 @@ function aiLooksDuplicate(o) {
 const aiProblem = o => [!o.recipient && '받는분', !o.phone && '연락처', !o.address && '주소', !o.mallProduct && '쇼핑몰상품명',
     !o.wholesaleCompany && '도매처명', !o.wholesaleProduct && '도매상품명'].filter(Boolean);
 
-const aiMallText = o => (o.option && !o.mallProduct.includes(o.option) ? `${o.mallProduct} / ${o.option}` : o.mallProduct);
-const aiProductText = o => (o.combined ? '(합)' : '') + aiMallText(o);
+// 우리 양식 상품명: "상품명 / 컬러 / 사이즈 / 수량개" (2026-11-16 대표님 요청)
+//  옵션 칸이 따로 있으면 "컬러: 블랙 / 사이즈: M", "블랙/FREE", "블랙,M" 등을 나눠 " / " 로 이어 붙임
+const aiOptionParts = opt => aiCell(opt).split(/\s*[\/,]\s*|\n/)
+    .map(t => t.replace(/^(컬러|색상|색깔|color|colour|사이즈|size|옵션|선택)\s*[:：=]\s*/i, '').trim()).filter(Boolean);
+const aiMallText = o => {
+    const parts = [o.mallProduct];
+    if (o.option && !o.mallProduct.includes(o.option)) parts.push(...aiOptionParts(o.option));
+    return parts.filter(Boolean).join(' / ');
+};
+const aiProductText = o => {
+    const base = aiMallText(o);
+    const qty = /\d+\s*개\s*$/.test(base) ? '' : ` / ${o.qty}개`;
+    return (o.combined ? '(합)' : '') + base + qty;
+};
 const AI_DUP_TEXT = '최근 3일안에 동일한 주문건이 있으니 확인해주세요.';
 const AI_UNKNOWN_TEXT = '도매처명·도매상품명을 모르는 주문은 쇼핑몰상품명과 같게 기록되며, 이로 인한 출고 오류는 책임질 수 없습니다.';
 
@@ -277,7 +289,7 @@ function aiRender() {
             <td class="px-2 py-2 font-bold whitespace-nowrap">${aiEsc(o.recipient) || '<span class="text-rose-600">(없음)</span>'}</td>
             <td class="px-2 py-2 whitespace-nowrap">${aiEsc(o.phone) || '<span class="text-rose-600">(없음)</span>'}</td>
             <td class="px-2 py-2 min-w-[180px]">${aiEsc(o.address) || '<span class="text-rose-600">(없음)</span>'}${o.memo ? `<div class="text-slate-400">메세지: ${aiEsc(o.memo)}</div>` : ''}</td>
-            <td class="px-2 py-2 min-w-[160px]">${o.combined ? '<span class="px-1 rounded bg-indigo-100 text-indigo-700 font-bold">(합)</span> ' : ''}${aiEsc(o.mallProduct) || '<span class="text-rose-600">(없음)</span>'}${o.option ? `<div class="text-slate-500">${aiEsc(o.option)}</div>` : ''}</td>
+            <td class="px-2 py-2 min-w-[160px]">${o.combined ? '<span class="px-1 rounded bg-indigo-100 text-indigo-700 font-bold">(합)</span> ' : ''}${o.mallProduct ? aiEsc(aiProductText({ ...o, combined: false })) : '<span class="text-rose-600">(없음)</span>'}</td>
             <td class="px-2 py-2 text-center">${o.qty}</td>
             <td class="px-2 py-2">${input(i, 'wholesaleCompany', o.wholesaleCompany, '도매처명')}</td>
             <td class="px-2 py-2">${input(i, 'wholesaleProduct', o.wholesaleProduct, '도매상품명')}${o.wholesaleUnknown ? '<div class="text-[10px] text-amber-700 mt-0.5">모름 → 쇼핑몰상품명</div>' : ''}</td>
@@ -306,7 +318,7 @@ function aiRender() {
             <table class="w-full text-xs">
                 <thead class="bg-slate-50 text-slate-500"><tr>
                     <th class="px-2 py-2 text-left">줄</th><th class="px-2 py-2 text-left">받는분</th><th class="px-2 py-2 text-left">연락처</th>
-                    <th class="px-2 py-2 text-left">주소</th><th class="px-2 py-2 text-left">쇼핑몰상품명 / 옵션</th><th class="px-2 py-2">수량</th>
+                    <th class="px-2 py-2 text-left">주소</th><th class="px-2 py-2 text-left">상품명 / 컬러 / 사이즈 / 수량</th><th class="px-2 py-2">수량</th>
                     <th class="px-2 py-2 text-left">도매처명</th><th class="px-2 py-2 text-left">도매상품명</th>
                     <th class="px-2 py-2 text-left">우리 상품 · 재고</th><th class="px-2 py-2 text-left">합배송</th><th class="px-2 py-2 text-left">상태</th><th></th>
                 </tr></thead>
