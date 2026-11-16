@@ -1746,6 +1746,43 @@
     </div>
 
     <!-- MODAL: ORDER EDIT -->
+    <!-- 관리자: 합배송 묶기 / 부분출고로 풀기 (선택수정에서 2개 이상 체크했을 때, supabase/order_combine.sql) -->
+    <div id="combine-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 space-y-4 border border-slate-100 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div>
+                    <h3 class="font-bold text-slate-900 text-base">선택한 주문 수정 · 합배송 / 부분출고</h3>
+                    <p class="text-xs text-slate-400" id="combine-modal-sub"></p>
+                </div>
+                <button onclick="closeCombineModal()" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="overflow-x-auto border border-slate-200 rounded-lg">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-slate-100 text-slate-600 font-bold">
+                        <tr><th class="p-2">NO.</th><th class="p-2">셀러</th><th class="p-2">수취인</th><th class="p-2">배송지 주소</th><th class="p-2">쇼핑몰 상품명</th></tr>
+                    </thead>
+                    <tbody id="combine-modal-list" class="divide-y divide-slate-100"></tbody>
+                </table>
+            </div>
+            <p id="combine-modal-warn" class="hidden text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2"></p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <button type="button" id="btn-combine" onclick="applyCombine('combine')" class="text-left px-4 py-3 rounded-xl border-2 border-indigo-200 hover:border-indigo-500 hover:bg-indigo-50">
+                    <span class="block text-sm font-black text-indigo-700">📦 합배송으로 묶기</span>
+                    <span class="block mt-1 text-[11px] text-slate-500">한 주문 번호(예: 158-1, 158-2)로 묶고 상품명 앞에 (합)을 붙입니다. 모두 모아서 한 번에 출고합니다.</span>
+                </button>
+                <button type="button" id="btn-split" onclick="applyCombine('split')" class="text-left px-4 py-3 rounded-xl border-2 border-orange-200 hover:border-orange-500 hover:bg-orange-50">
+                    <span class="block text-sm font-black text-orange-700">✂️ 부분출고로 바꾸기</span>
+                    <span class="block mt-1 text-[11px] text-slate-500">(합)을 떼고 각자 번호를 받습니다. 준비된 상품부터 따로 출고할 수 있습니다.</span>
+                </button>
+            </div>
+            <div class="flex justify-end">
+                <button type="button" onclick="closeCombineModal()" class="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg">닫기</button>
+            </div>
+        </div>
+    </div>
+
     <div id="edit-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
         <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 space-y-4 border border-slate-100 max-h-[90vh] overflow-y-auto">
             <div class="flex justify-between items-center border-b border-slate-100 pb-3">
@@ -1759,6 +1796,7 @@
             </div>
             <form onsubmit="handleEditOrderSubmit(event)" class="space-y-4">
                 <input type="hidden" id="edit-order-id">
+                <div id="eo-combine-box" class="hidden flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg border text-xs"></div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -3766,6 +3804,22 @@
             document.getElementById('eo-memo').value = order.memo || '';
             document.getElementById('eo-bamnat-memo').value = order.bamnat_memo || '';
 
+            // 관리자: 합배송 상태 보기 + 부분출고로 빼기
+            const cbox = document.getElementById('eo-combine-box');
+            const showCombine = currentRole === 'admin' && !isKeepOrder(order);
+            cbox.classList.toggle('hidden', !showCombine);
+            if (showCombine) {
+                const groups = getOrderGroups();
+                const g = groups[order.order_no];
+                const combined = isCombinedOrder(order, groups);
+                const shipped = order.ship_status === '출고완료';
+                cbox.className = `flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg border text-xs ${combined ? 'bg-indigo-50 border-indigo-200 text-indigo-800' : 'bg-slate-50 border-slate-200 text-slate-600'}`;
+                cbox.innerHTML = combined
+                    ? `<span><b>📦 합배송</b> · ${escapeHtml(String(order.order_no))}번 주문 ${g ? g.total : 1}개 묶음 (모아서 한 번에 출고)</span>`
+                      + (shipped ? '' : `<button type="button" onclick="applyCombine('split', [document.getElementById('edit-order-id').value])" class="px-2.5 py-1 bg-white border border-orange-300 hover:bg-orange-50 text-orange-700 font-bold rounded">✂️ 이 상품만 부분출고로 바꾸기</button>`)
+                    : '<span><b>배송 방식:</b> 단독 주문 · 합배송으로 묶으려면 목록에서 같이 보낼 주문을 2개 이상 체크하고 [선택수정]을 누르세요.</span>';
+            }
+
             document.getElementById('edit-modal').classList.remove('hidden');
             document.getElementById('edit-modal').classList.add('flex');
             lucide.createIcons();
@@ -4590,7 +4644,7 @@
                 <tr class="hover:bg-slate-100/60 transition ${rowBg} ${newGroup ? 'border-t-2 border-slate-200' : ''}">
                     <td class="p-3 text-center"><input type="checkbox" value="${id}" class="admin-chk-item rounded border-slate-300"></td>
                     <td class="p-3 font-mono font-black text-indigo-700 whitespace-nowrap">
-                        ${escapeHtml(orderNoLabel(o, groups))}${isHidden ? ' <span class="px-1.5 py-0.5 rounded bg-slate-500 text-white text-[10px] font-bold align-middle">숨김</span>' : ''}
+                        ${escapeHtml(orderNoLabel(o, groups))}${isHidden ? ' <span class="px-1.5 py-0.5 rounded bg-slate-500 text-white text-[10px] font-bold align-middle">숨김</span>' : ''}${(groups[o.order_no] || {}).total > 1 ? ' <span class="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-bold align-middle" title="같은 주문 번호로 묶여 한 번에 출고되는 상품">합배송</span>' : ''}
                         ${o.seller_order_no != null ? `<span class="block text-[10px] font-normal text-slate-400" title="셀러 화면에 보이는 번호">셀러 #${escapeHtml(sellerNoLabel(o, groups))}</span>` : ''}
                         ${orderTypeBadgeHtml(o)}
                     </td>
@@ -4661,10 +4715,78 @@
                 return;
             }
             if (ids.length > 1) {
-                alert(`선택수정은 한 번에 1건씩 가능합니다. (현재 ${ids.length}건 선택됨)`);
+                // 2개 이상 고르면: 합배송으로 묶기 / 부분출고로 바꾸기
+                openCombineModal(ids);
                 return;
             }
             openEditModal(ids[0]);
+        }
+
+        // ---------------------------------------------------------------
+        // 관리자: 합배송 묶기 / 부분출고로 바꾸기 (supabase/order_combine.sql 의 admin_set_combined)
+        // ---------------------------------------------------------------
+        let combineIds = [];
+        const isCombinedOrder = (o, groups) => {
+            const g = (groups || getOrderGroups())[o.order_no];
+            return (g && g.total > 1) || /\(합\)/.test(o.product || '');
+        };
+        function openCombineModal(ids) {
+            const groups = getOrderGroups();
+            const list = ids.map(id => ordersMaster.find(o => o.id === id)).filter(Boolean)
+                .sort((a, b) => (Number(a.order_no) || 0) - (Number(b.order_no) || 0) || (Number(a.item_no) || 0) - (Number(b.item_no) || 0));
+            combineIds = list.map(o => o.id);
+            const norm = v => String(v || '').replace(/\s/g, '');
+            const sellers = new Set(list.map(o => o.seller_id));
+            const people = new Set(list.map(o => norm(o.recipient) + '|' + norm(o.phone).replace(/\D/g, '') + '|' + norm(`${o.address || ''}${o.detail_address || ''}`)));
+            const blocked = list.filter(o => isKeepOrder(o) || o.ship_status === '출고완료');
+            document.getElementById('combine-modal-sub').innerText = `선택 ${list.length}개 상품`;
+            document.getElementById('combine-modal-list').innerHTML = list.map(o => `
+                <tr>
+                    <td class="p-2 font-mono font-black text-indigo-700 whitespace-nowrap">${escapeHtml(orderNoLabel(o, groups))}${isCombinedOrder(o, groups) ? ' <span class="px-1 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-bold">합배송</span>' : ''}</td>
+                    <td class="p-2 whitespace-nowrap">${escapeHtml(o.seller_company || '-')}</td>
+                    <td class="p-2 font-semibold whitespace-nowrap">${escapeHtml(o.recipient || '')}</td>
+                    <td class="p-2">${escapeHtml(`${o.address || ''} ${o.detail_address || ''}`.trim())}</td>
+                    <td class="p-2 text-indigo-600">${escapeHtml(o.product || '')}</td>
+                </tr>`).join('');
+            const warn = [];
+            if (sellers.size > 1) warn.push('다른 업체(셀러)의 주문이 섞여 있어 합배송으로 묶을 수 없습니다.');
+            else if (people.size > 1) warn.push('받는분 이름·연락처·주소가 서로 다른 주문이 있습니다. 같은 분에게 가는지 꼭 확인해 주세요.');
+            if (blocked.length) warn.push('출고완료 또는 사무실 보관요청 건이 있어 바꿀 수 없습니다. 체크를 빼고 다시 해주세요.');
+            const w = document.getElementById('combine-modal-warn');
+            w.innerText = warn.join('\n');
+            w.classList.toggle('hidden', !warn.length);
+            document.getElementById('btn-combine').disabled = sellers.size > 1 || blocked.length > 0 || list.length < 2;
+            document.getElementById('btn-split').disabled = blocked.length > 0;
+            ['btn-combine', 'btn-split'].forEach(id => document.getElementById(id).classList.toggle('opacity-40', document.getElementById(id).disabled));
+            document.getElementById('combine-modal').classList.remove('hidden');
+            document.getElementById('combine-modal').classList.add('flex');
+            lucide.createIcons();
+        }
+        function closeCombineModal() {
+            document.getElementById('combine-modal').classList.add('hidden');
+            document.getElementById('combine-modal').classList.remove('flex');
+        }
+        async function applyCombine(mode, ids = combineIds) {
+            if (!ids.length) return;
+            const label = mode === 'combine' ? '합배송으로 묶기' : '부분출고로 바꾸기';
+            const detail = mode === 'combine'
+                ? '같은 주문 번호로 묶고 상품명 앞에 (합)을 붙입니다.\n셀러 화면 번호도 같은 번호로 바뀝니다.'
+                : '(합)을 떼고 각자 새 번호를 받습니다.\n셀러 화면 번호도 함께 바뀝니다.';
+            if (!confirm(`선택한 상품 ${ids.length}개를 [${label}] 할까요?\n\n${detail}`)) return;
+            const { data, error } = await supabaseClient.rpc('admin_set_combined', { p_ids: ids, p_mode: mode });
+            if (error) {
+                const notReady = error.code === 'PGRST202' || /admin_set_combined|schema cache/i.test(error.message || '');
+                alert(notReady
+                    ? '합배송/부분출고 기능 DB 설정이 아직 적용되지 않았습니다.\n(Supabase SQL Editor 에서 supabase/order_combine.sql 을 실행해주세요)'
+                    : '저장 중 오류가 발생했습니다.\n\n' + dbErrorMessage(error));
+                return;
+            }
+            replaceOrders(data || []);
+            closeCombineModal();
+            closeEditModal();
+            renderAdminTable();
+            if (typeof renderSellerTable === 'function' && document.getElementById('seller-order-list')) renderSellerTable();
+            alert(`${ids.length}개 상품을 [${label}] 했습니다.`);
         }
 
         async function setShipStatusForSelected(status) {
