@@ -125,6 +125,8 @@
     let products = [], byId = new Map(), inv = new Map(), aliases = new Map(), orders = [], picks = new Map();
     let result = { pick: [], buy: [], check: [], picked: [] };
     const embed = new URLSearchParams(location.search).has('embed');
+    // 관리자 화면 안(embed)에서는 가로 폭 제한 없이 넓게 (재고관리 탭처럼)
+    if (embed) document.querySelectorAll('.max-w-7xl').forEach(el => { el.style.maxWidth = 'none'; });
 
     function esc(v) {
         return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
