@@ -45,6 +45,7 @@
     .shipped { color: var(--sub); }
     .state { text-align: center; padding: 60px 16px; color: var(--sub); }
     .preview-bar { background: #fef3c7; color: #92400e; text-align: center; padding: 8px; font-size: 13px; font-weight: 700; }
+    .rule { background: #f0f9ff; border: 1px solid #bae6fd; color: #0c4a6e; border-radius: 12px; padding: 10px 14px; font-size: 13px; margin-bottom: 12px; }
     .note { font-size: 12px; color: var(--sub); margin: 10px 2px 0; }
     .foot { text-align: center; font-size: 12px; color: var(--sub); margin-top: 18px; }
     /* 휴대폰: 표 대신 카드처럼 한 줄씩 */
@@ -152,6 +153,7 @@
         const kept = items.filter(r => !isShipped(r));
         const keptQty = kept.reduce((n, r) => n + (Number(r.quantity) || 0), 0);
         document.getElementById('app').innerHTML = `
+        <div class="rule"><b>재고 기준 안내</b> · 그날 사입된 상품은 재고로 잡지 않고 바로 출고합니다. 출고하고 남은 상품만 오후에 재고로 입고되고, 다음 날부터 재고에서 출고됩니다.</div>
         <div class="card hero">
             <div>
                 <div class="company">${esc(company)}</div>
