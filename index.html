@@ -45,6 +45,13 @@
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
 
+    <!-- 관리자가 [셀러관리] > [화면 보기]로 연 "업체 화면 보기" (보기 전용). 주소: /?view_as=셀러ID -->
+    <div id="view-as-bar" class="hidden sticky top-0 z-[60] bg-violet-700 text-white px-4 py-2.5 shadow-lg flex-col sm:flex-row gap-2 sm:items-center sm:justify-center text-center">
+        <span class="text-sm font-bold">👀 관리자 보기 전용 · <b id="view-as-company" class="underline underline-offset-2"></b> 업체가 로그인했을 때 보는 화면입니다</span>
+        <span class="text-xs opacity-90">저장·접수·수정·삭제는 되지 않아요</span>
+        <button type="button" onclick="exitViewAs()" class="shrink-0 px-3 py-1.5 bg-white text-violet-700 hover:bg-violet-50 text-xs font-black rounded-lg shadow">관리자 화면으로 돌아가기</button>
+    </div>
+
     <!-- Top Time Simulator Bar -->
     <!-- 주소 뒤에 ?test 를 붙였을 때만 표시됩니다 (예: index.html?test) -->
     <header id="time-simulator-bar" class="hidden bg-slate-900 text-white px-4 py-2 text-xs flex-wrap items-center justify-between gap-2 shadow-md">
@@ -2259,6 +2266,43 @@
         // ※ 시뮬레이터는 화면 표시만 바꿉니다. 실제 저장 가능 여부는 DB가 실제 시간으로 판단합니다.
         const TEST_MODE = new URLSearchParams(location.search).has('test');
         const WANT_SIGNUP = new URLSearchParams(location.search).has('signup') || location.hash === '#signup';
+
+        // ---------------------------------------------------------------------
+        // 관리자 "업체 화면 보기" (보기 전용)
+        //  - 관리자가 [셀러관리]에서 [화면 보기]를 누르면 새 창에서 /?view_as=셀러ID 로 열립니다.
+        //  - 셀러 비밀번호 없이, 관리자 계정 그대로 그 셀러의 화면을 똑같이 그려서 보여줍니다.
+        //  - 관리자 계정이 아니면 이 주소는 아무 효과가 없습니다 (DB 가 다른 셀러 정보를 안 돌려줌).
+        //  - 보기 전용: DB 에 저장·수정·삭제하는 요청과 알림 발송 등은 모두 막습니다 (viewOnlyFetch).
+        // ---------------------------------------------------------------------
+        const VIEW_AS_ID = new URLSearchParams(location.search).get('view_as') || '';
+        let viewAsMode = false;          // true = 관리자가 셀러 화면을 보는 중 (보기 전용)
+        const VIEW_ONLY_MESSAGE = '관리자 보기 전용 화면이라 저장·접수·수정·삭제는 되지 않습니다.\n(업체에게 화면이 어떻게 보이는지만 확인할 수 있어요)';
+        // 보기 전용일 때 허용하는 읽기용 DB 함수
+        const VIEW_ONLY_READ_RPC = ['my_stock_visible', 'stock_hidden_for', 'company_available'];
+        function viewOnlyResponse() {
+            return new Response(JSON.stringify({ code: 'VIEW_ONLY', message: VIEW_ONLY_MESSAGE, details: null, hint: null }),
+                { status: 403, headers: { 'Content-Type': 'application/json' } });
+        }
+        function isViewOnlyBlocked(url, method) {
+            if (!viewAsMode) return false;
+            method = String(method || 'GET').toUpperCase();
+            if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return false;
+            let u;
+            try { u = new URL(url, location.href); } catch (e) { return true; }
+            if (u.origin === location.origin) return u.pathname.startsWith('/api/');   // 알림톡·AI 등 서버 기능
+            if (u.pathname.startsWith('/auth/')) return false;                          // 로그인 유지(토큰 갱신)는 그대로
+            const rpc = u.pathname.match(/\/rest\/v1\/rpc\/([^/?]+)/);
+            if (rpc) return !VIEW_ONLY_READ_RPC.includes(rpc[1]);
+            return true;                                                                 // 표 저장·수정·삭제, 파일 올리기
+        }
+        function viewOnlyFetch(input, init) {
+            const url = typeof input === 'string' ? input : (input && input.url) || String(input);
+            const method = (init && init.method) || (input && typeof input === 'object' && input.method) || 'GET';
+            if (isViewOnlyBlocked(url, method)) return Promise.resolve(viewOnlyResponse());
+            return window.__realFetch(input, init);
+        }
+        window.__realFetch = window.fetch.bind(window);
+        if (VIEW_AS_ID) window.fetch = viewOnlyFetch;   // 화면에서 직접 부르는 서버 기능(/api/...)도 막기
         let signupAutoOpened = false;
         let currentSimulatedMinutes = null; // 테스트 모드에서 고른 시각 (자정부터 분)
         let lastTimePhase = null;
@@ -2423,6 +2467,7 @@
         // DB 오류를 셀러가 이해할 수 있는 문장으로 바꿉니다.
         function dbErrorMessage(error) {
             if (!error) return '';
+            if (error.code === 'VIEW_ONLY') return VIEW_ONLY_MESSAGE;
             if (/Failed to fetch|NetworkError|Load failed|fetch failed/i.test(error.message || '')) return SERVER_UNREACHABLE_MESSAGE;
             if (error.code === '42501') return '권한이 없는 작업입니다. (승인 전/정지 계정이거나, 마감·출고된 주문)';
             if (error.code === '23505' && /profiles_company_norm_uidx/.test(error.message || '')) return '이미 다른 셀러가 사용 중인 상호명입니다. 다른 상호명으로 바꿔주세요.';
@@ -2451,7 +2496,9 @@
                 return;
             }
             try {
-                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+                supabaseClient = VIEW_AS_ID
+                    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { global: { fetch: viewOnlyFetch } })
+                    : window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
             } catch (e) {
                 setDbBadge(false, 'DB 키 오류');
                 return;
@@ -2477,6 +2524,7 @@
             }
             // 토큰 자동갱신 등으로 같은 계정의 이벤트가 다시 와도 화면을 새로 만들지 않습니다.
             if (currentUserId === session.user.id && currentRole) return;
+            if (viewAsMode && currentRole) return;   // 업체 화면 보기 중 (관리자 계정 토큰 갱신)
             await enterApp(session.user);
         }
 
@@ -2509,6 +2557,27 @@
             currentUserId = user.id;
             currentSellerAccount = { ...profile, email: user.email };
             currentRole = profile.role === 'admin' ? 'admin' : 'seller';
+
+            // 관리자가 [화면 보기]로 연 창이면, 고른 셀러가 로그인한 것처럼 셀러 화면을 그립니다 (보기 전용).
+            if (VIEW_AS_ID && profile.role === 'admin') {
+                const { data: target, error: tErr } = await supabaseClient.from('profiles').select('*').eq('id', VIEW_AS_ID).maybeSingle();
+                if (tErr || !target || target.role === 'admin') {
+                    alert('보려는 업체 정보를 찾지 못했습니다. 관리자 화면으로 돌아갑니다.');
+                    location.replace('/');
+                    return;
+                }
+                viewAsMode = true;
+                currentUserId = target.id;
+                currentSellerAccount = { ...target };
+                currentRole = 'seller';
+                document.getElementById('view-as-company').textContent = target.company || '(상호 없음)';
+                const bar = document.getElementById('view-as-bar');
+                bar.classList.remove('hidden');
+                bar.classList.add('flex');
+                document.title = `[업체 화면 보기] ${target.company || ''} · 밤낮딜리버리`;
+            } else if (VIEW_AS_ID) {
+                history.replaceState(null, '', location.pathname);   // 셀러가 이 주소로 들어오면 그냥 내 화면
+            }
 
             document.getElementById('auth-screen').classList.add('hidden');
             if (currentRole === 'admin') {
@@ -3235,7 +3304,7 @@
         }
         // 고른 내용을 내 계정에 '오늘 날짜'와 함께 남겨, 다시 로그인하거나 휴대폰으로 바꿔도 그날은 묻지 않습니다.
         function saveKeepCheck(choice) {
-            if (!supabaseClient) return;
+            if (!supabaseClient || viewAsMode) return;
             supabaseClient.auth.updateUser({ data: { keep_check: { date: kstDateKey(), choice } } }).catch(() => {});
         }
         // 로그인 후: 오늘 보관요청을 이미 접수했거나 오늘 고른 기록이 있으면 다시 묻지 않습니다.
@@ -3244,8 +3313,9 @@
             const today = kstDateKey();
             try {
                 const start = new Date(`${today}T00:00:00+09:00`).toISOString();
-                const { data: keeps } = await supabaseClient.from('orders').select('id').eq('order_type', 'keep').gte('created_at', start).limit(1);
+                const { data: keeps } = await supabaseClient.from('orders').select('id').eq('seller_id', currentUserId).eq('order_type', 'keep').gte('created_at', start).limit(1);
                 if (keeps && keeps.length) { applyKeepConfirmed('있음'); return; }
+                if (viewAsMode) return;   // 셀러가 고른 기록은 셀러 계정에만 있어 관리자 보기에서는 확인하지 않음
                 const { data } = await supabaseClient.auth.getUser();
                 const k = data && data.user && data.user.user_metadata && data.user.user_metadata.keep_check;
                 if (k && k.date === today && KEEP_LABEL[k.choice]) applyKeepConfirmed(k.choice);
@@ -3398,7 +3468,14 @@
             return `밤낮딜리버리(${company})`;
         }
 
+        // 업체 화면 보기 끝내기: 관리자 로그인은 그대로 두고 관리자 화면으로 갑니다.
+        function exitViewAs() {
+            try { if (window.opener && !window.opener.closed) { window.close(); } } catch (e) { /* 그냥 이동 */ }
+            location.href = '/';
+        }
+
         async function logout() {
+            if (viewAsMode) { exitViewAs(); return; }   // 보기 중에 로그아웃하면 관리자 로그인까지 풀리므로 돌아가기만
             closeLeftoverModal();
             if (supabaseClient) await supabaseClient.auth.signOut();
             showLoginScreen();
@@ -3406,9 +3483,22 @@
 
         // 관리자가 [셀러에게 재고 숨기기]로 숨긴 셀러는 [재고 확인] 버튼을 감춥니다 (supabase/stock_hide.sql).
         // DB 설정 전이거나 확인을 못 하면 버튼은 그대로 둡니다.
+        // 업체 화면 보기 중에는 재고·이용현황·상품관리를 관리자용 "업체 화면 미리보기"로 새 창에 엽니다.
+        function setViewAsNavLinks() {
+            const company = encodeURIComponent(currentSellerAccount.company || '');
+            [['nav-stock-btn', '/stock'], ['nav-usage-btn', '/usage'], ['nav-products-btn', '/products']].forEach(([id, path]) => {
+                const a = document.getElementById(id);
+                a.href = `${path}?company=${company}`;
+                a.target = '_blank';
+                a.rel = 'noopener';
+            });
+        }
+
         async function refreshNavStockBtn() {
             if (!supabaseClient) return;
-            const { data, error } = await supabaseClient.rpc('my_stock_visible');
+            const { data, error } = viewAsMode
+                ? await supabaseClient.rpc('stock_hidden_for', { p_company: currentSellerAccount.company || '' }).then(r => ({ data: r.error ? null : !r.data, error: r.error }))
+                : await supabaseClient.rpc('my_stock_visible');
             if (error || data !== false || currentRole !== 'seller') return;
             const stockBtn = document.getElementById('nav-stock-btn');
             stockBtn.classList.add('hidden');
@@ -3424,6 +3514,7 @@
             stockBtn.classList.toggle('hidden', currentRole !== 'seller');
             stockBtn.classList.toggle('flex', currentRole === 'seller');
             if (currentRole === 'seller') refreshNavStockBtn();
+            if (viewAsMode) setViewAsNavLinks();
             const usageBtn = document.getElementById('nav-usage-btn');
             usageBtn.classList.toggle('hidden', currentRole !== 'seller');
             usageBtn.classList.toggle('flex', currentRole === 'seller');
@@ -3446,7 +3537,9 @@
                         <span class="text-[10px] text-slate-400 block truncate">${escapeHtml(currentSellerAccount.email || '셀러 회원')}</span>
                     </div>
                     <button onclick="openMyPage()" class="shrink-0 whitespace-nowrap px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs rounded-lg font-bold">내정보</button>
-                    <button onclick="logout()" class="shrink-0 whitespace-nowrap px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-bold">로그아웃</button>
+                    ${viewAsMode
+                        ? `<button onclick="exitViewAs()" class="shrink-0 whitespace-nowrap px-3 py-1 bg-violet-600 hover:bg-violet-700 text-white text-xs rounded-lg font-bold">관리자로 돌아가기</button>`
+                        : `<button onclick="logout()" class="shrink-0 whitespace-nowrap px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-bold">로그아웃</button>`}
                 `;
             } else {
                 area.innerHTML = `
@@ -4363,7 +4456,7 @@
         // =====================================================================
         async function loadAddressBook() {
             if (!supabaseClient || currentRole !== 'seller') return;
-            const { data, error } = await supabaseClient.from('address_book').select('*').order('created_at', { ascending: false });
+            const { data, error } = await supabaseClient.from('address_book').select('*').eq('seller_id', currentUserId).order('created_at', { ascending: false });
             if (error) {
                 console.error('주소록 오류:', error);
                 document.getElementById('address-chips').innerHTML =
@@ -5378,7 +5471,7 @@
         async function loadMyPickupRequests() {
             const box = document.getElementById('pickup-my-list');
             if (!supabaseClient || currentRole !== 'seller') return;
-            const { data, error } = await supabaseClient.from('pickup_requests').select('*')
+            const { data, error } = await supabaseClient.from('pickup_requests').select('*').eq('seller_id', currentUserId)
                 .order('created_at', { ascending: false }).limit(30);
             if (error) {
                 box.innerHTML = '<p class="text-slate-400">내역을 불러오지 못했습니다.</p>';
@@ -5785,6 +5878,7 @@
                     if (p.status === 'approved') actions += btn('정지', "setSellerStatus(this.dataset.id, 'suspended')", 'bg-rose-50 text-rose-600 hover:bg-rose-100');
                     if (p.status === 'suspended') actions += btn('정지해제', "setSellerStatus(this.dataset.id, 'approved')", 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100');
                     actions += btn('정보수정', 'openSellerEditModal(this.dataset.id)', 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100');
+                    actions += btn('화면 보기', 'openSellerView(this.dataset.id)', 'bg-violet-600 text-white hover:bg-violet-700');
                 }
                 return `
                     <tr class="hover:bg-slate-50 transition ${p.status === 'pending' ? 'bg-amber-50/40' : ''}">
@@ -5803,6 +5897,11 @@
                     </tr>
                 `;
             }).join('');
+        }
+
+        // 이 업체가 로그인했을 때 보는 화면을 새 창으로 엽니다 (보기 전용, 비밀번호 필요 없음)
+        function openSellerView(id) {
+            window.open(`/?view_as=${encodeURIComponent(id)}`, '_blank');
         }
 
         async function updateSellerProfile(id, changes) {
@@ -6156,8 +6255,8 @@
             const sameday = list.filter(o => orderTypeOf(o) === 'store_sameday');
 
             const shipHeaders = SHOW_SHIPPING_UI ? ['상품 출고상태', '주문 출고상태', '택배사', '송장번호'] : [];
-            const extraHeaders = [...shipHeaders, '셀러 가입상호', '접수일시', '처리상태', '사무실 보관요청', '보관요청 메모'];
-            const extraWidths = [...(SHOW_SHIPPING_UI ? [14, 18, 16, 18] : []), 16, 18, 12, 14, 36];
+            const extraHeaders = [...shipHeaders, '셀러 가입상호', '접수일시', '처리상태', '관리자 접수시간', '사무실 보관요청', '보관요청 메모'];
+            const extraWidths = [...(SHOW_SHIPPING_UI ? [14, 18, 16, 18] : []), 16, 18, 12, 18, 14, 36];
             const formRows = arr => arr.map(o => {
                 const state = orderShipState(o, groups);
                 const g = groups[o.order_no];
@@ -6172,6 +6271,8 @@
                     o.seller_company || '',
                     formatKstDateTime(o.created_at),
                     o.status || '',
+                    // 관리자가 [접수]를 눌러 접수완료가 된 시각 (예전 주문·접수대기는 빈칸)
+                    o.status === '접수완료' && o.accepted_at ? formatKstDateTime(o.accepted_at) : '',
                     o.keep_request || '',
                     o.keep_memo || ''
                 ];

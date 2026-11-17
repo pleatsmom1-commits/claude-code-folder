@@ -201,6 +201,7 @@
     let upload = null;              // 엑셀 등록 대기 { creates: [...], merges: [...], skipped: [...] }
 
     const embed = new URLSearchParams(location.search).has('embed');
+    let presetCompany = new URLSearchParams(location.search).get('company') || '';
 
     function esc(v) {
         return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -249,6 +250,8 @@
     // -----------------------------------------------------------------
     async function init() {
         if (embed) document.getElementById('page-header').classList.add('hidden');
+        // 관리자 화면 안에 넣어 볼 때는 재고관리 탭처럼 가로 폭을 꽉 채움
+        if (embed) document.querySelectorAll('.max-w-7xl').forEach(el => el.classList.remove('max-w-7xl'));
         if (!window.supabase) { showState('화면을 불러오지 못했습니다. 새로고침해주세요.'); return; }
         client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         const { data: { session } } = await client.auth.getSession();
@@ -287,7 +290,10 @@
         const cur = sel.value;
         const list = companies();
         sel.innerHTML = `<option value="">거래처 전체 (${list.length}곳)</option>` + list.map(c => `<option value="${esc(norm(c))}">${esc(c)}</option>`).join('');
-        sel.value = list.some(c => norm(c) === cur) ? cur : '';
+        // 관리자 [업체 화면 보기]에서 /products?company=상호 로 열면 그 업체를 미리 골라 둡니다 (처음 한 번)
+        const want = presetCompany ? norm(presetCompany) : cur;
+        presetCompany = '';
+        sel.value = list.some(c => norm(c) === want) ? want : '';
         document.getElementById('company-options').innerHTML = list.map(c => `<option value="${esc(c)}">`).join('');
     }
 
