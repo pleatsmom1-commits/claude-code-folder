@@ -26,6 +26,8 @@ const users = {
 };
 const norm = v => String(v || '').replace(/\s/g, '').toLowerCase();
 let stockVisible = true;
+let termsAgreed = true;   // 재고 보관 약관 동의 (stock_terms.sql 흉내)
+const termsCalls = [];
 
 const P = (id, company, wc, wp, color, size, mall) => ({ id, code: 'P' + String(id).padStart(6, '0'), company, wholesale_company: wc, wholesale_product: wp, color, size, mall_names: mall ? [{ platform: '스마트스토어', name: mall }] : [], deleted_at: null });
 const products = [
@@ -115,6 +117,8 @@ function applyFilters(rows, url) {
       return json(200, rows);
     }
     if (url.pathname === '/rest/v1/rpc/my_stock_visible') return json(200, stockVisible);
+    if (url.pathname === '/rest/v1/rpc/stock_terms_status') return json(200, termsAgreed);
+    if (url.pathname === '/rest/v1/rpc/stock_terms_agree') { termsCalls.push(body); termsAgreed = true; return json(200, true); }
     if (url.pathname.startsWith('/rest/v1/rpc/')) return json(200, null);
     const t = url.pathname.replace('/rest/v1/', '');
     if (['products', 'inventory', 'inventory_moves'].includes(t)) {
@@ -264,6 +268,28 @@ function applyFilters(rows, url) {
   await page.goto(PAGE + '?range=7'); await page.waitForTimeout(1500);
   await shot('셀러_휴대폰_날짜별.png', page, { fullPage: true });
   await page.setViewportSize({ width: 1400, height: 900 });
+
+  // ---------- 2b. 재고 보관 약관 동의 창 ----------
+  termsAgreed = false;
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await page.goto(PAGE + '?range=7'); await page.waitForTimeout(1500);
+  check('terms: modal shows before stock history', await page.isVisible('#st-terms') && !(await page.isVisible('#app')));
+  check('terms: agree button disabled until checked', await page.isDisabled('#st-terms-ok'));
+  check('terms: summary + full text', (await page.textContent('#st-terms')).includes('7영업일') && (await page.textContent('#st-terms')).includes('제11조'));
+  await shot('약관동의창_PC.png', page);
+  await page.click('#st-terms-later'); await page.waitForTimeout(1200);
+  check('terms: [나중에] goes back to order page', !page.url().includes('stock-history'), page.url());
+  pageErrors.length = 0;   // file:// 에서는 '/' 가 폴더 목록 화면이라 그 화면 오류는 무시
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(PAGE); await page.waitForTimeout(1500);
+  await shot('약관동의창_휴대폰.png', page);
+  await page.check('#st-terms-check');
+  await shot('약관동의창_휴대폰_체크.png', page);
+  await page.click('#st-terms-ok'); await page.waitForTimeout(1200);
+  check('terms: agree → records version and opens page', termsCalls.length === 1 && termsCalls[0].p_version && !(await page.isVisible('#st-terms')) && await page.isVisible('#app'), JSON.stringify(termsCalls));
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await page.goto('file://' + path.join(ROOT, 'stock.html')); await page.waitForTimeout(1200);
+  check('terms: once agreed, /stock opens without modal', !(await page.isVisible('#st-terms')));
 
   // ---------- 3. 재고 숨긴 셀러 ----------
   stockVisible = false;
