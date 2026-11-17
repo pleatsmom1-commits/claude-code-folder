@@ -10,6 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="view-as.js"></script>
+<script src="stock-terms.js"></script>
 <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
     .plus { color: #2563eb; font-weight: 700; }
@@ -195,6 +196,8 @@
                 ? await client.rpc('stock_hidden_for', { p_company: VIEW_AS.company }).then(r => ({ data: r.error ? null : !r.data, error: r.error }))
                 : await client.rpc('my_stock_visible');
             if (!vErr && visible === false) { showState('지금은 재고 화면을 준비 중입니다.<br>준비가 끝나면 이곳에서 내 재고 증감 내역을 확인하실 수 있어요.'); return; }
+            // 재고 보관 약관 동의 (stock-terms.js, supabase/stock_terms.sql). 처음 한 번만 뜹니다.
+            if (!(await requireStockTerms(client, profile))) return;
         }
         document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !isAdmin));
         if (!isAdmin) {
