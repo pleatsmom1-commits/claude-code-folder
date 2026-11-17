@@ -39,7 +39,7 @@
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-5 space-y-3">
             <div>
                 <h2 class="font-bold text-slate-900">재고 증감 내역</h2>
-                <p class="text-xs text-slate-500 mt-0.5">재고가 <b class="plus">늘어난 것(+)</b>과 <b class="minus">줄어든 것(−)</b>을 날짜·기간별로 모아 봅니다. 입고 · 출고 · 수량 조정 · 최종재고 엑셀 올리기가 모두 들어갑니다.</p>
+                <p class="text-xs text-slate-500 mt-0.5">재고가 <b class="plus">늘어난 것(+)</b>과 <b class="minus">줄어든 것(−)</b>을 날짜·기간별로 모아 봅니다. <span id="intro-kinds">입고 · 출고 · 수량 조정 · 최종재고 엑셀 올리기가 모두 들어갑니다.</span></p>
             </div>
             <div class="flex flex-wrap gap-1.5" id="quick-range">
                 <button type="button" data-range="today" class="px-3 py-1.5 text-xs font-bold rounded-lg border">오늘</button>
@@ -76,7 +76,7 @@
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-5 space-y-3">
             <div class="flex flex-wrap items-center gap-1.5" id="view-tabs">
                 <button type="button" data-view="day" class="px-3 py-1.5 text-xs font-bold rounded-lg">날짜별</button>
-                <button type="button" data-view="company" class="admin-only hidden px-3 py-1.5 text-xs font-bold rounded-lg">거래처별</button>
+                <button type="button" data-view="company" data-admin="1" class="admin-only hidden px-3 py-1.5 text-xs font-bold rounded-lg">거래처별</button>
                 <button type="button" data-view="product" class="px-3 py-1.5 text-xs font-bold rounded-lg">상품별</button>
                 <button type="button" data-view="detail" class="px-3 py-1.5 text-xs font-bold rounded-lg">전체 내역</button>
                 <span id="view-note" class="text-xs text-slate-500 ml-auto"></span>
@@ -108,9 +108,11 @@
     const params = new URLSearchParams(location.search);
     const embed = params.has('embed');
     // 셀러에게 열지 여부 (대표님이 공개 범위를 정하기 전까지 관리자만). index.html 의 SELLER_HISTORY_OPEN 과 같이 바꿉니다.
-    const SELLER_OPEN = false;
-    const KINDS = ['입고', '출고', '조정', '최종재고', '라벨완료'];
-    const KIND_LABEL = { '입고': '입고', '출고': '출고', '조정': '수량 조정', '최종재고': '최종재고 엑셀', '라벨완료': '라벨완료' };
+    const SELLER_OPEN = true;
+    let KINDS = ['입고', '출고', '조정', '최종재고', '라벨완료'];
+    const KIND_LABEL = { '입고': '입고', '출고': '출고', '조정': '수량 조정', '최종재고': '최종재고 엑셀', '라벨완료': '라벨완료', '정리': '재고 정리' };
+    // 셀러 화면: 수량 조정 · 최종재고 엑셀은 '재고 정리' 한 가지로 묶고 이유는 보이지 않음 (대표님 결정 2026-11-17)
+    const SELLER_GROUPED = ['조정', '최종재고'];
 
     function esc(v) {
         return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -181,6 +183,11 @@
             if (!vErr && visible === false) { showState('지금은 재고 화면을 준비 중입니다.<br>준비가 끝나면 이곳에서 내 재고 증감 내역을 확인하실 수 있어요.'); return; }
         }
         document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !isAdmin));
+        if (!isAdmin) {
+            KINDS = ['입고', '출고', '정리', '라벨완료'];
+            document.getElementById('f-kind').innerHTML = '<option value="">모든 종류</option>' + KINDS.map(k => `<option value="${k}">${KIND_LABEL[k]}</option>`).join('');
+            document.getElementById('intro-kinds').textContent = '입고 · 출고 · 재고 정리(실사로 수량을 맞춘 것)가 모두 들어갑니다.';
+        }
         document.getElementById('header-company').textContent = isAdmin ? '관리자 · 전체 거래처' : profile.company;
 
         // 상품 정보 (삭제된 상품의 기록도 이름이 보이게 모두)
@@ -247,12 +254,13 @@
                 .gte('at', `${from}T00:00:00+09:00`).lt('at', `${addDays(to, 1)}T00:00:00+09:00`)
                 .order('at', { ascending: false }).order('id', { ascending: false });
             if (company) q = q.eq('company', company);
-            if (kind) q = q.eq('kind', kind);
+            if (kind === '정리') q = q.in('kind', SELLER_GROUPED);
+            else if (kind) q = q.eq('kind', kind);
             return q;
         });
         btn.disabled = false; btn.textContent = '조회';
         if (error) { alert('기록을 불러오지 못했습니다.\n' + errorMessage(error)); return; }
-        const rows = data;
+        const rows = isAdmin ? data : data.map(m => SELLER_GROUPED.includes(m.kind) ? { ...m, kind: '정리', reason: '' } : m);
         moves = rows.filter(m => m.d_a || m.d_b || m.d_defect);
         zeroCount = rows.length - moves.length;
         focus = null;
@@ -298,14 +306,14 @@
         const minus = list.reduce((s, m) => s + Math.min(total(m), 0), 0);
         const box = (label, value, color, sub) => `<div class="bg-white border border-slate-200 rounded-xl p-3"><div class="text-xl font-black ${color}">${value}</div><div class="text-[11px] text-slate-500">${label}</div>${sub ? `<div class="text-[10px] text-slate-400 mt-0.5">${sub}</div>` : ''}</div>`;
         document.getElementById('stats').innerHTML =
-            box('늘어난 수량', plus ? '+' + fmt(plus) : '0', 'text-blue-600', '입고 · 늘린 조정') +
-            box('줄어든 수량', minus ? '−' + fmt(-minus) : '0', 'text-red-600', '출고 · 줄인 조정') +
+            box('늘어난 수량', plus ? '+' + fmt(plus) : '0', 'text-blue-600', isAdmin ? '입고 · 늘린 조정' : '입고 등') +
+            box('줄어든 수량', minus ? '−' + fmt(-minus) : '0', 'text-red-600', isAdmin ? '출고 · 줄인 조정' : '출고 등') +
             box('합계 변화', (plus + minus > 0 ? '+' : plus + minus < 0 ? '−' : '') + fmt(Math.abs(plus + minus)), 'text-slate-900', '늘어남 − 줄어듦') +
             box('바뀐 상품', fmt(new Set(list.map(m => m.product_id)).size) + '개', 'text-slate-700', `기록 ${fmt(list.length)}건`);
 
         // 보기 탭
         document.querySelectorAll('#view-tabs button').forEach(b => {
-            b.className = (b.classList.contains('admin-only') && !isAdmin ? 'hidden ' : '') + 'px-3 py-1.5 text-xs font-bold rounded-lg ' +
+            b.className = (b.dataset.admin && !isAdmin ? 'hidden ' : '') + 'px-3 py-1.5 text-xs font-bold rounded-lg ' +
                 (b.dataset.view === view ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200');
         });
         const from = document.getElementById('f-from').value, to = document.getElementById('f-to').value;
@@ -363,7 +371,7 @@
             <td class="p-2 text-right">${signed(s.plus)}</td><td class="p-2 text-right">${signed(s.minus)}</td><td class="p-2 text-right font-black">${signed(s.plus + s.minus)}</td><td class="p-2"></td></tr>`;
     }
     function kindBadge(k) {
-        const c = { '입고': 'bg-blue-50 text-blue-700', '출고': 'bg-red-50 text-red-700', '조정': 'bg-amber-50 text-amber-700', '최종재고': 'bg-slate-100 text-slate-700', '라벨완료': 'bg-emerald-50 text-emerald-700' }[k] || 'bg-slate-100 text-slate-700';
+        const c = { '입고': 'bg-blue-50 text-blue-700', '출고': 'bg-red-50 text-red-700', '조정': 'bg-amber-50 text-amber-700', '최종재고': 'bg-slate-100 text-slate-700', '라벨완료': 'bg-emerald-50 text-emerald-700', '정리': 'bg-slate-100 text-slate-700' }[k] || 'bg-slate-100 text-slate-700';
         return `<span class="px-1.5 py-0.5 rounded text-[11px] font-bold ${c}">${esc(KIND_LABEL[k] || k)}</span>`;
     }
     let lastView = 'day';
