@@ -3518,12 +3518,12 @@
 
         // 관리자가 [셀러에게 재고 숨기기]로 숨긴 셀러는 [재고 확인] 버튼을 감춥니다 (supabase/stock_hide.sql).
         // DB 설정 전이거나 확인을 못 하면 버튼은 그대로 둡니다.
-        // 업체 화면 보기 중에는 재고·이용현황·상품관리를 관리자용 "업체 화면 미리보기"로 새 창에 엽니다.
+        // 업체 화면 보기 중에는 재고 확인·재고 증감·이용 현황·상품관리도 그 업체 화면(보기 전용, view-as.js)으로 새 창에 엽니다.
         function setViewAsNavLinks() {
             const company = encodeURIComponent(currentSellerAccount.company || '');
             [['nav-stock-btn', '/stock'], ['nav-history-btn', '/stock-history'], ['nav-usage-btn', '/usage'], ['nav-products-btn', '/products']].forEach(([id, path]) => {
                 const a = document.getElementById(id);
-                a.href = `${path}?company=${company}`;
+                a.href = `${path}?company=${company}&view=1&uid=${encodeURIComponent(currentUserId)}`;
                 a.target = '_blank';
                 a.rel = 'noopener';
             });
