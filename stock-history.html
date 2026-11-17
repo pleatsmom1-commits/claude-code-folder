@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>밤낮딜리버리 재고 증감 내역</title>
+<link rel="stylesheet" href="tailwind.css">
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+    .plus { color: #2563eb; font-weight: 700; }
+    .minus { color: #dc2626; font-weight: 700; }
+    .zero { color: #94a3b8; }
+    .hist-table th, .hist-table td { white-space: nowrap; }
+    .hist-table td.wrap { white-space: normal; min-width: 140px; }
+    .clickable:hover { background: #eef2ff; cursor: pointer; }
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+<div id="page-header" class="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex justify-between items-center gap-2">
+    <div class="flex items-center gap-3">
+        <div class="bg-indigo-600 text-white p-2 rounded-lg font-black tracking-wider text-sm">밤낮</div>
+        <div>
+            <h1 class="font-bold text-lg leading-tight text-slate-900">재고 증감 내역</h1>
+            <p id="header-company" class="text-xs text-slate-500"></p>
+        </div>
+    </div>
+    <a href="/" class="text-xs text-slate-500 hover:text-slate-800">← 주문접수 화면</a>
+</div>
+
+<main class="max-w-7xl mx-auto p-3 sm:p-6 space-y-4">
+    <div id="state" class="bg-white rounded-xl border border-slate-200 p-10 text-center text-slate-500">불러오는 중입니다...</div>
+
+    <div id="app" class="hidden space-y-4">
+        <!-- 조회 조건 -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-5 space-y-3">
+            <div>
+                <h2 class="font-bold text-slate-900">재고 증감 내역</h2>
+                <p class="text-xs text-slate-500 mt-0.5">재고가 <b class="plus">늘어난 것(+)</b>과 <b class="minus">줄어든 것(−)</b>을 날짜·기간별로 모아 봅니다. <span id="intro-kinds">입고 · 출고 · 수량 조정 · 최종재고 엑셀 올리기가 모두 들어갑니다.</span></p>
+            </div>
+            <div class="flex flex-wrap gap-1.5" id="quick-range">
+                <button type="button" data-range="today" class="px-3 py-1.5 text-xs font-bold rounded-lg border">오늘</button>
+                <button type="button" data-range="yesterday" class="px-3 py-1.5 text-xs font-bold rounded-lg border">어제</button>
+                <button type="button" data-range="7" class="px-3 py-1.5 text-xs font-bold rounded-lg border">최근 7일</button>
+                <button type="button" data-range="30" class="px-3 py-1.5 text-xs font-bold rounded-lg border">최근 30일</button>
+                <button type="button" data-range="month" class="px-3 py-1.5 text-xs font-bold rounded-lg border">이번 달</button>
+                <button type="button" data-range="lastmonth" class="px-3 py-1.5 text-xs font-bold rounded-lg border">지난 달</button>
+            </div>
+            <div class="flex flex-wrap items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-3">
+                <label class="text-xs text-slate-600 font-bold">기간</label>
+                <input type="date" id="f-from" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
+                <span class="text-xs text-slate-400">~</span>
+                <input type="date" id="f-to" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
+                <select id="f-company" class="admin-only hidden px-2 py-1.5 border rounded-lg text-xs bg-white max-w-[220px]"></select>
+                <select id="f-kind" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
+                    <option value="">모든 종류</option>
+                    <option value="입고">입고</option>
+                    <option value="출고">출고</option>
+                    <option value="조정">수량 조정</option>
+                    <option value="최종재고">최종재고 엑셀</option>
+                    <option value="라벨완료">라벨완료</option>
+                </select>
+                <input type="search" id="f-keyword" placeholder="상품코드 · 상품명 · 도매처 검색" class="px-3 py-1.5 border rounded-lg text-xs bg-white w-56">
+                <button type="button" id="search-btn" onclick="search()" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow">조회</button>
+                <button type="button" onclick="downloadExcel()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm ml-auto">엑셀로 한번에 받기</button>
+            </div>
+        </div>
+
+        <!-- 요약 -->
+        <div id="stats" class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center"></div>
+
+        <!-- 보기 방법 -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-5 space-y-3">
+            <div class="flex flex-wrap items-center gap-1.5" id="view-tabs">
+                <button type="button" data-view="day" class="px-3 py-1.5 text-xs font-bold rounded-lg">날짜별</button>
+                <button type="button" data-view="company" data-admin="1" class="admin-only hidden px-3 py-1.5 text-xs font-bold rounded-lg">거래처별</button>
+                <button type="button" data-view="product" class="px-3 py-1.5 text-xs font-bold rounded-lg">상품별</button>
+                <button type="button" data-view="detail" class="px-3 py-1.5 text-xs font-bold rounded-lg">전체 내역</button>
+                <span id="view-note" class="text-xs text-slate-500 ml-auto"></span>
+            </div>
+            <div id="focus-bar" class="hidden flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs"></div>
+            <div class="overflow-auto max-h-[70vh] border border-slate-200 rounded-lg">
+                <table class="hist-table w-full text-left text-xs">
+                    <thead id="thead" class="bg-slate-800 text-slate-200 font-bold sticky top-0 z-10"></thead>
+                    <tbody id="tbody" class="divide-y divide-slate-100"></tbody>
+                </table>
+            </div>
+            <p class="text-[11px] text-slate-400">* 수량은 상품화 + 미상품화 + 불량을 더한 개수입니다. 라벨완료는 미상품화 → 상품화로 옮긴 것이라 전체 수량은 그대로입니다.</p>
+        </div>
+    </div>
+</main>
+
+<script>
+    // 재고가 바뀔 때마다 DB 가 자동으로 남기는 기록(inventory_moves, supabase/inventory.sql)을 기간별로 모아 보여줍니다.
+    // 셀러는 DB 규칙상 자기 상호 기록만 받아옵니다. (관리자가 재고를 숨긴 업체는 '준비 중')
+    let client = null;
+    let me = null;
+    let isAdmin = false;
+    let moves = [];                 // 조회한 기록 (수량 변화가 있는 것만)
+    let zeroCount = 0;              // 수량이 그대로였던 기록 수 (최종재고 엑셀에서 같은 수량)
+    let products = new Map();       // product_id → 상품
+    let invNow = new Map();         // product_id → 지금 재고 합계
+    let view = 'day';
+    let focus = null;               // { type: 'day'|'company'|'product', value, label } 표에서 줄을 눌러 좁혀 보기
+    const params = new URLSearchParams(location.search);
+    const embed = params.has('embed');
+    // 셀러에게 열지 여부 (대표님이 공개 범위를 정하기 전까지 관리자만). index.html 의 SELLER_HISTORY_OPEN 과 같이 바꿉니다.
+    const SELLER_OPEN = true;
+    let KINDS = ['입고', '출고', '조정', '최종재고', '라벨완료'];
+    const KIND_LABEL = { '입고': '입고', '출고': '출고', '조정': '수량 조정', '최종재고': '최종재고 엑셀', '라벨완료': '라벨완료', '정리': '재고 정리' };
+    // 셀러 화면: 수량 조정 · 최종재고 엑셀은 '재고 정리' 한 가지로 묶고 이유는 보이지 않음 (대표님 결정 2026-11-17)
+    const SELLER_GROUPED = ['조정', '최종재고'];
+
+    function esc(v) {
+        return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    function norm(v) { return String(v ?? '').replace(/\s+/g, '').toLowerCase(); }
+    function fmt(n) { return Number(n || 0).toLocaleString('ko-KR'); }
+    function signed(n) {
+        if (!n) return '<span class="zero">0</span>';
+        return n > 0 ? `<span class="plus">+${fmt(n)}</span>` : `<span class="minus">−${fmt(-n)}</span>`;
+    }
+    function signedText(n) { return n > 0 ? '+' + n : String(n); }
+    // 한국 시각 기준 날짜 (YYYY-MM-DD)
+    function kstDay(iso) { return new Date(Date.parse(iso) + 9 * 3600e3).toISOString().slice(0, 10); }
+    function kstTime(iso) { return new Date(Date.parse(iso) + 9 * 3600e3).toISOString().slice(11, 16); }
+    function todayKst() { return kstDay(new Date().toISOString()); }
+    function addDays(day, n) { const d = new Date(day + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+    const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
+    function dayLabel(day) { const d = new Date(day + 'T00:00:00Z'); return `${d.getUTCMonth() + 1}/${d.getUTCDate()} (${WEEK[d.getUTCDay()]})`; }
+    function showState(html) {
+        document.getElementById('state').innerHTML = html;
+        document.getElementById('state').classList.remove('hidden');
+        document.getElementById('app').classList.add('hidden');
+    }
+    function errorMessage(error) {
+        if (!error) return '';
+        if (error.code === '42501') return '권한이 없습니다.';
+        if (['PGRST205', 'PGRST202', '42P01', '42883'].includes(error.code)) return 'DB 설정이 최신이 아닙니다. (관리자: supabase/inventory.sql)';
+        return error.message || String(error);
+    }
+    async function fetchAll(build) {
+        let all = [];
+        for (let from = 0; ; from += 1000) {
+            const { data, error } = await build().range(from, from + 999);
+            if (error) return { data: null, error };
+            all = all.concat(data || []);
+            if (!data || data.length < 1000) break;
+        }
+        return { data: all, error: null };
+    }
+    const total = m => (m.d_a || 0) + (m.d_b || 0) + (m.d_defect || 0);
+    function productName(p) {
+        if (!p) return '';
+        return p.wholesale_product || mallName(p);
+    }
+    // 쇼핑몰상품명 (여러 개면 / 로 이어서)
+    function mallName(p) { return [...new Set(((p && p.mall_names) || []).map(n => n.name).filter(Boolean))].join(' / '); }
+
+    // -----------------------------------------------------------------
+    // 시작
+    // -----------------------------------------------------------------
+    async function init() {
+        if (embed) {
+            document.getElementById('page-header').classList.add('hidden');
+            document.querySelectorAll('.max-w-7xl').forEach(el => el.classList.remove('max-w-7xl'));
+        }
+        if (!window.supabase) { showState('화면을 불러오지 못했습니다. 새로고침해주세요.'); return; }
+        client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const { data: { session } } = await client.auth.getSession();
+        if (!session) { showState('로그인 후 이용할 수 있습니다.<br><br><a class="text-indigo-600 font-bold" href="/">로그인하러 가기</a>'); return; }
+        const { data: profile, error } = await client.from('profiles').select('id,company,role,status').eq('id', session.user.id).single();
+        if (error || !profile) { showState('계정 정보를 불러오지 못했습니다. 다시 로그인해주세요.'); return; }
+        me = profile;
+        isAdmin = profile.role === 'admin';
+        if (!isAdmin && profile.status !== 'approved') { showState('관리자 승인 후 볼 수 있습니다.'); return; }
+        if (!isAdmin && !SELLER_OPEN) { showState('재고 증감 내역은 준비 중입니다.'); return; }
+        if (!isAdmin) {
+            const { data: visible, error: vErr } = await client.rpc('my_stock_visible');
+            if (!vErr && visible === false) { showState('지금은 재고 화면을 준비 중입니다.<br>준비가 끝나면 이곳에서 내 재고 증감 내역을 확인하실 수 있어요.'); return; }
+        }
+        document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !isAdmin));
+        if (!isAdmin) {
+            KINDS = ['입고', '출고', '정리', '라벨완료'];
+            document.getElementById('f-kind').innerHTML = '<option value="">모든 종류</option>' + KINDS.map(k => `<option value="${k}">${KIND_LABEL[k]}</option>`).join('');
+            document.getElementById('intro-kinds').textContent = '입고 · 출고 · 재고 정리(실사로 수량을 맞춘 것)가 모두 들어갑니다.';
+        }
+        document.getElementById('header-company').textContent = isAdmin ? '관리자 · 전체 거래처' : profile.company;
+
+        // 상품 정보 (삭제된 상품의 기록도 이름이 보이게 모두)
+        const [p, i] = await Promise.all([
+            fetchAll(() => client.from('products').select('id,code,company,wholesale_company,wholesale_product,color,size,mall_names').order('id')),
+            fetchAll(() => client.from('inventory').select('product_id,qty_a,qty_b,qty_defect').order('product_id')),
+        ]);
+        if (p.error) { showState('상품 정보를 불러오지 못했습니다.<br><span class="text-xs">' + esc(errorMessage(p.error)) + '</span>'); return; }
+        products = new Map(p.data.map(r => [r.id, r]));
+        invNow = new Map((i.data || []).map(r => [r.product_id, r.qty_a + r.qty_b + r.qty_defect]));
+        if (isAdmin) {
+            const names = [...new Map(p.data.map(r => [norm(r.company), r.company])).values()].sort((a, b) => a.localeCompare(b, 'ko'));
+            const sel = document.getElementById('f-company');
+            sel.innerHTML = '<option value="">전체 거래처</option>' + names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+            const want = params.get('company');
+            if (want) { const hit = names.find(n => norm(n) === norm(want)); if (hit) sel.value = hit; }
+        }
+
+        document.querySelectorAll('#quick-range button').forEach(b => b.addEventListener('click', () => { setRange(b.dataset.range); search(); }));
+        document.querySelectorAll('#view-tabs button').forEach(b => b.addEventListener('click', () => { view = b.dataset.view; focus = null; render(); }));
+        ['f-from', 'f-to', 'f-company', 'f-kind'].forEach(id => document.getElementById(id).addEventListener('change', () => { markRange(); search(); }));
+        document.getElementById('f-keyword').addEventListener('input', () => render());
+
+        document.getElementById('state').classList.add('hidden');
+        document.getElementById('app').classList.remove('hidden');
+        setRange(params.get('range') || 'today');
+        await search();
+    }
+
+    function setRange(r) {
+        const t = todayKst();
+        let from = t, to = t;
+        if (r === 'yesterday') { from = to = addDays(t, -1); }
+        else if (r === '7') { from = addDays(t, -6); }
+        else if (r === '30') { from = addDays(t, -29); }
+        else if (r === 'month') { from = t.slice(0, 8) + '01'; }
+        else if (r === 'lastmonth') { const first = t.slice(0, 8) + '01'; to = addDays(first, -1); from = to.slice(0, 8) + '01'; }
+        document.getElementById('f-from').value = from;
+        document.getElementById('f-to').value = to;
+        markRange();
+    }
+    // 지금 기간과 같은 빠른 버튼을 진하게
+    function markRange() {
+        const from = document.getElementById('f-from').value, to = document.getElementById('f-to').value;
+        const t = todayKst();
+        const first = t.slice(0, 8) + '01', lastEnd = addDays(first, -1);
+        const same = { today: [t, t], yesterday: [addDays(t, -1), addDays(t, -1)], 7: [addDays(t, -6), t], 30: [addDays(t, -29), t], month: [first, t], lastmonth: [lastEnd.slice(0, 8) + '01', lastEnd] };
+        document.querySelectorAll('#quick-range button').forEach(b => {
+            const on = same[b.dataset.range] && same[b.dataset.range][0] === from && same[b.dataset.range][1] === to;
+            b.className = 'px-3 py-1.5 text-xs font-bold rounded-lg border ' + (on ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50');
+        });
+    }
+
+    async function search() {
+        let from = document.getElementById('f-from').value, to = document.getElementById('f-to').value;
+        if (!from || !to) { alert('기간을 골라주세요.'); return; }
+        if (from > to) { [from, to] = [to, from]; document.getElementById('f-from').value = from; document.getElementById('f-to').value = to; }
+        const company = isAdmin ? document.getElementById('f-company').value : '';
+        const kind = document.getElementById('f-kind').value;
+        const btn = document.getElementById('search-btn');
+        btn.disabled = true; btn.textContent = '불러오는 중...';
+        const { data, error } = await fetchAll(() => {
+            let q = client.from('inventory_moves').select('id,product_id,company,code,kind,d_a,d_b,d_defect,a_after,b_after,defect_after,reason,actor_name,at')
+                .gte('at', `${from}T00:00:00+09:00`).lt('at', `${addDays(to, 1)}T00:00:00+09:00`)
+                .order('at', { ascending: false }).order('id', { ascending: false });
+            if (company) q = q.eq('company', company);
+            if (kind === '정리') q = q.in('kind', SELLER_GROUPED);
+            else if (kind) q = q.eq('kind', kind);
+            return q;
+        });
+        btn.disabled = false; btn.textContent = '조회';
+        if (error) { alert('기록을 불러오지 못했습니다.\n' + errorMessage(error)); return; }
+        const rows = isAdmin ? data : data.map(m => SELLER_GROUPED.includes(m.kind) ? { ...m, kind: '정리', reason: '' } : m);
+        moves = rows.filter(m => m.d_a || m.d_b || m.d_defect);
+        zeroCount = rows.length - moves.length;
+        focus = null;
+        render();
+    }
+
+    // 검색어 · 표에서 고른 줄로 좁힌 기록
+    function filtered() {
+        const q = norm(document.getElementById('f-keyword').value);
+        return moves.filter(m => {
+            if (focus) {
+                if (focus.type === 'day' && kstDay(m.at) !== focus.value) return false;
+                if (focus.type === 'company' && norm(m.company) !== norm(focus.value)) return false;
+                if (focus.type === 'product' && m.product_id !== focus.value) return false;
+            }
+            if (!q) return true;
+            const p = products.get(m.product_id) || {};
+            return norm([m.code, m.company, p.wholesale_company, p.wholesale_product, p.color, p.size, (p.mall_names || []).map(n => n.name).join(' '), m.reason].join('|')).includes(q);
+        });
+    }
+
+    // 묶어서 더하기 (날짜별 · 거래처별 · 상품별)
+    function group(list, keyOf) {
+        const map = new Map();
+        for (const m of list) {
+            if (!total(m)) continue;    // 라벨완료처럼 전체 수량이 그대로인 기록은 합계표에서 뺌 (전체 내역에는 보임)
+            const k = keyOf(m);
+            let g = map.get(k);
+            if (!g) { g = { key: k, plus: 0, minus: 0, count: 0, byKind: {} , products: new Set(), company: m.company, product_id: m.product_id }; map.set(k, g); }
+            const t = total(m);
+            if (t > 0) g.plus += t; else g.minus += t;
+            g.byKind[m.kind] = (g.byKind[m.kind] || 0) + t;
+            g.count++;
+            g.products.add(m.product_id);
+        }
+        return [...map.values()];
+    }
+
+    function render() {
+        const list = filtered();
+        // 요약 칸
+        const plus = list.reduce((s, m) => s + Math.max(total(m), 0), 0);
+        const minus = list.reduce((s, m) => s + Math.min(total(m), 0), 0);
+        const box = (label, value, color, sub) => `<div class="bg-white border border-slate-200 rounded-xl p-3"><div class="text-xl font-black ${color}">${value}</div><div class="text-[11px] text-slate-500">${label}</div>${sub ? `<div class="text-[10px] text-slate-400 mt-0.5">${sub}</div>` : ''}</div>`;
+        document.getElementById('stats').innerHTML =
+            box('늘어난 수량', plus ? '+' + fmt(plus) : '0', 'text-blue-600', isAdmin ? '입고 · 늘린 조정' : '입고 등') +
+            box('줄어든 수량', minus ? '−' + fmt(-minus) : '0', 'text-red-600', isAdmin ? '출고 · 줄인 조정' : '출고 등') +
+            box('합계 변화', (plus + minus > 0 ? '+' : plus + minus < 0 ? '−' : '') + fmt(Math.abs(plus + minus)), 'text-slate-900', '늘어남 − 줄어듦') +
+            box('바뀐 상품', fmt(new Set(list.map(m => m.product_id)).size) + '개', 'text-slate-700', `기록 ${fmt(list.length)}건`);
+
+        // 보기 탭
+        document.querySelectorAll('#view-tabs button').forEach(b => {
+            b.className = (b.dataset.admin && !isAdmin ? 'hidden ' : '') + 'px-3 py-1.5 text-xs font-bold rounded-lg ' +
+                (b.dataset.view === view ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200');
+        });
+        const from = document.getElementById('f-from').value, to = document.getElementById('f-to').value;
+        document.getElementById('view-note').textContent = (from === to ? dayLabel(from) : `${dayLabel(from)} ~ ${dayLabel(to)}`) +
+            (zeroCount ? ` · 수량이 그대로인 기록 ${fmt(zeroCount)}건은 뺐습니다` : '');
+        const fb = document.getElementById('focus-bar');
+        fb.classList.toggle('hidden', !focus);
+        fb.classList.toggle('flex', !!focus);
+        if (focus) fb.innerHTML = `<b>${esc(focus.label)}</b> 내역만 보는 중 <button type="button" onclick="focus=null; view=lastView; render()" class="ml-auto px-2 py-1 bg-white border border-amber-300 rounded font-bold text-amber-700">← 돌아가기</button>`;
+
+        const thead = document.getElementById('thead'), tbody = document.getElementById('tbody');
+        const kindCols = KINDS.filter(k => k !== '라벨완료');
+        const kindHead = kindCols.map(k => `<th class="p-2 text-right">${KIND_LABEL[k]}</th>`).join('');
+        const kindCells = g => kindCols.map(k => `<td class="p-2 text-right">${g.byKind[k] ? signed(g.byKind[k]) : '<span class="zero">-</span>'}</td>`).join('');
+        const sumCells = g => `<td class="p-2 text-right">${g.plus ? signed(g.plus) : '<span class="zero">-</span>'}</td><td class="p-2 text-right">${g.minus ? signed(g.minus) : '<span class="zero">-</span>'}</td><td class="p-2 text-right font-black">${signed(g.plus + g.minus)}</td>`;
+        const empty = cols => `<tr><td colspan="${cols}" class="p-8 text-center text-slate-400">이 기간에 재고 변화가 없습니다.</td></tr>`;
+
+        if (view === 'day') {
+            const groups = group(list, m => kstDay(m.at)).sort((a, b) => b.key.localeCompare(a.key));
+            thead.innerHTML = `<tr><th class="p-2">날짜</th>${kindHead}<th class="p-2 text-right">늘어남</th><th class="p-2 text-right">줄어듦</th><th class="p-2 text-right">합계</th><th class="p-2 text-right">바뀐 상품</th></tr>`;
+            tbody.innerHTML = groups.length ? groups.map(g => `<tr class="clickable" title="눌러서 이 날 내역 보기" onclick="openFocus('day', '${g.key}', '${dayLabel(g.key)}')">
+                <td class="p-2 font-bold text-indigo-700">${dayLabel(g.key)}</td>${kindCells(g)}${sumCells(g)}<td class="p-2 text-right">${fmt(g.products.size)}개</td></tr>`).join('') + totalRow(groups, 1 + kindCols.length) : empty(5 + kindCols.length);
+        } else if (view === 'company') {
+            const groups = group(list, m => norm(m.company)).sort((a, b) => (Math.abs(b.plus) + Math.abs(b.minus)) - (Math.abs(a.plus) + Math.abs(a.minus)));
+            thead.innerHTML = `<tr><th class="p-2">거래처</th>${kindHead}<th class="p-2 text-right">늘어남</th><th class="p-2 text-right">줄어듦</th><th class="p-2 text-right">합계</th><th class="p-2 text-right">바뀐 상품</th></tr>`;
+            tbody.innerHTML = groups.length ? groups.map(g => `<tr class="clickable" title="눌러서 이 거래처 내역 보기" onclick="openFocus('company', ${esc(JSON.stringify(g.company))}, ${esc(JSON.stringify(g.company))})">
+                <td class="p-2 font-bold text-indigo-700">${esc(g.company)}</td>${kindCells(g)}${sumCells(g)}<td class="p-2 text-right">${fmt(g.products.size)}개</td></tr>`).join('') + totalRow(groups, 1 + kindCols.length) : empty(5 + kindCols.length);
+        } else if (view === 'product') {
+            const groups = group(list, m => m.product_id).sort((a, b) => (b.plus - b.minus) - (a.plus - a.minus));
+            thead.innerHTML = `<tr><th class="p-2">상품코드</th>${isAdmin ? '<th class="p-2">거래처</th>' : ''}<th class="p-2">도매처명</th><th class="p-2">도매상품명</th><th class="p-2">상품명</th><th class="p-2">컬러</th><th class="p-2">사이즈</th><th class="p-2 text-right">늘어남</th><th class="p-2 text-right">줄어듦</th><th class="p-2 text-right">합계</th><th class="p-2 text-right">지금 재고</th></tr>`;
+            tbody.innerHTML = groups.length ? groups.map(g => {
+                const p = products.get(g.product_id) || {};
+                return `<tr class="clickable" title="눌러서 이 상품 내역 보기" onclick="openFocus('product', ${g.product_id}, ${esc(JSON.stringify((p.code || '') + ' ' + productName(p)))})">
+                <td class="p-2 font-mono text-indigo-700 font-bold">${esc(p.code || '')}</td>${isAdmin ? `<td class="p-2">${esc(g.company)}</td>` : ''}<td class="p-2">${esc(p.wholesale_company)}</td><td class="p-2 wrap">${esc(p.wholesale_product)}</td><td class="p-2 wrap">${esc(mallName(p))}</td><td class="p-2">${esc(p.color)}</td><td class="p-2">${esc(p.size)}</td>
+                ${sumCells(g)}<td class="p-2 text-right font-bold">${fmt(invNow.get(g.product_id) || 0)}</td></tr>`;
+            }).join('') : empty(isAdmin ? 11 : 10);
+        } else {
+            thead.innerHTML = `<tr><th class="p-2">날짜 · 시간</th>${isAdmin ? '<th class="p-2">거래처</th>' : ''}<th class="p-2">상품코드</th><th class="p-2">도매처명</th><th class="p-2">도매상품명</th><th class="p-2">상품명</th><th class="p-2">컬러</th><th class="p-2">사이즈</th><th class="p-2">종류</th><th class="p-2 text-right">증감</th><th class="p-2">바뀐 내용</th><th class="p-2 text-right">바뀐 뒤 재고</th><th class="p-2">이유</th>${isAdmin ? '<th class="p-2">작업자</th>' : ''}</tr>`;
+            tbody.innerHTML = list.length ? list.map(m => {
+                const p = products.get(m.product_id) || {};
+                const parts = [['상품화', m.d_a], ['미상품화', m.d_b], ['불량', m.d_defect]].filter(([, v]) => v).map(([k, v]) => `${k} ${signedText(v)}`).join(', ');
+                return `<tr>
+                <td class="p-2">${dayLabel(kstDay(m.at))} ${kstTime(m.at)}</td>${isAdmin ? `<td class="p-2">${esc(m.company)}</td>` : ''}
+                <td class="p-2 font-mono">${esc(m.code || p.code)}</td><td class="p-2">${esc(p.wholesale_company)}</td><td class="p-2 wrap">${esc(p.wholesale_product)}</td><td class="p-2 wrap">${esc(mallName(p))}</td><td class="p-2">${esc(p.color)}</td><td class="p-2">${esc(p.size)}</td>
+                <td class="p-2">${kindBadge(m.kind)}</td><td class="p-2 text-right">${signed(total(m))}</td><td class="p-2 text-slate-500">${esc(parts)}</td>
+                <td class="p-2 text-right font-bold">${fmt(m.a_after + m.b_after + m.defect_after)}</td><td class="p-2 wrap text-slate-500">${esc(m.reason)}</td>${isAdmin ? `<td class="p-2 text-slate-500">${esc(m.actor_name)}</td>` : ''}</tr>`;
+            }).join('') : empty(isAdmin ? 14 : 12);
+        }
+    }
+    function totalRow(groups, before) {
+        const s = { plus: 0, minus: 0, byKind: {} };
+        groups.forEach(g => { s.plus += g.plus; s.minus += g.minus; Object.entries(g.byKind).forEach(([k, v]) => { s.byKind[k] = (s.byKind[k] || 0) + v; }); });
+        const kindCols = KINDS.filter(k => k !== '라벨완료');
+        return `<tr class="bg-slate-50 font-bold"><td class="p-2">합계</td>${kindCols.map(k => `<td class="p-2 text-right">${s.byKind[k] ? signed(s.byKind[k]) : '<span class="zero">-</span>'}</td>`).join('')}
+            <td class="p-2 text-right">${signed(s.plus)}</td><td class="p-2 text-right">${signed(s.minus)}</td><td class="p-2 text-right font-black">${signed(s.plus + s.minus)}</td><td class="p-2"></td></tr>`;
+    }
+    function kindBadge(k) {
+        const c = { '입고': 'bg-blue-50 text-blue-700', '출고': 'bg-red-50 text-red-700', '조정': 'bg-amber-50 text-amber-700', '최종재고': 'bg-slate-100 text-slate-700', '라벨완료': 'bg-emerald-50 text-emerald-700', '정리': 'bg-slate-100 text-slate-700' }[k] || 'bg-slate-100 text-slate-700';
+        return `<span class="px-1.5 py-0.5 rounded text-[11px] font-bold ${c}">${esc(KIND_LABEL[k] || k)}</span>`;
+    }
+    let lastView = 'day';
+    function openFocus(type, value, label) {
+        lastView = view;
+        focus = { type, value, label };
+        view = 'detail';
+        render();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // -----------------------------------------------------------------
+    // 엑셀 다운로드: 날짜별 요약 + 전체 내역 (지금 조회한 기간 · 검색어 그대로)
+    // -----------------------------------------------------------------
+    // 첫 줄(제목) 진하게 + 칸 너비 맞추기
+    function sheet(aoa) {
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
+        ws['!cols'] = aoa[0].map((_, c) => ({ wch: Math.min(40, Math.max(6, ...aoa.map(r => String(r[c] ?? '').length * 1.6))) }));
+        aoa[0].forEach((_, c) => { const cell = ws[XLSX.utils.encode_cell({ r: 0, c })]; if (cell) cell.s = { font: { bold: true }, fill: { fgColor: { rgb: 'E2E8F0' } } }; });
+        ws['!freeze'] = { xSplit: 0, ySplit: 1 };
+        return ws;
+    }
+    function downloadExcel() {
+        if (!window.XLSX) { alert('엑셀 도구를 불러오지 못했습니다. 새로고침해주세요.'); return; }
+        const list = filtered();
+        const kindCols = KINDS.filter(k => k !== '라벨완료');
+        const daySheet = [['날짜', ...kindCols.map(k => KIND_LABEL[k]), '늘어남', '줄어듦', '합계', '바뀐 상품 수']];
+        group(list, m => kstDay(m.at)).sort((a, b) => b.key.localeCompare(a.key)).forEach(g =>
+            daySheet.push([g.key, ...kindCols.map(k => g.byKind[k] || 0), g.plus, g.minus, g.plus + g.minus, g.products.size]));
+        // 전체 내역: 한 줄 = 재고가 바뀐 기록 1건
+        const detail = [['날짜', '시간', '거래처명', '상품코드', '도매처명', '도매상품명', '상품명(쇼핑몰)', '컬러', '사이즈', '종류', '증감 수량', '상품화 증감', '미상품화 증감', '불량 증감', '바뀐 뒤 재고', '이유', ...(isAdmin ? ['작업자'] : [])]];
+        list.forEach(m => {
+            const p = products.get(m.product_id) || {};
+            detail.push([kstDay(m.at), kstTime(m.at), m.company, m.code || p.code || '', p.wholesale_company || '', p.wholesale_product || '', mallName(p), p.color || '', p.size || '',
+                KIND_LABEL[m.kind] || m.kind, total(m), m.d_a, m.d_b, m.d_defect, m.a_after + m.b_after + m.defect_after, m.reason, ...(isAdmin ? [m.actor_name] : [])]);
+        });
+        // 상품별: 한 줄 = 상품 1개, 기간 동안 늘어난/줄어든 수량 합계
+        const prodSheet = [['거래처명', '상품코드', '도매처명', '도매상품명', '상품명(쇼핑몰)', '컬러', '사이즈', ...kindCols.map(k => KIND_LABEL[k]), '늘어남', '줄어듦', '합계 증감', '지금 재고']];
+        group(list, m => m.product_id).sort((a, b) => norm(a.company).localeCompare(norm(b.company), 'ko') || (a.product_id - b.product_id)).forEach(g => {
+            const p = products.get(g.product_id) || {};
+            prodSheet.push([g.company, p.code || '', p.wholesale_company || '', p.wholesale_product || '', mallName(p), p.color || '', p.size || '',
+                ...kindCols.map(k => g.byKind[k] || 0), g.plus, g.minus, g.plus + g.minus, invNow.get(g.product_id) || 0]);
+        });
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, sheet(daySheet), '날짜별');
+        if (isAdmin) {
+            const cs = [['거래처', ...kindCols.map(k => KIND_LABEL[k]), '늘어남', '줄어듦', '합계', '바뀐 상품 수']];
+            group(list, m => norm(m.company)).forEach(g => cs.push([g.company, ...kindCols.map(k => g.byKind[k] || 0), g.plus, g.minus, g.plus + g.minus, g.products.size]));
+            XLSX.utils.book_append_sheet(wb, sheet(cs), '거래처별');
+        }
+        XLSX.utils.book_append_sheet(wb, sheet(prodSheet), '상품별');
+        XLSX.utils.book_append_sheet(wb, sheet(detail), '전체 내역');
+        const from = document.getElementById('f-from').value, to = document.getElementById('f-to').value;
+        const who = isAdmin ? (document.getElementById('f-company').value || '전체') : me.company;
+        XLSX.writeFile(wb, `재고증감_${who}_${from}${from === to ? '' : '~' + to}.xlsx`);
+    }
+
+    init();
+</script>
+</body>
+</html>

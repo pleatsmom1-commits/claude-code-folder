@@ -103,6 +103,10 @@
             <a id="nav-stock-btn" href="/stock" class="hidden shrink-0 whitespace-nowrap sm:ml-2 justify-center px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
                 <i data-lucide="package" class="w-4 h-4"></i> 재고 확인
             </a>
+            <!-- 셀러 로그인 시에만 표시: 내 재고 증감 내역 (stock-history.html). 재고를 숨긴 셀러는 [재고 확인]과 같이 숨김 -->
+            <a id="nav-history-btn" href="/stock-history" class="hidden shrink-0 whitespace-nowrap sm:ml-2 justify-center px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
+                <i data-lucide="history" class="w-4 h-4"></i> 재고 증감
+            </a>
             <!-- 셀러 로그인 시에만 표시: 내 이용 현황 페이지 (usage.html) -->
             <a id="nav-usage-btn" href="/usage" class="hidden shrink-0 whitespace-nowrap sm:ml-2 justify-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
                 <i data-lucide="bar-chart-3" class="w-4 h-4"></i> 이용 현황
@@ -741,6 +745,9 @@
                     <button id="admin-group-aicost" onclick="switchAdminGroup('aicost')" class="">
                         <i data-lucide="coins" class="w-4 h-4"></i> AI 사용료
                     </button>
+                    <button id="admin-group-staff" onclick="switchAdminGroup('staff')" class="">
+                        <i data-lucide="user-cog" class="w-4 h-4"></i> 직원 관리
+                    </button>
                 </div>
                 <div id="admin-subtabs" class="flex flex-wrap border-b border-slate-200 mt-3">
                     <button id="admin-tab-orders" onclick="switchAdminTab('orders')" class="">
@@ -765,6 +772,9 @@
                     <button id="admin-tab-picking" onclick="switchAdminTab('picking')" class="">
                         재고출고
                     </button>
+                    <button id="admin-tab-history" onclick="switchAdminTab('history')" class="">
+                        재고 증감 내역
+                    </button>
                     <button id="admin-tab-settle" onclick="switchAdminTab('settle')" class="">
                         정산서 발송
                     </button>
@@ -780,6 +790,12 @@
                     </button>
                     <button id="admin-tab-aicost" onclick="switchAdminTab('aicost')" class="">
                         AI 사용료
+                    </button>
+                    <button id="admin-tab-activity" onclick="switchAdminTab('activity')" class="">
+                        작업 기록
+                    </button>
+                    <button id="admin-tab-staff" onclick="switchAdminTab('staff')" class="">
+                        직원 아이디
                     </button>
                 </div>
             </div>
@@ -932,6 +948,10 @@
             </div>
 
             <!-- 3-2. 셀러 관리 -->
+            <!-- 3-x. 직원 관리 (staff-admin.js 가 내용을 채움, 대표 아이디만) -->
+            <div id="admin-activity-panel" class="hidden space-y-4"></div>
+            <div id="admin-staff-panel" class="hidden space-y-4"></div>
+
             <div id="admin-sellers-panel" class="hidden space-y-4">
                 <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
                     <div class="flex justify-between items-center flex-wrap gap-2">
@@ -1521,6 +1541,14 @@
                 <iframe id="admin-picking-frame" title="재고 출고" class="w-full bg-white rounded-xl border border-slate-200" style="height: calc(100vh - 220px); min-height: 600px;"></iframe>
             </div>
 
+            <!-- 3-9b. 재고 증감 내역 (stock-history.html 을 그대로 불러와 보여줌) -->
+            <div id="admin-history-panel" class="hidden space-y-2">
+                <div class="flex justify-end">
+                    <a href="/stock-history" target="_blank" class="text-xs font-bold text-indigo-600 hover:underline">새 창에서 크게 열기</a>
+                </div>
+                <iframe id="admin-history-frame" title="재고 증감 내역" class="w-full bg-white rounded-xl border border-slate-200" style="height: calc(100vh - 220px); min-height: 600px;"></iframe>
+            </div>
+
             <!-- 3-10. AI 사용료 (ai-cost.html 을 그대로 불러와 보여줌) -->
             <div id="admin-aicost-panel" class="hidden space-y-2">
                 <iframe id="admin-aicost-frame" title="AI 사용료" class="w-full bg-white rounded-xl border border-slate-200" style="height: calc(100vh - 220px); min-height: 600px;"></iframe>
@@ -1753,6 +1781,43 @@
     </div>
 
     <!-- MODAL: ORDER EDIT -->
+    <!-- 관리자: 합배송 묶기 / 부분출고로 풀기 (선택수정에서 2개 이상 체크했을 때, supabase/order_combine.sql) -->
+    <div id="combine-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 space-y-4 border border-slate-100 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div>
+                    <h3 class="font-bold text-slate-900 text-base">선택한 주문 수정 · 합배송 / 부분출고</h3>
+                    <p class="text-xs text-slate-400" id="combine-modal-sub"></p>
+                </div>
+                <button onclick="closeCombineModal()" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="overflow-x-auto border border-slate-200 rounded-lg">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-slate-100 text-slate-600 font-bold">
+                        <tr><th class="p-2">NO.</th><th class="p-2">셀러</th><th class="p-2">수취인</th><th class="p-2">배송지 주소</th><th class="p-2">쇼핑몰 상품명</th></tr>
+                    </thead>
+                    <tbody id="combine-modal-list" class="divide-y divide-slate-100"></tbody>
+                </table>
+            </div>
+            <p id="combine-modal-warn" class="hidden text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2"></p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <button type="button" id="btn-combine" onclick="applyCombine('combine')" class="text-left px-4 py-3 rounded-xl border-2 border-indigo-200 hover:border-indigo-500 hover:bg-indigo-50">
+                    <span class="block text-sm font-black text-indigo-700">📦 합배송으로 묶기</span>
+                    <span class="block mt-1 text-[11px] text-slate-500">한 주문 번호(예: 158-1, 158-2)로 묶고 상품명 앞에 (합)을 붙입니다. 모두 모아서 한 번에 출고합니다.</span>
+                </button>
+                <button type="button" id="btn-split" onclick="applyCombine('split')" class="text-left px-4 py-3 rounded-xl border-2 border-orange-200 hover:border-orange-500 hover:bg-orange-50">
+                    <span class="block text-sm font-black text-orange-700">✂️ 부분출고로 바꾸기</span>
+                    <span class="block mt-1 text-[11px] text-slate-500">(합)을 떼고 각자 번호를 받습니다. 준비된 상품부터 따로 출고할 수 있습니다.</span>
+                </button>
+            </div>
+            <div class="flex justify-end">
+                <button type="button" onclick="closeCombineModal()" class="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg">닫기</button>
+            </div>
+        </div>
+    </div>
+
     <div id="edit-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
         <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 space-y-4 border border-slate-100 max-h-[90vh] overflow-y-auto">
             <div class="flex justify-between items-center border-b border-slate-100 pb-3">
@@ -1766,6 +1831,7 @@
             </div>
             <form onsubmit="handleEditOrderSubmit(event)" class="space-y-4">
                 <input type="hidden" id="edit-order-id">
+                <div id="eo-combine-box" class="hidden flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg border text-xs"></div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -2510,6 +2576,13 @@
             // 관리자 탭에서 로그인했는데 관리자 권한이 없는 계정이면 막습니다.
             const requestedMode = pendingLoginMode;
             pendingLoginMode = null;
+            // 대표가 꺼 둔 직원 아이디는 들어올 수 없습니다. (supabase/staff_activity.sql)
+            if (profile.admin_level === 'staff' && profile.role !== 'admin') {
+                alert('이 직원 아이디는 지금 꺼져 있습니다.\n대표님께 다시 켜 달라고 요청해 주세요.');
+                await supabaseClient.auth.signOut();
+                return;
+            }
+
             if (requestedMode === 'admin' && profile.role !== 'admin') {
                 alert('관리자 권한이 없는 계정입니다.\n셀러 계정은 [셀러 로그인] 탭에서 로그인해주세요.');
                 await supabaseClient.auth.signOut();
@@ -3448,7 +3521,7 @@
         // 업체 화면 보기 중에는 재고·이용현황·상품관리를 관리자용 "업체 화면 미리보기"로 새 창에 엽니다.
         function setViewAsNavLinks() {
             const company = encodeURIComponent(currentSellerAccount.company || '');
-            [['nav-stock-btn', '/stock'], ['nav-usage-btn', '/usage'], ['nav-products-btn', '/products']].forEach(([id, path]) => {
+            [['nav-stock-btn', '/stock'], ['nav-history-btn', '/stock-history'], ['nav-usage-btn', '/usage'], ['nav-products-btn', '/products']].forEach(([id, path]) => {
                 const a = document.getElementById(id);
                 a.href = `${path}?company=${company}`;
                 a.target = '_blank';
@@ -3456,15 +3529,20 @@
             });
         }
 
+        // 셀러 [재고 증감] 버튼 (stock-history.html 의 SELLER_OPEN 과 같이 바꿉니다)
+        const SELLER_HISTORY_OPEN = true;
+
         async function refreshNavStockBtn() {
             if (!supabaseClient) return;
             const { data, error } = viewAsMode
                 ? await supabaseClient.rpc('stock_hidden_for', { p_company: currentSellerAccount.company || '' }).then(r => ({ data: r.error ? null : !r.data, error: r.error }))
                 : await supabaseClient.rpc('my_stock_visible');
             if (error || data !== false || currentRole !== 'seller') return;
-            const stockBtn = document.getElementById('nav-stock-btn');
-            stockBtn.classList.add('hidden');
-            stockBtn.classList.remove('flex');
+            ['nav-stock-btn', 'nav-history-btn'].forEach(id => {
+                const btn = document.getElementById(id);
+                btn.classList.add('hidden');
+                btn.classList.remove('flex');
+            });
         }
 
         function updateNavUserArea() {
@@ -3475,6 +3553,10 @@
             const stockBtn = document.getElementById('nav-stock-btn');
             stockBtn.classList.toggle('hidden', currentRole !== 'seller');
             stockBtn.classList.toggle('flex', currentRole === 'seller');
+            const historyBtn = document.getElementById('nav-history-btn');
+            const showHistory = currentRole === 'seller' && SELLER_HISTORY_OPEN;
+            historyBtn.classList.toggle('hidden', !showHistory);
+            historyBtn.classList.toggle('flex', showHistory);
             if (currentRole === 'seller') refreshNavStockBtn();
             if (viewAsMode) setViewAsNavLinks();
             const usageBtn = document.getElementById('nav-usage-btn');
@@ -3506,7 +3588,7 @@
             } else {
                 area.innerHTML = `
                     <div class="text-right">
-                        <span class="text-xs font-bold text-indigo-600 block">밤낮딜리버리 관리자</span>
+                        <span class="text-xs font-bold text-indigo-600 block">밤낮딜리버리 관리자 <span class="${isOwnerAccount() ? 'text-indigo-400' : 'text-sky-600'}">· ${escapeHtml((currentSellerAccount.name ? currentSellerAccount.name + ' ' : '') + (isOwnerAccount() ? '대표' : '직원'))}</span></span>
                         <span class="text-[10px] text-slate-400">${escapeHtml(currentSellerAccount.email || '최고 권한')}</span>
                     </div>
                     <button onclick="logout()" class="shrink-0 whitespace-nowrap px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-bold">로그아웃</button>
@@ -3858,6 +3940,22 @@
             document.getElementById('eo-wholesale-product').value = order.wholesale_product || '';
             document.getElementById('eo-memo').value = order.memo || '';
             document.getElementById('eo-bamnat-memo').value = order.bamnat_memo || '';
+
+            // 관리자: 합배송 상태 보기 + 부분출고로 빼기
+            const cbox = document.getElementById('eo-combine-box');
+            const showCombine = currentRole === 'admin' && !isKeepOrder(order);
+            cbox.classList.toggle('hidden', !showCombine);
+            if (showCombine) {
+                const groups = getOrderGroups();
+                const g = groups[order.order_no];
+                const combined = isCombinedOrder(order, groups);
+                const shipped = order.ship_status === '출고완료';
+                cbox.className = `flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg border text-xs ${combined ? 'bg-indigo-50 border-indigo-200 text-indigo-800' : 'bg-slate-50 border-slate-200 text-slate-600'}`;
+                cbox.innerHTML = combined
+                    ? `<span><b>📦 합배송</b> · ${escapeHtml(String(order.order_no))}번 주문 ${g ? g.total : 1}개 묶음 (모아서 한 번에 출고)</span>`
+                      + (shipped ? '' : `<button type="button" onclick="applyCombine('split', [document.getElementById('edit-order-id').value])" class="px-2.5 py-1 bg-white border border-orange-300 hover:bg-orange-50 text-orange-700 font-bold rounded">✂️ 이 상품만 부분출고로 바꾸기</button>`)
+                    : '<span><b>배송 방식:</b> 단독 주문 · 합배송으로 묶으려면 목록에서 같이 보낼 주문을 2개 이상 체크하고 [선택수정]을 누르세요.</span>';
+            }
 
             document.getElementById('edit-modal').classList.remove('hidden');
             document.getElementById('edit-modal').classList.add('flex');
@@ -4683,7 +4781,7 @@
                 <tr class="hover:bg-slate-100/60 transition ${rowBg} ${newGroup ? 'border-t-2 border-slate-200' : ''}">
                     <td class="p-3 text-center"><input type="checkbox" value="${id}" class="admin-chk-item rounded border-slate-300"></td>
                     <td class="p-3 font-mono font-black text-indigo-700 whitespace-nowrap">
-                        ${escapeHtml(orderNoLabel(o, groups))}${isHidden ? ' <span class="px-1.5 py-0.5 rounded bg-slate-500 text-white text-[10px] font-bold align-middle">숨김</span>' : ''}
+                        ${escapeHtml(orderNoLabel(o, groups))}${isHidden ? ' <span class="px-1.5 py-0.5 rounded bg-slate-500 text-white text-[10px] font-bold align-middle">숨김</span>' : ''}${(groups[o.order_no] || {}).total > 1 ? ' <span class="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-bold align-middle" title="같은 주문 번호로 묶여 한 번에 출고되는 상품">합배송</span>' : ''}
                         ${o.seller_order_no != null ? `<span class="block text-[10px] font-normal text-slate-400" title="셀러 화면에 보이는 번호">셀러 #${escapeHtml(sellerNoLabel(o, groups))}</span>` : ''}
                         ${orderTypeBadgeHtml(o)}
                     </td>
@@ -4754,10 +4852,78 @@
                 return;
             }
             if (ids.length > 1) {
-                alert(`선택수정은 한 번에 1건씩 가능합니다. (현재 ${ids.length}건 선택됨)`);
+                // 2개 이상 고르면: 합배송으로 묶기 / 부분출고로 바꾸기
+                openCombineModal(ids);
                 return;
             }
             openEditModal(ids[0]);
+        }
+
+        // ---------------------------------------------------------------
+        // 관리자: 합배송 묶기 / 부분출고로 바꾸기 (supabase/order_combine.sql 의 admin_set_combined)
+        // ---------------------------------------------------------------
+        let combineIds = [];
+        const isCombinedOrder = (o, groups) => {
+            const g = (groups || getOrderGroups())[o.order_no];
+            return (g && g.total > 1) || /\(합\)/.test(o.product || '');
+        };
+        function openCombineModal(ids) {
+            const groups = getOrderGroups();
+            const list = ids.map(id => ordersMaster.find(o => o.id === id)).filter(Boolean)
+                .sort((a, b) => (Number(a.order_no) || 0) - (Number(b.order_no) || 0) || (Number(a.item_no) || 0) - (Number(b.item_no) || 0));
+            combineIds = list.map(o => o.id);
+            const norm = v => String(v || '').replace(/\s/g, '');
+            const sellers = new Set(list.map(o => o.seller_id));
+            const people = new Set(list.map(o => norm(o.recipient) + '|' + norm(o.phone).replace(/\D/g, '') + '|' + norm(`${o.address || ''}${o.detail_address || ''}`)));
+            const blocked = list.filter(o => isKeepOrder(o) || o.ship_status === '출고완료');
+            document.getElementById('combine-modal-sub').innerText = `선택 ${list.length}개 상품`;
+            document.getElementById('combine-modal-list').innerHTML = list.map(o => `
+                <tr>
+                    <td class="p-2 font-mono font-black text-indigo-700 whitespace-nowrap">${escapeHtml(orderNoLabel(o, groups))}${isCombinedOrder(o, groups) ? ' <span class="px-1 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-bold">합배송</span>' : ''}</td>
+                    <td class="p-2 whitespace-nowrap">${escapeHtml(o.seller_company || '-')}</td>
+                    <td class="p-2 font-semibold whitespace-nowrap">${escapeHtml(o.recipient || '')}</td>
+                    <td class="p-2">${escapeHtml(`${o.address || ''} ${o.detail_address || ''}`.trim())}</td>
+                    <td class="p-2 text-indigo-600">${escapeHtml(o.product || '')}</td>
+                </tr>`).join('');
+            const warn = [];
+            if (sellers.size > 1) warn.push('다른 업체(셀러)의 주문이 섞여 있어 합배송으로 묶을 수 없습니다.');
+            else if (people.size > 1) warn.push('받는분 이름·연락처·주소가 서로 다른 주문이 있습니다. 같은 분에게 가는지 꼭 확인해 주세요.');
+            if (blocked.length) warn.push('출고완료 또는 사무실 보관요청 건이 있어 바꿀 수 없습니다. 체크를 빼고 다시 해주세요.');
+            const w = document.getElementById('combine-modal-warn');
+            w.innerText = warn.join('\n');
+            w.classList.toggle('hidden', !warn.length);
+            document.getElementById('btn-combine').disabled = sellers.size > 1 || blocked.length > 0 || list.length < 2;
+            document.getElementById('btn-split').disabled = blocked.length > 0;
+            ['btn-combine', 'btn-split'].forEach(id => document.getElementById(id).classList.toggle('opacity-40', document.getElementById(id).disabled));
+            document.getElementById('combine-modal').classList.remove('hidden');
+            document.getElementById('combine-modal').classList.add('flex');
+            lucide.createIcons();
+        }
+        function closeCombineModal() {
+            document.getElementById('combine-modal').classList.add('hidden');
+            document.getElementById('combine-modal').classList.remove('flex');
+        }
+        async function applyCombine(mode, ids = combineIds) {
+            if (!ids.length) return;
+            const label = mode === 'combine' ? '합배송으로 묶기' : '부분출고로 바꾸기';
+            const detail = mode === 'combine'
+                ? '같은 주문 번호로 묶고 상품명 앞에 (합)을 붙입니다.\n셀러 화면 번호도 같은 번호로 바뀝니다.'
+                : '(합)을 떼고 각자 새 번호를 받습니다.\n셀러 화면 번호도 함께 바뀝니다.';
+            if (!confirm(`선택한 상품 ${ids.length}개를 [${label}] 할까요?\n\n${detail}`)) return;
+            const { data, error } = await supabaseClient.rpc('admin_set_combined', { p_ids: ids, p_mode: mode });
+            if (error) {
+                const notReady = error.code === 'PGRST202' || /admin_set_combined|schema cache/i.test(error.message || '');
+                alert(notReady
+                    ? '합배송/부분출고 기능 DB 설정이 아직 적용되지 않았습니다.\n(Supabase SQL Editor 에서 supabase/order_combine.sql 을 실행해주세요)'
+                    : '저장 중 오류가 발생했습니다.\n\n' + dbErrorMessage(error));
+                return;
+            }
+            replaceOrders(data || []);
+            closeCombineModal();
+            closeEditModal();
+            renderAdminTable();
+            if (typeof renderSellerTable === 'function' && document.getElementById('seller-order-list')) renderSellerTable();
+            alert(`${ids.length}개 상품을 [${label}] 했습니다.`);
         }
 
         async function setShipStatusForSelected(status) {
@@ -5616,11 +5782,12 @@
         // 관리자 메뉴 묶음: 큰 묶음 → 그 안의 탭
         const ADMIN_GROUPS = {
             order: ['orders', 'pickup', 'ship'],
-            stock: ['stock', 'products', 'inventory', 'picking'],
+            stock: ['stock', 'products', 'inventory', 'picking', 'history'],
             settle: ['settle'],
             sellers: ['sellers'],
             inquiry: ['inquiry', 'chatlog'],
             aicost: ['aicost'],
+            staff: ['activity', 'staff'],   // 대표 아이디만 보임 (staff-admin.js)
         };
         const ADMIN_GROUP_OF = Object.fromEntries(Object.entries(ADMIN_GROUPS).flatMap(([g, tabs]) => tabs.map(t => [t, g])));
         const ADMIN_LAST_TAB = {};   // 묶음마다 마지막으로 본 탭
@@ -5636,6 +5803,8 @@
                 document.getElementById('admin-group-' + g).className = g === group ? gOn : gOff;
                 tabs.forEach(t => document.getElementById('admin-tab-' + t).classList.toggle('hidden', g !== group));
             });
+            // [직원 관리]는 대표 아이디만 (staff-admin.js)
+            document.getElementById('admin-group-staff').classList.toggle('hidden', !isOwnerAccount());
             // 탭이 하나뿐인 묶음은 아래 줄을 숨김
             document.getElementById('admin-subtabs').classList.toggle('hidden', ADMIN_GROUPS[group].length < 2);
         }
@@ -5657,6 +5826,8 @@
             document.getElementById('admin-inventory-panel').classList.toggle('hidden', tab !== 'inventory');
             document.getElementById('admin-tab-picking').className = tab === 'picking' ? on : off;
             document.getElementById('admin-picking-panel').classList.toggle('hidden', tab !== 'picking');
+            document.getElementById('admin-tab-history').className = tab === 'history' ? on : off;
+            document.getElementById('admin-history-panel').classList.toggle('hidden', tab !== 'history');
             document.getElementById('admin-tab-aicost').className = tab === 'aicost' ? on : off;
             document.getElementById('admin-aicost-panel').classList.toggle('hidden', tab !== 'aicost');
             document.getElementById('admin-ship-panel').classList.toggle('hidden', tab !== 'ship');
@@ -5669,6 +5840,10 @@
             document.getElementById('admin-inquiry-panel').classList.toggle('hidden', tab !== 'inquiry');
             document.getElementById('admin-tab-chatlog').className = tab === 'chatlog' ? on : off;
             document.getElementById('admin-chatlog-panel').classList.toggle('hidden', tab !== 'chatlog');
+            document.getElementById('admin-tab-activity').className = tab === 'activity' ? on : off;
+            document.getElementById('admin-activity-panel').classList.toggle('hidden', tab !== 'activity');
+            document.getElementById('admin-tab-staff').className = tab === 'staff' ? on : off;
+            document.getElementById('admin-staff-panel').classList.toggle('hidden', tab !== 'staff');
             renderAdminGroups(group);
             if (tab === 'settle') onSettleTabOpened();
             if (tab === 'pickup') { fetchAdminPickupRequests(); fetchQuickOrders(); }
@@ -5676,9 +5851,11 @@
             if (tab === 'ship') onShipTabOpened();
             if (tab === 'inquiry') onInquiryTabOpened();
             if (tab === 'chatlog') onChatLogTabOpened();
-            if (tab === 'products' || tab === 'inventory' || tab === 'picking' || tab === 'aicost') {
+            if (tab === 'staff') onStaffTabOpened();
+            if (tab === 'activity') onActivityTabOpened();
+            if (tab === 'products' || tab === 'inventory' || tab === 'picking' || tab === 'aicost' || tab === 'history') {
                 const frame = document.getElementById(`admin-${tab}-frame`);
-                const page = tab === 'aicost' ? 'ai-cost' : tab;
+                const page = tab === 'aicost' ? 'ai-cost' : tab === 'history' ? 'stock-history' : tab;
                 if (!frame.getAttribute('src')) frame.setAttribute('src', `${page}.html?embed=1`);
             }
         }
@@ -5696,6 +5873,8 @@
             }
             sellerProfiles = data;
             renderSellerAdminTable();
+            renderStaffTable();     // 직원 아이디 탭 (staff-admin.js)
+            fillActivityActors();
         }
 
         function sellerStatusBadgeHtml(status) {
@@ -5727,7 +5906,7 @@
                 if (o.status === '접수대기') counts[o.seller_id].pending++;
             });
 
-            let list = sellerProfiles;
+            let list = sellerProfiles.filter(p => !isStaffProfile(p));   // 직원 아이디는 [직원 관리]에서
             if (statusFilter !== 'ALL') list = list.filter(p => (p.status || 'approved') === statusFilter);
             if (keyword) {
                 list = list.filter(p => [p.company, p.name, p.email, p.phone, profileAddress(p), p.biz_no, String(p.biz_no || '').replace(/\D/g, ''), p.biz_name, p.tax_email].some(v => String(v || '').toLowerCase().includes(keyword)));
@@ -5863,7 +6042,7 @@
         function downloadSellerExcel() {
             const counts = {};
             ordersMaster.forEach(o => { if (o.seller_id) counts[o.seller_id] = (counts[o.seller_id] || 0) + 1; });
-            const rows = sellerProfiles.filter(p => p.role !== 'admin').map(p => ({
+            const rows = sellerProfiles.filter(p => p.role !== 'admin' && !isStaffProfile(p)).map(p => ({
                 '상태': SELLER_STATUS_LABEL[p.status] || p.status,
                 '상호명': p.company,
                 '송화인명': `밤낮딜리버리(${p.company})`,
@@ -6133,8 +6312,8 @@
             const sameday = list.filter(o => orderTypeOf(o) === 'store_sameday');
 
             const shipHeaders = SHOW_SHIPPING_UI ? ['상품 출고상태', '주문 출고상태', '택배사', '송장번호'] : [];
-            const extraHeaders = [...shipHeaders, '셀러 가입상호', '접수일시', '처리상태', '사무실 보관요청', '보관요청 메모'];
-            const extraWidths = [...(SHOW_SHIPPING_UI ? [14, 18, 16, 18] : []), 16, 18, 12, 14, 36];
+            const extraHeaders = [...shipHeaders, '셀러 가입상호', '접수일시', '처리상태', '관리자 접수시간', '사무실 보관요청', '보관요청 메모'];
+            const extraWidths = [...(SHOW_SHIPPING_UI ? [14, 18, 16, 18] : []), 16, 18, 12, 18, 14, 36];
             const formRows = arr => arr.map(o => {
                 const state = orderShipState(o, groups);
                 const g = groups[o.order_no];
@@ -6149,6 +6328,8 @@
                     o.seller_company || '',
                     formatKstDateTime(o.created_at),
                     o.status || '',
+                    // 관리자가 [접수]를 눌러 접수완료가 된 시각 (예전 주문·접수대기는 빈칸)
+                    o.status === '접수완료' && o.accepted_at ? formatKstDateTime(o.accepted_at) : '',
                     o.keep_request || '',
                     o.keep_memo || ''
                 ];
@@ -6272,6 +6453,7 @@
     <!-- 관리자 > AI 상담 (답변 대기 문의, 답변 모음집) -->
     <script src="inquiry-admin.js"></script>
     <script src="quick-admin.js"></script>
+    <script src="staff-admin.js"></script>
     <!-- 오른쪽 아래 "궁금한 점 물어보기" AI 상담창 -->
     <script src="chat.js"></script>
     <!-- 밤낮딜리버리 풀필먼트 엑셀양식 원본 파일 (2026, 1번 작성안내 + 2번 엑셀양식). 양식을 바꾸려면 이 값을 새 파일로 교체하세요. -->

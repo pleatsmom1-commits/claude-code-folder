@@ -19,6 +19,8 @@ alter table public.profiles add column if not exists name       text;
 alter table public.profiles add column if not exists phone      text;
 alter table public.profiles add column if not exists role       text not null default 'seller';
 alter table public.profiles add column if not exists created_at timestamptz not null default now();
+-- 대표/직원 구분 (owner = 대표, staff = 직원, 빈칸 = 셀러). 자세한 내용은 supabase/staff_activity.sql
+alter table public.profiles add column if not exists admin_level text;
 alter table public.profiles enable row level security;
 
 -- 셀러 관리용 칸: 이메일(목록 표시용), 승인 상태
@@ -340,11 +342,12 @@ begin
         new.seller_company := old.seller_company;
         new.created_at := old.created_at;
         -- 주문 번호는 한 번 정해지면 바뀌지 않습니다. (예전 주문에 번호를 채울 때만 허용)
-        if old.order_no is not null or not v_privileged then
+        -- 예외: 관리자 합배송 묶기/부분출고로 풀기 함수(order_combine.sql)가 번호를 다시 정할 때
+        if (old.order_no is not null and coalesce(current_setting('bamnat.renumber', true), '') <> 'on') or not v_privileged then
             new.order_no := old.order_no;
             new.item_no := old.item_no;
         end if;
-        if old.seller_order_no is not null or not v_privileged then
+        if (old.seller_order_no is not null and coalesce(current_setting('bamnat.renumber', true), '') <> 'on') or not v_privileged then
             new.seller_order_no := old.seller_order_no;
         end if;
         if not v_privileged then
@@ -481,6 +484,7 @@ begin
     new.created_at := old.created_at;
     if current_user in ('authenticated', 'anon') then
         new.role := old.role;
+        new.admin_level := old.admin_level;   -- 직원이 스스로 대표로 바꾸지 못하게 (supabase/staff_activity.sql)
         -- 셀러 본인(내정보)은 대표자명/연락처만 바꿀 수 있습니다. 상호명·상태는 관리자만.
         if not public.is_admin() then
             new.company := old.company;
