@@ -19,6 +19,8 @@ alter table public.profiles add column if not exists name       text;
 alter table public.profiles add column if not exists phone      text;
 alter table public.profiles add column if not exists role       text not null default 'seller';
 alter table public.profiles add column if not exists created_at timestamptz not null default now();
+-- 대표/직원 구분 (owner = 대표, staff = 직원, 빈칸 = 셀러). 자세한 내용은 supabase/staff_activity.sql
+alter table public.profiles add column if not exists admin_level text;
 alter table public.profiles enable row level security;
 
 -- 셀러 관리용 칸: 이메일(목록 표시용), 승인 상태
@@ -481,6 +483,7 @@ begin
     new.created_at := old.created_at;
     if current_user in ('authenticated', 'anon') then
         new.role := old.role;
+        new.admin_level := old.admin_level;   -- 직원이 스스로 대표로 바꾸지 못하게 (supabase/staff_activity.sql)
         -- 셀러 본인(내정보)은 대표자명/연락처만 바꿀 수 있습니다. 상호명·상태는 관리자만.
         if not public.is_admin() then
             new.company := old.company;
