@@ -263,18 +263,15 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.click('#btn-login'); await page.waitForTimeout(1500);
   check('seller dashboard + order list', (await vis('#seller-dashboard')) && (await page.textContent('#seller-order-list')).includes('홍길동'));
   check('seller sees 재고 확인 button', await vis('#nav-stock-btn'));
-  await page.goto(STOCK_PAGE); await page.waitForTimeout(1500);
-  const sText = await page.textContent('#app');
-  check('seller stock page: own company, kept rows, no other company', sText.includes('가나 샵') && sText.includes('청바지') && sText.includes('새반품') && !sText.includes('목걸이A') && !sText.includes('출고된상품'), sText.slice(0, 200));
-  const flat = sText.replace(/\s+/g, '');
-  check('seller stock page stats (보관중 3건 · 5개)', flat.includes('3보관중') && flat.includes('5보관수량'), flat.slice(0, 120));
-  await page.click('#tab-shipped'); await page.waitForTimeout(200);
-  const shippedText = await page.textContent('#list');
-  check('seller 출고 내역 tab', shippedText.includes('출고된상품') && shippedText.includes('꽃무늬 니트') && shippedText.includes('10/28출고') && !shippedText.includes('새반품'));
-  await page.click('#tab-kept');
-  await page.screenshot({ path: path.join(__dirname, 'out', 'shot-stock-seller.png'), fullPage: true });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.screenshot({ path: path.join(__dirname, 'out', 'shot-stock-seller-mobile.png'), fullPage: true });
+  // 2026-11-17: 셀러 [재고 확인]은 새 재고표(/inventory)로 바뀜. 예전 /stock 주소는 /inventory 로 보냄
+  check('seller 재고 확인 button → /inventory', (await page.getAttribute('#nav-stock-btn', 'href')) === '/inventory');
+  const navTo = [];
+  const onNav = r => { if (r.isNavigationRequest()) navTo.push(r.url()); };
+  page.on('request', onNav);
+  await page.goto(STOCK_PAGE).catch(() => {}); await page.waitForTimeout(1500);
+  page.off('request', onNav);
+  check('seller old /stock redirects to /inventory', navTo.some(u => u.endsWith('/inventory')), navTo.join(' '));
+  await page.goto(PAGE); await page.waitForTimeout(1200);
 
   await page.setViewportSize({ width: 1400, height: 900 });
 
@@ -321,9 +318,6 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   };
   await asSeller();
   check('hidden seller: 재고 확인 button hidden, orders still work', !(await vis('#nav-stock-btn')) && (await vis('#seller-dashboard')));
-  await page.goto(STOCK_PAGE); await page.waitForTimeout(1500);
-  check('hidden seller: stock page says 준비 중, no items', (await page.textContent('body')).includes('준비 중') && !(await page.textContent('body')).includes('청바지'));
-  await page.screenshot({ path: path.join(__dirname, 'out', 'shot-stock-hide-seller.png'), clip: { x: 0, y: 0, width: 1400, height: 420 } });
   await page.goto('file://' + path.join(ROOT, 'inventory.html')); await page.waitForTimeout(1500);
   check('hidden seller: 재고표 page says 준비 중', (await page.textContent('body')).includes('재고표를 준비 중'));
 
@@ -338,8 +332,8 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   check('hide all + 가나샵 보이기 exception', tables.stock_visibility.some(r => r.company_key === '가나샵' && r.hidden === false));
   await asSeller();
   check('exception seller sees 재고 확인 button again', await vis('#nav-stock-btn'));
-  await page.goto(STOCK_PAGE); await page.waitForTimeout(1500);
-  check('exception seller sees own stock', (await page.textContent('#app')).includes('청바지'));
+  await page.goto('file://' + path.join(ROOT, 'inventory.html')); await page.waitForTimeout(1500);
+  check('exception seller: 재고표 not 준비 중', !(await page.innerText('body')).includes('재고표를 준비 중'));
   // 다시 전체 보이기
   await asAdmin();
   await page.uncheck('#stock-hide-all'); await page.waitForTimeout(900);

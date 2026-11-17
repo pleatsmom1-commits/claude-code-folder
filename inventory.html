@@ -9,6 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
+<script src="view-as.js"></script>
 <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
     .modal { position: fixed; inset: 0; background: rgba(15, 23, 42, .6); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
@@ -48,6 +49,7 @@
     <div id="state" class="bg-white rounded-xl border border-slate-200 p-10 text-center text-slate-500">재고를 불러오는 중입니다...</div>
 
     <div id="app" class="hidden space-y-4">
+        <div id="seller-rule" class="hidden bg-sky-50 border border-sky-200 text-sky-900 rounded-lg px-3 py-2 text-xs"><b>재고 기준 안내</b> · 그날 사입된 상품은 재고로 잡지 않고 바로 출고합니다. 출고하고 남은 상품만 오후에 재고로 입고되고, 다음 날부터 재고에서 출고됩니다.</div>
         <div id="day-banner" class="hidden rounded-xl border p-4 flex flex-wrap items-center gap-3"></div>
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
             <div class="flex justify-between items-start flex-wrap gap-3">
@@ -197,6 +199,7 @@
     let client = null;
     let me = null;
     let isAdmin = false;
+    let viewCompany = '';   // 관리자가 [화면 보기]로 보는 업체 (view-as.js)
     let products = [];              // 상품관리 (삭제 안 된 것)
     let inv = new Map();            // product_id → 재고 줄
     let pending = new Map();        // product_id → { a, b, defect, location, reason } (관리자가 고치는 중인 값)
@@ -257,7 +260,7 @@
         // 관리자 화면 안에 넣어 볼 때는 재고관리 탭처럼 가로 폭을 꽉 채움
         if (embed) document.querySelectorAll('.max-w-7xl').forEach(el => el.classList.remove('max-w-7xl'));
         if (!window.supabase) { showState('화면을 불러오지 못했습니다. 새로고침해주세요.'); return; }
-        client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        client = VIEW_AS.createClient(SUPABASE_URL, SUPABASE_KEY);
         const { data: { session } } = await client.auth.getSession();
         if (!session) { showState('로그인 후 이용할 수 있습니다.<br><br><a class="text-indigo-600 font-bold" href="/">로그인하러 가기</a>'); return; }
         const { data: profile, error } = await client.from('profiles').select('id,company,role,status').eq('id', session.user.id).single();
@@ -265,13 +268,21 @@
         me = profile;
         isAdmin = profile.role === 'admin';
         if (!isAdmin && profile.status !== 'approved') { showState('관리자 승인 후 재고를 볼 수 있습니다.'); return; }
-        if (!isAdmin) {
+        if (isAdmin && VIEW_AS.company) {
+            // 관리자 [화면 보기]·[업체 화면 미리보기]: 그 업체가 보는 재고표 그대로 (보기 전용, 숨기기 설정도 똑같이)
+            viewCompany = VIEW_AS.company;
+            isAdmin = false;
+            VIEW_AS.start('재고표');
+            const { data: hidden, error: hErr } = await client.rpc('stock_hidden_for', { p_company: viewCompany });
+            if (!hErr && hidden === true) { showState('지금은 재고표를 준비 중입니다.<br>준비가 끝나면 이곳에서 내 재고를 확인하실 수 있어요.'); return; }
+        } else if (!isAdmin) {
             // 관리자가 [셀러에게 재고 숨기기]로 숨긴 업체 (supabase/stock_hide.sql). 아직 DB 설정 전이면 그대로 보여줍니다.
             const { data: visible, error: vErr } = await client.rpc('my_stock_visible');
             if (!vErr && visible === false) { showState('지금은 재고표를 준비 중입니다.<br>준비가 끝나면 이곳에서 내 재고를 확인하실 수 있어요.'); return; }
         }
         document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !isAdmin));
-        document.getElementById('header-company').textContent = isAdmin ? '관리자 · 전체 거래처' : profile.company;
+        document.getElementById('header-company').textContent = isAdmin ? '관리자 · 전체 거래처' : (viewCompany || profile.company);
+        document.getElementById('seller-rule').classList.toggle('hidden', isAdmin);
         await loadAll();
     }
 
@@ -282,8 +293,9 @@
         ]);
         const error = p.error || i.error;
         if (error) { showState('재고를 불러오지 못했습니다.<br><span class="text-xs">' + esc(errorMessage(error)) + '</span>'); return; }
-        products = p.data;
-        inv = new Map(i.data.map(r => [r.product_id, r]));
+        // 화면 보기(관리자)일 때는 DB 가 전체를 주므로 그 업체 것만 남깁니다. (셀러는 DB 가 이미 자기 것만 줌)
+        products = viewCompany ? p.data.filter(x => norm(x.company) === norm(viewCompany)) : p.data;
+        inv = new Map(i.data.filter(r => !viewCompany || norm(r.company) === norm(viewCompany)).map(r => [r.product_id, r]));
         pending.clear();
         document.getElementById('state').classList.add('hidden');
         document.getElementById('app').classList.remove('hidden');
@@ -652,13 +664,13 @@
         const d = n => (n > 0 ? `<span class="text-emerald-600">+${n}</span>` : n < 0 ? `<span class="text-rose-600">${n}</span>` : '<span class="text-slate-300">0</span>');
         document.getElementById('log-list').innerHTML = data.length ? `
             <table class="w-full text-left">
-                <thead class="text-slate-500 border-b"><tr><th class="p-1.5">언제</th><th class="p-1.5">작업</th><th class="p-1.5 text-center">상품화</th><th class="p-1.5 text-center">미상품화</th><th class="p-1.5 text-center">불량</th><th class="p-1.5">이유 · 누가</th></tr></thead>
+                <thead class="text-slate-500 border-b"><tr><th class="p-1.5">언제</th><th class="p-1.5">작업</th><th class="p-1.5 text-center">상품화</th><th class="p-1.5 text-center">미상품화</th><th class="p-1.5 text-center">불량</th><th class="p-1.5">${isAdmin ? '이유 · 누가' : '메모'}</th></tr></thead>
                 <tbody class="divide-y divide-slate-100">${data.map(l => `
-                    <tr><td class="p-1.5 whitespace-nowrap">${fmtTime(l.at)}</td><td class="p-1.5 font-bold whitespace-nowrap">${esc(l.kind)}</td>
+                    <tr><td class="p-1.5 whitespace-nowrap">${fmtTime(l.at)}</td><td class="p-1.5 font-bold whitespace-nowrap">${esc(isAdmin ? l.kind : (['조정', '최종재고'].includes(l.kind) ? '재고 정리' : l.kind))}</td>
                     <td class="p-1.5 text-center whitespace-nowrap">${d(l.d_a)} → ${l.a_after}</td>
                     <td class="p-1.5 text-center whitespace-nowrap">${d(l.d_b)} → ${l.b_after}</td>
                     <td class="p-1.5 text-center whitespace-nowrap">${d(l.d_defect)} → ${l.defect_after}</td>
-                    <td class="p-1.5">${esc(l.reason)} <span class="text-slate-400">${esc(l.actor_name)}</span></td></tr>`).join('')}
+                    <td class="p-1.5">${isAdmin ? `${esc(l.reason)} <span class="text-slate-400">${esc(l.actor_name)}</span>` : (['조정', '최종재고'].includes(l.kind) ? '' : esc(l.reason))}</td></tr>`).join('')}
                 </tbody>
             </table>` : '<div class="text-slate-400">기록이 없습니다.</div>';
     }
