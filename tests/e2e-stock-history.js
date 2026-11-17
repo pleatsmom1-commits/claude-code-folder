@@ -77,6 +77,7 @@ function applyFilters(rows, url) {
     if (v.startsWith('eq.')) rows = rows.filter(r => String(r[k]) === decodeURIComponent(v.slice(3)));
     else if (v.startsWith('gte.')) rows = rows.filter(r => Date.parse(r[k]) >= Date.parse(v.slice(4)));
     else if (v.startsWith('lt.')) rows = rows.filter(r => Date.parse(r[k]) < Date.parse(v.slice(3)));
+    else if (v.startsWith('in.(')) { const set = decodeURIComponent(v.slice(4, -1)).split(',').map(x => x.replace(/"/g, '')); rows = rows.filter(r => set.includes(String(r[k]))); }
     else if (v === 'is.null') rows = rows.filter(r => r[k] == null);
   }
   return rows;
@@ -244,6 +245,12 @@ function applyFilters(rows, url) {
   check('seller sees only own company moves', !(await page.isVisible('#f-company')) && (await page.textContent('#stats')).includes('+'));
   await page.click('#view-tabs button[data-view="detail"]'); await page.waitForTimeout(300);
   const sd = await page.textContent('#tbody');
+  check('seller: 조정·최종재고 shown as 재고 정리, reason hidden', sd.includes('재고 정리') && !sd.includes('수량 조정') && !sd.includes('불량 발견') && sd.includes('주문 예시샵 #12'));
+  await page.selectOption('#f-kind', '정리'); await page.waitForTimeout(800);
+  check('seller kind filter 재고 정리 → only grouped rows', (await page.locator('#tbody tr').count()) === 1 && (await page.textContent('#tbody')).includes('재고 정리'));
+  await page.selectOption('#f-kind', ''); await page.waitForTimeout(800);
+  await shot('셀러_전체내역_7일_PC.png', page, { fullPage: true });
+  check('seller: no 거래처별 tab', !(await page.isVisible('#view-tabs button[data-view="company"]')));
   check('seller detail no other company, no 작업자', !sd.includes('목걸이') && !sd.includes('머플러') && !(await page.textContent('#thead')).includes('작업자'));
   await page.click('#view-tabs button[data-view="day"]'); await page.waitForTimeout(300);
   await shot('셀러_날짜별_7일_PC.png', page);
