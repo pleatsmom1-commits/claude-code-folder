@@ -54,11 +54,7 @@ const S = (id, company, wc, wp, retail, color, size, quantity, location, stocked
 const tables = {
   products,
   inventory: [inv(1, 3, 2, 0, 'A-1'), inv(2, 1, 0, 1, 'A-2'), inv(3, 0, 2, 0, 'A-3'), inv(4, 2, 0, 0, 'A-1'), inv(6, 4, 0, 0, 'B-1'), inv(7, 0, 1, 0, 'B-1'), inv(8, 2, 0, 1, 'B-2'), inv(9, 1, 3, 0, 'C-1')],
-  inventory_moves: [
-    { id: 3, product_id: 1, company: '예시샵', code: 'P000101', kind: '출고', d_a: -1, d_b: 0, d_defect: 0, a_after: 3, b_after: 2, defect_after: 0, reason: '주문 105-1 출고확정', actor_name: '관리자', at: ago(20) },
-    { id: 2, product_id: 1, company: '예시샵', code: 'P000101', kind: '라벨완료', d_a: 2, d_b: -2, d_defect: 0, a_after: 4, b_after: 2, defect_after: 0, reason: '', actor_name: '관리자', at: ago(30) },
-    { id: 1, product_id: 1, company: '예시샵', code: 'P000101', kind: '입고', d_a: 0, d_b: 4, d_defect: 0, a_after: 2, b_after: 4, defect_after: 0, reason: '사입 입고', actor_name: '관리자', at: ago(50) },
-  ],
+  inventory_moves: [],
   product_logs: [
     { id: 2, product_id: 1, action: '수정', actor_name: '김예시', at: ago(40), before: { mall_names: [{ platform: '스마트스토어', name: '울 와이드 팬츠' }] }, after: { mall_names: [{ platform: '스마트스토어', name: '울 와이드 팬츠' }, { platform: '지그재그', name: '[당일출고] 울 팬츠' }] } },
     { id: 1, product_id: 1, action: '등록', actor_name: '김예시', at: ago(300), before: null, after: null },
@@ -85,6 +81,30 @@ const tables = {
   stock_visibility: [{ company_key: '*', company: '', hidden: false }, { company_key: norm('모노룸'), company: '모노룸', hidden: true }],
   orders_dummy: [], couriers: [], address_book: [], pickup_requests: [], settlements: [], settle_contacts: [],
 };
+// 재고 증감 내역용: 최근 7일 기록 (가짜)
+{
+  const at = (d, h) => new Date(Date.now() - d * 86400000 - (new Date().getUTCHours() + 9) % 24 * 3600000 + h * 3600000).toISOString();
+  let mid = 10;
+  const mv = (d, h, pid, kind, da, db, dd, reason) => { const p = products.find(x => x.id === pid);
+    tables.inventory_moves.push({ id: mid++, product_id: pid, company: p.company, code: p.code, kind, d_a: da, d_b: db, d_defect: dd, a_after: 0, b_after: 0, defect_after: 0, reason, actor_name: '관리자', at: at(d, h) }); };
+  mv(6, 11, 1, '입고', 0, 4, 0, '사입 입고'); mv(6, 11, 6, '입고', 0, 5, 0, '사입 입고'); mv(6, 15, 1, '라벨완료', 4, -4, 0, '');
+  mv(5, 10, 8, '입고', 0, 3, 0, '사입 입고'); mv(5, 16, 8, '라벨완료', 3, -3, 0, ''); mv(5, 17, 6, '라벨완료', 5, -5, 0, '');
+  mv(4, 9, 1, '출고', -1, 0, 0, '주문 출고확정'); mv(4, 9, 6, '출고', -1, 0, 0, '주문 출고확정'); mv(4, 18, 2, '조정', 0, 0, 1, '검수 중 불량 발견');
+  mv(3, 9, 8, '출고', -1, 0, 0, '주문 출고확정'); mv(3, 13, 3, '입고', 0, 2, 0, '반품 입고'); mv(3, 14, 9, '입고', 0, 3, 0, '사입 입고');
+  mv(2, 9, 4, '최종재고', 2, 0, 0, '11월 최종재고'); mv(2, 9, 7, '최종재고', 0, 1, 0, '11월 최종재고');
+  mv(1, 9, 1, '출고', -2, 0, 0, '주문 출고확정'); mv(1, 9, 8, '출고', -1, 0, 0, '주문 출고확정'); mv(1, 17, 2, '입고', 0, 1, 0, '사입 입고'); mv(1, 17, 2, '라벨완료', 1, -1, 0, '');
+  mv(0, 9, 6, '출고', -1, 0, 0, '주문 출고확정'); mv(0, 10, 1, '조정', -1, 0, 0, '재고 실사: 1개 부족'); mv(0, 10, 9, '입고', 0, 1, 0, '사입 입고');
+}
+// 바뀐 뒤 재고: 지금 재고에서 거꾸로 계산, 최신순 정렬
+{
+  const list = tables.inventory_moves.sort((x, y) => y.at.localeCompare(x.at));
+  const cur = new Map(tables.inventory.map(r => [r.product_id, { a: r.qty_a, b: r.qty_b, d: r.qty_defect }]));
+  for (const m of list) {
+    const c = cur.get(m.product_id) || { a: 0, b: 0, d: 0 };
+    m.a_after = c.a; m.b_after = c.b; m.defect_after = c.d;
+    cur.set(m.product_id, { a: Math.max(0, c.a - m.d_a), b: Math.max(0, c.b - m.d_b), d: Math.max(0, c.d - m.d_defect) });
+  }
+}
 const day = { day: TODAY, now_kst: TODAY + 'T10:30:00', confirmed_at: null, confirmer: null, auto: false, times: 0, changes_after: 0, last_day: YDAY, last_confirmed_at: YDAY + 'T09:40:00Z' };
 let sellerStockVisible = true;
 
@@ -100,6 +120,8 @@ function applyFilters(rows, url) {
   for (const [k, v] of url.searchParams) {
     if (['select', 'order', 'offset', 'limit', 'columns', 'on_conflict'].includes(k)) continue;
     if (v.startsWith('eq.')) rows = rows.filter(r => String(r[k]) === decodeURIComponent(v.slice(3)));
+    else if (v.startsWith('gte.')) rows = rows.filter(r => String(r[k]) >= new Date(decodeURIComponent(v.slice(4))).toISOString());
+    else if (v.startsWith('lt.')) rows = rows.filter(r => String(r[k]) < new Date(decodeURIComponent(v.slice(3))).toISOString());
     else if (v === 'is.null') rows = rows.filter(r => r[k] == null);
     else if (v.startsWith('in.(')) { const list = decodeURIComponent(v.slice(4, -1)).split(',').map(x => x.replace(/^"|"$/g, '')); rows = rows.filter(r => list.includes(String(r[k]))); }
   }
@@ -338,15 +360,40 @@ async function download(page, click) {
   await shot(pv, 'a5_preview_stock', null);
   await go(pv, P('products.html') + '?company=' + encodeURIComponent('예시샵'), 1500);
   await shot(pv, 'a5_preview_products', null);
+
+  // 5. 재고 증감 내역 탭
+  await a.click('#admin-tab-history'); await a.waitForTimeout(2500);
+  await a.addStyleTag({ content: HIDE });
+  await mark(a, '#admin-tab-history');
+  await shot(a, 'a6_history_tab', null, { clip: { x: 0, y: 0, width: 1360, height: 900 } });
+  await mark(a, '#admin-tab-history', false);
+  const hs = await newPage(actx);
+  await go(hs, P('stock-history.html'), 1500);
+  await hs.click('#quick-range button[data-range="7"]'); await hs.waitForTimeout(800);
+  await shot(hs, 'a6_history_day', '#app');
+  await hs.click('#view-tabs button[data-view="company"]'); await hs.waitForTimeout(400);
+  await shot(hs, 'a6_history_company', '#app > div:nth-child(3)');
+  await hs.click('#view-tabs button[data-view="product"]'); await hs.waitForTimeout(400);
+  await shot(hs, 'a6_history_product', '#app > div:nth-child(3)');
+  await hs.click('#view-tabs button[data-view="detail"]'); await hs.waitForTimeout(400);
+  await shot(hs, 'a6_history_detail', '#app > div:nth-child(3)');
+  await hs.click('#view-tabs button[data-view="company"]'); await hs.waitForTimeout(300);
+  await hs.locator('#tbody tr').first().click(); await hs.waitForTimeout(500);
+  await shot(hs, 'a6_history_focus', '#app > div:nth-child(3)');
   await actx.close();
 
   // ================= 셀러 =================
   const sctx = await mk();
   const s = await newPage(sctx);
   await login(s, 'seller@x.com', 'password1');
-  await mark(s, '#nav-stock-btn'); await mark(s, '#nav-products-btn');
+  await mark(s, '#nav-stock-btn'); await mark(s, '#nav-history-btn'); await mark(s, '#nav-products-btn');
   await shot(s, 's_nav', null, { clip: { x: 0, y: 0, width: 1360, height: 260 } });
-  await mark(s, '#nav-stock-btn', false); await mark(s, '#nav-products-btn', false);
+  await mark(s, '#nav-stock-btn', false); await mark(s, '#nav-history-btn', false); await mark(s, '#nav-products-btn', false);
+  await go(s, P('stock-history.html'), 1500);
+  await s.click('#quick-range button[data-range="7"]'); await s.waitForTimeout(800);
+  await shot(s, 's3_history_day', '#app');
+  await s.click('#view-tabs button[data-view="detail"]'); await s.waitForTimeout(400);
+  await shot(s, 's3_history_detail', '#app > div:nth-child(3)');
   await s.setViewportSize({ width: 1000, height: 760 });
   await go(s, P('stock.html'), 1500);
   await shot(s, 's1_stock_kept', null);
@@ -375,6 +422,8 @@ async function download(page, click) {
   await login(m, 'seller@x.com', 'password1');
   await go(m, P('stock.html'), 1500);
   await shot(m, 's1_stock_mobile', null);
+  await go(m, P('stock-history.html') + '?range=7', 1800);
+  await shot(m, 's3_history_mobile', null);
   await go(m, P('products.html'), 1500);
   await shot(m, 's2_products_mobile', null);
 

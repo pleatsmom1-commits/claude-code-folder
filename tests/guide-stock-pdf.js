@@ -4,7 +4,7 @@ const http = require('http'), fs = require('fs'), path = require('path');
 const DIR = process.argv[2];
 const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.webp': 'image/webp', '.png': 'image/png' };
 const JOBS = [['admin.html', '밤낮딜리버리_재고상품출고관리_관리자용.pdf', '관리자용 재고/상품/출고관리 사용설명서'],
-  ['seller.html', '밤낮딜리버리_재고확인_상품관리_셀러용.pdf', '셀러용 재고 확인·상품관리 사용설명서']];
+  ['seller.html', '밤낮딜리버리_재고확인_재고증감_상품관리_셀러용.pdf', '셀러용 재고 확인·재고 증감·상품관리 사용설명서']];
 const srv = http.createServer((q, s) => { const f = path.join(DIR, decodeURIComponent(q.url.split(/[?#]/)[0]));
   fs.readFile(f, (e, d) => { if (e) { s.writeHead(404); return s.end(); } s.writeHead(200, { 'content-type': TYPES[path.extname(f)] || 'application/octet-stream' }); s.end(d); }); });
 srv.listen(0, async () => {
