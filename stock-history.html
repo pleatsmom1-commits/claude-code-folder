@@ -107,6 +107,8 @@
     let focus = null;               // { type: 'day'|'company'|'product', value, label } 표에서 줄을 눌러 좁혀 보기
     const params = new URLSearchParams(location.search);
     const embed = params.has('embed');
+    // 셀러에게 열지 여부 (대표님이 공개 범위를 정하기 전까지 관리자만). index.html 의 SELLER_HISTORY_OPEN 과 같이 바꿉니다.
+    const SELLER_OPEN = false;
     const KINDS = ['입고', '출고', '조정', '최종재고', '라벨완료'];
     const KIND_LABEL = { '입고': '입고', '출고': '출고', '조정': '수량 조정', '최종재고': '최종재고 엑셀', '라벨완료': '라벨완료' };
 
@@ -173,6 +175,7 @@
         me = profile;
         isAdmin = profile.role === 'admin';
         if (!isAdmin && profile.status !== 'approved') { showState('관리자 승인 후 볼 수 있습니다.'); return; }
+        if (!isAdmin && !SELLER_OPEN) { showState('재고 증감 내역은 준비 중입니다.'); return; }
         if (!isAdmin) {
             const { data: visible, error: vErr } = await client.rpc('my_stock_visible');
             if (!vErr && visible === false) { showState('지금은 재고 화면을 준비 중입니다.<br>준비가 끝나면 이곳에서 내 재고 증감 내역을 확인하실 수 있어요.'); return; }

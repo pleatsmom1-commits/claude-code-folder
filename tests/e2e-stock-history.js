@@ -8,6 +8,8 @@ const XLSX = require('xlsx-js-style');
 const NM = path.join(__dirname, 'node_modules');
 const ROOT = process.env.ROOT_DIR || path.join(__dirname, '..');
 const NAV_ONLY = !!process.env.NAV_ONLY;
+// 셀러 공개 여부: 화면 파일의 SELLER_OPEN 값을 읽어 그에 맞게 확인
+const SELLER_OPEN = /const SELLER_OPEN = true/.test(fs.readFileSync(path.join(ROOT, 'stock-history.html'), 'utf8'));
 const INDEX = 'file://' + path.join(ROOT, 'index.html') + '?test';
 const PAGE = 'file://' + path.join(ROOT, 'stock-history.html');
 const SHOTS = process.argv[2] || '';
@@ -226,6 +228,16 @@ function applyFilters(rows, url) {
   await page.evaluate(() => localStorage.clear());
   await login('seller@x.com', 'password1', false);
   check('seller order form visible', await page.isVisible('#seller-dashboard') || await page.isVisible('#order-form'));
+  if (!SELLER_OPEN) {
+    check('seller closed: history button hidden', !(await page.isVisible('#nav-history-btn')));
+    await page.goto(PAGE); await page.waitForTimeout(1200);
+    check('seller closed: page says 준비 중', (await page.textContent('#state')).includes('준비 중'));
+    check('no page errors', pageErrors.length === 0, pageErrors.join(' | '));
+    await browser.close();
+    const f = results.filter(r => r.startsWith('FAIL'));
+    console.log(`\n${results.length - f.length}/${results.length} passed`);
+    process.exit(f.length ? 1 : 0);
+  }
   check('seller history button visible', await page.isVisible('#nav-history-btn'));
   await page.goto(PAGE + '?range=7'); await page.waitForTimeout(1500);
   const st = await page.textContent('#tbody');
