@@ -145,6 +145,13 @@ function aiMask(v) {
 
 function aiBuildRows(rows, mapping) {
     const c = mapping.columns, at = (r, k) => (c[k] >= 0 ? aiCell(r[c[k]]) : '');
+    // 주문서에 도매처 칸이 있으면 그대로 읽음 (우리 요청서의 '도매거래처명'·'도매상품명' 등, 2026-11-17)
+    //  AI 칸 정보에는 이 칸이 없어서, 제목줄 글자로 직접 찾습니다
+    const head = (rows[mapping.header_row] || []).map(h => aiNorm(h).replace(/[()\[\]]/g, ''));
+    const findCol = re => head.findIndex(h => re.test(h));
+    const wpCol = findCol(/^도매(상품|제품)(명|이름)?$/);
+    const wcCol = findCol(/^도매(거래처|처|업체|매장|상가)(명|이름)?$/);
+    const cell = (r, i) => (i >= 0 ? aiCell(r[i]) : '');
     const out = [];
     for (let i = mapping.header_row + 1; i < rows.length; i++) {
         const r = rows[i] || [];
@@ -164,6 +171,8 @@ function aiBuildRows(rows, mapping) {
             option: at(r, 'option'),
             qty: parseInt(String(at(r, 'qty')).replace(/[^\d]/g, ''), 10) || 1,
             memo: at(r, 'memo'),
+            fileWholesaleCompany: cell(r, wcCol),
+            fileWholesaleProduct: cell(r, wpCol),
             removed: false,
         });
     }
@@ -176,8 +185,8 @@ function aiBuildRows(rows, mapping) {
         o.groupSize = count.get(o.group);
         o.combined = false;
         o.match = aiMatch(o);
-        o.wholesaleCompany = o.match ? o.match.wholesale_company : '';
-        o.wholesaleProduct = o.match ? o.match.wholesale_product : '';
+        o.wholesaleCompany = o.match ? o.match.wholesale_company : o.fileWholesaleCompany;
+        o.wholesaleProduct = o.match ? o.match.wholesale_product : o.fileWholesaleProduct;
         o.wholesaleUnknown = false;
         o.dup = aiLooksDuplicate(o);
     });
