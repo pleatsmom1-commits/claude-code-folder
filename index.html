@@ -100,7 +100,7 @@
                 <i data-lucide="shopping-bag" class="w-4 h-4"></i> 사입팀 픽업요청
             </button>
             <!-- 셀러 로그인 시에만 표시: 내 재고 확인 페이지 (stock.html) -->
-            <a id="nav-stock-btn" href="/stock" class="hidden shrink-0 whitespace-nowrap sm:ml-2 justify-center px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
+            <a id="nav-stock-btn" href="/inventory" class="hidden shrink-0 whitespace-nowrap sm:ml-2 justify-center px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
                 <i data-lucide="package" class="w-4 h-4"></i> 재고 확인
             </a>
             <!-- 셀러 로그인 시에만 표시: 내 재고 증감 내역 (stock-history.html). 재고를 숨긴 셀러는 [재고 확인]과 같이 숨김 -->
@@ -3529,7 +3529,7 @@
         // 업체 화면 보기 중에는 재고 확인·재고 증감·이용 현황·상품관리도 그 업체 화면(보기 전용, view-as.js)으로 새 창에 엽니다.
         function setViewAsNavLinks() {
             const company = encodeURIComponent(currentSellerAccount.company || '');
-            [['nav-stock-btn', '/stock'], ['nav-history-btn', '/stock-history'], ['nav-usage-btn', '/usage'], ['nav-products-btn', '/products']].forEach(([id, path]) => {
+            [['nav-stock-btn', '/inventory'], ['nav-history-btn', '/stock-history'], ['nav-usage-btn', '/usage'], ['nav-products-btn', '/products']].forEach(([id, path]) => {
                 const a = document.getElementById(id);
                 a.href = `${path}?company=${company}&view=1&uid=${encodeURIComponent(currentUserId)}`;
                 a.target = '_blank';

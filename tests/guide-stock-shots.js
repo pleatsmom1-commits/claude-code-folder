@@ -356,9 +356,10 @@ async function download(page, click) {
   // 업체 화면 미리보기 (재고 확인)
   const pv = await newPage(actx);
   await pv.setViewportSize({ width: 1000, height: 760 });
-  await go(pv, P('stock.html') + '?company=' + encodeURIComponent('예시샵'), 1500);
+  await pv.setViewportSize({ width: 1360, height: 900 });
+  await go(pv, P('inventory.html') + '?company=' + encodeURIComponent('예시샵') + '&view=1', 1500);
   await shot(pv, 'a5_preview_stock', null);
-  await go(pv, P('products.html') + '?company=' + encodeURIComponent('예시샵'), 1500);
+  await go(pv, P('products.html') + '?company=' + encodeURIComponent('예시샵') + '&view=1', 1500);
   await shot(pv, 'a5_preview_products', null);
 
   // 5. 재고 증감 내역 탭
@@ -389,21 +390,20 @@ async function download(page, click) {
   await mark(s, '#nav-stock-btn'); await mark(s, '#nav-history-btn'); await mark(s, '#nav-products-btn');
   await shot(s, 's_nav', null, { clip: { x: 0, y: 0, width: 1360, height: 260 } });
   await mark(s, '#nav-stock-btn', false); await mark(s, '#nav-history-btn', false); await mark(s, '#nav-products-btn', false);
+  await go(s, P('inventory.html'), 1500);
+  await shot(s, 's1_inv_seller', null);
+  await s.evaluate(() => openLogs(1)); await s.waitForTimeout(500);
+  await shot(s, 's1_inv_logs', '#log-modal > *');
+  await s.evaluate(() => closeModal('log-modal'));
   await go(s, P('stock-history.html'), 1500);
   await s.click('#quick-range button[data-range="7"]'); await s.waitForTimeout(800);
   await shot(s, 's3_history_day', '#app');
   await s.click('#view-tabs button[data-view="detail"]'); await s.waitForTimeout(400);
   await shot(s, 's3_history_detail', '#app > div:nth-child(3)');
-  await s.setViewportSize({ width: 1000, height: 760 });
-  await go(s, P('stock.html'), 1500);
-  await shot(s, 's1_stock_kept', null);
-  await s.click('#tab-shipped'); await s.waitForTimeout(300);
-  await shot(s, 's1_stock_shipped', null);
   sellerStockVisible = false;
-  await go(s, P('stock.html'), 1200);
-  await shot(s, 's1_stock_hidden', null, { clip: { x: 0, y: 0, width: 1000, height: 330 } });
+  await go(s, P('inventory.html'), 1200);
+  await shot(s, 's1_stock_hidden', null, { clip: { x: 0, y: 0, width: 1360, height: 300 } });
   sellerStockVisible = true;
-  await s.setViewportSize({ width: 1360, height: 900 });
   await go(s, P('products.html'), 1500);
   await shot(s, 's2_products_list', '#app > div');
   await s.evaluate(() => openEdit(null)); await s.waitForTimeout(300);
@@ -420,8 +420,8 @@ async function download(page, click) {
   const mctx = await mk({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   const m = await newPage(mctx);
   await login(m, 'seller@x.com', 'password1');
-  await go(m, P('stock.html'), 1500);
-  await shot(m, 's1_stock_mobile', null);
+  await go(m, P('inventory.html'), 1500);
+  await shot(m, 's1_inv_mobile', null);
   await go(m, P('stock-history.html') + '?range=7', 1800);
   await shot(m, 's3_history_mobile', null);
   await go(m, P('products.html'), 1500);

@@ -178,7 +178,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   const viewNav = (await v.textContent('#nav-user-area')).replace(/\s+/g, ' ');
   check('오른쪽 위 업체명 = 셀러와 같음', viewNav.includes('가나 샵님') && sellerNav.includes('가나 샵님'), viewNav);
   check('로그아웃 대신 [관리자로 돌아가기]', viewNav.includes('관리자로 돌아가기') && !viewNav.includes('로그아웃'));
-  check('재고 확인 버튼은 업체 미리보기 주소', (await v.getAttribute('#nav-stock-btn', 'href')).includes('/stock?company=' + encodeURIComponent('가나 샵')));
+  check('재고 확인 버튼은 업체 미리보기 주소', (await v.getAttribute('#nav-stock-btn', 'href')).includes('/inventory?company=' + encodeURIComponent('가나 샵')));
   await v.screenshot({ path: path.join(OUT, 'viewas-view.png') });
   await v.setViewportSize({ width: 390, height: 844 }); await v.waitForTimeout(300);
   await v.screenshot({ path: path.join(OUT, 'viewas-view-mobile.png') });
