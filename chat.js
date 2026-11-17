@@ -14,7 +14,8 @@
 //    AI 가 답할 수 없는 질문(사고·파손·분실·정산 다툼 등)에는 이 버튼을 크게 한 번 더 보여 줍니다.
 //  - 질문과 AI 답변은 관리자 화면 > AI 상담 > 상담 기록에 남습니다 (연락처·IP 는 저장 안 함, 1년 후 삭제).
 //    손님 화면의 대화는 창을 새로 고치면 사라집니다.
-//  - 사진 질문 (2026-11-17): [📷 사진] (휴대폰 캡쳐·앨범), [🖥️ 화면 캡쳐] (PC 브라우저, 보여줄 창을 고르면 한 장 찍음), 붙여넣기(Ctrl+V).
+//  - 사진 질문 (2026-11-17): [📷 사진] (휴대폰 캡쳐·앨범), 붙여넣기(Ctrl+V, PC 는 Win+Shift+S 로 캡쳐).
+//    [🖥️ 화면 캡쳐] 버튼은 만들어 두었지만 꺼 둠 (SCREEN_CAPTURE).
 //    [🖥️ 화면 캡쳐]는 캡쳐 도구처럼 찍힌 화면 위에서 끌어 구간을 고르고, 보내기 전에 자르기·모자이크(개인정보)를 할 수 있고, 긴 쪽 1568px 이하 JPG 로 줄여 질문 1번에 1장만 보냅니다.
 //    사진은 AI 답변에만 쓰고 어디에도 저장하지 않습니다 (상담 기록에는 "[사진 1장]"만 남음).
 // =====================================================================
@@ -267,11 +268,13 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
     const fileIn = box.querySelector('.bn-file');
     const screenBtn = box.querySelector('.bn-screen');
     const isPhone = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '') || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent || ''));
-    const canScreen = !isPhone && !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
+    // [🖥️ 화면 캡쳐] 버튼은 크롬 '공유할 항목 선택' 창이 헷갈려서 끔 (2026-11-17 대표님 결정). 켜려면 true
+    const SCREEN_CAPTURE = false;
+    const canScreen = SCREEN_CAPTURE && !isPhone && !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
     if (!canScreen) screenBtn.style.display = 'none';
-    box.querySelector('.bn-tool-hint').textContent = canScreen
-        ? '궁금한 화면을 찍어 물어보세요 (Ctrl+V 붙여넣기도 돼요)'
-        : '휴대폰은 전원+음량 버튼으로 캡쳐한 뒤 [📷 사진]에서 골라 주세요';
+    box.querySelector('.bn-tool-hint').textContent = isPhone
+        ? '휴대폰은 전원+음량 버튼으로 캡쳐한 뒤 [📷 사진]에서 골라 주세요'
+        : 'PC는 Win+Shift+S 로 캡쳐한 뒤 아래 입력칸에 Ctrl+V 로 붙여넣거나, [📷 사진]에서 골라 주세요';
 
     function setAttach(dataUrl) {
         shot.ready = dataUrl;

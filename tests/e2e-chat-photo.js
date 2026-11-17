@@ -57,8 +57,8 @@ async function routeAll(page, asked) {
   await chatShot('chat-open');
   const hasTools = await page.isVisible('#bn-chat .bn-photo');
   if (!hasTools) { console.log('(사진 기능 없음: 이전 화면 그림만 찍음)'); await browser.close(); return; }
-  ok(await page.isVisible('#bn-chat .bn-screen'), 'PC: 화면 캡쳐 button shown');
-  ok((await page.innerText('#bn-chat .bn-tool-hint')).includes('Ctrl+V'), 'PC hint');
+  ok(!(await page.isVisible('#bn-chat .bn-screen')), 'PC: 화면 캡쳐 button off (대표님 결정)');
+  ok((await page.innerText('#bn-chat .bn-tool-hint')).includes('Win+Shift+S') && (await page.innerText('#bn-chat .bn-tool-hint')).includes('Ctrl+V'), 'PC hint: Win+Shift+S → Ctrl+V');
 
   // 사진 고르기 → 편집창
   await page.setInputFiles('#bn-chat .bn-file', SAMPLE); await page.waitForSelector('#bn-shot.open');
@@ -97,25 +97,16 @@ async function routeAll(page, asked) {
   // 다음 질문은 사진 없이
   await page.fill('#bn-chat textarea', '고마워요'); await page.keyboard.press('Enter'); await page.waitForTimeout(400);
   ok(asked[1] && !asked[1].image, 'next question has no image');
-  // 화면 캡쳐 버튼
-  await page.click('#bn-chat .bn-screen'); await page.waitForSelector('#bn-shot.open', { timeout: 4000 }).catch(() => {});
-  ok(await page.evaluate(() => window.__shotAsked >= 1) && await page.isVisible('#bn-shot.open.snip'), 'screen capture → snip mode (캡쳐 도구처럼)');
-  ok((await page.innerText('#bn-shot .bn-shot-title')).includes('끌어서 고르세요') && !(await page.isVisible('#bn-shot .bn-shot-ok')), 'snip: drag guide, no send button yet');
-  ok(await page.evaluate(() => getComputedStyle(document.getElementById('bn-chat')).visibility !== 'hidden'), 'chat visible again after capture');
-  { const b = await page.locator('#bn-shot canvas').boundingBox(); const kk = b.width / 1200;
-    await page.mouse.move(b.x + 30 * kk, b.y + 100 * kk); await page.mouse.down(); await page.mouse.move(b.x + 300 * kk, b.y + 160 * kk, { steps: 4 });
-    await page.screenshot({ path: path.join(OUT, `${SHOT}-chat-snip.png`) });
-    await page.mouse.up(); }
-  const snipSize = await page.evaluate(() => { const c = document.querySelector('#bn-shot canvas'); return [c.width, c.height]; });
-  ok(!(await page.isVisible('#bn-shot.snip')) && await page.isVisible('#bn-shot.open') && await page.isVisible('#bn-shot .bn-shot-ok'), 'after drag → normal check window');
-  ok(Math.abs(snipSize[0] - 270) < 6 && Math.abs(snipSize[1] - 60) < 6, 'snip keeps only selected part (원래 크기)', snipSize.join('x'));
-  ok(await page.evaluate(() => document.querySelector('#bn-shot [data-mode=cover]').classList.contains('on')), 'after snip → 모자이크 mode ready');
-  await page.screenshot({ path: path.join(OUT, `${SHOT}-chat-snip-done.png`) });
+  // 붙여넣기(Ctrl+V): Win+Shift+S 로 캡쳐한 그림을 입력칸에 붙여넣으면 확인창이 뜸
+  await page.evaluate(async src => {
+    const blob = await (await fetch(src)).blob();
+    const dt = new DataTransfer(); dt.items.add(new File([blob], 'shot.png', { type: 'image/png' }));
+    document.querySelector('#bn-chat textarea').dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+  }, 'data:image/png;base64,' + fs.readFileSync(SAMPLE).toString('base64'));
+  await page.waitForSelector('#bn-shot.open', { timeout: 4000 }).catch(() => {});
+  ok(await page.isVisible('#bn-shot.open'), 'Ctrl+V paste → check window');
   await page.click('#bn-shot .bn-shot-cancel');
   ok(!(await page.isVisible('#bn-chat .bn-attach.on')), 'cancel → nothing attached');
-  // Esc 로도 취소
-  await page.click('#bn-chat .bn-screen'); await page.waitForSelector('#bn-shot.open.snip'); await page.keyboard.press('Escape');
-  ok(!(await page.isVisible('#bn-shot.open')), 'Esc cancels snip');
   ok(!errors.length, 'no page errors (PC)', errors.join(' | '));
 
   // ---------- 휴대폰 ----------
