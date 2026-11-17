@@ -275,7 +275,7 @@ function applyFilters(rows, url) {
   await page.goto(PAGE + '?range=7'); await page.waitForTimeout(1500);
   check('terms: modal shows before stock history', await page.isVisible('#st-terms') && !(await page.isVisible('#app')));
   check('terms: agree button disabled until checked', await page.isDisabled('#st-terms-ok'));
-  check('terms: summary + full text', (await page.textContent('#st-terms')).includes('7영업일') && (await page.textContent('#st-terms')).includes('제11조'));
+  check('terms: summary + full text', (await page.textContent('#st-terms')).includes('7영업일') && (await page.textContent('#st-terms')).includes('제11조') && (await page.textContent('#st-terms')).includes('제3조의2'));
   await shot('약관동의창_PC.png', page);
   await page.click('#st-terms-later'); await page.waitForTimeout(1200);
   check('terms: [나중에] goes back to order page', !page.url().includes('stock-history'), page.url());
