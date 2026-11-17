@@ -342,11 +342,12 @@ begin
         new.seller_company := old.seller_company;
         new.created_at := old.created_at;
         -- 주문 번호는 한 번 정해지면 바뀌지 않습니다. (예전 주문에 번호를 채울 때만 허용)
-        if old.order_no is not null or not v_privileged then
+        -- 예외: 관리자 합배송 묶기/부분출고로 풀기 함수(order_combine.sql)가 번호를 다시 정할 때
+        if (old.order_no is not null and coalesce(current_setting('bamnat.renumber', true), '') <> 'on') or not v_privileged then
             new.order_no := old.order_no;
             new.item_no := old.item_no;
         end if;
-        if old.seller_order_no is not null or not v_privileged then
+        if (old.seller_order_no is not null and coalesce(current_setting('bamnat.renumber', true), '') <> 'on') or not v_privileged then
             new.seller_order_no := old.seller_order_no;
         end if;
         if not v_privileged then
