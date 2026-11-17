@@ -103,6 +103,10 @@
             <a id="nav-stock-btn" href="/stock" class="hidden shrink-0 whitespace-nowrap sm:ml-2 justify-center px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
                 <i data-lucide="package" class="w-4 h-4"></i> 재고 확인
             </a>
+            <!-- 셀러 로그인 시에만 표시: 내 재고 증감 내역 (stock-history.html). 재고를 숨긴 셀러는 [재고 확인]과 같이 숨김 -->
+            <a id="nav-history-btn" href="/stock-history" class="hidden shrink-0 whitespace-nowrap sm:ml-2 justify-center px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
+                <i data-lucide="history" class="w-4 h-4"></i> 재고 증감
+            </a>
             <!-- 셀러 로그인 시에만 표시: 내 이용 현황 페이지 (usage.html) -->
             <a id="nav-usage-btn" href="/usage" class="hidden shrink-0 whitespace-nowrap sm:ml-2 justify-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
                 <i data-lucide="bar-chart-3" class="w-4 h-4"></i> 이용 현황
@@ -767,6 +771,9 @@
                     </button>
                     <button id="admin-tab-picking" onclick="switchAdminTab('picking')" class="">
                         재고출고
+                    </button>
+                    <button id="admin-tab-history" onclick="switchAdminTab('history')" class="">
+                        재고 증감 내역
                     </button>
                     <button id="admin-tab-settle" onclick="switchAdminTab('settle')" class="">
                         정산서 발송
@@ -1532,6 +1539,14 @@
                     <a href="/picking" target="_blank" class="text-xs font-bold text-indigo-600 hover:underline">새 창에서 크게 열기</a>
                 </div>
                 <iframe id="admin-picking-frame" title="재고 출고" class="w-full bg-white rounded-xl border border-slate-200" style="height: calc(100vh - 220px); min-height: 600px;"></iframe>
+            </div>
+
+            <!-- 3-9b. 재고 증감 내역 (stock-history.html 을 그대로 불러와 보여줌) -->
+            <div id="admin-history-panel" class="hidden space-y-2">
+                <div class="flex justify-end">
+                    <a href="/stock-history" target="_blank" class="text-xs font-bold text-indigo-600 hover:underline">새 창에서 크게 열기</a>
+                </div>
+                <iframe id="admin-history-frame" title="재고 증감 내역" class="w-full bg-white rounded-xl border border-slate-200" style="height: calc(100vh - 220px); min-height: 600px;"></iframe>
             </div>
 
             <!-- 3-10. AI 사용료 (ai-cost.html 을 그대로 불러와 보여줌) -->
@@ -3506,7 +3521,7 @@
         // 업체 화면 보기 중에는 재고·이용현황·상품관리를 관리자용 "업체 화면 미리보기"로 새 창에 엽니다.
         function setViewAsNavLinks() {
             const company = encodeURIComponent(currentSellerAccount.company || '');
-            [['nav-stock-btn', '/stock'], ['nav-usage-btn', '/usage'], ['nav-products-btn', '/products']].forEach(([id, path]) => {
+            [['nav-stock-btn', '/stock'], ['nav-history-btn', '/stock-history'], ['nav-usage-btn', '/usage'], ['nav-products-btn', '/products']].forEach(([id, path]) => {
                 const a = document.getElementById(id);
                 a.href = `${path}?company=${company}`;
                 a.target = '_blank';
@@ -3514,15 +3529,20 @@
             });
         }
 
+        // 셀러 [재고 증감] 버튼 (stock-history.html 의 SELLER_OPEN 과 같이 바꿉니다)
+        const SELLER_HISTORY_OPEN = false;
+
         async function refreshNavStockBtn() {
             if (!supabaseClient) return;
             const { data, error } = viewAsMode
                 ? await supabaseClient.rpc('stock_hidden_for', { p_company: currentSellerAccount.company || '' }).then(r => ({ data: r.error ? null : !r.data, error: r.error }))
                 : await supabaseClient.rpc('my_stock_visible');
             if (error || data !== false || currentRole !== 'seller') return;
-            const stockBtn = document.getElementById('nav-stock-btn');
-            stockBtn.classList.add('hidden');
-            stockBtn.classList.remove('flex');
+            ['nav-stock-btn', 'nav-history-btn'].forEach(id => {
+                const btn = document.getElementById(id);
+                btn.classList.add('hidden');
+                btn.classList.remove('flex');
+            });
         }
 
         function updateNavUserArea() {
@@ -3533,6 +3553,10 @@
             const stockBtn = document.getElementById('nav-stock-btn');
             stockBtn.classList.toggle('hidden', currentRole !== 'seller');
             stockBtn.classList.toggle('flex', currentRole === 'seller');
+            const historyBtn = document.getElementById('nav-history-btn');
+            const showHistory = currentRole === 'seller' && SELLER_HISTORY_OPEN;
+            historyBtn.classList.toggle('hidden', !showHistory);
+            historyBtn.classList.toggle('flex', showHistory);
             if (currentRole === 'seller') refreshNavStockBtn();
             if (viewAsMode) setViewAsNavLinks();
             const usageBtn = document.getElementById('nav-usage-btn');
@@ -5758,7 +5782,7 @@
         // 관리자 메뉴 묶음: 큰 묶음 → 그 안의 탭
         const ADMIN_GROUPS = {
             order: ['orders', 'pickup', 'ship'],
-            stock: ['stock', 'products', 'inventory', 'picking'],
+            stock: ['stock', 'products', 'inventory', 'picking', 'history'],
             settle: ['settle'],
             sellers: ['sellers'],
             inquiry: ['inquiry', 'chatlog'],
@@ -5802,6 +5826,8 @@
             document.getElementById('admin-inventory-panel').classList.toggle('hidden', tab !== 'inventory');
             document.getElementById('admin-tab-picking').className = tab === 'picking' ? on : off;
             document.getElementById('admin-picking-panel').classList.toggle('hidden', tab !== 'picking');
+            document.getElementById('admin-tab-history').className = tab === 'history' ? on : off;
+            document.getElementById('admin-history-panel').classList.toggle('hidden', tab !== 'history');
             document.getElementById('admin-tab-aicost').className = tab === 'aicost' ? on : off;
             document.getElementById('admin-aicost-panel').classList.toggle('hidden', tab !== 'aicost');
             document.getElementById('admin-ship-panel').classList.toggle('hidden', tab !== 'ship');
@@ -5827,9 +5853,9 @@
             if (tab === 'chatlog') onChatLogTabOpened();
             if (tab === 'staff') onStaffTabOpened();
             if (tab === 'activity') onActivityTabOpened();
-            if (tab === 'products' || tab === 'inventory' || tab === 'picking' || tab === 'aicost') {
+            if (tab === 'products' || tab === 'inventory' || tab === 'picking' || tab === 'aicost' || tab === 'history') {
                 const frame = document.getElementById(`admin-${tab}-frame`);
-                const page = tab === 'aicost' ? 'ai-cost' : tab;
+                const page = tab === 'aicost' ? 'ai-cost' : tab === 'history' ? 'stock-history' : tab;
                 if (!frame.getAttribute('src')) frame.setAttribute('src', `${page}.html?embed=1`);
             }
         }
