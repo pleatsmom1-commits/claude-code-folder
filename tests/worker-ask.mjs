@@ -52,6 +52,18 @@ d = await (await handleAsk(req({ messages: [{ role: 'user', content: '카드 돼
 ok(logs.length === 1 && logs[0].p_chat_id === 'c1' && logs[0].p_answer === '계좌이체만 됩니다.' && logs[0].p_needs_human === false && logs[0].p_source.includes('bamnatdelivery'), 'chat log saved (answered)');
 // 1000×4 + 10000×4×0.1 + 200×20 = 12000 → $0.012
 ok(logs[0].p_model === 'claude-opus-5-5' && logs[0].p_input_tokens === 11000 && logs[0].p_output_tokens === 200 && logs[0].p_cost_usd === 0.012, 'chat cost saved', JSON.stringify(logs[0]));
+// 사진 질문 (2026-11-17): 마지막 질문에 사진 1장 → AI 에 image 블록, 기록엔 "[사진 1장]"만
+{ status = 200; reply = { stop_reason: 'end_turn', content: [{ type: 'text', text: '오른쪽 위 버튼을 누르세요' }] };
+  const n = logs.length;
+  r = await handleAsk(req({ messages: [{ role: 'user', content: '이거 뭐예요?' }], image: { media_type: 'image/jpeg', data: 'QUJD' } }, undefined, '10.0.0.1'), env);
+  const m = last.body.messages[last.body.messages.length - 1];
+  ok(r.status === 200 && Array.isArray(m.content) && m.content[0].type === 'image' && m.content[0].source.data === 'QUJD' && m.content[1].text === '이거 뭐예요?', 'image sent to AI with question');
+  ok(logs.length === n + 1 && logs[n].p_question.includes('[사진 1장]') && !JSON.stringify(logs[n]).includes('QUJD'), 'log has [사진 1장], no image data');
+  ok(last.body.system[0].text.includes('사진(화면 캡쳐)'), 'image rule in system prompt');
+  r = await handleAsk(req({ messages: [{ role: 'user', content: 'q' }], image: { media_type: 'text/html', data: 'QUJD' } }, undefined, '10.0.0.2'), env);
+  ok(r.status === 400, 'bad image type blocked');
+  r = await handleAsk(req({ messages: [{ role: 'user', content: 'q' }], image: { media_type: 'image/png', data: 'A'.repeat(3_000_001) } }, undefined, '10.0.0.3'), env);
+  ok(r.status === 400, 'too big image blocked'); }
 globalThis.fetch = async (url, init) => { if (String(url).includes('/rpc/log_ai_chat')) throw new Error('down'); if (String(url).includes('/ai_faq')) return new Response('[]'); return new Response(JSON.stringify(reply)); };
 r = await handleAsk(req({ messages: [{ role: 'user', content: 'q' }] }, undefined, '10.0.0.2'), env);
 ok(r.status === 200, 'log failure does not break answer');
