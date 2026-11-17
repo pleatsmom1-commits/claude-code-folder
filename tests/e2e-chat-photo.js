@@ -66,15 +66,18 @@ async function routeAll(page, asked) {
   const cv = await page.locator('#bn-shot canvas').boundingBox();
   const W = 900, k = cv.width / W;
   // 가리기(기본): 연락처 칸 두 개 칠하기
-  await page.mouse.move(cv.x + 120 * k, cv.y + 135 * k); await page.mouse.down(); await page.mouse.move(cv.x + 235 * k, cv.y + 205 * k, { steps: 5 }); await page.mouse.up();
-  const black = await page.evaluate(() => { const c = document.querySelector('#bn-shot canvas'); const d = c.getContext('2d').getImageData(Math.round(c.width * 0.19), Math.round(c.height * 0.5), 1, 1).data; return d[0] + d[1] + d[2]; });
-  ok(black === 0, 'cover paints black', String(black));
+  await page.mouse.move(cv.x + 95 * k, cv.y + 172 * k); await page.mouse.down(); await page.mouse.move(cv.x + 200 * k, cv.y + 240 * k, { steps: 5 }); await page.mouse.up();
+  // 모자이크: 칠한 곳 안의 작은 칸들이 같은 색(블록)으로 바뀜
+  const mos = await page.evaluate(() => { const c = document.querySelector('#bn-shot canvas'); const x = c.getContext('2d');
+    const at = (a, b) => [...x.getImageData(Math.round(a), Math.round(b), 1, 1).data].slice(0, 3).join(',');
+    const px = 98, py = 175; return { same: at(px, py) === at(px + 3, py + 3), text: document.querySelector('#bn-shot [data-mode=cover]').textContent }; });
+  ok(mos.same && mos.text.includes('모자이크'), 'cover = mosaic blocks', JSON.stringify(mos));
   await page.screenshot({ path: path.join(OUT, `${SHOT}-chat-editor.png`) });
   // 되돌리기 → 다시 칠하기
   await page.click('#bn-shot .bn-shot-undo');
   const back = await page.evaluate(() => { const c = document.querySelector('#bn-shot canvas'); const d = c.getContext('2d').getImageData(Math.round(c.width * 0.19), Math.round(c.height * 0.5), 1, 1).data; return d[0] + d[1] + d[2]; });
-  ok(back > 0, 'undo removes cover');
-  await page.mouse.move(cv.x + 120 * k, cv.y + 135 * k); await page.mouse.down(); await page.mouse.move(cv.x + 235 * k, cv.y + 205 * k, { steps: 5 }); await page.mouse.up();
+  ok(back > 0, 'undo works');
+  await page.mouse.move(cv.x + 95 * k, cv.y + 172 * k); await page.mouse.down(); await page.mouse.move(cv.x + 200 * k, cv.y + 240 * k, { steps: 5 }); await page.mouse.up();
   // 자르기: 위쪽 머리줄 빼고 표 부분만
   await page.click('#bn-shot [data-mode=crop]');
   await page.mouse.move(cv.x + 5 * k, cv.y + 60 * k); await page.mouse.down(); await page.mouse.move(cv.x + 700 * k, cv.y + 220 * k, { steps: 5 }); await page.mouse.up();
