@@ -15,7 +15,7 @@
 //  - 질문과 AI 답변은 관리자 화면 > AI 상담 > 상담 기록에 남습니다 (연락처·IP 는 저장 안 함, 1년 후 삭제).
 //    손님 화면의 대화는 창을 새로 고치면 사라집니다.
 //  - 사진 질문 (2026-11-17): [📷 사진] (휴대폰 캡쳐·앨범), [🖥️ 화면 캡쳐] (PC 브라우저, 보여줄 창을 고르면 한 장 찍음), 붙여넣기(Ctrl+V).
-//    보내기 전에 자르기·검은색으로 가리기(개인정보)를 할 수 있고, 긴 쪽 1568px 이하 JPG 로 줄여 질문 1번에 1장만 보냅니다.
+//    보내기 전에 자르기·모자이크(개인정보)를 할 수 있고, 긴 쪽 1568px 이하 JPG 로 줄여 질문 1번에 1장만 보냅니다.
 //    사진은 AI 답변에만 쓰고 어디에도 저장하지 않습니다 (상담 기록에는 "[사진 1장]"만 남음).
 // =====================================================================
 (function () {
@@ -314,10 +314,10 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
     const ed = document.createElement('div');
     ed.id = 'bn-shot';
     ed.innerHTML = `<div class="bn-shot-box">
-<div class="bn-shot-head"><b>📷 보낼 사진 확인</b><p>궁금한 부분만 남기고, 손님 이름·전화번호·주소 같은 개인정보는 [⬛ 가리기]로 칠해 주세요. 사진은 답변에만 쓰고 저장하지 않아요.</p></div>
+<div class="bn-shot-head"><b>📷 보낼 사진 확인</b><p>궁금한 부분만 남기고, 손님 이름·전화번호·주소 같은 개인정보는 [▦ 모자이크]로 문질러 가려 주세요. 사진은 답변에만 쓰고 저장하지 않아요.</p></div>
 <div class="bn-shot-area"><canvas></canvas></div>
 <div class="bn-shot-bar">
-<button type="button" data-mode="crop">✂️ 자르기</button><button type="button" data-mode="cover" class="on">⬛ 가리기</button>
+<button type="button" data-mode="crop">✂️ 자르기</button><button type="button" data-mode="cover" class="on">▦ 모자이크</button>
 <button type="button" class="bn-shot-undo">↩ 되돌리기</button>
 <button type="button" class="bn-shot-cancel">취소</button><button type="button" class="bn-shot-ok">이 사진 보내기</button>
 </div></div>`;
@@ -336,7 +336,8 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
         draw();
         ed.classList.add('open');
     }
-    // 단계: {t:'crop', x,y,w,h} 는 그 영역만 남기기, {t:'cover', ...} 는 검게 칠하기 (좌표는 원본 사진 기준)
+    // 단계: {t:'crop', x,y,w,h} 는 그 영역만 남기기, {t:'cover', ...} 는 모자이크 (좌표는 원본 사진 기준)
+    //  모자이크 칸은 글자를 다시 알아볼 수 없게 크게(영역 짧은 쪽의 1/4, 최소 10px) 만듦
     function view() {
         let r = { x: 0, y: 0, w: edBase.naturalWidth, h: edBase.naturalHeight };
         edSteps.forEach(s => { if (s.t === 'crop') r = s; });
@@ -346,17 +347,34 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
         const r = view();
         cv.width = r.w; cv.height = r.h;
         cx.drawImage(edBase, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
-        cx.fillStyle = '#000';
-        edSteps.forEach(s => { if (s.t === 'cover') cx.fillRect(s.x - r.x, s.y - r.y, s.w, s.h); });
+        edSteps.forEach(s => { if (s.t === 'cover') mosaic(s.x - r.x, s.y - r.y, s.w, s.h); });
         if (sel) {
             cx.save();
             cx.lineWidth = Math.max(2, r.w / 300);
             cx.setLineDash([8, 6]);
             cx.strokeStyle = edMode === 'crop' ? '#2563eb' : '#e11d48';
-            if (edMode === 'cover') { cx.fillStyle = 'rgba(0,0,0,.6)'; cx.fillRect(sel.x - r.x, sel.y - r.y, sel.w, sel.h); }
+            if (edMode === 'cover') { cx.fillStyle = 'rgba(30,58,138,.25)'; cx.fillRect(sel.x - r.x, sel.y - r.y, sel.w, sel.h); }
             cx.strokeRect(sel.x - r.x, sel.y - r.y, sel.w, sel.h);
             cx.restore();
         }
+    }
+    function mosaic(x, y, w, h) {
+        x = Math.max(0, Math.round(x)); y = Math.max(0, Math.round(y));
+        w = Math.min(cv.width - x, Math.round(w)); h = Math.min(cv.height - y, Math.round(h));
+        if (w < 1 || h < 1) return;
+        const b = Math.max(10, Math.round(Math.min(w, h) / 4));
+        const d = cx.getImageData(x, y, w, h), p = d.data;
+        for (let by = 0; by < h; by += b) for (let bx = 0; bx < w; bx += b) {
+            let rr = 0, gg = 0, bb = 0, n = 0;
+            for (let yy = by; yy < Math.min(by + b, h); yy++) for (let xx = bx; xx < Math.min(bx + b, w); xx++) {
+                const i = (yy * w + xx) * 4; rr += p[i]; gg += p[i + 1]; bb += p[i + 2]; n++;
+            }
+            rr /= n; gg /= n; bb /= n;
+            for (let yy = by; yy < Math.min(by + b, h); yy++) for (let xx = bx; xx < Math.min(bx + b, w); xx++) {
+                const i = (yy * w + xx) * 4; p[i] = rr; p[i + 1] = gg; p[i + 2] = bb;
+            }
+        }
+        cx.putImageData(d, x, y);
     }
     function pt(e) {
         const b = cv.getBoundingClientRect(), r = view();
