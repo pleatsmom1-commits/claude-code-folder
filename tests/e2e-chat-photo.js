@@ -57,8 +57,8 @@ async function routeAll(page, asked) {
   await chatShot('chat-open');
   const hasTools = await page.isVisible('#bn-chat .bn-photo');
   if (!hasTools) { console.log('(사진 기능 없음: 이전 화면 그림만 찍음)'); await browser.close(); return; }
-  ok(await page.isVisible('#bn-chat .bn-screen'), 'PC: 화면 캡쳐 button shown');
-  ok((await page.innerText('#bn-chat .bn-tool-hint')).includes('Ctrl+V'), 'PC hint');
+  ok(!(await page.isVisible('#bn-chat .bn-screen')), 'PC: 화면 캡쳐 button off (대표님 결정)');
+  ok((await page.innerText('#bn-chat .bn-tool-hint')).includes('Win+Shift+S') && (await page.innerText('#bn-chat .bn-tool-hint')).includes('Ctrl+V'), 'PC hint: Win+Shift+S → Ctrl+V');
 
   // 사진 고르기 → 편집창
   await page.setInputFiles('#bn-chat .bn-file', SAMPLE); await page.waitForSelector('#bn-shot.open');
@@ -97,9 +97,14 @@ async function routeAll(page, asked) {
   // 다음 질문은 사진 없이
   await page.fill('#bn-chat textarea', '고마워요'); await page.keyboard.press('Enter'); await page.waitForTimeout(400);
   ok(asked[1] && !asked[1].image, 'next question has no image');
-  // 화면 캡쳐 버튼
-  await page.click('#bn-chat .bn-screen'); await page.waitForSelector('#bn-shot.open', { timeout: 4000 }).catch(() => {});
-  ok(await page.evaluate(() => window.__shotAsked === 1) && await page.isVisible('#bn-shot.open'), 'screen capture → editor');
+  // 붙여넣기(Ctrl+V): Win+Shift+S 로 캡쳐한 그림을 입력칸에 붙여넣으면 확인창이 뜸
+  await page.evaluate(async src => {
+    const blob = await (await fetch(src)).blob();
+    const dt = new DataTransfer(); dt.items.add(new File([blob], 'shot.png', { type: 'image/png' }));
+    document.querySelector('#bn-chat textarea').dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+  }, 'data:image/png;base64,' + fs.readFileSync(SAMPLE).toString('base64'));
+  await page.waitForSelector('#bn-shot.open', { timeout: 4000 }).catch(() => {});
+  ok(await page.isVisible('#bn-shot.open'), 'Ctrl+V paste → check window');
   await page.click('#bn-shot .bn-shot-cancel');
   ok(!(await page.isVisible('#bn-chat .bn-attach.on')), 'cancel → nothing attached');
   ok(!errors.length, 'no page errors (PC)', errors.join(' | '));

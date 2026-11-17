@@ -14,8 +14,9 @@
 //    AI 가 답할 수 없는 질문(사고·파손·분실·정산 다툼 등)에는 이 버튼을 크게 한 번 더 보여 줍니다.
 //  - 질문과 AI 답변은 관리자 화면 > AI 상담 > 상담 기록에 남습니다 (연락처·IP 는 저장 안 함, 1년 후 삭제).
 //    손님 화면의 대화는 창을 새로 고치면 사라집니다.
-//  - 사진 질문 (2026-11-17): [📷 사진] (휴대폰 캡쳐·앨범), [🖥️ 화면 캡쳐] (PC 브라우저, 보여줄 창을 고르면 한 장 찍음), 붙여넣기(Ctrl+V).
-//    보내기 전에 자르기·모자이크(개인정보)를 할 수 있고, 긴 쪽 1568px 이하 JPG 로 줄여 질문 1번에 1장만 보냅니다.
+//  - 사진 질문 (2026-11-17): [📷 사진] (휴대폰 캡쳐·앨범), 붙여넣기(Ctrl+V, PC 는 Win+Shift+S 로 캡쳐).
+//    [🖥️ 화면 캡쳐] 버튼은 만들어 두었지만 꺼 둠 (SCREEN_CAPTURE).
+//    [🖥️ 화면 캡쳐]는 캡쳐 도구처럼 찍힌 화면 위에서 끌어 구간을 고르고, 보내기 전에 자르기·모자이크(개인정보)를 할 수 있고, 긴 쪽 1568px 이하 JPG 로 줄여 질문 1번에 1장만 보냅니다.
 //    사진은 AI 답변에만 쓰고 어디에도 저장하지 않습니다 (상담 기록에는 "[사진 1장]"만 남음).
 // =====================================================================
 (function () {
@@ -98,7 +99,15 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
 #bn-shot .bn-shot-bar button{border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:7px 11px;font:700 13px/1.2 sans-serif;cursor:pointer;color:#1e293b}
 #bn-shot .bn-shot-bar button.on{background:#1e3a8a;border-color:#1e3a8a;color:#fff}
 #bn-shot .bn-shot-bar .bn-shot-ok{margin-left:auto;background:#1e3a8a;border-color:#1e3a8a;color:#fff}
-#bn-shot .bn-shot-bar .bn-shot-cancel{color:#64748b}`;
+#bn-shot .bn-shot-bar .bn-shot-cancel{color:#64748b}
+#bn-shot.snip{padding:0;background:#000}
+#bn-shot.snip .bn-shot-box{max-width:none;width:100%;height:100%;border-radius:0;background:#000}
+#bn-shot.snip .bn-shot-head{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:2;background:#1e3a8a;color:#fff;border-radius:999px;padding:8px 18px;border:0;box-shadow:0 4px 14px rgba(0,0,0,.4);white-space:nowrap}
+#bn-shot.snip .bn-shot-head b{color:#fff;font-size:14px}
+#bn-shot.snip .bn-shot-head p,#bn-shot.snip .bn-shot-bar [data-mode],#bn-shot.snip .bn-shot-undo,#bn-shot.snip .bn-shot-ok{display:none}
+#bn-shot.snip .bn-shot-area{padding:0;background:#000}
+#bn-shot.snip canvas{max-height:100vh;box-shadow:none}
+#bn-shot.snip .bn-shot-bar{position:absolute;top:10px;right:12px;z-index:2;border:0;padding:0}`;
     document.head.appendChild(css);
 
     const btn = document.createElement('button');
@@ -259,11 +268,13 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
     const fileIn = box.querySelector('.bn-file');
     const screenBtn = box.querySelector('.bn-screen');
     const isPhone = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '') || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent || ''));
-    const canScreen = !isPhone && !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
+    // [🖥️ 화면 캡쳐] 버튼은 크롬 '공유할 항목 선택' 창이 헷갈려서 끔 (2026-11-17 대표님 결정). 켜려면 true
+    const SCREEN_CAPTURE = false;
+    const canScreen = SCREEN_CAPTURE && !isPhone && !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
     if (!canScreen) screenBtn.style.display = 'none';
-    box.querySelector('.bn-tool-hint').textContent = canScreen
-        ? '궁금한 화면을 찍어 물어보세요 (Ctrl+V 붙여넣기도 돼요)'
-        : '휴대폰은 전원+음량 버튼으로 캡쳐한 뒤 [📷 사진]에서 골라 주세요';
+    box.querySelector('.bn-tool-hint').textContent = isPhone
+        ? '휴대폰은 전원+음량 버튼으로 캡쳐한 뒤 [📷 사진]에서 골라 주세요'
+        : 'PC는 Win+Shift+S 로 캡쳐한 뒤 아래 입력칸에 Ctrl+V 로 붙여넣거나, [📷 사진]에서 골라 주세요';
 
     function setAttach(dataUrl) {
         shot.ready = dataUrl;
@@ -295,26 +306,35 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
         const item = [...((e.clipboardData && e.clipboardData.items) || [])].find(i => i.type.startsWith('image/'));
         if (item) { e.preventDefault(); fromBlob(item.getAsFile()); }
     });
+    // [🖥️ 화면 캡쳐] = 캡쳐 도구처럼: 보여줄 창을 고르면 그 화면이 멈춘 채 크게 뜨고, 마우스로 끌어 캡쳐할 구간을 고름 (2026-11-17 대표님 요청)
     screenBtn.onclick = async () => {
         let stream;
         try { stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false }); }
         catch { return; } // 손님이 [취소]를 누른 경우
+        const wasOpen = box.classList.contains('open');
+        box.style.visibility = 'hidden'; btn.style.visibility = 'hidden'; // 이 탭을 찍을 때 상담창이 같이 찍히지 않게
         try {
             const v = document.createElement('video');
             v.muted = true; v.playsInline = true; v.srcObject = stream;
             await v.play();
-            await new Promise(r => setTimeout(r, 300)); // 첫 화면이 그려질 때까지 잠깐
-            const c = fitCanvas(v, v.videoWidth, v.videoHeight);
-            openEditor(c.toDataURL('image/png'));
+            await new Promise(r => setTimeout(r, 400)); // 상담창이 사라진 화면이 그려질 때까지 잠깐
+            const c = document.createElement('canvas'); // 고를 때 글자가 뭉개지지 않게 원래 크기로 (보낼 때 줄임)
+            c.width = v.videoWidth; c.height = v.videoHeight;
+            c.getContext('2d').drawImage(v, 0, 0);
+            await openEditor(c.toDataURL('image/png'), true);
         } catch { alert('화면을 찍지 못했어요. [📷 사진]으로 올려 주세요.'); }
-        finally { stream.getTracks().forEach(t => t.stop()); }
+        finally {
+            stream.getTracks().forEach(t => t.stop());
+            box.style.visibility = ''; btn.style.visibility = '';
+            if (wasOpen) box.classList.add('open');
+        }
     };
 
     // 자르기·가리기 편집 창
     const ed = document.createElement('div');
     ed.id = 'bn-shot';
     ed.innerHTML = `<div class="bn-shot-box">
-<div class="bn-shot-head"><b>📷 보낼 사진 확인</b><p>궁금한 부분만 남기고, 손님 이름·전화번호·주소 같은 개인정보는 [▦ 모자이크]로 문질러 가려 주세요. 사진은 답변에만 쓰고 저장하지 않아요.</p></div>
+<div class="bn-shot-head"><b class="bn-shot-title">📷 보낼 사진 확인</b><p>궁금한 부분만 남기고, 손님 이름·전화번호·주소 같은 개인정보는 [▦ 모자이크]로 문질러 가려 주세요. 사진은 답변에만 쓰고 저장하지 않아요.</p></div>
 <div class="bn-shot-area"><canvas></canvas></div>
 <div class="bn-shot-bar">
 <button type="button" data-mode="crop">✂️ 자르기</button><button type="button" data-mode="cover" class="on">▦ 모자이크</button>
@@ -327,14 +347,26 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
         edMode = b.dataset.mode;
         ed.querySelectorAll('[data-mode]').forEach(x => x.classList.toggle('on', x === b));
     });
-    async function openEditor(src) {
+    function setMode(m) {
+        edMode = m;
+        ed.querySelectorAll('[data-mode]').forEach(x => x.classList.toggle('on', x.dataset.mode === m));
+    }
+    // snip=true: 캡쳐 도구 모드 (화면 전체가 멈춘 채 뜨고, 끌어서 구간 고르기 → 고르면 보통 확인창으로)
+    async function openEditor(src, snip) {
         shot.src = src;
         edBase = await loadImage(src);
         edSteps = [];
-        edMode = 'cover';
-        ed.querySelectorAll('[data-mode]').forEach(x => x.classList.toggle('on', x.dataset.mode === 'cover'));
+        setMode(snip ? 'crop' : 'cover');
+        ed.classList.toggle('snip', !!snip);
+        ed.querySelector('.bn-shot-title').textContent = snip ? '✂️ 캡쳐할 부분을 마우스로 끌어서 고르세요' : '📷 보낼 사진 확인';
         draw();
         ed.classList.add('open');
+    }
+    function endSnip() {
+        if (!ed.classList.contains('snip')) return;
+        ed.classList.remove('snip');
+        ed.querySelector('.bn-shot-title').textContent = '📷 보낼 사진 확인';
+        setMode('cover');
     }
     // 단계: {t:'crop', x,y,w,h} 는 그 영역만 남기기, {t:'cover', ...} 는 모자이크 (좌표는 원본 사진 기준)
     //  모자이크 칸은 글자를 다시 알아볼 수 없게 크게(영역 짧은 쪽의 1/4, 최소 10px) 만듦
@@ -348,6 +380,12 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
         cv.width = r.w; cv.height = r.h;
         cx.drawImage(edBase, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
         edSteps.forEach(s => { if (s.t === 'cover') mosaic(s.x - r.x, s.y - r.y, s.w, s.h); });
+        // 캡쳐 도구 모드: 고르는 곳 밖은 어둡게
+        if (ed.classList.contains('snip')) {
+            cx.fillStyle = 'rgba(0,0,0,.4)';
+            cx.fillRect(0, 0, r.w, r.h);
+            if (sel) cx.drawImage(edBase, sel.x, sel.y, sel.w, sel.h, sel.x - r.x, sel.y - r.y, sel.w, sel.h);
+        }
         if (sel) {
             cx.save();
             cx.lineWidth = Math.max(2, r.w / 300);
@@ -386,11 +424,15 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
     cv.addEventListener('pointerup', () => {
         const s = drag && drag.sel;
         drag = null;
-        if (s && s.w > 8 && s.h > 8) edSteps.push({ t: edMode, x: Math.round(s.x), y: Math.round(s.y), w: Math.round(s.w), h: Math.round(s.h) });
+        if (s && s.w > 8 && s.h > 8) {
+            edSteps.push({ t: edMode, x: Math.round(s.x), y: Math.round(s.y), w: Math.round(s.w), h: Math.round(s.h) });
+            if (edMode === 'crop') endSnip();
+        }
         draw();
     });
     ed.querySelector('.bn-shot-undo').onclick = () => { edSteps.pop(); draw(); };
-    ed.querySelector('.bn-shot-cancel').onclick = () => ed.classList.remove('open');
+    ed.querySelector('.bn-shot-cancel').onclick = () => ed.classList.remove('open', 'snip');
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && ed.classList.contains('open')) ed.classList.remove('open', 'snip'); });
     ed.querySelector('.bn-shot-ok').onclick = () => {
         draw();
         setAttach(fitCanvas(cv, cv.width, cv.height).toDataURL('image/jpeg', 0.85));
