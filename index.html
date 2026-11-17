@@ -741,6 +741,9 @@
                     <button id="admin-group-aicost" onclick="switchAdminGroup('aicost')" class="">
                         <i data-lucide="coins" class="w-4 h-4"></i> AI 사용료
                     </button>
+                    <button id="admin-group-staff" onclick="switchAdminGroup('staff')" class="">
+                        <i data-lucide="user-cog" class="w-4 h-4"></i> 직원 관리
+                    </button>
                 </div>
                 <div id="admin-subtabs" class="flex flex-wrap border-b border-slate-200 mt-3">
                     <button id="admin-tab-orders" onclick="switchAdminTab('orders')" class="">
@@ -780,6 +783,12 @@
                     </button>
                     <button id="admin-tab-aicost" onclick="switchAdminTab('aicost')" class="">
                         AI 사용료
+                    </button>
+                    <button id="admin-tab-activity" onclick="switchAdminTab('activity')" class="">
+                        작업 기록
+                    </button>
+                    <button id="admin-tab-staff" onclick="switchAdminTab('staff')" class="">
+                        직원 아이디
                     </button>
                 </div>
             </div>
@@ -932,6 +941,10 @@
             </div>
 
             <!-- 3-2. 셀러 관리 -->
+            <!-- 3-x. 직원 관리 (staff-admin.js 가 내용을 채움, 대표 아이디만) -->
+            <div id="admin-activity-panel" class="hidden space-y-4"></div>
+            <div id="admin-staff-panel" class="hidden space-y-4"></div>
+
             <div id="admin-sellers-panel" class="hidden space-y-4">
                 <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
                     <div class="flex justify-between items-center flex-wrap gap-2">
@@ -2548,6 +2561,13 @@
             // 관리자 탭에서 로그인했는데 관리자 권한이 없는 계정이면 막습니다.
             const requestedMode = pendingLoginMode;
             pendingLoginMode = null;
+            // 대표가 꺼 둔 직원 아이디는 들어올 수 없습니다. (supabase/staff_activity.sql)
+            if (profile.admin_level === 'staff' && profile.role !== 'admin') {
+                alert('이 직원 아이디는 지금 꺼져 있습니다.\n대표님께 다시 켜 달라고 요청해 주세요.');
+                await supabaseClient.auth.signOut();
+                return;
+            }
+
             if (requestedMode === 'admin' && profile.role !== 'admin') {
                 alert('관리자 권한이 없는 계정입니다.\n셀러 계정은 [셀러 로그인] 탭에서 로그인해주세요.');
                 await supabaseClient.auth.signOut();
@@ -3544,7 +3564,7 @@
             } else {
                 area.innerHTML = `
                     <div class="text-right">
-                        <span class="text-xs font-bold text-indigo-600 block">밤낮딜리버리 관리자</span>
+                        <span class="text-xs font-bold text-indigo-600 block">밤낮딜리버리 관리자 <span class="${isOwnerAccount() ? 'text-indigo-400' : 'text-sky-600'}">· ${escapeHtml((currentSellerAccount.name ? currentSellerAccount.name + ' ' : '') + (isOwnerAccount() ? '대표' : '직원'))}</span></span>
                         <span class="text-[10px] text-slate-400">${escapeHtml(currentSellerAccount.email || '최고 권한')}</span>
                     </div>
                     <button onclick="logout()" class="shrink-0 whitespace-nowrap px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-bold">로그아웃</button>
@@ -5743,6 +5763,7 @@
             sellers: ['sellers'],
             inquiry: ['inquiry', 'chatlog'],
             aicost: ['aicost'],
+            staff: ['activity', 'staff'],   // 대표 아이디만 보임 (staff-admin.js)
         };
         const ADMIN_GROUP_OF = Object.fromEntries(Object.entries(ADMIN_GROUPS).flatMap(([g, tabs]) => tabs.map(t => [t, g])));
         const ADMIN_LAST_TAB = {};   // 묶음마다 마지막으로 본 탭
@@ -5758,6 +5779,8 @@
                 document.getElementById('admin-group-' + g).className = g === group ? gOn : gOff;
                 tabs.forEach(t => document.getElementById('admin-tab-' + t).classList.toggle('hidden', g !== group));
             });
+            // [직원 관리]는 대표 아이디만 (staff-admin.js)
+            document.getElementById('admin-group-staff').classList.toggle('hidden', !isOwnerAccount());
             // 탭이 하나뿐인 묶음은 아래 줄을 숨김
             document.getElementById('admin-subtabs').classList.toggle('hidden', ADMIN_GROUPS[group].length < 2);
         }
@@ -5791,6 +5814,10 @@
             document.getElementById('admin-inquiry-panel').classList.toggle('hidden', tab !== 'inquiry');
             document.getElementById('admin-tab-chatlog').className = tab === 'chatlog' ? on : off;
             document.getElementById('admin-chatlog-panel').classList.toggle('hidden', tab !== 'chatlog');
+            document.getElementById('admin-tab-activity').className = tab === 'activity' ? on : off;
+            document.getElementById('admin-activity-panel').classList.toggle('hidden', tab !== 'activity');
+            document.getElementById('admin-tab-staff').className = tab === 'staff' ? on : off;
+            document.getElementById('admin-staff-panel').classList.toggle('hidden', tab !== 'staff');
             renderAdminGroups(group);
             if (tab === 'settle') onSettleTabOpened();
             if (tab === 'pickup') { fetchAdminPickupRequests(); fetchQuickOrders(); }
@@ -5798,6 +5825,8 @@
             if (tab === 'ship') onShipTabOpened();
             if (tab === 'inquiry') onInquiryTabOpened();
             if (tab === 'chatlog') onChatLogTabOpened();
+            if (tab === 'staff') onStaffTabOpened();
+            if (tab === 'activity') onActivityTabOpened();
             if (tab === 'products' || tab === 'inventory' || tab === 'picking' || tab === 'aicost') {
                 const frame = document.getElementById(`admin-${tab}-frame`);
                 const page = tab === 'aicost' ? 'ai-cost' : tab;
@@ -5818,6 +5847,8 @@
             }
             sellerProfiles = data;
             renderSellerAdminTable();
+            renderStaffTable();     // 직원 아이디 탭 (staff-admin.js)
+            fillActivityActors();
         }
 
         function sellerStatusBadgeHtml(status) {
@@ -5849,7 +5880,7 @@
                 if (o.status === '접수대기') counts[o.seller_id].pending++;
             });
 
-            let list = sellerProfiles;
+            let list = sellerProfiles.filter(p => !isStaffProfile(p));   // 직원 아이디는 [직원 관리]에서
             if (statusFilter !== 'ALL') list = list.filter(p => (p.status || 'approved') === statusFilter);
             if (keyword) {
                 list = list.filter(p => [p.company, p.name, p.email, p.phone, profileAddress(p), p.biz_no, String(p.biz_no || '').replace(/\D/g, ''), p.biz_name, p.tax_email].some(v => String(v || '').toLowerCase().includes(keyword)));
@@ -5985,7 +6016,7 @@
         function downloadSellerExcel() {
             const counts = {};
             ordersMaster.forEach(o => { if (o.seller_id) counts[o.seller_id] = (counts[o.seller_id] || 0) + 1; });
-            const rows = sellerProfiles.filter(p => p.role !== 'admin').map(p => ({
+            const rows = sellerProfiles.filter(p => p.role !== 'admin' && !isStaffProfile(p)).map(p => ({
                 '상태': SELLER_STATUS_LABEL[p.status] || p.status,
                 '상호명': p.company,
                 '송화인명': `밤낮딜리버리(${p.company})`,
@@ -6396,6 +6427,7 @@
     <!-- 관리자 > AI 상담 (답변 대기 문의, 답변 모음집) -->
     <script src="inquiry-admin.js"></script>
     <script src="quick-admin.js"></script>
+    <script src="staff-admin.js"></script>
     <!-- 오른쪽 아래 "궁금한 점 물어보기" AI 상담창 -->
     <script src="chat.js"></script>
     <!-- 밤낮딜리버리 풀필먼트 엑셀양식 원본 파일 (2026, 1번 작성안내 + 2번 엑셀양식). 양식을 바꾸려면 이 값을 새 파일로 교체하세요. -->
