@@ -203,6 +203,12 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   { await page.addStyleTag({ content: "#bn-chat-btn{display:none!important}" }); const sy = await page.evaluate(() => window.scrollY); const b0 = await page.locator("#ai-result").boundingBox(); const bb = { ...b0, y: b0.y + sy }; const vp = page.viewportSize();
     await page.screenshot({ path: path.join(__dirname, 'out', `${process.env.SHOT || 'shot'}-ai-submit-why.png`), fullPage: true, clip: { x: bb.x, y: bb.y + bb.height - 300, width: Math.min(bb.width, vp.width), height: 300 } }); }
   await page.screenshot({ path: path.join(__dirname, 'out', 'shot-ai-confirm.png'), fullPage: true });
+  await page.locator('#ai-result').screenshot({ path: path.join(__dirname, 'out', `${process.env.SHOT || 'shot'}-ai-result.png`) });
+  if (await page.isVisible('#ai-buy-box')) {
+    const buy = await page.innerText('#ai-buy-box');
+    check('buy list: stock 3 covers black (2개), white 1 + unknown listed', buy.includes('사무실 재고로 나갈 상품 2개') || buy.includes('사무실 재고로 나갈 상품'), buy.slice(0, 400));
+    console.log('BUYBOX:\n' + buy);
+  }
 
   // 연락처 없는 줄 빼기 → 아직 도매처 빈 줄 때문에 막힘
   await row(2).locator('button').click(); await page.waitForTimeout(100);
@@ -230,10 +236,16 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   const conf = await page.innerText('#ai-final-modal');
   check('final check lists rows + (합) / 책임 / 중복', conf.includes('(합)고랭 울 팬츠 / 블랙 / M / 1개') && conf.includes('박민수') && conf.includes('(합) 합배송 2건') && conf.includes('책임질 수 없습니다') && conf.includes('최근 3일안에') && conf.includes('총 3건, 이대로 접수하시겠습니까?'), conf.slice(0, 300));
   await page.locator('#ai-final-modal > div').screenshot({ path: path.join(__dirname, 'out', 'shot-ai-final-check.png') });
+  check('final check: register new product box (머플러 only, not unknown 가디건)', conf.includes('상품관리에 없던 상품 1개') && conf.includes('신평화B / 머플러') && !conf.includes('가디건 / 아이보리 / 가디건'), conf.slice(-600));
+  await page.locator('#ai-final-modal > div').screenshot({ path: path.join(__dirname, 'out', `${process.env.SHOT || 'shot'}-ai-final-check.png`) });
   await page.click('#btn-ai-final-cancel'); await page.waitForTimeout(200);
   check('다시 확인할게요 → closes, not saved, table kept', !(await vis('#ai-final-modal')) && tables.orders.length === before && (await vis('#ai-result')));
   await page.click('#btn-ai-submit'); await page.waitForTimeout(300);
   await page.click('#btn-ai-final-ok'); await page.waitForTimeout(800);
+  const newProd = tables.products.find(p => p.wholesale_company === '신평화B');
+  check('new product registered from order', !!newProd && newProd.wholesale_product === '머플러' && JSON.stringify(newProd.mall_names).includes('니트 머플러') && JSON.stringify(newProd.mall_names).includes('스마트스토어'), JSON.stringify(newProd));
+  check('unknown-wholesale row not registered + products count', tables.products.length === 3, String(tables.products.length));
+  check('register message shown', dialogs.some(d => d.includes('새 상품 1개를 등록')), dialogs.slice(-3).join(' | '));
   const added = tables.orders.slice(before);
   check('3 orders saved', added.length === 3, String(added.length));
   const o1 = added[0] || {};
@@ -294,6 +306,28 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.evaluate(() => document.getElementById('leftover-modal').classList.add('hidden'));
   await page.locator('#ai-result').screenshot({ path: path.join(__dirname, 'out', 'shot-ai-product-text.png') });
   check('old request form: order sheet picked (not guide sheet)', aiBodies[0] && aiBodies[0].signature.includes('수화인명') && gText.includes('주문 3건') && gText.includes('다이아 보아 맨투맨세트 / 그레이 / FREE / 2개') && gText.includes('가나다') && gText.includes("'발송대행(풀필먼트)주문서' 시트를 읽었어요"), aiBodies[0] && aiBodies[0].signature);
+
+  // 새 요청서 양식: 도매거래처명·도매상품명 칸이 있으면 확인표에 그대로 채움 (2026-11-17 대표님 화면)
+  const reqWb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(reqWb, XLSX.utils.aoa_to_sheet([
+    ['풀필요청서) 아래 작성해서 전달주시면 되세요 ^^', '초록색은 "고정값" 입니다'],
+    ['송화인명(보내는사람) -> 밤낮딜리버리(대표님상호)로 적어주세요', '대표님C/S연락처', '수화인명(받는사람)', '전화번호,휴대폰(받는사람)', '우편번호', '주소', '제품명', '사이즈', '도매거래처명', '도매상품명', '밤낮딜리버리 전달메세지', '수량'],
+    ['밤낮딜리버리(애플샵)', '070-1111-2222', '윤재훈', '01081120341', '10082', '경기 김포시 테스트로 1', '(하의만)션후드집업세트', '그레이/FREE', '도안', '(하의만)션후드집업세트', '', '1'],
+    ['밤낮딜리버리(애플샵)', '070-1111-2222', '김건우', '010-8372-9627', '07726', '서울 강서구 테스트로 2', '12번면슬렉스', '화이트/XL', '블루라벨', '12번면슬렉스', '', '1'],
+  ]), '발송대행(풀필먼트)주문서');
+  const reqFile = path.join(__dirname, 'out', 'request-form-wholesale.xlsx');
+  XLSX.writeFile(reqWb, reqFile);
+  aiReply = b => ({ cached: false, platform: '', mapping: { header_row: 1, columns: { recipient: 2, phone: 3, phone2: -1, zipcode: 4, address: 5, address_detail: -1, product: 6, option: 7, qty: 11, memo: 10, order_no: -1 } } });
+  await page.click('button:has-text("다른 파일 올리기")').catch(() => {}); await page.waitForTimeout(200);
+  await page.setInputFiles('#ai-file-input', reqFile); await page.waitForTimeout(1200);
+  {
+    const r0 = page.locator('#ai-result tbody tr').nth(0), r1 = page.locator('#ai-result tbody tr').nth(1);
+    const v = async (r, n) => r.locator('input[type=text]').nth(n).inputValue();
+    check('request form: 도매거래처명·도매상품명 read from file', (await v(r0, 0)) === '도안' && (await v(r0, 1)) === '(하의만)션후드집업세트' && (await v(r1, 0)) === '블루라벨' && (await v(r1, 1)) === '12번면슬렉스', [await v(r0, 0), await v(r0, 1), await v(r1, 0)].join('|'));
+    check('request form: submit not blocked', !(await page.isDisabled('#btn-ai-submit')));
+    await page.addStyleTag({ content: "#bn-chat-btn{display:none!important}" });
+    await page.locator('#ai-result').screenshot({ path: path.join(__dirname, 'out', `${process.env.SHOT || 'shot'}-ai-request-form.png`) });
+  }
 
   // 예시 시트에도 제목줄 + 예시 주문(홍길동)이 있고 줄이 더 많아도 → 진짜 주문서 시트를 읽음 + 읽은 시트 이름 표시
   const exWb = XLSX.utils.book_new();
