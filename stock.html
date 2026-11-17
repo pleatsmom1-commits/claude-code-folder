@@ -73,6 +73,7 @@
 
 <script src="config.js"></script>
 <script src="view-as.js"></script>
+<script src="stock-terms.js"></script>
 <script>
     // DB 주소/키는 config.js (공개용 값). 업체는 로그인한 계정의 상호와 같은 재고만 보입니다 (DB 에서 막음).
     const COLUMNS = 'id,company,wholesale_company,wholesale_product,retail_product,color,size,quantity,location,stocked_on,shipped_on,shipped_note,customer';
@@ -134,6 +135,8 @@
             // 관리자가 [셀러에게 재고 숨기기]로 숨긴 업체 (supabase/stock_hide.sql). 아직 DB 설정 전이면 그대로 보여줍니다.
             const { data: visible, error: vErr } = await client.rpc('my_stock_visible');
             if (!vErr && visible === false) { showState('지금은 재고 확인 화면을 준비 중입니다.<br>준비가 끝나면 이곳에서 내 재고를 확인하실 수 있어요.<br><br><a class="btn" href="/">주문접수 화면</a>'); return; }
+            // 재고 보관 약관 동의 (stock-terms.js, supabase/stock_terms.sql). 처음 한 번만 뜹니다.
+            if (!(await requireStockTerms(client, profile))) return;
         }
         const { data, error } = await fetchAll(client, query);
         if (error) { showState('재고를 불러오지 못했습니다.<br>잠시 후 다시 시도해주세요.<br><span class="sub">' + esc(error.message) + '</span>'); return; }
