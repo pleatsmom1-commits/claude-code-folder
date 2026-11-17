@@ -72,6 +72,7 @@
 </div>
 
 <script src="config.js"></script>
+<script src="view-as.js"></script>
 <script>
     // DB 주소/키는 config.js (공개용 값). 업체는 로그인한 계정의 상호와 같은 재고만 보입니다 (DB 에서 막음).
     const COLUMNS = 'id,company,wholesale_company,wholesale_product,retail_product,color,size,quantity,location,stocked_on,shipped_on,shipped_note,customer';
@@ -105,7 +106,7 @@
 
     async function init() {
         if (!window.supabase) { showState('화면을 불러오지 못했습니다. 새로고침해주세요.'); return; }
-        const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const client = VIEW_AS.createClient(SUPABASE_URL, SUPABASE_KEY);
         const { data: { session } } = await client.auth.getSession();
         if (!session) {
             showState('로그인 후 재고를 확인할 수 있습니다.<br><br><a class="btn primary" href="/">로그인하러 가기</a>');
@@ -117,7 +118,13 @@
 
         const params = new URLSearchParams(location.search);
         let query = () => client.from('stock_items').select(COLUMNS).order('stocked_on', { ascending: false, nullsFirst: false }).order('id', { ascending: false });
-        if (profile.role === 'admin') {
+        if (profile.role === 'admin' && VIEW_AS.company) {
+            // 관리자 [화면 보기]: 그 업체가 보는 화면 그대로 ([셀러에게 재고 숨기기] 설정도 똑같이)
+            company = VIEW_AS.company;
+            VIEW_AS.start('재고 확인');
+            const { data: hidden, error: hErr } = await client.rpc('stock_hidden_for', { p_company: company });
+            if (!hErr && hidden === true) { showState('지금은 재고 확인 화면을 준비 중입니다.<br>준비가 끝나면 이곳에서 내 재고를 확인하실 수 있어요.<br><br><a class="btn" href="/">주문접수 화면</a>'); return; }
+        } else if (profile.role === 'admin') {
             company = params.get('company') || '';
             if (!company) { showState('관리자는 [재고관리] 탭에서 업체를 고른 뒤 [업체 화면 미리보기]로 열어주세요.<br><br><a class="btn" href="/">주문접수 화면</a>'); return; }
             document.getElementById('preview-bar').hidden = false;

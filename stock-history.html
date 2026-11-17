@@ -9,6 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
+<script src="view-as.js"></script>
 <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
     .plus { color: #2563eb; font-weight: 700; }
@@ -110,6 +111,7 @@
     const embed = params.has('embed');
     // 셀러에게 열지 여부 (대표님이 공개 범위를 정하기 전까지 관리자만). index.html 의 SELLER_HISTORY_OPEN 과 같이 바꿉니다.
     const SELLER_OPEN = true;
+    let viewAsMode = false;          // 관리자 [화면 보기] (view-as.js)
     let KINDS = ['입고', '출고', '조정', '최종재고', '라벨완료'];
     const KIND_LABEL = { '입고': '입고', '출고': '출고', '조정': '수량 조정', '최종재고': '최종재고 엑셀', '라벨완료': '라벨완료', '정리': '재고 정리' };
     // 셀러 화면: 수량 조정 · 최종재고 엑셀은 '재고 정리' 한 가지로 묶고 이유는 보이지 않음 (대표님 결정 2026-11-17)
@@ -170,17 +172,28 @@
             document.querySelectorAll('.max-w-7xl').forEach(el => el.classList.remove('max-w-7xl'));
         }
         if (!window.supabase) { showState('화면을 불러오지 못했습니다. 새로고침해주세요.'); return; }
-        client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        client = VIEW_AS.createClient(SUPABASE_URL, SUPABASE_KEY);
         const { data: { session } } = await client.auth.getSession();
         if (!session) { showState('로그인 후 이용할 수 있습니다.<br><br><a class="text-indigo-600 font-bold" href="/">로그인하러 가기</a>'); return; }
         const { data: profile, error } = await client.from('profiles').select('id,company,role,status').eq('id', session.user.id).single();
         if (error || !profile) { showState('계정 정보를 불러오지 못했습니다. 다시 로그인해주세요.'); return; }
         me = profile;
         isAdmin = profile.role === 'admin';
+        // 관리자 [화면 보기]: 셀러가 보는 모양(이 업체 것만, 재고 정리로 묶고 이유 숨김) 그대로, 보기 전용
+        if (isAdmin && VIEW_AS.company) {
+            viewAsMode = true;
+            isAdmin = false;
+            me = { ...profile, company: VIEW_AS.company, status: 'approved' };
+            profile.company = VIEW_AS.company;
+            profile.status = 'approved';
+            VIEW_AS.start('재고 증감 내역');
+        }
         if (!isAdmin && profile.status !== 'approved') { showState('관리자 승인 후 볼 수 있습니다.'); return; }
         if (!isAdmin && !SELLER_OPEN) { showState('재고 증감 내역은 준비 중입니다.'); return; }
         if (!isAdmin) {
-            const { data: visible, error: vErr } = await client.rpc('my_stock_visible');
+            const { data: visible, error: vErr } = viewAsMode
+                ? await client.rpc('stock_hidden_for', { p_company: VIEW_AS.company }).then(r => ({ data: r.error ? null : !r.data, error: r.error }))
+                : await client.rpc('my_stock_visible');
             if (!vErr && visible === false) { showState('지금은 재고 화면을 준비 중입니다.<br>준비가 끝나면 이곳에서 내 재고 증감 내역을 확인하실 수 있어요.'); return; }
         }
         document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !isAdmin));
@@ -261,7 +274,9 @@
         });
         btn.disabled = false; btn.textContent = '조회';
         if (error) { alert('기록을 불러오지 못했습니다.\n' + errorMessage(error)); return; }
-        const rows = isAdmin ? data : data.map(m => SELLER_GROUPED.includes(m.kind) ? { ...m, kind: '정리', reason: '' } : m);
+        // 관리자 [화면 보기]는 관리자 계정이라 전체가 오므로 셀러 DB 규칙처럼 이 업체 것만 남깁니다.
+        const mine = viewAsMode ? data.filter(m => norm(m.company) === norm(VIEW_AS.company)) : data;
+        const rows = isAdmin ? mine : mine.map(m => SELLER_GROUPED.includes(m.kind) ? { ...m, kind: '정리', reason: '' } : m);
         moves = rows.filter(m => m.d_a || m.d_b || m.d_defect);
         zeroCount = rows.length - moves.length;
         focus = null;
