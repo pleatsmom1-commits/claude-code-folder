@@ -81,6 +81,7 @@
                     <option value="defect">불량 있음</option>
                     <option value="all">전체 상품 (재고 0 포함)</option>
                 </select>
+                <button type="button" id="f-reset" onclick="resetFilters()" title="검색어와 선택을 처음 상태로" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg">초기화</button>
                 <button onclick="labelChecked()" class="admin-only hidden px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-emerald-700 font-bold text-xs rounded-lg">선택 라벨완료</button>
                 <span id="summary" class="text-xs text-slate-500 ml-auto"></span>
             </div>
@@ -396,6 +397,15 @@
         const cur = document.getElementById('f-status').value;
         const box = (label, value, color, status) => `<button type="button" onclick="pickStatus('${status}')" title="눌러서 ${label} 목록 보기" class="bg-${color}-50 border ${cur === status ? `border-${color}-500 ring-2 ring-${color}-300` : `border-${color}-100`} hover:border-${color}-400 rounded-lg p-2 cursor-pointer transition"><div class="text-lg font-black text-${color}-700">${fmt(value)}</div><div class="text-[11px] text-slate-500">${label}${cur === status ? ' ✓' : ''}</div></button>`;
         document.getElementById('stats').innerHTML = box('재고 있는 상품', list.length, 'slate', 'stock') + box('상품화', sum.a, 'emerald', 'a') + box('미상품화', sum.b, 'amber', 'b') + box('불량', sum.defect, 'rose', 'defect');
+    }
+
+    // [초기화]: 검색어·거래처·재고 상태를 한 번에 처음으로 되돌리고, 바로 새로 칠 수 있게 검색칸에 커서
+    function resetFilters() {
+        document.getElementById('f-keyword').value = '';
+        document.getElementById('f-company').value = '';
+        document.getElementById('f-status').value = 'stock';
+        renderList();
+        document.getElementById('f-keyword').focus();
     }
 
     function pickStatus(status) {
