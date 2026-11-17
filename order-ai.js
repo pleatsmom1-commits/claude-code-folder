@@ -325,6 +325,7 @@ function aiRender() {
                 <tbody>${tr}</tbody>
             </table>
         </div>
+        ${aiBuyBox(live)}
         <div class="flex justify-end items-center gap-3 flex-wrap">
             ${whyOff ? `<div id="ai-submit-why" class="flex-1 min-w-[240px] max-w-2xl text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">⚠️ ${whyOff}</div>` : ''}
             ${whyOff && noWholesale ? `<button onclick="aiFillUnknownWholesale()" class="px-3 py-2 bg-white border border-amber-300 hover:bg-amber-100 text-amber-800 text-xs font-bold rounded-lg">빈 도매처 칸을 쇼핑몰상품명으로 채우기 (${noWholesale}건)</button>` : ''}
@@ -334,6 +335,95 @@ function aiRender() {
         </div>`;
     box.classList.remove('hidden');
     document.getElementById('ai-drop-zone').classList.add('hidden');
+}
+
+// 사입할 상품 목록 (2026-11-17 대표님 요청): 사무실 재고로 못 채우는 수량만 도매처별로 모아 보여줌
+//  상품관리에 있는 상품: 같은 상품 주문 수량을 합친 뒤 지금 재고만큼 빼고 남는 수량
+//  상품관리에 없는 상품: 재고를 알 수 없으므로 주문 수량 그대로
+function aiBuyList(live) {
+    const map = new Map();
+    let fromStock = 0;
+    live.forEach(o => {
+        const parts = aiOptionParts(o.option);
+        const p = o.match;
+        const key = p ? 'p' + p.id : [o.wholesaleCompany, o.wholesaleProduct, o.option].map(aiNorm).join('|');
+        const row = map.get(key) || {
+            company: (p && p.wholesale_company) || o.wholesaleCompany || '',
+            product: (p && p.wholesale_product) || o.wholesaleProduct || o.mallProduct || '',
+            color: p ? (p.color || '') : (parts[0] || ''),
+            size: p ? (p.size || '') : (parts[1] || ''),
+            ordered: 0, stock: p ? (aiOrder.stock.get(p.id) || 0) : null,
+        };
+        row.ordered += o.qty;
+        map.set(key, row);
+    });
+    const rows = [];
+    map.forEach(r => {
+        const use = r.stock === null ? 0 : Math.min(r.stock, r.ordered);
+        fromStock += use;
+        r.need = r.ordered - use;
+        if (r.need > 0) rows.push(r);
+    });
+    rows.sort((a, b) => (a.company || '힣').localeCompare(b.company || '힣', 'ko') || a.product.localeCompare(b.product, 'ko'));
+    return { rows, fromStock, needTotal: rows.reduce((n, r) => n + r.need, 0) };
+}
+
+function aiBuyBox(live) {
+    const b = aiBuyList(live);
+    if (!live.length) return '';
+    const body = b.rows.map(r => `<tr class="border-b border-amber-100">
+        <td class="px-2 py-1.5 font-bold">${aiEsc(r.company) || '<span class="text-rose-600">(도매처 없음)</span>'}</td>
+        <td class="px-2 py-1.5">${aiEsc(r.product)}</td>
+        <td class="px-2 py-1.5">${aiEsc(r.color)}</td>
+        <td class="px-2 py-1.5">${aiEsc(r.size)}</td>
+        <td class="px-2 py-1.5 text-center font-black text-amber-800">${r.need}</td>
+        <td class="px-2 py-1.5 text-[11px] text-slate-500">${r.stock === null ? '상품관리에 없음' : `주문 ${r.ordered} · 재고 ${r.stock}`}</td>
+    </tr>`).join('') || '<tr><td colspan="6" class="px-2 py-4 text-center text-emerald-700 font-bold">모두 사무실 재고로 나갈 수 있어요. 사입할 상품이 없습니다.</td></tr>';
+    return `<div id="ai-buy-box" class="border border-amber-200 bg-amber-50/60 rounded-lg p-3 space-y-2">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+                <p class="text-sm font-black text-amber-800">🛒 사입할 상품 목록 <span class="text-xs font-bold">(${b.rows.length}가지 · ${b.needTotal}개)</span></p>
+                <p class="text-[11px] text-slate-600 mt-0.5">📦 사무실 재고로 나갈 상품 <b class="text-emerald-700">${b.fromStock}개</b> · 🛒 매장에서 사입할 상품 <b class="text-amber-800">${b.needTotal}개</b> — 재고는 지금 기준이며, 출고 때 먼저 들어온 주문부터 재고가 쓰여요.</p>
+            </div>
+            <div class="flex gap-1.5">
+                <button onclick="aiBuyExcel()" ${b.rows.length ? '' : 'disabled'} class="px-3 py-1.5 bg-white border border-amber-300 hover:bg-amber-100 disabled:opacity-40 text-amber-800 text-xs font-bold rounded-lg">엑셀 받기</button>
+                <button onclick="aiBuyCopy()" ${b.rows.length ? '' : 'disabled'} class="px-3 py-1.5 bg-white border border-amber-300 hover:bg-amber-100 disabled:opacity-40 text-amber-800 text-xs font-bold rounded-lg">텍스트 복사</button>
+            </div>
+        </div>
+        <div class="overflow-x-auto bg-white border border-amber-100 rounded-lg">
+            <table class="w-full text-xs">
+                <thead class="bg-amber-50 text-amber-800"><tr>
+                    <th class="px-2 py-1.5 text-left">도매처명</th><th class="px-2 py-1.5 text-left">도매상품명</th><th class="px-2 py-1.5 text-left">컬러</th>
+                    <th class="px-2 py-1.5 text-left">사이즈</th><th class="px-2 py-1.5">사입할 수량</th><th class="px-2 py-1.5 text-left">참고</th>
+                </tr></thead>
+                <tbody>${body}</tbody>
+            </table>
+        </div>
+    </div>`;
+}
+
+function aiBuyExcel() {
+    const b = aiBuyList(aiOrder.rows.filter(o => !o.removed));
+    if (!b.rows.length) return;
+    const aoa = [['도매처명', '도매상품명', '컬러', '사이즈', '사입할 수량', '참고']]
+        .concat(b.rows.map(r => [r.company, r.product, r.color, r.size, r.need, r.stock === null ? '상품관리에 없음' : `주문 ${r.ordered} · 재고 ${r.stock}`]));
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{ wch: 16 }, { wch: 24 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, { wch: 18 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '사입할 상품');
+    const d = new Date(), ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    XLSX.writeFile(wb, `사입할상품_${ymd}.xlsx`);
+}
+
+async function aiBuyCopy() {
+    const b = aiBuyList(aiOrder.rows.filter(o => !o.removed));
+    if (!b.rows.length) return;
+    const groups = new Map();
+    b.rows.forEach(r => { const k = r.company || '(도매처 없음)'; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); });
+    const text = `[사입할 상품] ${new Date().toLocaleDateString('ko-KR')}\n` + [...groups.entries()].map(([k, list]) =>
+        `\n■ ${k}\n` + list.map(r => `- ${[r.product, r.color, r.size].filter(Boolean).join(' / ')} : ${r.need}개`).join('\n')).join('\n');
+    try { await navigator.clipboard.writeText(text); alert('복사했습니다. 카톡 등에 붙여넣으세요.'); }
+    catch { prompt('아래 내용을 복사하세요 (Ctrl+C)', text); }
 }
 
 function aiSetField(i, field, value) {

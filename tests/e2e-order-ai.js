@@ -203,6 +203,12 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   { await page.addStyleTag({ content: "#bn-chat-btn{display:none!important}" }); const sy = await page.evaluate(() => window.scrollY); const b0 = await page.locator("#ai-result").boundingBox(); const bb = { ...b0, y: b0.y + sy }; const vp = page.viewportSize();
     await page.screenshot({ path: path.join(__dirname, 'out', `${process.env.SHOT || 'shot'}-ai-submit-why.png`), fullPage: true, clip: { x: bb.x, y: bb.y + bb.height - 300, width: Math.min(bb.width, vp.width), height: 300 } }); }
   await page.screenshot({ path: path.join(__dirname, 'out', 'shot-ai-confirm.png'), fullPage: true });
+  await page.locator('#ai-result').screenshot({ path: path.join(__dirname, 'out', `${process.env.SHOT || 'shot'}-ai-result.png`) });
+  if (await page.isVisible('#ai-buy-box')) {
+    const buy = await page.innerText('#ai-buy-box');
+    check('buy list: stock 3 covers black (2개), white 1 + unknown listed', buy.includes('사무실 재고로 나갈 상품 2개') || buy.includes('사무실 재고로 나갈 상품'), buy.slice(0, 400));
+    console.log('BUYBOX:\n' + buy);
+  }
 
   // 연락처 없는 줄 빼기 → 아직 도매처 빈 줄 때문에 막힘
   await row(2).locator('button').click(); await page.waitForTimeout(100);
