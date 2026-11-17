@@ -99,9 +99,23 @@ async function routeAll(page, asked) {
   ok(asked[1] && !asked[1].image, 'next question has no image');
   // 화면 캡쳐 버튼
   await page.click('#bn-chat .bn-screen'); await page.waitForSelector('#bn-shot.open', { timeout: 4000 }).catch(() => {});
-  ok(await page.evaluate(() => window.__shotAsked === 1) && await page.isVisible('#bn-shot.open'), 'screen capture → editor');
+  ok(await page.evaluate(() => window.__shotAsked >= 1) && await page.isVisible('#bn-shot.open.snip'), 'screen capture → snip mode (캡쳐 도구처럼)');
+  ok((await page.innerText('#bn-shot .bn-shot-title')).includes('끌어서 고르세요') && !(await page.isVisible('#bn-shot .bn-shot-ok')), 'snip: drag guide, no send button yet');
+  ok(await page.evaluate(() => getComputedStyle(document.getElementById('bn-chat')).visibility !== 'hidden'), 'chat visible again after capture');
+  { const b = await page.locator('#bn-shot canvas').boundingBox(); const kk = b.width / 1200;
+    await page.mouse.move(b.x + 30 * kk, b.y + 100 * kk); await page.mouse.down(); await page.mouse.move(b.x + 300 * kk, b.y + 160 * kk, { steps: 4 });
+    await page.screenshot({ path: path.join(OUT, `${SHOT}-chat-snip.png`) });
+    await page.mouse.up(); }
+  const snipSize = await page.evaluate(() => { const c = document.querySelector('#bn-shot canvas'); return [c.width, c.height]; });
+  ok(!(await page.isVisible('#bn-shot.snip')) && await page.isVisible('#bn-shot.open') && await page.isVisible('#bn-shot .bn-shot-ok'), 'after drag → normal check window');
+  ok(Math.abs(snipSize[0] - 270) < 6 && Math.abs(snipSize[1] - 60) < 6, 'snip keeps only selected part (원래 크기)', snipSize.join('x'));
+  ok(await page.evaluate(() => document.querySelector('#bn-shot [data-mode=cover]').classList.contains('on')), 'after snip → 모자이크 mode ready');
+  await page.screenshot({ path: path.join(OUT, `${SHOT}-chat-snip-done.png`) });
   await page.click('#bn-shot .bn-shot-cancel');
   ok(!(await page.isVisible('#bn-chat .bn-attach.on')), 'cancel → nothing attached');
+  // Esc 로도 취소
+  await page.click('#bn-chat .bn-screen'); await page.waitForSelector('#bn-shot.open.snip'); await page.keyboard.press('Escape');
+  ok(!(await page.isVisible('#bn-shot.open')), 'Esc cancels snip');
   ok(!errors.length, 'no page errors (PC)', errors.join(' | '));
 
   // ---------- 휴대폰 ----------
