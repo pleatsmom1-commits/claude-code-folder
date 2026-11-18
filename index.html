@@ -873,6 +873,9 @@
                         </div>
                     </div>
 
+                    <!-- 업체별 접수 현황: 접수대기/접수완료 업체 목록 + 누르면 그 업체 주문만 조회 -->
+                    <div id="admin-company-tabs" class="border border-slate-200 rounded-xl p-3 space-y-2 bg-white"></div>
+
                     <!-- 주문 조회: 기간 버튼 / 날짜 지정 / 검색 (셀러 조회와 같은 방식) -->
                     <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
                         <div class="flex flex-wrap items-center gap-2">
@@ -4714,6 +4717,55 @@
             if (adminQuery.seller !== 'ALL' && !companies.includes(adminQuery.seller)) adminQuery.seller = 'ALL';
         }
 
+        // 업체별 접수 현황 (선택한 기간 기준, 숨긴 접수건은 [숨긴 접수건도 보기]일 때만 셈)
+        function adminCompanyStatusList(status) {
+            const byCompany = {};
+            ordersMaster.forEach(o => {
+                if (o.status !== status) return;
+                if (!adminQuery.showHidden && hiddenOrderIds.has(o.id)) return;
+                if (!orderInDateRange(o, adminFrom, adminTo)) return;
+                const c = o.seller_company || '-';
+                (byCompany[c] = byCompany[c] || new Set()).add(o.order_no ?? o.id);
+            });
+            return Object.entries(byCompany).map(([company, set]) => ({ company, count: set.size }))
+                .sort((a, b) => b.count - a.count || a.company.localeCompare(b.company, 'ko'));
+        }
+        function renderAdminCompanyTabs() {
+            const box = document.getElementById('admin-company-tabs');
+            if (!box) return;
+            const periodLabel = (!adminFrom && !adminTo) ? '전체 기간' : `${adminFrom || '처음'} ~ ${adminTo || '오늘'}`;
+            const row = (status, label, color) => {
+                const list = adminCompanyStatusList(status);
+                const total = list.reduce((n, x) => n + x.count, 0);
+                const allActive = adminQuery.status === status && adminQuery.seller === 'ALL';
+                const chip = (active, onclick, text, title) => `<button type="button" onclick="${onclick}" title="${title}" class="px-2.5 py-1 rounded-full text-[11px] font-bold border transition whitespace-nowrap ${active ? color.on : color.off}">${text}</button>`;
+                const chips = list.map(x => {
+                    const active = adminQuery.status === status && adminQuery.seller === x.company;
+                    const enc = escapeHtml(JSON.stringify(x.company));
+                    return chip(active, `pickAdminCompanyTab(${enc}, '${status}')`, `${escapeHtml(x.company)} <span class="font-black">${x.count}</span>`, `${escapeHtml(x.company)} ${label} 주문만 보기`);
+                }).join('');
+                return `<div class="flex flex-wrap items-center gap-1.5">
+                    <span class="text-xs font-black ${color.title} whitespace-nowrap mr-1">${label} 업체 <span class="text-base">${list.length}</span>곳 · 주문 ${total}건</span>
+                    ${list.length ? chip(allActive, `pickAdminCompanyTab('ALL', '${status}')`, `${label} 전체`, `모든 업체의 ${label} 주문 보기`) + chips : `<span class="text-[11px] text-slate-400">없음</span>`}
+                </div>`;
+            };
+            const filtered = adminQuery.status !== 'ALL' || adminQuery.seller !== 'ALL';
+            box.innerHTML = `
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <span class="text-xs font-bold text-slate-600">업체별 접수 현황 <span class="font-normal text-slate-400">(${periodLabel} 기준 · 업체 이름을 누르면 그 업체 주문만 보입니다)</span></span>
+                    ${filtered ? `<button type="button" onclick="pickAdminCompanyTab('ALL', 'ALL')" class="px-2.5 py-1 rounded-lg text-[11px] font-bold border border-slate-300 bg-white hover:bg-slate-50 text-slate-600">모든 업체·상태 보기</button>` : ''}
+                </div>
+                ${row('접수대기', '접수대기', { title: 'text-orange-700', on: 'bg-orange-500 border-orange-500 text-white', off: 'bg-orange-50 border-orange-200 text-orange-800 hover:bg-orange-100' })}
+                ${row('접수완료', '접수완료', { title: 'text-emerald-700', on: 'bg-emerald-600 border-emerald-600 text-white', off: 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100' })}`;
+        }
+        function pickAdminCompanyTab(company, status) {
+            const sel = document.getElementById('admin-seller-filter');
+            sel.value = company;
+            if (sel.value !== company) sel.value = 'ALL';
+            document.getElementById('admin-status-filter').value = status;
+            runAdminSearch();
+        }
+
         // 관리자 화면의 현재 필터(거래처 + 구분 + 출고상태 + 기간 + 검색)를 적용한 주문 목록
         function getAdminFilteredOrders() {
             const { seller: sellerFilter, ship: shipFilter, type: typeFilter, status: statusFilter, field, keyword } = adminQuery;
@@ -4743,6 +4795,7 @@
             const groups = getOrderGroups();
             const filtered = getAdminFilteredOrders();
             document.getElementById('chk-all-admin').checked = false;
+            renderAdminCompanyTabs();
 
             // 주문 단위 요약 (전체 기준)
             const summary = { '미출고': 0, '부분출고': 0, '출고완료': 0 };
