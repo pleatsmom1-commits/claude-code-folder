@@ -883,6 +883,7 @@
                                 <option value="접수완료">접수완료</option>
                             </select>
                             <span id="admin-order-count" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full">총 0건</span>
+                            <span id="admin-earliest-time" class="hidden text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-full" title="지금 조회된 주문 중 셀러가 가장 먼저 접수한 시간"></span>
                         </div>
                         <div class="flex gap-2 items-center">
                             <span id="admin-ship-summary" class="ship-ui text-[11px] text-slate-500"></span>
@@ -4930,6 +4931,14 @@
 
             const orderCount = new Set(filtered.map(o => o.order_no ?? o.id)).size;
             document.getElementById('admin-order-count').innerText = `주문 ${orderCount}건 · 상품 ${filtered.length}개`;
+            // 조회된 주문 중 제일 빠른 셀러 접수시간 (간단접수에서 넘긴 건은 처음 접수한 시간)
+            const earliestEl = document.getElementById('admin-earliest-time');
+            const earliest = filtered.reduce((best, o) => {
+                const t = o.origin_created_at || o.created_at;
+                return t && (!best || new Date(t) < new Date(best.t)) ? { t, o } : best;
+            }, null);
+            earliestEl.classList.toggle('hidden', !earliest);
+            if (earliest) earliestEl.innerText = `제일 빠른 접수 ${formatPickupTime(earliest.t)} · ${earliest.o.seller_company || "-"} NO.${orderNoLabel(earliest.o, groups)}`;
             const hiddenNow = ordersMaster.filter(o => hiddenOrderIds.has(o.id)).length;
             document.getElementById('admin-hidden-count').innerText = hiddenNow ? `(${hiddenNow}개)` : '';
             document.getElementById('btn-admin-unhide').classList.toggle('hidden', !(adminQuery.showHidden && hiddenNow));
