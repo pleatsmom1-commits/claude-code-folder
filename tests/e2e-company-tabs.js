@@ -123,7 +123,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   const results = [];
   const check = (name, cond, extra = '') => { const l = `${cond ? 'PASS' : 'FAIL'}  ${name}${extra ? '  -- ' + extra : ''}`; results.push(l); console.log(l); };
   tables.orders = [];
-  const mk = (n, company, status, recipient, product, daysAgo = 0) => tables.orders.push({ id: 'ORD-' + n, seller_id: ids.seller, seller_company: company, sender_name: `밤낮딜리버리(${company})`, recipient, phone: '010-1234-' + String(1000 + n), address: '서울 중구 테스트로 ' + n, product, status, ship_status: '미출고', order_type: 'fulfillment', order_no: n, item_no: 1, seller_order_no: n, created_at: new Date(Date.now() - daysAgo * 86400000).toISOString(), accepted_at: status === '접수완료' ? new Date(Date.now() - daysAgo * 86400000 + 3600000).toISOString() : null });
+  const mk = (n, company, status, recipient, product, daysAgo = 0) => tables.orders.push({ id: 'ORD-' + n, seller_id: ids.seller, seller_company: company, sender_name: `밤낮딜리버리(${company})`, recipient, phone: '010-1234-' + String(1000 + n), address: '서울 중구 테스트로 ' + n, product, status, ship_status: '미출고', order_type: 'fulfillment', order_no: n, item_no: 1, seller_order_no: n, created_at: new Date(Date.now() - daysAgo * 86400000).toISOString(), accepted_at: status === '접수완료' ? new Date(Date.now() - daysAgo * 86400000 + 60000).toISOString() : null });
   mk(1, '윈온골프', '접수대기', '유미진', '반바지 / M / 1개'); mk(2, '윈온골프', '접수대기', '홍명구', '스커트 / L / 1개'); mk(3, '윈온골프', '접수대기', '박혜영', '스커트 / M / 1개');
   mk(4, '온온', '접수대기', '온온', '의류'); mk(5, '딘컴퍼니', '접수대기', '딘컴퍼니', '의류');
   mk(6, '가나 샵', '접수완료', '김철수', '티셔츠', 1); mk(7, '가나 샵', '접수완료', '이영희', '바지', 1); mk(8, '럭스걸', '접수완료', '최민수', '원피스', 2); mk(9, '온온', '접수완료', '정수아', '의류', 3);
