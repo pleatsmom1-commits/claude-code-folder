@@ -123,7 +123,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   const results = [];
   const check = (name, cond, extra = '') => { const l = `${cond ? 'PASS' : 'FAIL'}  ${name}${extra ? '  -- ' + extra : ''}`; results.push(l); console.log(l); };
   tables.orders = [];
-  const mk = (n, company, status, recipient, product, daysAgo = 0) => tables.orders.push({ id: 'ORD-' + n, seller_id: ids.seller, seller_company: company, sender_name: `밤낮딜리버리(${company})`, recipient, phone: '010-1234-' + String(1000 + n), address: '서울 중구 테스트로 ' + n, product, status, ship_status: '미출고', order_type: 'fulfillment', order_no: n, item_no: 1, seller_order_no: n, created_at: new Date(Date.now() - daysAgo * 86400000).toISOString() });
+  const mk = (n, company, status, recipient, product, daysAgo = 0) => tables.orders.push({ id: 'ORD-' + n, seller_id: ids.seller, seller_company: company, sender_name: `밤낮딜리버리(${company})`, recipient, phone: '010-1234-' + String(1000 + n), address: '서울 중구 테스트로 ' + n, product, status, ship_status: '미출고', order_type: 'fulfillment', order_no: n, item_no: 1, seller_order_no: n, created_at: new Date(Date.now() - daysAgo * 86400000).toISOString(), accepted_at: status === '접수완료' ? new Date(Date.now() - daysAgo * 86400000 + 3600000).toISOString() : null });
   mk(1, '윈온골프', '접수대기', '유미진', '반바지 / M / 1개'); mk(2, '윈온골프', '접수대기', '홍명구', '스커트 / L / 1개'); mk(3, '윈온골프', '접수대기', '박혜영', '스커트 / M / 1개');
   mk(4, '온온', '접수대기', '온온', '의류'); mk(5, '딘컴퍼니', '접수대기', '딘컴퍼니', '의류');
   mk(6, '가나 샵', '접수완료', '김철수', '티셔츠', 1); mk(7, '가나 샵', '접수완료', '이영희', '바지', 1); mk(8, '럭스걸', '접수완료', '최민수', '원피스', 2); mk(9, '온온', '접수완료', '정수아', '의류', 3);
@@ -153,6 +153,22 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
     const t2 = await box();
     check('오늘 기간이면 접수완료 0곳', t2.includes('접수완료 업체 0곳'), t2);
     await page.click('.admin-preset[data-preset="all"]'); await page.waitForTimeout(300);
+    // 기준 시간: 오늘 0시부터 → 접수완료(1~3일 전 접수완료)는 0곳, 접수대기(오늘)는 그대로
+    await page.click('button:has-text("오늘 0시부터")'); await page.waitForTimeout(300);
+    const t3 = await box();
+    check('기준 오늘 0시 → 접수대기 3곳 그대로', t3.includes('접수대기 업체 3곳 · 주문 5건'), t3);
+    check('기준 오늘 0시 → 접수완료 0곳', t3.includes('접수완료 업체 0곳'), t3);
+    check('목록도 기준 적용(5건)', await page.locator('#admin-order-list .admin-chk-item').count() === 5);
+    await shot(`tabs-${OUT}-3.png`);
+    // 2일 전 0시 ~ 지금 → 접수완료: 가나 샵(1일 전), 럭스걸(2일 전 +1h) = 2곳
+    const d2 = new Date(Date.now() + 9 * 3600000 - 2 * 86400000).toISOString().slice(0, 10);
+    await page.fill('#admin-basis-from', d2 + 'T00:00'); await page.click('button:has-text("기준 적용")'); await page.waitForTimeout(300);
+    const t4 = await box();
+    check('2일 전 0시부터 → 접수완료 2곳', t4.includes('접수완료 업체 2곳 · 주문 3건'), t4);
+    await page.reload(); await page.waitForTimeout(1500);
+    check('새로고침해도 기준 시간 기억', await page.inputValue('#admin-basis-from') === d2 + 'T00:00');
+    await page.click('button:has-text("기준 지우기")'); await page.waitForTimeout(300);
+    check('기준 지우면 9건', await page.locator('#admin-order-list .admin-chk-item').count() === 9);
   }
   check('no page errors', pageErrors.length === 0, pageErrors.join(' | '));
   await browser.close();
