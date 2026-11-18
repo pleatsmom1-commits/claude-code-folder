@@ -11,7 +11,7 @@ const OUT = process.argv[2] || G.OUT;
   const S = n => path.join(OUT, n + '.png');
   await G.login(p, 'seller@x.com', 'password1');
   await G.go(p, G.P('products.html')); await p.waitForTimeout(800);
-  await p.click('button:has-text("+ 상품 등록")'); await p.waitForTimeout(400);
+  await p.click('button:has-text("단건 상품 등록")'); await p.waitForTimeout(400);
   await p.fill('#e-wholesale_company', '청평화 가나').catch(() => {}); await p.fill('#e-wholesale_product', '울PT').catch(() => {});
   await p.fill('#e-color', '차콜').catch(() => {}); await p.fill('#e-size', 'M').catch(() => {});
   const nm = p.locator('#e-names input'); if (await nm.count() >= 2) { await nm.nth(0).fill('스마트스토어'); await nm.nth(1).fill('울 와이드 팬츠'); }
