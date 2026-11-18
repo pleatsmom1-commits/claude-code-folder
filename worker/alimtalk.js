@@ -117,7 +117,7 @@ async function sendOne(env, to, row) {
       pfId: env.SOLAPI_PF_ID,
       templateId: env.SOLAPI_TEMPLATE_ID,
       disableSms: false,
-      variables: templateVariables(row),
+      variables: templateVariables(row, env),
     },
   });
 }
@@ -245,16 +245,24 @@ export function isSentCurrent(row) {
 }
 
 // 템플릿 변수 (승인된 템플릿과 이름이 같아야 함)
-export function templateVariables(row) {
+export function templateVariables(row, env) {
   const d = row.data || {};
   const [, m, day] = String(row.settle_date || d.date || '').split('-');
-  return {
+  const vars = {
     '#{상호}': row.company,
     '#{정산일}': m && day ? `${Number(m)}월 ${Number(day)}일` : String(row.settle_date || ''),
     '#{정산결과}': resultText(row.result ?? d.result, row.total ?? d.total),
     '#{입금계좌}': d.account ? String(d.account) : '-',
     '#{토큰}': row.token,
   };
+  // 새 템플릿(입금액 참고사항)용: 정산일 오전 입금 확인 기준, 요일 자동 (SOLAPI_TEMPLATE_V2 가 1 일 때만 보냄)
+  if (env && String(env.SOLAPI_TEMPLATE_V2 || '') === '1') {
+    const y = Number(String(row.settle_date || d.date || '').slice(0, 4));
+    vars['#{입금확인일}'] = m && day
+      ? `${Number(m)}월 ${Number(day)}일(${'일월화수목금토'[new Date(y, Number(m) - 1, Number(day)).getDay()]})`
+      : '-';
+  }
+  return vars;
 }
 
 export function resultText(result, total) {
