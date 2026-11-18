@@ -44,20 +44,19 @@
 
     <div id="app" class="hidden space-y-4">
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
-            <div class="flex justify-between items-start flex-wrap gap-3">
-                <div>
-                    <h2 class="font-bold text-slate-900">상품 목록</h2>
-                    <p class="text-xs text-slate-500 mt-0.5">상품마다 <b>상품코드</b>가 자동으로 붙습니다. 상품코드나 상품명으로 검색하면 도매처·도매상품명·플랫폼별 상품명이 바로 나옵니다. 바꾼 내용은 모두 [기록]에 남습니다.</p>
-                </div>
+            <div>
+                <h2 class="font-bold text-slate-900">상품 목록</h2>
+                <p class="text-xs text-slate-500 mt-0.5">상품마다 <b>상품코드</b>가 자동으로 붙습니다. 상품코드나 상품명으로 검색하면 도매처·도매상품명·플랫폼별 상품명이 바로 나옵니다. 바꾼 내용은 모두 [기록]에 남습니다.</p>
+            </div>
+            <div class="flex justify-between items-center flex-wrap gap-2">
                 <div class="flex gap-2 flex-wrap">
-                    <button onclick="downloadForm()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm">등록 양식 받기</button>
+                    <button onclick="openEdit(null)" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow">단건 상품 등록</button>
                     <label class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow cursor-pointer">
-                        엑셀로 등록
+                        일괄 엑셀 등록
                         <input id="upload-input" type="file" accept=".xlsx,.xls" onchange="uploadForm(event)" class="hidden">
                     </label>
-                    <button onclick="downloadList()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm">엑셀 다운로드</button>
-                    <button onclick="openEdit(null)" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow">+ 상품 등록</button>
                 </div>
+                <button onclick="downloadForm()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm">엑셀 일괄등록 양식 받기</button>
             </div>
             <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-2">
                 <input type="search" id="f-keyword" oninput="renderList()" placeholder="상품코드 · 쇼핑몰상품명 · 도매처 · 도매상품명 검색" class="px-3 py-1.5 border rounded-lg text-xs bg-white w-72">
@@ -70,6 +69,7 @@
                 </select>
                 <span id="request-badge" class="hidden text-xs font-bold text-rose-600 bg-rose-50 px-2.5 py-1 rounded-full cursor-pointer" onclick="showRequests()"></span>
                 <span id="summary" class="text-xs text-slate-500 ml-auto"></span>
+                <button onclick="downloadList()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm">등록상품 엑셀 다운로드</button>
             </div>
             <div class="overflow-auto max-h-[70vh] border border-slate-200 rounded-lg">
                 <table id="list-table" class="w-full text-left text-xs">
@@ -345,7 +345,7 @@
         const tbody = document.getElementById('list');
         const cols = isAdmin ? 10 : 9;
         if (!list.length) {
-            tbody.innerHTML = `<tr><td colspan="${cols}" class="p-8 text-center text-slate-400">${products.length ? '조건에 맞는 상품이 없습니다.' : '등록된 상품이 없습니다. [+ 상품 등록] 또는 [엑셀로 등록]으로 등록하세요.'}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="${cols}" class="p-8 text-center text-slate-400">${products.length ? '조건에 맞는 상품이 없습니다.' : '등록된 상품이 없습니다. [단건 상품 등록] 또는 [일괄 엑셀 등록]으로 등록하세요.'}</td></tr>`;
             return;
         }
         const shown = list.slice(0, 500);
@@ -637,7 +637,7 @@
             const idx = {};
             FORM_COLS.forEach(c => { idx[c.key] = header.indexOf(c.label); });
             if (idx.wholesale_company < 0 || idx.wholesale_product < 0) {
-                alert('첫 줄에 "도매업체명", "도매상품명" 머리글이 있어야 합니다.\n[등록 양식 받기]로 받은 양식을 써주세요.');
+                alert('첫 줄에 "도매업체명", "도매상품명" 머리글이 있어야 합니다.\n[엑셀 일괄등록 양식 받기]로 받은 양식을 써주세요.');
                 return;
             }
             const cell = (r, k) => (idx[k] >= 0 ? String(r[idx[k]] ?? '').trim() : '');

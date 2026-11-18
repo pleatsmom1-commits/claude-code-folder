@@ -276,7 +276,7 @@ async function download(page, click) {
   // 상품관리 단독 화면 (엑셀 등록 확인창용)
   const ap = await newPage(actx);
   await go(ap, P('products.html'), 1500);
-  const formPath = await download(ap, () => ap.click('text=등록 양식 받기'));
+  const formPath = await download(ap, () => ap.click('text=엑셀 일괄등록 양식 받기'));
   {
     const wb = XLSX.readFile(formPath); const ws = wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
