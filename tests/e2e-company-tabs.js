@@ -169,6 +169,14 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
     check('새로고침해도 기준 시간 기억', await page.inputValue('#admin-basis-from') === d2 + 'T00:00');
     await page.click('button:has-text("기준 지우기")'); await page.waitForTimeout(300);
     check('기준 지우면 9건', await page.locator('#admin-order-list .admin-chk-item').count() === 9);
+    // 제일 빠른 접수시간: 전체 9건 중 가장 오래된 건 = 온온 (3일 전, NO.9)
+    const e1 = (await page.textContent('#admin-earliest-time')).trim();
+    check('제일 빠른 접수 = 온온 NO.9', e1.includes('제일 빠른 접수') && e1.includes('온온') && e1.includes('NO.9'), e1);
+    await page.click('#admin-company-tabs button:has-text("윈온골프")'); await page.waitForTimeout(300);
+    const e2 = (await page.textContent('#admin-earliest-time')).trim();
+    check('윈온골프만 보면 그 안에서 제일 빠른 건', e2.includes('윈온골프'), e2);
+    await shot(`tabs-${OUT}-4.png`);
+    await page.click('#admin-company-tabs button:has-text("모든 업체·상태 보기")'); await page.waitForTimeout(300);
   }
   check('no page errors', pageErrors.length === 0, pageErrors.join(' | '));
   await browser.close();
