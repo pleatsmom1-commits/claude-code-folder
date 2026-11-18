@@ -874,7 +874,22 @@
                     </div>
 
                     <!-- 업체별 접수 현황: 접수대기/접수완료 업체 목록 + 누르면 그 업체 주문만 조회 -->
-                    <div id="admin-company-tabs" class="border border-slate-200 rounded-xl p-3 space-y-2 bg-white"></div>
+                    <div class="border border-slate-200 rounded-xl p-3 space-y-2 bg-white">
+                        <div class="flex flex-wrap items-center gap-1.5 pb-2 border-b border-dashed border-slate-200">
+                            <span class="text-xs font-black text-slate-700 mr-1">기준 시간</span>
+                            <input type="datetime-local" id="admin-basis-from" class="px-2 py-1 border rounded-lg text-xs bg-white">
+                            <span class="text-xs text-slate-500">부터</span>
+                            <span class="text-xs text-slate-400">~</span>
+                            <input type="datetime-local" id="admin-basis-to" class="px-2 py-1 border rounded-lg text-xs bg-white">
+                            <span class="text-xs text-slate-500">까지</span>
+                            <button type="button" onclick="setAdminBasisQuick('today')" class="px-2.5 py-1 rounded-lg text-[11px] font-bold border border-slate-300 bg-white hover:bg-slate-50 text-slate-600">오늘 0시부터</button>
+                            <button type="button" onclick="setAdminBasisQuick('now')" class="px-2.5 py-1 rounded-lg text-[11px] font-bold border border-slate-300 bg-white hover:bg-slate-50 text-slate-600" title="지금 이후에 들어오거나 접수완료한 주문만 셉니다">지금부터</button>
+                            <button type="button" onclick="applyAdminBasis()" class="px-3 py-1 rounded-lg text-[11px] font-black bg-indigo-600 hover:bg-indigo-700 text-white">기준 적용</button>
+                            <button type="button" onclick="setAdminBasisQuick('clear')" class="px-2.5 py-1 rounded-lg text-[11px] font-bold border border-slate-300 bg-white hover:bg-slate-50 text-slate-600">기준 지우기</button>
+                            <span id="admin-basis-note" class="text-[11px] text-slate-400">접수대기는 <b>접수일시</b>, 접수완료는 <b>관리자 접수시간</b>으로 셉니다</span>
+                        </div>
+                        <div id="admin-company-tabs" class="space-y-2"></div>
+                    </div>
 
                     <!-- 주문 조회: 기간 버튼 / 날짜 지정 / 검색 (셀러 조회와 같은 방식) -->
                     <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
@@ -4718,12 +4733,50 @@
         }
 
         // 업체별 접수 현황 (선택한 기간 기준, 숨긴 접수건은 [숨긴 접수건도 보기]일 때만 셈)
+        // 기준 시간: 접수대기는 접수일시(created_at), 접수완료는 관리자 접수시간(accepted_at)으로 비교 (한국시간)
+        const ADMIN_BASIS_KEY = 'bamnat_admin_basis';
+        let adminBasis = (() => { try { return JSON.parse(localStorage.getItem(ADMIN_BASIS_KEY)) || { from: '', to: '' }; } catch { return { from: '', to: '' }; } })();
+        const kstLocalToMs = v => v ? new Date(v + ':00+09:00').getTime() : null;
+        function orderInAdminBasis(o) {
+            if (!adminBasis.from && !adminBasis.to) return true;
+            const t = o.status === '접수완료' ? o.accepted_at : o.created_at;
+            if (!t) return false;
+            const ms = new Date(t).getTime();
+            const from = kstLocalToMs(adminBasis.from), to = kstLocalToMs(adminBasis.to);
+            return !(from && ms < from) && !(to && ms > to + 59999);
+        }
+        function fillAdminBasisInputs() {
+            const f = document.getElementById('admin-basis-from'), t = document.getElementById('admin-basis-to');
+            if (f) f.value = adminBasis.from || '';
+            if (t) t.value = adminBasis.to || '';
+        }
+        function applyAdminBasis() {
+            const from = document.getElementById('admin-basis-from').value || '';
+            const to = document.getElementById('admin-basis-to').value || '';
+            if (from && to && from > to) { alert('기준 시작 시간이 끝 시간보다 늦습니다. 시간을 확인해주세요.'); return; }
+            adminBasis = { from, to };
+            try { localStorage.setItem(ADMIN_BASIS_KEY, JSON.stringify(adminBasis)); } catch {}
+            renderAdminTable();
+        }
+        function setAdminBasisQuick(kind) {
+            const f = document.getElementById('admin-basis-from'), t = document.getElementById('admin-basis-to');
+            if (kind === 'clear') { f.value = ''; t.value = ''; }
+            else {
+                const today = kstDateString();
+                const nowKst = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 16);
+                f.value = kind === 'today' ? `${today}T00:00` : nowKst;
+                t.value = '';
+            }
+            applyAdminBasis();
+        }
+
         function adminCompanyStatusList(status) {
             const byCompany = {};
             ordersMaster.forEach(o => {
                 if (o.status !== status) return;
                 if (!adminQuery.showHidden && hiddenOrderIds.has(o.id)) return;
                 if (!orderInDateRange(o, adminFrom, adminTo)) return;
+                if (!orderInAdminBasis(o)) return;
                 const c = o.seller_company || '-';
                 (byCompany[c] = byCompany[c] || new Set()).add(o.order_no ?? o.id);
             });
@@ -4733,7 +4786,16 @@
         function renderAdminCompanyTabs() {
             const box = document.getElementById('admin-company-tabs');
             if (!box) return;
-            const periodLabel = (!adminFrom && !adminTo) ? '전체 기간' : `${adminFrom || '처음'} ~ ${adminTo || '오늘'}`;
+            fillAdminBasisInputs();
+            const fmtB = v => v.replace('T', ' ');
+            const hasBasis = adminBasis.from || adminBasis.to;
+            const periodLabel = hasBasis
+                ? `기준 시간 ${adminBasis.from ? fmtB(adminBasis.from) : '처음'} ~ ${adminBasis.to ? fmtB(adminBasis.to) : '지금'}${(adminFrom || adminTo) ? ` · 기간 ${adminFrom || '처음'} ~ ${adminTo || '오늘'}` : ''}`
+                : (!adminFrom && !adminTo) ? '전체 기간' : `${adminFrom || '처음'} ~ ${adminTo || '오늘'}`;
+            const note = document.getElementById('admin-basis-note');
+            if (note) note.innerHTML = hasBasis
+                ? '<span class="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-black">기준 시간 적용 중</span> 아래 주문 목록도 이 시간 기준으로 보입니다 (접수대기=접수일시, 접수완료=관리자 접수시간)'
+                : '접수대기는 <b>접수일시</b>, 접수완료는 <b>관리자 접수시간</b>으로 셉니다';
             const row = (status, label, color) => {
                 const list = adminCompanyStatusList(status);
                 const total = list.reduce((n, x) => n + x.count, 0);
@@ -4776,6 +4838,7 @@
                 if (statusFilter !== 'ALL' && o.status !== statusFilter) return false;
                 if (!matchesOrderType(o, typeFilter)) return false;
                 if (!orderInDateRange(o, adminFrom, adminTo)) return false;
+                if (!orderInAdminBasis(o)) return false;
                 if (!orderMatchesKeyword(o, field, keyword, Object.keys(SEARCH_FIELDS))) return false;
                 if (shipFilter === 'ALL') return true;
                 const state = orderShipState(o, groups);
