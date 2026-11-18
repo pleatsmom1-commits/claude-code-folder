@@ -176,6 +176,29 @@
             </div>
         </div>
 
+        <!-- 새로고침(F5) 때 로그인 기록이 남아 있으면 로그인 창 대신 '불러오는 중'을 잠깐 보여줍니다 -->
+        <div id="auth-loading" class="hidden max-w-md mx-auto my-24 text-center text-sm font-bold text-slate-400">
+            <div class="w-8 h-8 mx-auto mb-3 border-4 border-slate-200 border-t-indigo-500 rounded-full animate-spin"></div>
+            화면을 불러오는 중입니다...
+        </div>
+        <script>
+            (function () {
+                try {
+                    var hasSession = Object.keys(localStorage).some(function (k) { return /^sb-.*-auth-token$/.test(k); });
+                    if (!hasSession) return;
+                    document.getElementById('auth-screen').classList.add('hidden');
+                    document.getElementById('auth-loading').classList.remove('hidden');
+                    // 혹시 10초가 지나도 화면이 안 바뀌면 로그인 창을 다시 보여줍니다
+                    setTimeout(function () {
+                        var loading = document.getElementById('auth-loading');
+                        if (loading.classList.contains('hidden')) return;
+                        loading.classList.add('hidden');
+                        document.getElementById('auth-screen').classList.remove('hidden');
+                    }, 10000);
+                } catch (e) {}
+            })();
+        </script>
+
         <!-- 2. SELLER DASHBOARD -->
         <div id="seller-dashboard" class="hidden space-y-6">
             <!-- 승인 대기 / 정지 계정 안내 -->
@@ -2539,6 +2562,7 @@
 
         function initSupabaseAuto() {
             if (!(SUPABASE_URL && SUPABASE_KEY && window.supabase)) {
+                hideAuthLoading(true);
                 setDbBadge(false, 'DB 라이브러리 로딩 실패');
                 return;
             }
@@ -2547,6 +2571,7 @@
                     ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { global: { fetch: viewOnlyFetch } })
                     : window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
             } catch (e) {
+                hideAuthLoading(true);
                 setDbBadge(false, 'DB 키 오류');
                 return;
             }
@@ -2557,6 +2582,26 @@
             supabaseClient.auth.onAuthStateChange((event, session) => {
                 setTimeout(() => handleAuthEvent(event, session), 0);
             });
+        }
+
+        // 새로고침 때 띄운 '불러오는 중'을 닫습니다. showLogin=true 면 로그인 창을 다시 보여줍니다.
+        function hideAuthLoading(showLogin) {
+            const loading = document.getElementById('auth-loading');
+            if (!loading || loading.classList.contains('hidden')) return;
+            loading.classList.add('hidden');
+            if (showLogin) document.getElementById('auth-screen').classList.remove('hidden');
+        }
+
+        // 관리자가 보던 탭을 기억했다가 새로고침(F5) 뒤에도 그 탭을 다시 엽니다 (이 브라우저 창 안에서만).
+        function saveAdminTab(tab) {
+            try { sessionStorage.setItem('bamnat.adminTab', tab); } catch (e) {}
+        }
+        function loadAdminTab() {
+            let tab = null;
+            try { tab = sessionStorage.getItem('bamnat.adminTab'); } catch (e) {}
+            if (!tab || !ADMIN_GROUP_OF[tab]) return 'orders';
+            if (ADMIN_GROUP_OF[tab] === 'staff' && !isOwnerAccount()) return 'orders';
+            return tab;
         }
 
         async function handleAuthEvent(event, session) {
@@ -2633,10 +2678,11 @@
                 history.replaceState(null, '', location.pathname);   // 셀러가 이 주소로 들어오면 그냥 내 화면
             }
 
+            hideAuthLoading(false);
             document.getElementById('auth-screen').classList.add('hidden');
             if (currentRole === 'admin') {
                 document.getElementById('admin-dashboard').classList.remove('hidden');
-                switchAdminTab('orders');
+                switchAdminTab(loadAdminTab());
                 resetAdminSearch(false);
                 fetchSellersFromDB();
                 fetchCouriers();
@@ -2664,6 +2710,7 @@
             sellerProfiles = [];
             addressBook = [];
             trackingDrafts = {};
+            hideAuthLoading(false);
             document.getElementById('auth-screen').classList.remove('hidden');
             document.getElementById('seller-dashboard').classList.add('hidden');
             document.getElementById('admin-dashboard').classList.add('hidden');
@@ -3531,6 +3578,7 @@
         async function logout() {
             if (viewAsMode) { exitViewAs(); return; }   // 보기 중에 로그아웃하면 관리자 로그인까지 풀리므로 돌아가기만
             closeLeftoverModal();
+            try { sessionStorage.removeItem('bamnat.adminTab'); } catch (e) {}
             if (supabaseClient) await supabaseClient.auth.signOut();
             showLoginScreen();
         }
@@ -5939,6 +5987,7 @@
             const off = "px-5 py-2.5 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center gap-1.5";
             const group = ADMIN_GROUP_OF[tab];
             ADMIN_LAST_TAB[group] = tab;
+            saveAdminTab(tab);
             document.getElementById('admin-tab-orders').className = tab === 'orders' ? on : off;
             document.getElementById('admin-tab-sellers').className = tab === 'sellers' ? on : off;
             document.getElementById('admin-tab-settle').className = tab === 'settle' ? on : off;
