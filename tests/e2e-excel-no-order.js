@@ -164,6 +164,23 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
     fs.writeFileSync(path.join(__dirname, 'out', 'grouped.json'), JSON.stringify(XLSX.utils.sheet_to_json(g.ws, { header: 1, defval: '' })));
   }
   check('화면 목록 순서는 그대로', (await rowsOnScreen()).join(',') === screen0.join(','), screen0.join(','));
+  // 합배송(5-1, 5-2)도 엑셀 NO 는 1, 2, 3 숫자로, 화면 주문번호 칸에는 5-1, 5-2
+  for (const [id, item, prod] of [['ORD-5', 1, '(합)울 팬츠'], ['ORD-6', 2, '(합)셔츠']]) tables.orders.push({ id, seller_id: ids.seller, seller_company: '가나 샵', sender_name: '밤낮딜리버리(가나 샵)', recipient: '합배송고객', phone: '010-9999-0000', address: '울산', product: prod, status: '접수대기', ship_status: '미출고', order_type: 'fulfillment', order_no: 5, item_no: item, seller_order_no: 5, created_at: new Date().toISOString() });
+  await page.reload(); await page.waitForTimeout(1500);
+  if (!(await page.isVisible('#admin-order-list'))) { await page.click('#tab-btn-admin').catch(() => {}); await page.waitForTimeout(800); }
+  {
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.click('button:has-text("엑셀 다운로드 (현재 필터 기준)")')]);
+    const f = path.join(__dirname, 'out', 'dl-combined.xlsx'); await dl.saveAs(f);
+    const wb = XLSX.readFile(f);
+    const aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
+    const head = aoa.find(r => r.includes('화면 주문번호')) || [];
+    const ci = head.indexOf('화면 주문번호');
+    const rows = aoa.filter(r => typeof r[0] === 'number');
+    const pairs = rows.map(r => `${r[0]}:${r[ci]}`).join(',');
+    check('합배송도 엑셀 NO 는 숫자 1~6, 화면 주문번호 칸에 5-1/5-2', ci > 0 && pairs === '1:1,2:2,3:3,4:4,5:5-1,6:5-2', pairs);
+    check('엑셀 NO 에 1-1 같은 하이픈 없음', aoa.every(r => !/^\d+-\d+$/.test(String(r[0]))));
+  }
+  check('화면에는 그대로 5-1, 5-2', (await listText()).includes('5-1') && (await listText()).includes('5-2'));
   await page.reload(); await page.waitForTimeout(1500);
   check('새로고침해도 기억', (await page.textContent('#excel-no-order-label')).includes('작은 번호 위로'));
   check('no page errors', pageErrors.length === 0, pageErrors.join(' | '));
