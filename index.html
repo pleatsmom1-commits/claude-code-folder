@@ -6486,13 +6486,28 @@
             const sameday = list.filter(o => orderTypeOf(o) === 'store_sameday');
 
             const shipHeaders = SHOW_SHIPPING_UI ? ['상품 출고상태', '주문 출고상태', '택배사', '송장번호'] : [];
-            const extraHeaders = [...shipHeaders, '셀러 가입상호', '접수일시', '처리상태', '관리자 접수시간', '사무실 보관요청', '보관요청 메모'];
-            const extraWidths = [...(SHOW_SHIPPING_UI ? [14, 18, 16, 18] : []), 16, 18, 12, 18, 14, 36];
-            const formRows = arr => arr.map(o => {
+            const extraHeaders = [...shipHeaders, '셀러 가입상호', '접수일시', '처리상태', '관리자 접수시간', '사무실 보관요청', '보관요청 메모', '화면 주문번호'];
+            const extraWidths = [...(SHOW_SHIPPING_UI ? [14, 18, 16, 18] : []), 16, 18, 12, 18, 14, 36, 14];
+            // 엑셀 NO 는 합배송 15-1, 15-2 대신 1, 2, 3 숫자로 (시트마다 작은 주문번호부터 1번).
+            //   화면에 보이는 주문번호(15-1 등)는 맨 끝 '화면 주문번호' 칸에 남깁니다.
+            const plainNoMap = arr => {
+                const sorted = [...arr].sort((a, b) => {
+                    const na = a.order_no == null ? Infinity : Number(a.order_no);
+                    const nb = b.order_no == null ? Infinity : Number(b.order_no);
+                    return (na - nb) || ((Number(a.item_no) || 0) - (Number(b.item_no) || 0))
+                        || String(a.created_at || '').localeCompare(String(b.created_at || ''));
+                });
+                return new Map(sorted.map((o, i) => [o, i + 1]));
+            };
+            const formRows = arr => {
+              const plainNo = plainNoMap(arr);
+              return arr.map(o => {
                 const state = orderShipState(o, groups);
                 const g = groups[o.order_no];
+                const base = orderToTemplateRow(o, groups);
+                base[0] = plainNo.get(o);
                 return [
-                    ...orderToTemplateRow(o, groups),
+                    ...base,
                     ...(SHOW_SHIPPING_UI ? [
                         o.ship_status || '미출고',
                         state === '부분출고' ? `부분출고 (${g.shipped}/${g.total})` : state,
@@ -6505,9 +6520,11 @@
                     // 관리자가 [접수]를 눌러 접수완료가 된 시각 (예전 주문·접수대기는 빈칸)
                     o.status === '접수완료' && o.accepted_at ? formatKstDateTime(o.accepted_at) : '',
                     o.keep_request || '',
-                    o.keep_memo || ''
+                    o.keep_memo || '',
+                    orderNoLabel(o, groups)
                 ];
-            });
+              });
+            };
 
             // 4. 사무실 보관요청건: 같은 셀러 · 같은 날 · 같은 메모는 한 줄로
             const keepMap = new Map();
