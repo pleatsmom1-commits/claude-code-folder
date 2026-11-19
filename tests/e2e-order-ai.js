@@ -187,7 +187,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   check('address joined with detail', table.includes('서울 강남구 테헤란로 1 101호'));
   check('notice about office stock shown', (await page.innerText('#stock-ship-notice')).includes('사무실에 있는 재고부터 우선 출고'));
   const row = n => page.locator('#ai-result tbody tr').nth(n);
-  check('(합) not added automatically', !(await row(0).innerText()).includes('(합) 고랭') && (await page.locator('#ai-result tbody input[type=checkbox]').count()) === 2);
+  check('(합) not added automatically', !(await row(0).innerText()).includes('(합) 고랭') && (await page.locator('#ai-result tbody input[onchange^="aiSetCombined"]').count()) === 2);
   check('same recipient hint + checkbox', (await row(0).innerText()).includes('같은 받는분 2건') && table.includes('부분출고 없이'));
   check('product matched by mall name + color', (await row(0).innerText()).includes('P000001') && (await row(0).innerText()).includes('재고 3'));
   check('wholesale filled from match', (await row(0).locator('input[type=text]').nth(0).inputValue()) === '청평화A' && (await row(0).locator('input[type=text]').nth(1).inputValue()) === '울팬츠');
@@ -222,8 +222,8 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   check('now submit enabled (3건)', !(await page.isDisabled('#btn-ai-submit')) && (await page.innerText('#btn-ai-submit')).includes('3건'));
   check('reason box gone when submit enabled', !(await page.isVisible('#ai-submit-why')));
   // (합) 체크: 같은 받는분 2건 함께
-  await row(1).locator('input[type=checkbox]').check(); await page.waitForTimeout(100);
-  check('(합) checks whole group', (await row(0).locator('input[type=checkbox]').isChecked()) && (await row(0).innerText()).includes('(합) 고랭'));
+  await row(1).locator('input[onchange^="aiSetCombined"]').check(); await page.waitForTimeout(100);
+  check('(합) checks whole group', (await row(0).locator('input[onchange^="aiSetCombined"]').isChecked()) && (await row(0).innerText()).includes('(합)(킵) 고랭'));
   await page.screenshot({ path: path.join(__dirname, 'out', 'shot-ai-confirm2.png'), fullPage: true });
 
   // 보관요청 [접수] 전에는 막힘 (기존 규칙과 같음)
@@ -234,7 +234,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.click('#btn-ai-submit'); await page.waitForTimeout(300);
   check('final check popup shown, nothing saved yet', (await vis('#ai-final-modal')) && tables.orders.length === before);
   const conf = await page.innerText('#ai-final-modal');
-  check('final check lists rows + (합) / 책임 / 중복', conf.includes('(합)고랭 울 팬츠 / 블랙 / M / 1개') && conf.includes('박민수') && conf.includes('(합) 합배송 2건') && conf.includes('책임질 수 없습니다') && conf.includes('최근 3일안에') && conf.includes('총 3건, 이대로 접수하시겠습니까?'), conf.slice(0, 300));
+  check('final check lists rows + (합) / 책임 / 중복', conf.includes('(합)(킵)고랭 울 팬츠 / 블랙 / M / 1개') && conf.includes('박민수') && conf.includes('(합) 합배송 2건') && conf.includes('책임질 수 없습니다') && conf.includes('최근 3일안에') && conf.includes('총 3건, 이대로 접수하시겠습니까?'), conf.slice(0, 300));
   await page.locator('#ai-final-modal > div').screenshot({ path: path.join(__dirname, 'out', 'shot-ai-final-check.png') });
   check('final check: register new product box (머플러 only, not unknown 가디건)', conf.includes('상품관리에 없던 상품 1개') && conf.includes('신평화B / 머플러') && !conf.includes('가디건 / 아이보리 / 가디건'), conf.slice(-600));
   await page.locator('#ai-final-modal > div').screenshot({ path: path.join(__dirname, 'out', `${process.env.SHOT || 'shot'}-ai-final-check.png`) });
@@ -251,7 +251,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   const o1 = added[0] || {};
   check('sender/cs phone rules', added.every(o => o.sender_name === '밤낮딜리버리(애플샵)' && o.cs_phone === '010-7777-8888' && o.seller_company === '애플샵'), JSON.stringify(o1));
   check('fields from file', o1.recipient === '박민수' && o1.phone === '010-1234-5678' && o1.zipcode === '06000' && o1.address === '서울 강남구 테헤란로 1 101호' && o1.memo === '문 앞', JSON.stringify(o1));
-  check('product text = (합) + name / option', o1.product === '(합)고랭 울 팬츠 / 블랙 / M / 1개' && added[1].product === '(합)니트 머플러 / 2개' && added[1].qty === 2 && added[2].product === '가디건 / 아이보리 / 1개', added.map(o => o.product).join(' | '));
+  check('product text = (합) + name / option', o1.product === '(합)(킵)고랭 울 팬츠 / 블랙 / M / 1개' && added[1].product === '(합)니트 머플러 / 2개' && added[1].qty === 2 && added[2].product === '가디건 / 아이보리 / 1개', added.map(o => o.product).join(' | '));
   check('wholesale saved (match / typed / unknown)', o1.wholesale_company === '청평화A' && added[1].wholesale_company === '신평화B' && added[1].wholesale_product === '머플러' && added[2].wholesale_company === '가디건 / 아이보리' && added[2].wholesale_product === '가디건 / 아이보리');
   check('excel-type id + 접수대기 + keep', added.every(o => o.id.startsWith('ORD-EXCEL-') && o.status === '접수대기' && o.keep_request === '없음'));
   check('success message + table reset', (await page.innerText('#leftover-title')).includes('총 3건') && (await vis('#leftover-modal')) && (await vis('#ai-drop-zone')) && !(await vis('#ai-result')));

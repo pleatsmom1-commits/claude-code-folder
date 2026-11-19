@@ -142,6 +142,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
         const r = { id: aliasId++, ...body }; tables.product_aliases.push(r);
         return json(201, wantsObject ? r : [r]);
       }
+      if (table === 'orders' && method === 'PATCH') { const hit = applyFilters(tables.orders, url); hit.forEach(r => Object.assign(r, body)); return json(200, hit); }
       if (table === 'product_aliases' && method === 'PATCH') {
         const hit = applyFilters(tables.product_aliases, url); hit.forEach(r => Object.assign(r, body));
         return json(200, wantsObject ? hit[0] : hit);
@@ -236,7 +237,9 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.click('#picked-box summary');
   await page.locator('#picked-list tr', { hasText: '받는3' }).locator('button').click(); await page.waitForTimeout(1200);
   check('unpick o3 -> stock back to 4', invOf(2).qty_a === 4 && !tables.order_stock_picks.some(p => p.order_id === 'o3'));
-  check('no writes to orders table', !requests.some(r => r.path === '/rest/v1/orders' && r.method !== 'GET'));
+  const ow = requests.filter(r => r.path === '/rest/v1/orders' && r.method !== 'GET');
+  check('orders: only (킵) added to picked product names', ow.length > 0 && ow.every(r => r.method === 'PATCH'), JSON.stringify(ow.map(r => r.method)));
+  check('picked orders now start with (킵), not doubled', tables.orders.filter(o => tables.order_stock_picks.some(p => p.order_id === o.id)).every(o => /^\(킵\)/.test(o.product) && !/^\(킵\)\(킵\)/.test(o.product)), tables.orders.map(o => o.product).join(' | '));
 
   // ---------- 셀러는 못 씀 ----------
   await page.goto(INDEX); await page.waitForTimeout(800);

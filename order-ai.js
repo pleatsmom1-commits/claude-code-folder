@@ -200,7 +200,7 @@ function aiBuildRows(rows, mapping) {
     out.forEach(o => {
         o.group = key(o);
         o.groupSize = count.get(o.group);
-        o.combined = false;
+        o.combined = /\(합\)/.test(o.mallProduct);   // 셀러가 이미 (합)을 적었으면 그대로
         o.match = aiMatch(o);
         o.wholesaleCompany = o.match ? o.match.wholesale_company : o.fileWholesaleCompany;
         o.wholesaleProduct = o.match ? o.match.wholesale_product : o.fileWholesaleProduct;
@@ -281,7 +281,8 @@ const aiMallText = o => {
 const aiProductText = o => {
     const base = aiMallText(o);
     const qty = /\d+\s*개\s*$/.test(base) ? '' : ` / ${o.qty}개`;
-    return (o.combined ? '(합)' : '') + base + qty;
+    // (합)·(킵) 표시는 hap-keep.js 의 hkMark: 이미 있으면 두 번 붙이지 않음
+    return typeof hkMark === 'function' ? hkMark(base + qty, o.combined, !!o.hkKeep) : (o.combined ? '(합)' : '') + base + qty;
 };
 const AI_DUP_TEXT = '최근 3일안에 동일한 주문건이 있으니 확인해주세요.';
 const AI_UNKNOWN_TEXT = '도매처명·도매상품명을 모르는 주문은 쇼핑몰상품명과 같게 기록되며, 이로 인한 출고 오류는 책임질 수 없습니다.';
@@ -308,6 +309,12 @@ function aiRender() {
     }
     const input = (i, field, v, ph) => `<input type="text" value="${aiEsc(v)}" placeholder="${ph}" onchange="aiSetField(${i}, '${field}', this.value)"
         class="w-full min-w-[110px] px-2 py-1 border rounded text-xs ${v ? 'border-slate-200' : 'border-rose-300 bg-white'}">`;
+    // (킵): 맡긴 재고가 있는 상품은 저절로 체크, 위쪽 줄부터 재고 배정 (hap-keep.js)
+    if (typeof hkAllocate === 'function') {
+        aiOrder.rows.forEach(o => { if (o.removed) o.hkKeep = ''; });
+        hkAllocate(live.map(o => Object.assign(o, { product: aiMallText(o) })));
+    }
+    const keepN = live.filter(o => o.hkKeep).length;
     const tr = aiOrder.rows.map((o, i) => {
         const prob = aiProblem(o);
         const stock = o.match ? aiOrder.stock.get(o.match.id) : undefined;
@@ -324,12 +331,13 @@ function aiRender() {
             <td class="px-2 py-2 font-bold whitespace-nowrap">${aiEsc(o.recipient) || '<span class="text-rose-600">(없음)</span>'}</td>
             <td class="px-2 py-2 whitespace-nowrap">${aiEsc(o.phone) || '<span class="text-rose-600">(없음)</span>'}</td>
             <td class="px-2 py-2 min-w-[180px]">${aiEsc(o.address) || '<span class="text-rose-600">(없음)</span>'}${o.memo ? `<div class="text-slate-400">메세지: ${aiEsc(o.memo)}</div>` : ''}</td>
-            <td class="px-2 py-2 min-w-[160px]">${o.combined ? '<span class="px-1 rounded bg-indigo-100 text-indigo-700 font-bold">(합)</span> ' : ''}${o.mallProduct ? aiEsc(aiProductText({ ...o, combined: false })) : '<span class="text-rose-600">(없음)</span>'}</td>
+            <td class="px-2 py-2 min-w-[160px]">${o.mallProduct ? (typeof hkBadges === 'function' ? hkBadges(aiProductText(o)) : aiEsc(aiProductText(o))) : '<span class="text-rose-600">(없음)</span>'}</td>
             <td class="px-2 py-2 text-center">${o.qty}</td>
             <td class="px-2 py-2">${input(i, 'wholesaleCompany', o.wholesaleCompany, '도매처명')}</td>
             <td class="px-2 py-2">${input(i, 'wholesaleProduct', o.wholesaleProduct, '도매상품명')}${o.wholesaleUnknown ? '<div class="text-[10px] text-amber-700 mt-0.5">모름 → 쇼핑몰상품명</div>' : ''}</td>
             <td class="px-2 py-2 min-w-[80px]">${matchTxt}</td>
             <td class="px-2 py-2">${combine}</td>
+            <td class="px-2 py-2">${o.removed || typeof hkKeepCell !== 'function' ? '' : hkKeepCell(o, `aiSetKeep(${i}, this.checked)`)}</td>
             <td class="px-2 py-2 min-w-[90px]">${state}</td>
             <td class="px-2 py-2"><button onclick="aiToggleRow(${i})" class="px-2 py-1 border border-slate-200 rounded text-[11px] font-bold text-slate-600 hover:bg-slate-50 whitespace-nowrap">${o.removed ? '되살리기' : '빼기'}</button></td>
         </tr>`;
@@ -348,6 +356,7 @@ function aiRender() {
             <button onclick="aiFillUnknownWholesale()" class="px-2.5 py-1 bg-white border border-amber-300 hover:bg-amber-100 text-amber-800 text-[11px] font-bold rounded">빈 도매처 칸을 쇼핑몰상품명으로 채우기 (${noWholesale}건)</button>
             <span class="text-[11px] text-amber-700">※ ${AI_UNKNOWN_TEXT}</span>
         </div>` : ''}
+        ${keepN ? `<p class="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">📦 맡긴 재고가 있는 상품 <b>${keepN}건은 상품명 앞에 (킵)</b>이 붙어 재고에서 먼저 출고됩니다. 재고로 보내지 않을 주문만 체크를 빼 주세요.</p>` : ''}
         ${groups ? `<p class="text-xs text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2">같은 받는분 주문이 있어요. <b>부분출고 없이 모두 모아서 한 번에 보내길 원할 때만</b> (합)에 체크해 주세요. 체크하지 않으면 준비된 상품부터 따로 출고될 수 있어요.</p>` : ''}
         <div class="overflow-x-auto border border-slate-200 rounded-lg">
             <table class="w-full text-xs">
@@ -355,7 +364,7 @@ function aiRender() {
                     <th class="px-2 py-2 text-left">줄</th><th class="px-2 py-2 text-left">받는분</th><th class="px-2 py-2 text-left">연락처</th>
                     <th class="px-2 py-2 text-left">주소</th><th class="px-2 py-2 text-left">상품명 / 컬러 / 사이즈 / 수량</th><th class="px-2 py-2">수량</th>
                     <th class="px-2 py-2 text-left">도매처명</th><th class="px-2 py-2 text-left">도매상품명</th>
-                    <th class="px-2 py-2 text-left">우리 상품 · 재고</th><th class="px-2 py-2 text-left">합배송</th><th class="px-2 py-2 text-left">상태</th><th></th>
+                    <th class="px-2 py-2 text-left">우리 상품 · 재고</th><th class="px-2 py-2 text-left">합배송</th><th class="px-2 py-2 text-left">재고에서 출고 (킵)</th><th class="px-2 py-2 text-left">상태</th><th></th>
                 </tr></thead>
                 <tbody>${tr}</tbody>
             </table>
@@ -511,6 +520,9 @@ function aiSetCombined(i, on) {
     aiRender();
 }
 
+// (킵) 체크를 빼면 그 줄은 재고를 쓰지 않음 (다시 체크하면 재고 배정)
+function aiSetKeep(i, on) { aiOrder.rows[i].keepOff = !on; aiRender(); }
+
 function aiFillUnknownWholesale() {
     aiOrder.rows.forEach(o => {
         if (o.removed || (o.wholesaleCompany && o.wholesaleProduct)) return;
@@ -653,9 +665,11 @@ async function aiSubmit() {
     if (!keep) return;
     const dups = live.filter(o => o.dup).length;
     const combined = live.filter(o => o.combined).length;
+    const keepN = live.filter(o => o.hkKeep).length;
     const unknown = live.filter(o => o.wholesaleUnknown).length;
     const lines = [`총 ${live.length}건을 풀필먼트 주문으로 접수할까요?`];
     lines.push(combined ? `\n📦 (합) 합배송 ${combined}건: 부분출고 없이 모두 모아서 한 번에 출고됩니다.` : '\n📦 (합) 체크한 주문 없음: 준비된 상품부터 출고될 수 있습니다.');
+    if (keepN) lines.push(`\n📥 (킵) 재고에서 출고 ${keepN}건: 맡긴 재고에서 먼저 출고됩니다.`);
     if (unknown) lines.push(`\n⚠️ 도매처를 모르는 주문 ${unknown}건: ${AI_UNKNOWN_TEXT}`);
     if (dups) lines.push(`\n⚠️ ${dups}건: ${AI_DUP_TEXT} 중복이면 [다시 확인할게요] 후 [빼기]를 눌러 주세요.`);
     const np = aiNewProducts(live);
