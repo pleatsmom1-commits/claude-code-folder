@@ -1107,6 +1107,57 @@
                     </div>
                     <div id="quick-order-list" class="space-y-3"></div>
                 </div>
+                <!-- 밤늦은 픽업요청 → 사입팀 카톡 자동 전송 설정 + 전송 내역 (worker/pickup_notify.js, supabase/pickup_notify.sql) -->
+                <div class="bg-white rounded-xl shadow-sm border-2 border-amber-200 px-6 py-4 space-y-2">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-sm font-black text-slate-800">💬 사입팀 카톡 자동 전송</span>
+                        <span class="text-[11px] text-slate-500">정해진 시간에 들어온 픽업요청을 사입팀 휴대폰으로 바로 보냅니다.</span>
+                        <button type="button" id="btn-pickup-notify-log" onclick="openPickupNotifyLog()" class="ml-auto px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-black">📋 카톡 전송 내역</button>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-[11px] font-bold text-slate-600">받을 번호</span>
+                        <input type="text" id="pickup-notify-phones" oninput="showPickupNotifyCount()" placeholder="예) 010-1234-5678, 010-2345-6789" class="px-3 py-1.5 border rounded-lg text-xs bg-white w-64">
+                        <span class="text-[11px] font-bold text-slate-600 ml-2">보내는 시간</span>
+                        <input type="time" id="pickup-notify-start" value="22:30" onchange="showPickupNotifyCount()" class="px-2 py-1 border rounded-lg text-xs bg-white">
+                        <span class="text-[11px] text-slate-500">부터 다음날</span>
+                        <input type="time" id="pickup-notify-end" value="06:00" onchange="showPickupNotifyCount()" class="px-2 py-1 border rounded-lg text-xs bg-white">
+                        <span class="text-[11px] text-slate-500">까지</span>
+                        <button type="button" onclick="savePickupNotifyPhones()" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-black">저장</button>
+                    </div>
+                    <p id="pickup-notify-status" class="text-[11px] font-bold text-slate-400"></p>
+                </div>
+                <!-- 카톡 전송 내역 창 -->
+                <div id="pickup-notify-log-modal" class="hidden fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onclick="if (event.target === this) closePickupNotifyLog()">
+                    <div class="bg-white rounded-2xl shadow-xl w-full max-w-5xl max-h-[85vh] flex flex-col">
+                        <div class="flex flex-wrap items-center gap-2 px-5 py-4 border-b border-slate-200">
+                            <h3 class="font-black text-slate-900">📋 사입팀 카톡 전송 내역</h3>
+                            <span id="pickup-notify-log-count" class="text-xs font-bold text-amber-700 bg-amber-50 px-3 py-1 rounded-full">0건</span>
+                            <div class="flex gap-1 ml-auto">
+                                <button type="button" data-days="1" onclick="loadPickupNotifyLog(1)" class="pnl-preset px-3 py-1.5 rounded-lg text-xs font-bold border">최근 24시간</button>
+                                <button type="button" data-days="7" onclick="loadPickupNotifyLog(7)" class="pnl-preset px-3 py-1.5 rounded-lg text-xs font-bold border">1주일</button>
+                                <button type="button" data-days="30" onclick="loadPickupNotifyLog(30)" class="pnl-preset px-3 py-1.5 rounded-lg text-xs font-bold border">1개월</button>
+                                <button type="button" data-days="0" onclick="loadPickupNotifyLog(0)" class="pnl-preset px-3 py-1.5 rounded-lg text-xs font-bold border">전체</button>
+                            </div>
+                            <button type="button" onclick="closePickupNotifyLog()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-bold">닫기</button>
+                        </div>
+                        <div class="overflow-auto">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-slate-800 text-slate-200 font-bold sticky top-0">
+                                    <tr>
+                                        <th class="p-3 whitespace-nowrap">접수시각</th>
+                                        <th class="p-3 whitespace-nowrap">카톡 보낸 시각</th>
+                                        <th class="p-3">주문자</th>
+                                        <th class="p-3">픽업할 매장</th>
+                                        <th class="p-3">대납 / 대납미송</th>
+                                        <th class="p-3 whitespace-nowrap">전송 결과</th>
+                                        <th class="p-3">받은 번호</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="pickup-notify-log-list" class="divide-y divide-slate-100 text-slate-700"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
                 <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
                     <!-- 조회: 기간 / 상태 / 검색 → [조회] -->
                     <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
@@ -5738,7 +5789,7 @@
 
             const btn = document.getElementById('btn-pickup-submit');
             btn.disabled = true;
-            const { error } = await supabaseClient.from('pickup_requests').insert([{
+            const { data: inserted, error } = await supabaseClient.from('pickup_requests').insert([{
                 seller_company: currentSellerAccount.company || '',
                 orderer_name: ordererName,
                 orderer_phone: ordererPhone,
@@ -5749,7 +5800,7 @@
                 prepay_misong: misong,
                 agreed: (prepay || misong) ? agreed : false,
                 memo: document.getElementById('pk-memo').value.trim() || null,
-            }]);
+            }]).select('id');
             btn.disabled = false;
             if (error) {
                 console.error('픽업요청 오류:', error);
@@ -5757,12 +5808,139 @@
                 if (['PGRST205', '42P01'].includes(error.code)) msg = 'DB 설정이 아직 적용되지 않았습니다.\n(관리자: Supabase SQL Editor에서 supabase/pickup.sql 을 실행해주세요)';
                 return alert('픽업요청을 접수하지 못했습니다.\n\n' + msg);
             }
+            if (inserted && inserted[0]) notifyPickupTeam(inserted[0].id);
             alert('픽업요청이 접수되었습니다. 감사합니다.');
             document.getElementById('pickup-status-notice').classList.add('hidden');
             ['pk-store-name', 'pk-store-location', 'pk-store-phone', 'pk-memo'].forEach(id => { document.getElementById(id).value = ''; });
             document.querySelectorAll('input[name="pk-prepay"], input[name="pk-misong"]').forEach(r => { r.checked = false; });
             updatePickupAgree();
             loadMyPickupRequests();
+        }
+
+        // 새 픽업요청을 사입팀 휴대폰으로 알림 (worker/pickup_notify.js). 실패해도 접수에는 영향 없음
+        function notifyPickupTeam(id) {
+            fetch('/api/pickup/notify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id })
+            }).catch(() => {});
+        }
+
+        // ---- 관리자: 사입팀 카톡 자동 전송 설정 (DB: app_settings, supabase/pickup_notify.sql) ----
+        const PICKUP_NOTIFY_KEYS = ['pickup_notify_phones', 'pickup_notify_start', 'pickup_notify_end'];
+        let pickupNotifyReady = false;
+        async function loadPickupNotifyPhones() {
+            if (!supabaseClient || currentRole !== 'admin') return;
+            const status = document.getElementById('pickup-notify-status');
+            const { data, error } = await supabaseClient.from('app_settings').select('key, value').in('key', PICKUP_NOTIFY_KEYS);
+            if (error) {
+                pickupNotifyReady = false;
+                status.innerText = '아직 설정 전입니다. (Supabase SQL Editor에서 supabase/pickup_notify.sql 을 실행해주세요)';
+                status.className = 'text-[11px] font-bold text-rose-600';
+                return;
+            }
+            pickupNotifyReady = true;
+            const map = Object.fromEntries((data || []).map(r => [r.key, r.value]));
+            document.getElementById('pickup-notify-phones').value = map.pickup_notify_phones || '';
+            document.getElementById('pickup-notify-start').value = map.pickup_notify_start || '22:30';
+            document.getElementById('pickup-notify-end').value = map.pickup_notify_end || '06:00';
+            showPickupNotifyCount();
+        }
+
+        function showPickupNotifyCount() {
+            const status = document.getElementById('pickup-notify-status');
+            const n = document.getElementById('pickup-notify-phones').value.split(/[,\n/;]+/)
+                .map(v => v.replace(/\D/g, '')).filter(v => /^0\d{8,10}$/.test(v)).length;
+            const st = document.getElementById('pickup-notify-start').value || '22:30';
+            const en = document.getElementById('pickup-notify-end').value || '06:00';
+            const range = st <= en ? `${st} ~ ${en}` : `${st} ~ 다음날 ${en}`;
+            status.innerText = n ? `한국시간 ${range} 에 접수된 픽업요청은 ${n}명에게 카톡으로 바로 보냅니다. (그 밖의 시간에 들어온 요청은 보내지 않습니다)` : '번호가 없으면 카톡이 가지 않습니다.';
+            status.className = 'text-[11px] font-bold ' + (n ? 'text-emerald-700' : 'text-slate-400');
+        }
+
+        async function savePickupNotifyPhones() {
+            const raw = document.getElementById('pickup-notify-phones').value;
+            const parts = raw.split(/[,\n/;]+/).map(v => v.trim()).filter(Boolean);
+            const bad = parts.filter(v => !/^0\d{8,10}$/.test(v.replace(/\D/g, '')));
+            if (bad.length) return alert('휴대폰 번호가 올바르지 않습니다:\n' + bad.join('\n') + '\n\n여러 명은 쉼표(,)로 나눠 적어주세요.');
+            const st = document.getElementById('pickup-notify-start').value;
+            const en = document.getElementById('pickup-notify-end').value;
+            if (!/^\d\d:\d\d$/.test(st) || !/^\d\d:\d\d$/.test(en)) return alert('보내는 시간을 모두 넣어주세요.');
+            if (st === en) return alert('시작 시간과 끝 시간이 같으면 보낼 수 없습니다.');
+            const value = parts.join(', ');
+            const at = new Date().toISOString();
+            const { error } = await supabaseClient.from('app_settings').upsert([
+                { key: 'pickup_notify_phones', value, updated_at: at },
+                { key: 'pickup_notify_start', value: st, updated_at: at },
+                { key: 'pickup_notify_end', value: en, updated_at: at },
+            ]);
+            if (error) {
+                console.error('사입팀 카톡 설정 저장 오류:', error);
+                let msg = dbErrorMessage(error);
+                if (['PGRST205', '42P01'].includes(error.code)) msg = 'DB 설정이 아직 적용되지 않았습니다.\n(Supabase SQL Editor에서 supabase/pickup_notify.sql 을 실행해주세요)';
+                return alert('저장하지 못했습니다.\n\n' + msg);
+            }
+            document.getElementById('pickup-notify-phones').value = value;
+            showPickupNotifyCount();
+            alert('사입팀 카톡 설정을 저장했습니다.');
+        }
+
+        // ---- 관리자: 카톡 전송 내역 (pickup_requests 의 notify_* 칸) ----
+        function openPickupNotifyLog() {
+            document.getElementById('pickup-notify-log-modal').classList.remove('hidden');
+            loadPickupNotifyLog(7);
+        }
+        function closePickupNotifyLog() {
+            document.getElementById('pickup-notify-log-modal').classList.add('hidden');
+        }
+        async function loadPickupNotifyLog(days) {
+            document.querySelectorAll('.pnl-preset').forEach(b => {
+                const on = Number(b.dataset.days) === days;
+                b.className = 'pnl-preset px-3 py-1.5 rounded-lg text-xs font-bold border ' + (on ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-600 border-slate-200');
+            });
+            const list = document.getElementById('pickup-notify-log-list');
+            const count = document.getElementById('pickup-notify-log-count');
+            list.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-slate-400">불러오는 중...</td></tr>';
+            const { data, error } = await fetchAllRows(() => {
+                let q = supabaseClient.from('pickup_requests')
+                    .select('id, created_at, notified_at, seller_company, orderer_name, orderer_phone, store_name, store_location, store_phone, prepay, prepay_misong, notify_result, notify_channel, notify_to, notify_detail')
+                    .not('notify_result', 'is', null);
+                if (days) q = q.gte('created_at', new Date(Date.now() - days * 86400000).toISOString());
+                return q.order('created_at', { ascending: false });
+            });
+            if (error) {
+                console.error('카톡 전송 내역 오류:', error);
+                count.innerText = '0건';
+                const need = ['42703', 'PGRST204'].includes(error.code) || /notify_/.test(error.message || '');
+                list.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-rose-600 font-bold">${need ? '아직 설정 전입니다. (Supabase SQL Editor에서 supabase/pickup_notify.sql 을 실행해주세요)' : '내역을 불러오지 못했습니다. ' + escapeHtml(dbErrorMessage(error))}</td></tr>`;
+                return;
+            }
+            const rows = data || [];
+            count.innerText = `${rows.length}건`;
+            if (!rows.length) {
+                list.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-slate-400">이 기간에 카톡으로 보낸 픽업요청이 없습니다.</td></tr>';
+                return;
+            }
+            const t = v => {
+                if (!v) return '-';
+                const k = new Date(new Date(v).getTime() + 9 * 3600000), p2 = n => String(n).padStart(2, '0');
+                return `${k.getUTCMonth() + 1}/${k.getUTCDate()} ${p2(k.getUTCHours())}:${p2(k.getUTCMinutes())}`;
+            };
+            const badge = r => {
+                if (r.notify_result === 'sent') return `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700">${r.notify_channel === 'alimtalk' ? '카톡 보냄' : '문자 보냄'}</span>`;
+                if (r.notify_result === 'test') return '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-700">테스트</span>';
+                return '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700">실패</span>';
+            };
+            list.innerHTML = rows.map(r => `
+                <tr class="${r.notify_result === 'failed' ? 'bg-rose-50/50' : ''}">
+                    <td class="p-3 whitespace-nowrap font-bold">${t(r.created_at)}</td>
+                    <td class="p-3 whitespace-nowrap">${t(r.notified_at)}</td>
+                    <td class="p-3">${escapeHtml(r.orderer_name || r.seller_company || '-')}<span class="block text-[10px] text-slate-400">${escapeHtml(r.orderer_phone || '')}</span></td>
+                    <td class="p-3">${escapeHtml(r.store_name || '-')}<span class="block text-[10px] text-slate-400">${escapeHtml([r.store_location, r.store_phone].filter(Boolean).join(' · '))}</span></td>
+                    <td class="p-3 whitespace-nowrap">${r.prepay ? '대납' : '대납없음'} / ${r.prepay_misong ? '미송잡음' : '미송안잡음'}</td>
+                    <td class="p-3 whitespace-nowrap">${badge(r)}${r.notify_detail ? `<span class="block text-[10px] text-slate-500 mt-1 whitespace-normal max-w-[220px]">${escapeHtml(r.notify_detail)}</span>` : ''}</td>
+                    <td class="p-3 whitespace-nowrap text-slate-500">${escapeHtml(r.notify_to || '-')}</td>
+                </tr>`).join('');
         }
 
         function pickupStatusBadge(status) {
@@ -5840,6 +6018,7 @@
         // ---- 관리자: 사입 픽업요청 목록 ----
         async function fetchAdminPickupRequests() {
             if (!supabaseClient || currentRole !== 'admin') return;
+            loadPickupNotifyPhones();
             const { data, error } = await fetchAllRows(() => supabaseClient.from('pickup_requests').select('*')
                 .order('created_at', { ascending: false }));
             if (error) {
