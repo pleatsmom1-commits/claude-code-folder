@@ -238,13 +238,8 @@
                         <label class="flex items-center gap-1.5 text-xs font-bold text-slate-800 cursor-pointer">
                             <input type="radio" name="keep-request" value="없음" autocomplete="off" onchange="onKeepRequestChange()" class="w-4 h-4 text-amber-600"> 2. 보관건 없습니다
                         </label>
-                        <div>
-                            <label class="flex items-center gap-1.5 text-xs font-bold text-slate-800 cursor-pointer">
-                                <input type="radio" name="keep-request" value="이미접수" autocomplete="off" onchange="onKeepRequestChange()" class="w-4 h-4 text-amber-600"> 3. 이미 접수했습니다
-                            </label>
-                            <p class="pl-5 text-[10px] font-bold text-rose-600">이미 보관건 내용을 접수한 경우 체크해주세요</p>
-                        </div>
                     </div>
+                    <p class="text-[10px] font-bold text-rose-600">보관요청을 접수한 뒤 아래 [내 접수 주문목록]에서 접수된 내용을 한 번 확인해 주세요.</p>
                     <div class="flex items-center gap-2">
                         <input type="text" id="keep-memo" autocomplete="off" disabled
                             onkeydown="if (event.key === 'Enter') submitKeepRequest()"
@@ -3445,7 +3440,7 @@
         // ---------------- 픽업건 중 사무실 보관요청 (모든 택배접수 전에 [접수] 필수) ----------------
         // 옵션을 고르고 [접수] 버튼까지 눌러야 접수됩니다.
         //  1. 보관건 있습니다 → 메모와 함께 '보관요청' 건(order_type = keep)으로 접수 목록에 올라갑니다.
-        //  2. 없습니다 / 3. 이미 접수했습니다 → 확인만 하고 목록에는 올라가지 않습니다.
+        //  2. 없습니다 → 확인만 하고 목록에는 올라가지 않습니다. (예전 '3. 이미 접수했습니다'는 2026-11-19 대표님 요청으로 뺌)
         // 로그인할 때마다 다시 [접수]해야 택배 접수를 할 수 있습니다.
         let keepConfirmed = null;   // 오늘 [접수]한 선택값 ('있음' / '없음' / '이미접수')
         let keepConfirmedDate = null; // keepConfirmed 를 고른 날 (한국 날짜). 날이 바뀌면 다시 물어봅니다.
@@ -3537,7 +3532,7 @@
                 applyKeepConfirmed(choice);
                 saveKeepCheck(choice);
                 setKeepStatus('', true);
-                alert((choice === '없음' ? '보관건 없음으로 확인되었습니다.' : '이미 접수하신 것으로 확인되었습니다.') + '\n오늘은 다시 묻지 않아요.');
+                alert('보관건 없음으로 확인되었습니다.\n오늘은 다시 묻지 않아요.');
                 return;
             }
             const memo = document.getElementById('keep-memo').value.trim();
@@ -3577,7 +3572,7 @@
             saveKeepCheck('있음');
             document.getElementById('keep-memo').value = '';
             setKeepStatus(`✅ ${p.hh}:${p.mm} 보관요청 접수 완료 (NO. ${sellerNoLabel(saved)})`, true);
-            alert(`사무실 보관요청이 접수되었습니다. (NO. ${sellerNoLabel(saved)})`);
+            alert(`사무실 보관요청이 접수되었습니다. (NO. ${sellerNoLabel(saved)})\n아래 [내 접수 주문목록]에서 접수된 내용을 한 번 확인해 주세요.`);
             renderSellerTable();
         }
 
