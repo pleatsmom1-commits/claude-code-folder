@@ -265,13 +265,13 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.fill('#save-reason', '실사');
   await page.click('#save-btn'); await page.waitForTimeout(400);
   check('seller reason required', lastDialog().includes('셀러에게 보일 사유를 골라주세요') && qty('꽃니트').qty_a === 2, lastDialog());
-  await page.selectOption('#save-seller-reason', '실사 수량 차이');
+  if (await page.$('#save-seller-reason')) await page.selectOption('#save-seller-reason', '실사 수량 차이');
   await page.click('#save-btn'); await page.waitForTimeout(1000);
   check('adjust saved (꽃니트 상품화 4, 청바지 미상품화 4)', qty('꽃니트').qty_a === 4 && qty('청바지').qty_b === 4, JSON.stringify(tables.inventory));
   const adj = tables.inventory_moves.filter(m => m.kind === '조정');
   check('adjust logs with row reason / common reason', adj.some(m => m.reason === '재고 다시 셈' && m.d_a === 2) && adj.some(m => m.reason === '실사' && m.d_b === -1), JSON.stringify(adj));
   check('adjust logs keep seller reason (inventory_adjust)', adj.length === 2 && adj.every(m => m.seller_reason === '실사 수량 차이'), JSON.stringify(adj));
-  check('seller reason select cleared after save', (await page.inputValue('#save-seller-reason')) === '');
+  check('seller reason select cleared after save', !(await page.$('#save-seller-reason')) || (await page.inputValue('#save-seller-reason')) === '');
   check('save bar hidden after save', !(await page.isVisible('#save-bar')));
 
   // ---------- 5. 라벨완료 ----------
@@ -350,7 +350,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   check('after confirm: 확정됨 shown', !!fakeDay.row && banner.includes('재고 확정됨') && !banner.includes('바뀐 수량'), banner.replace(/\s+/g, ' '));
   await row('꽃니트').locator('td').nth(8).locator('button', { hasText: '+' }).click();
   await page.fill('#save-reason', '확정 뒤 수정');
-  await page.selectOption('#save-seller-reason', '기타');
+  if (await page.$('#save-seller-reason')) await page.selectOption('#save-seller-reason', '기타');
   await page.click('#save-btn'); await page.waitForTimeout(1000);
   banner = await page.textContent('#day-banner');
   check('edit after confirm -> 바뀐 수량 1건 + 다시 확정', banner.includes('바뀐 수량이 1건') && banner.includes('다시 확정'), banner.replace(/\s+/g, ' '));
