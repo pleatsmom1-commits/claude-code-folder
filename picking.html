@@ -9,6 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
+<script src="company-unify.js"></script>
 <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
 </style>
@@ -178,6 +179,7 @@
         const from = document.getElementById('f-from').value, to = document.getElementById('f-to').value;
         if (!from || !to) { alert('접수일 기간을 골라주세요.'); return; }
         const start = new Date(from + 'T00:00:00').toISOString(), end = new Date(new Date(to + 'T00:00:00').getTime() + 86400000).toISOString();
+        await COMPANY_UNIFY.load(client);   // 상호통일: 주문 상호가 다른 상호여도 메인 상호 상품에서 찾음
         const [p, i, a, o] = await Promise.all([
             fetchAll(() => client.from('products').select('*').is('deleted_at', null).order('id')),
             fetchAll(() => client.from('inventory').select('*').order('product_id')),
@@ -212,7 +214,7 @@
     //   여러 개면 주문 상품명에 들어 있는 컬러·사이즈로 좁힙니다.
     // -----------------------------------------------------------------
     function matchOrder(o) {
-        const company = norm(o.seller_company);
+        const company = norm(COMPANY_UNIFY.main(o.seller_company));
         const text = norm(o.product);
         const alias = aliases.get(company + '|' + text);
         if (alias && byId.has(alias.product_id)) return { product: byId.get(alias.product_id), how: '지정' };
@@ -299,7 +301,7 @@
         document.getElementById('check-count').textContent = `(${r.check.length}건)`;
         document.getElementById('check-list').innerHTML = r.check.map((c, idx) => {
             const o = c.o;
-            const list = c.candidates.length ? c.candidates : products.filter(p => norm(p.company) === norm(o.seller_company));
+            const list = c.candidates.length ? c.candidates : products.filter(p => norm(p.company) === norm(COMPANY_UNIFY.main(o.seller_company)));
             return `<tr><td class="p-2 whitespace-nowrap">${esc(orderNo(o))}</td><td class="p-2 whitespace-nowrap font-bold">${esc(o.seller_company)}</td><td class="p-2">${esc(o.product)}</td>
                 <td class="p-2">${esc([o.wholesale_company, o.wholesale_product].filter(Boolean).join(' · '))}</td><td class="p-2 text-right">${o.qty || 1}</td>
                 <td class="p-2"><select onchange="setAlias(${idx}, this.value)" class="px-2 py-1 border rounded max-w-[320px]">
@@ -347,11 +349,11 @@
         if (!value) return;
         const c = result.check[idx];
         const p = byId.get(Number(value));
-        const key = norm(c.o.seller_company) + '|' + norm(c.o.product);
+        const key = norm(COMPANY_UNIFY.main(c.o.seller_company)) + '|' + norm(c.o.product);
         const old = aliases.get(key);
         const { data, error } = old
             ? await client.from('product_aliases').update({ product_id: p.id }).eq('id', old.id).select().single()
-            : await client.from('product_aliases').insert({ company: c.o.seller_company, alias: c.o.product, product_id: p.id }).select().single();
+            : await client.from('product_aliases').insert({ company: COMPANY_UNIFY.main(c.o.seller_company), alias: c.o.product, product_id: p.id }).select().single();
         if (error) { alert('저장하지 못했습니다.\n\n' + errorMessage(error)); return; }
         aliases.set(key, data);
         compute();
