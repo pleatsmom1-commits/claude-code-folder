@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>밤낮딜리버리 출고 리포트</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<style>
+    :root {
+        --bg: #f1f5f9; --card: #ffffff; --line: #e2e8f0; --text: #0f172a; --sub: #64748b;
+        --accent: #4f46e5; --accent-bg: #e0e7ff; --bar: #6366f1; --track: #eef2ff;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; font-size: 15px; line-height: 1.5; }
+    .wrap { max-width: 860px; margin: 0 auto; padding: 16px 16px 40px; }
+    .brand { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0 14px; }
+    .brand b { font-size: 16px; }
+    .brand a { font-size: 13px; color: var(--sub); text-decoration: none; }
+    .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+    .btn { border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 700; color: var(--text); cursor: pointer; white-space: nowrap; text-decoration: none; display: inline-block; }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn:disabled { opacity: .4; cursor: default; }
+    select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; font-size: 14px; font-weight: 700; background: #fff; }
+    .sheet { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 22px; }
+    .head { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 8px; border-bottom: 2px solid var(--text); padding-bottom: 12px; margin-bottom: 16px; }
+    .head .t { font-size: 13px; color: var(--sub); font-weight: 700; }
+    .head .company { font-size: 22px; font-weight: 800; }
+    .head .month { font-size: 18px; font-weight: 800; color: var(--accent); }
+    .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 18px; }
+    .kpi { background: #f8fafc; border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+    .kpi.main { background: var(--accent-bg); border-color: #c7d2fe; }
+    .kpi .l { font-size: 12px; color: var(--sub); font-weight: 700; }
+    .kpi .v { font-size: 24px; font-weight: 800; margin-top: 2px; }
+    .kpi .v small { font-size: 13px; font-weight: 700; margin-left: 2px; }
+    .kpi .c { font-size: 12px; color: var(--sub); margin-top: 2px; }
+    .up { color: #059669; font-weight: 700; } .down { color: #e11d48; font-weight: 700; }
+    h2 { font-size: 15px; margin: 0 0 10px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+    h2 span { font-size: 12px; color: var(--sub); font-weight: 400; }
+    section { margin-bottom: 20px; }
+    .chart { position: relative; }
+    .chart svg { width: 100%; height: 150px; display: block; }
+    .chart rect.hit { fill: transparent; cursor: default; }
+    .chart rect.hit:hover + rect, .chart rect.bar:hover { opacity: .75; }
+    .tip { position: absolute; pointer-events: none; background: var(--text); color: #fff; font-size: 12px; font-weight: 700; padding: 4px 8px; border-radius: 6px; white-space: nowrap; transform: translate(-50%, -110%); display: none; }
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .rows div { display: flex; justify-content: space-between; padding: 7px 2px; border-bottom: 1px solid var(--line); font-size: 14px; }
+    .rows div b { font-weight: 800; }
+    .rows div.strong { color: var(--accent); }
+    .rows div.strong b { font-size: 16px; }
+    .rank { list-style: none; margin: 0; padding: 0; }
+    .rank li { display: grid; grid-template-columns: 26px 1fr 64px; gap: 8px; align-items: center; padding: 6px 2px; border-bottom: 1px solid var(--line); font-size: 14px; }
+    .rank .n { font-weight: 800; color: var(--sub); text-align: center; }
+    .rank li:nth-child(-n+3) .n { color: var(--accent); }
+    .rank .name { min-width: 0; }
+    .rank .name div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rank .meter { height: 6px; background: var(--track); border-radius: 3px; margin-top: 4px; }
+    .rank .meter i { display: block; height: 6px; background: var(--bar); border-radius: 3px; }
+    .rank .q { text-align: right; font-weight: 800; }
+    .empty { color: var(--sub); font-size: 13px; padding: 14px 2px; }
+    .note { font-size: 12px; color: var(--sub); margin: 14px 0 0; border-top: 1px solid var(--line); padding-top: 10px; }
+    .state { text-align: center; padding: 60px 16px; color: var(--sub); background: #fff; border-radius: 14px; border: 1px solid var(--line); }
+    .preview-bar { background: #fef3c7; color: #92400e; text-align: center; padding: 8px; font-size: 13px; font-weight: 700; }
+    .foot { text-align: center; font-size: 12px; color: var(--sub); margin-top: 18px; }
+    @media (max-width: 640px) {
+        .sheet { padding: 16px; }
+        .kpis { grid-template-columns: 1fr 1fr; }
+        .two { grid-template-columns: 1fr; }
+        .kpi .v { font-size: 20px; }
+    }
+    /* 인쇄 / PDF 저장: 리포트 한 장만 */
+    @media print {
+        @page { size: A4; margin: 12mm; }
+        body { background: #fff; font-size: 13px; }
+        .wrap { max-width: none; padding: 0; }
+        .brand, .toolbar, .foot, .preview-bar, #view-as-bar, #test-site-banner { display: none !important; }
+        .sheet { border: 0; padding: 0; border-radius: 0; }
+        .kpi, .rank .meter, .rank .meter i, .chart svg { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        section { break-inside: avoid; }
+    }
+    .modes { display: flex; background: #e2e8f0; border-radius: 10px; padding: 3px; flex-wrap: wrap; }
+    .modes button { border: 0; background: transparent; padding: 7px 13px; border-radius: 8px; font-size: 13px; font-weight: 700; color: var(--sub); cursor: pointer; }
+    .modes button.on { background: #fff; color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+    .picker { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .picker input[type=date] { padding: 7px 8px; border: 1px solid var(--line); border-radius: 10px; font-size: 14px; }
+    .more { margin-top: 8px; }
+    .table-box { overflow: auto; max-height: 360px; border: 1px solid var(--line); border-radius: 10px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; font-size: 12px; color: var(--sub); padding: 7px 8px; border-bottom: 2px solid var(--line); position: sticky; top: 0; background: #fff; }
+    td { padding: 6px 8px; border-bottom: 1px solid var(--line); }
+    td.r, th.r { text-align: right; }
+    .pnl .two { gap: 12px 20px; }
+    .pl-head { border-bottom: 2px solid var(--text) !important; font-weight: 800; }
+    .pl-sub { font-size: 11px; color: var(--sub); font-weight: 400; }
+    .pl-result { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: #ecfdf5; color: #065f46; }
+    .pl-result span { font-weight: 800; } .pl-result b { font-size: 22px; margin-left: auto; } .pl-result small { font-weight: 700; }
+    .pl-result.neg { background: #fff1f2; color: #9f1239; }
+    .pl-edit { margin-top: 12px; padding: 12px; border: 1px dashed #c7d2fe; border-radius: 12px; background: #f8fafc; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+    .pl-edit label { font-weight: 700; display: flex; align-items: center; gap: 6px; }
+    .pl-edit input { padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; min-width: 0; }
+    #pl-fee { width: 80px; text-align: right; } #pl-extra, .pl-amt { width: 130px; text-align: right; }
+    .pl-item { display: flex; align-items: center; gap: 6px; }
+    .pl-label { flex: 1; max-width: 220px; }
+    .pl-x { border: 0; background: transparent; color: var(--sub); font-size: 18px; cursor: pointer; }
+    .pl-status { font-size: 12px; color: var(--sub); }
+    .pl-edit > .btn { align-self: flex-start; }
+    .money-hint { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: 12px; padding: 10px 14px; font-size: 13px; margin: -6px 0 18px; }
+    .rank .q small { display: block; font-size: 11px; color: var(--sub); font-weight: 700; }
+    .rank li { grid-template-columns: 26px 1fr 84px; }
+    @media print { .money-hint, .pl-edit .btn, .pl-x, .pl-status { display: none !important; } .more, .modes, .picker { display: none !important; } .table-box { max-height: none; border: 0; } }
+</style>
+</head>
+<body>
+<div id="preview-bar" class="preview-bar" hidden>관리자 미리보기 화면입니다 (업체에게 보이는 모양)</div>
+<div class="wrap">
+    <div class="brand"><b>밤낮딜리버리 출고 리포트</b><a href="/">← 주문접수 화면</a></div>
+    <div id="app"><div class="state">불러오는 중입니다...</div></div>
+    <div class="foot">문의: 밤낮딜리버리 카카오톡 채널</div>
+</div>
+<script src="config.js"></script>
+<script src="view-as.js"></script>
+<script>
+    // 거래처(셀러)가 출고된 내역을 일별·월별·분기별·연도별·기간 지정으로 한눈에 봅니다.
+    //  - 출고: 내 주문(orders) 중 '출고완료'이고 출고일(shipped_at, 한국시간)이 기간 안인 것. DB 규칙상 셀러는 자기 주문만 읽힘.
+    //    관리자가 송장을 등록하면(출고완료) 바로 자동으로 반영됩니다.
+    //    출고 건수 = 송장번호 수(같은 송장으로 묶인 합배송은 1건), 출고 상품 수 = 수량 합계. 보관요청(keep)은 뺌.
+    //  - 비용: 정산서(get_my_settlements) 중 정산일이 기간 안인 것의 합계 (usage.html 과 같은 계산, 최대 400일).
+    //  - 새 SQL 은 필요 없습니다.
+    const ITEMS = [
+        { key: 'pickupCost', label: '픽업/반납 비용' },
+        { key: 'unsentCost', label: '대납미송/기타방문 비용' },
+        { key: 'shippingFee', label: '택배비' },
+        { key: 'fulfillCost', label: '풀필 비용' },
+        { key: 'etcCost', label: '기타 비용' },
+        { key: 'vat', label: '부가세' },
+    ];
+    const TYPE_LABEL = { fulfillment: '고객 풀필먼트', store_post: '매장·사무실 우체국택배', store_sameday: '매장·사무실 당일택배' };
+    const MODES = [['day', '일별'], ['month', '월별'], ['quarter', '분기별'], ['year', '연도별'], ['range', '기간 지정']];
+    const PREV_WORD = { day: '전날보다', month: '지난달보다', quarter: '지난 분기보다', year: '작년보다', range: '바로 전 같은 기간보다' };
+    const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
+    const FIRST_YEAR = 2025;
+    let client, company = '', previewCompany = '', viewUid = '', isAdmin = false;
+    let mode = 'month', cur = null, report = null, showAllProducts = false;
+    let catalog = null;          // 상품관리 상품 (판매가·도매가로 매출 계산). 못 읽으면 null
+    const priceCache = new Map();
+
+    function esc(value) {
+        return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    function num(v) { const n = Number(String(v ?? '').replace(/[,\s원]/g, '')); return isFinite(n) ? n : 0; }
+    function won(n) { return Math.round(n).toLocaleString('ko-KR'); }
+    function fmt(n) { return Number(n || 0).toLocaleString('ko-KR'); }
+    function showState(html) { document.getElementById('app').innerHTML = `<div class="state">${html}</div>`; }
+
+    // ---- 날짜 계산 (모두 한국 달력 기준, 'YYYY-MM-DD' 글자로) ----
+    function D(s) { return new Date(s + 'T00:00:00Z'); }
+    function S(d) { return d.toISOString().slice(0, 10); }
+    function addDays(s, n) { const d = D(s); d.setUTCDate(d.getUTCDate() + n); return S(d); }
+    function addMonths(s, n) { const d = D(s.slice(0, 7) + '-01'); d.setUTCMonth(d.getUTCMonth() + n); return S(d); }
+    function diffDays(a, b) { return Math.round((D(b) - D(a)) / 864e5); }
+    function today() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
+    function kstDay(iso) { return new Date(Date.parse(iso) + 9 * 3600e3).toISOString().slice(0, 10); }
+    function dow(s) { return WEEK[D(s).getUTCDay()]; }
+    function md(s) { return `${Number(s.slice(5, 7))}/${Number(s.slice(8))}`; }
+    function quarterOf(s) { return Math.floor((Number(s.slice(5, 7)) - 1) / 3) + 1; }
+
+    // 고른 보기 + 기준 날짜 → 기간 {from, to(포함), label}
+    function periodFor(m, anchor, rangeTo) {
+        if (m === 'day') return { from: anchor, to: anchor, label: `${anchor.slice(0, 4)}년 ${Number(anchor.slice(5, 7))}월 ${Number(anchor.slice(8))}일 (${dow(anchor)})` };
+        if (m === 'month') { const f = anchor.slice(0, 7) + '-01'; return { from: f, to: addDays(addMonths(f, 1), -1), label: `${f.slice(0, 4)}년 ${Number(f.slice(5, 7))}월` }; }
+        if (m === 'quarter') { const q = quarterOf(anchor), f = `${anchor.slice(0, 4)}-${String(q * 3 - 2).padStart(2, '0')}-01`; return { from: f, to: addDays(addMonths(f, 3), -1), label: `${f.slice(0, 4)}년 ${q}분기 (${q * 3 - 2}~${q * 3}월)` }; }
+        if (m === 'year') { const y = anchor.slice(0, 4); return { from: `${y}-01-01`, to: `${y}-12-31`, label: `${y}년` }; }
+        const a = anchor <= rangeTo ? anchor : rangeTo, b = anchor <= rangeTo ? rangeTo : anchor;
+        return { from: a, to: b, label: `${a} ~ ${b} (${diffDays(a, b) + 1}일)` };
+    }
+    function prevPeriod(m, p) {
+        if (m === 'day') return periodFor('day', addDays(p.from, -1));
+        if (m === 'month') return periodFor('month', addMonths(p.from, -1));
+        if (m === 'quarter') return periodFor('quarter', addMonths(p.from, -3));
+        if (m === 'year') return periodFor('year', `${Number(p.from.slice(0, 4)) - 1}-01-01`);
+        const len = diffDays(p.from, p.to) + 1;
+        return periodFor('range', addDays(p.from, -len), addDays(p.from, -1));
+    }
+    function isRunning(p) { const t = today(); return p.from <= t && t <= p.to && p.from !== p.to; }
+
+    async function init() {
+        if (!window.supabase) { showState('화면을 불러오지 못했습니다. 새로고침해주세요.'); return; }
+        client = VIEW_AS.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const { data: { session } } = await client.auth.getSession();
+        if (!session) { showState('로그인 후 리포트를 볼 수 있습니다.<br><br><a class="btn primary" href="/">로그인하러 가기</a>'); return; }
+        const { data: profile, error: pErr } = await client.from('profiles').select('company,role,status').eq('id', session.user.id).single();
+        if (pErr || !profile) { showState('계정 정보를 불러오지 못했습니다.<br>다시 로그인해주세요.<br><br><a class="btn" href="/">주문접수 화면</a>'); return; }
+        if (profile.role === 'admin') {
+            const params = new URLSearchParams(location.search);
+            previewCompany = params.get('company') || '';
+            viewUid = params.get('uid') || '';
+            if (!previewCompany) { showState('관리자는 업체 [화면 보기]에서 [출고 리포트]로 열어주세요.<br><br><a class="btn" href="/">주문접수 화면</a>'); return; }
+            isAdmin = true;
+            company = previewCompany;
+            if (VIEW_AS.company) VIEW_AS.start('출고 리포트');
+            else document.getElementById('preview-bar').hidden = false;
+        } else {
+            if (profile.status !== 'approved') { showState('관리자 승인 후 리포트를 볼 수 있습니다.'); return; }
+            company = profile.company;
+        }
+        document.getElementById('app').innerHTML = `
+        <div class="toolbar">
+            <div class="modes" id="modes">${MODES.map(([k, l]) => `<button data-mode="${k}" onclick="setMode('${k}')">${l}</button>`).join('')}</div>
+            <button class="btn primary" style="margin-left:auto" onclick="window.print()">인쇄 · PDF 저장</button>
+            <button class="btn" onclick="downloadExcel()">엑셀 받기</button>
+        </div>
+        <div class="toolbar picker" id="picker"></div>
+        <div id="result"></div>`;
+        const qm = new URLSearchParams(location.search).get('mode');
+        setMode(MODES.some(([k]) => k === qm) ? qm : 'month');
+    }
+
+    // 보기 바꾸기: 기본 기간 = 일별 오늘 / 월별 지난 달 / 분기별 이번 분기 / 연도별 올해 / 기간 지정 최근 30일
+    function setMode(m) {
+        mode = m;
+        document.querySelectorAll('#modes button').forEach(b => b.classList.toggle('on', b.dataset.mode === m));
+        const t = today();
+        cur = m === 'day' ? periodFor('day', t)
+            : m === 'month' ? periodFor('month', addMonths(t, -1))
+            : m === 'quarter' ? periodFor('quarter', t)
+            : m === 'year' ? periodFor('year', t)
+            : periodFor('range', addDays(t, -29), t);
+        drawPicker();
+        load();
+    }
+
+    function drawPicker() {
+        const box = document.getElementById('picker'), t = today();
+        let ctrl = '';
+        if (mode === 'day') ctrl = `<input type="date" id="p-day" value="${cur.from}" max="${t}" onchange="pick(this.value)">`;
+        else if (mode === 'month') {
+            const opts = Array.from({ length: 24 }, (_, i) => addMonths(t, -i));
+            ctrl = `<select id="p-sel" onchange="pick(this.value)">${opts.map(f => `<option value="${f}" ${f.slice(0, 7) === cur.from.slice(0, 7) ? 'selected' : ''}>${periodFor('month', f).label}${f.slice(0, 7) === t.slice(0, 7) ? ' (진행 중)' : ''}</option>`).join('')}</select>`;
+        } else if (mode === 'quarter') {
+            const opts = Array.from({ length: 8 }, (_, i) => periodFor('quarter', addMonths(t, -3 * i)).from);
+            ctrl = `<select id="p-sel" onchange="pick(this.value)">${opts.map(f => `<option value="${f}" ${f === cur.from ? 'selected' : ''}>${periodFor('quarter', f).label}</option>`).join('')}</select>`;
+        } else if (mode === 'year') {
+            const years = []; for (let y = Number(t.slice(0, 4)); y >= FIRST_YEAR; y--) years.push(`${y}-01-01`);
+            ctrl = `<select id="p-sel" onchange="pick(this.value)">${years.map(f => `<option value="${f}" ${f === cur.from ? 'selected' : ''}>${f.slice(0, 4)}년</option>`).join('')}</select>`;
+        } else {
+            ctrl = `<input type="date" id="p-from" value="${cur.from}" max="${t}"> ~ <input type="date" id="p-to" value="${cur.to}" max="${t}">
+                <button class="btn primary" onclick="pickRange()">조회</button>
+                <span class="sub" style="font-size:12px;color:var(--sub)">최대 1년(366일)까지</span>`;
+        }
+        box.innerHTML = `<button class="btn" id="prev-btn" onclick="move(-1)">◀ 이전</button>${ctrl}<button class="btn" id="next-btn" onclick="move(1)">다음 ▶</button>`;
+        document.getElementById('next-btn').disabled = cur.to >= t;
+        document.getElementById('prev-btn').disabled = cur.from <= `${FIRST_YEAR}-01-01`;
+    }
+    function pick(v) { cur = periodFor(mode, v); drawPicker(); load(); }
+    function pickRange() {
+        const a = document.getElementById('p-from').value, b = document.getElementById('p-to').value;
+        if (!a || !b) { alert('시작일과 끝일을 골라주세요.'); return; }
+        const p = periodFor('range', a, b);
+        if (diffDays(p.from, p.to) > 365) { alert('기간은 최대 1년(366일)까지 볼 수 있어요. 더 긴 기간은 [연도별]로 봐주세요.'); return; }
+        cur = p; drawPicker(); load();
+    }
+    function move(n) {
+        if (n < 0) cur = prevPeriod(mode, cur);
+        else if (mode === 'range') { const len = diffDays(cur.from, cur.to) + 1; cur = periodFor('range', addDays(cur.to, 1), addDays(cur.to, len)); }
+        else cur = periodFor(mode, mode === 'day' ? addDays(cur.from, 1) : addDays(cur.to, 1));
+        drawPicker(); load();
+    }
+
+    // 기간 안의 출고 주문 (1000건씩 나눠서 받음)
+    // 출고로 세는 주문 = ① [출고완료]된 주문 (날짜: 출고완료 시각) + ② 아직 [미출고]지만 송장번호가 들어간 주문
+    //   (관리자 [송장 엑셀]이 주문에 송장번호만 넣고 출고상태는 그대로 두므로. 날짜: 주문 접수일 — 풀필먼트는 접수 당일 출고)
+    async function fetchShipped(p) {
+        const from = new Date(`${p.from}T00:00:00+09:00`).toISOString(), to = new Date(`${addDays(p.to, 1)}T00:00:00+09:00`).toISOString();
+        const cols = 'id,product,qty,tracking_no,order_type,shipped_at,created_at,wholesale_company,wholesale_product';
+        const pages = async build => {
+            const out = [];
+            for (let page = 0; page < 50; page++) {
+                let q = build().range(page * 1000, page * 1000 + 999);
+                // 관리자 미리보기: 그 업체 주문만 (셀러는 DB 규칙상 원래 자기 것만)
+                if (isAdmin) q = viewUid ? q.eq('seller_id', viewUid) : q.eq('seller_company', company);
+                const { data, error } = await q;
+                if (error) throw error;
+                out.push(...(data || []));
+                if (!data || data.length < 1000) break;
+            }
+            return out;
+        };
+        const [done, tracked] = await Promise.all([
+            pages(() => client.from('orders').select(cols).eq('ship_status', '출고완료').gte('shipped_at', from).lt('shipped_at', to).order('shipped_at', { ascending: true }).order('id')),
+            pages(() => client.from('orders').select(cols).eq('ship_status', '미출고').not('tracking_no', 'is', null).neq('tracking_no', '').gte('created_at', from).lt('created_at', to).order('created_at', { ascending: true }).order('id')),
+        ]);
+        const seen = new Set(), out = [];
+        for (const o of done) { seen.add(o.id); out.push(o); }
+        for (const o of tracked) if (!seen.has(o.id)) { seen.add(o.id); out.push({ ...o, shipped_at: o.created_at }); }
+        return out.filter(o => o.order_type !== 'keep');
+    }
+
+    // ---- 매출: 상품관리의 판매가·도매가 (supabase/product_price.sql) ----
+    const nk = v => String(v ?? '').toLowerCase().replace(/[\s\[\]()_\-]/g, '');
+    async function loadCatalog() {
+        if (catalog !== null) return;
+        const all = [];
+        for (let page = 0; page < 20; page++) {
+            const { data, error } = await client.from('products')
+                .select('company,wholesale_company,wholesale_product,color,size,mall_names,sale_price,wholesale_price,deleted_at')
+                .is('deleted_at', null).order('id').range(page * 1000, page * 1000 + 999);
+            if (error) { catalog = []; return; }     // 가격 칸 SQL 실행 전 등
+            all.push(...(data || []));
+            if (!data || data.length < 1000) break;
+        }
+        // 관리자 미리보기는 그 업체 상품만 (셀러는 DB 규칙상 자기 것만)
+        catalog = all.filter(x => (x.sale_price != null || x.wholesale_price != null) && (!isAdmin || nk(x.company) === nk(company)));
+    }
+    // 주문 한 줄 → 상품관리 상품의 가격. 쇼핑몰상품명이나 도매상품명으로 찾고, 컬러·사이즈가 맞는 것을 먼저 씁니다.
+    function priceFor(o) {
+        if (!catalog || !catalog.length) return null;
+        const key = [o.product, o.wholesale_company, o.wholesale_product].join('\u0000');
+        if (priceCache.has(key)) return priceCache.get(key);
+        const parts = String(o.product || '').split('/').map(x => x.trim()).filter(Boolean);
+        if (parts.length > 1 && /^\d+\s*개$/.test(parts[parts.length - 1])) parts.pop();
+        const base = nk(parts[0]), rest = parts.slice(1).map(nk), whole = nk(o.product);
+        const wp = nk(o.wholesale_product), wc = nk(o.wholesale_company);
+        const cands = catalog.filter(x =>
+            (base && ((x.mall_names || []).some(n => nk(n.name) === base) || nk(x.wholesale_product) === base))
+            || (wp && nk(x.wholesale_product) === wp && (!wc || nk(x.wholesale_company) === wc)));
+        const fits = v => !nk(v) || rest.includes(nk(v)) || whole.includes(nk(v));
+        let pick = cands.filter(x => fits(x.color) && fits(x.size));
+        if (!pick.length) pick = cands;
+        let res = null;
+        if (pick.length) {
+            const one = f => { const vals = [...new Set(pick.map(x => x[f]).filter(v => v != null))]; return vals.length === 1 ? vals[0] : null; };
+            res = { sale: one('sale_price'), whole: one('wholesale_price') };
+            if (res.sale == null && res.whole == null) res = null;
+        }
+        priceCache.set(key, res);
+        return res;
+    }
+
+    function summarize(list) {
+        const tracks = new Set();
+        let count = 0, qty = 0;
+        const money = { sales: 0, cost: 0, saleQty: 0, costQty: 0, bothSales: 0, bothCost: 0, byMonth: {} };
+        const byDay = {}, byType = {}, byProduct = new Map();
+        list.forEach(o => {
+            const t = String(o.tracking_no || '').trim();
+            const q = Math.max(1, Number(o.qty) || 1);
+            const isNew = !t || !tracks.has(t);
+            if (t) tracks.add(t);
+            const d = kstDay(o.shipped_at);
+            byDay[d] = byDay[d] || { count: 0, qty: 0 };
+            byDay[d].qty += q;
+            qty += q;
+            if (isNew) { count++; byDay[d].count++; byType[o.order_type || 'fulfillment'] = (byType[o.order_type || 'fulfillment'] || 0) + 1; }
+            // "상품명 / 컬러 / 사이즈 / 2개" 의 끝 수량은 떼고 묶음 (수량은 qty 칸으로 셈)
+            const name = String(o.product || '').replace(/\s+/g, ' ').replace(/\s*\/\s*/g, ' / ').replace(/(\s*\/)?\s*\d+\s*개\s*$/, '').trim() || '(상품명 없음)';
+            const key = name.toLowerCase().replace(/\s/g, '');
+            const p = byProduct.get(key) || { name, qty: 0, orders: 0, sales: 0, cost: 0, sale: null, whole: null };
+            p.qty += q; p.orders++;
+            const pr = priceFor(o);
+            if (pr && pr.sale != null) { money.sales += pr.sale * q; money.saleQty += q; p.sales += pr.sale * q; p.sale = pr.sale; money.byMonth[d.slice(0, 7)] = (money.byMonth[d.slice(0, 7)] || 0) + pr.sale * q; }
+            if (pr && pr.whole != null) { money.cost += pr.whole * q; money.costQty += q; p.cost += pr.whole * q; p.whole = pr.whole; }
+            if (pr && pr.sale != null && pr.whole != null) { money.bothSales += pr.sale * q; money.bothCost += pr.whole * q; }
+            byProduct.set(key, p);
+        });
+        return { count, qty, money, byDay, byType, products: [...byProduct.values()].sort((a, b) => b.qty - a.qty || a.name.localeCompare(b.name, 'ko')) };
+    }
+
+    async function settleSum(p) {
+        const { data, error } = await client.rpc('get_my_settlements', { p_from: p.from, p_to: p.to, p_company: previewCompany || null });
+        if (error) return null;
+        const sum = { sheets: (data || []).length, serviceTotal: 0, prepaid: 0 };
+        ITEMS.forEach(it => { sum[it.key] = 0; });
+        (data || []).forEach(r => {
+            const d = r.data || {};
+            ['serviceTotal', 'prepaid', ...ITEMS.map(it => it.key)].forEach(k => { sum[k] += num(d[k]); });
+        });
+        sum.taxInvoice = sum.serviceTotal + sum.vat;
+        return sum;
+    }
+
+    function change(now, before, unit) {
+        const word = PREV_WORD[mode];
+        if (!before) return `<span>${word.replace('보다', '')} 기록 없음</span>`;
+        const diff = now - before;
+        if (!diff) return `${word.replace('보다', '과')} 같음`;
+        const pct = Math.round(Math.abs(diff) / before * 100);
+        return `${word} <span class="${diff > 0 ? 'up' : 'down'}">${diff > 0 ? '▲' : '▼'} ${fmt(Math.abs(diff))}${unit} (${pct}%)</span>`;
+    }
+
+    // 그래프 묶음 단위: 62일 이하 = 날짜별, 200일 이하 = 주별(월요일 시작), 그 이상 = 월별
+    function buckets(p, byDay) {
+        const len = diffDays(p.from, p.to) + 1, out = [];
+        const sumRange = (a, b) => { let c = 0, q = 0; for (let d = a; d <= b; d = addDays(d, 1)) { if (byDay[d]) { c += byDay[d].count; q += byDay[d].qty; } } return { c, q }; };
+        if (len <= 62) {
+            for (let d = p.from, i = 0; d <= p.to; d = addDays(d, 1), i++) {
+                const v = byDay[d] || { count: 0, qty: 0 };
+                out.push({ key: d, label: len <= 31 ? `${Number(d.slice(8))}일` : md(d), name: `${md(d)}(${dow(d)})`, count: v.count, qty: v.qty, showLabel: len <= 14 || i === 0 || (Number(d.slice(8)) % 5 === 0) });
+            }
+            return { unit: '날짜별', list: out };
+        }
+        if (len <= 200) {
+            let s = p.from;
+            while (s <= p.to) {
+                const wd = (D(s).getUTCDay() + 6) % 7;     // 월요일 0
+                let e = addDays(s, 6 - wd); if (e > p.to) e = p.to;
+                const v = sumRange(s, e);
+                out.push({ key: s, label: md(s), name: `${md(s)}~${md(e)}`, count: v.c, qty: v.q, showLabel: out.length % 2 === 0 });
+                s = addDays(e, 1);
+            }
+            return { unit: '주별', list: out };
+        }
+        let s = p.from;
+        while (s <= p.to) {
+            let e = addDays(addMonths(s, 1), -1); if (e > p.to) e = p.to;
+            const v = sumRange(s, e);
+            out.push({ key: s, label: `${Number(s.slice(5, 7))}월`, name: `${s.slice(0, 4)}년 ${Number(s.slice(5, 7))}월`, count: v.c, qty: v.q, showLabel: true });
+            s = addDays(e, 1);
+        }
+        return { unit: '월별', list: out };
+    }
+
+    function chart(list) {
+        const n = list.length, W = 620, H = 160, top = 18, bottom = 22;
+        const max = Math.max(1, ...list.map(b => b.count));
+        const slot = W / n, bw = Math.max(4, Math.min(28, slot - 4));
+        let bars = '', labels = '';
+        list.forEach((b, i) => {
+            const x = i * slot + (slot - bw) / 2;
+            const h = b.count ? Math.max(3, (H - top - bottom) * b.count / max) : 0;
+            const y = H - bottom - h, r = Math.min(4, bw / 2);
+            if (h) bars += `<path class="bar" d="M${x},${H - bottom} V${y + r} q0,-${r} ${r},-${r} h${bw - 2 * r} q${r},0 ${r},${r} V${H - bottom} Z" fill="var(--bar)"/>`;
+            if (b.count && b.count === max) bars += `<text x="${x + bw / 2}" y="${y - 5}" text-anchor="middle" font-size="11" font-weight="700" fill="#0f172a">${fmt(b.count)}</text>`;
+            bars += `<rect class="hit" x="${i * slot}" y="0" width="${slot}" height="${H}" data-tip="${esc(b.name)} · ${fmt(b.count)}건 · ${fmt(b.qty)}개"/>`;
+            if (b.showLabel) labels += `<text x="${x + bw / 2}" y="${H - 6}" text-anchor="middle" font-size="11" fill="#64748b">${esc(b.label)}</text>`;
+        });
+        return `<div class="chart" id="day-chart"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="출고 건수 그래프">
+            <line x1="0" x2="${W}" y1="${H - bottom}" y2="${H - bottom}" stroke="#cbd5e1" stroke-width="1"/>${bars}${labels}</svg><div class="tip" id="tip"></div></div>`;
+    }
+
+    function bindTip() {
+        const box = document.getElementById('day-chart'), tip = document.getElementById('tip');
+        if (!box) return;
+        box.querySelectorAll('rect.hit').forEach(r => {
+            r.addEventListener('mouseenter', () => {
+                const b = r.getBoundingClientRect(), c = box.getBoundingClientRect();
+                tip.textContent = r.dataset.tip;
+                tip.style.left = `${Math.min(c.width - 70, Math.max(70, b.left - c.left + b.width / 2))}px`;
+                tip.style.top = '24px';
+                tip.style.display = 'block';
+            });
+            r.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+        });
+    }
+
+    async function load() {
+        const box = document.getElementById('result');
+        box.innerHTML = '<div class="state">불러오는 중입니다...</div>';
+        const p = cur, pp = prevPeriod(mode, p);
+        let rows, prevRows, cost, prevCost, pnl;
+        try {
+            await loadCatalog();
+            [rows, prevRows, cost, prevCost, pnl] = await Promise.all([fetchShipped(p), fetchShipped(pp), settleSum(p), settleSum(pp), loadPnl(p)]);
+        } catch (e) {
+            box.innerHTML = `<div class="state">리포트를 불러오지 못했습니다.<br>잠시 후 다시 시도해주세요.<br><span style="font-size:12px">${esc(e.message || e)}</span></div>`;
+            return;
+        }
+        if (p !== cur) return;   // 그사이 다른 기간을 골랐으면 버림
+        const s = summarize(rows), ps = summarize(prevRows);
+        report = { p, s, cost, prev: ps, prevCost, pnl, draft: null, b: buckets(p, s.byDay) };
+        pnlStatus = '';
+        showAllProducts = false;
+        render();
+    }
+
+    // ---- 손익 계산표 (supabase/seller_pnl.sql) ----
+    // 자동: 판매 매출(판매가×출고), 상품 매입(도매가×출고), 밤낮딜리버리 비용(정산서 세금계산서 금액)
+    // 셀러가 적음(달마다 자동저장): 쇼핑몰 수수료율, 기타 매출, 비용 줄(광고비 등)
+    const PNL_DEFAULT_ITEMS = ['광고비', '포장·부자재비', '기타 비용'];
+    let pnlTimer = null, pnlStatus = '';
+    function monthStarts(p) { const out = []; for (let m = p.from.slice(0, 7) + '-01'; m <= p.to; m = addMonths(m, 1)) out.push(m); return out; }
+    async function loadPnl(p) {
+        const months = monthStarts(p);
+        let q = client.from('seller_pnl').select('company,month,fee_rate,extra_sales,items,updated_at')
+            .gte('month', addMonths(months[0], -1)).lte('month', months[months.length - 1]).order('month');
+        if (isAdmin) q = q.eq('company', company);
+        const { data, error } = await q;
+        if (error) return { missing: true, rows: [], prev: null };
+        const rows = (data || []).filter(r => months.includes(r.month));
+        const before = (data || []).filter(r => r.month < months[0]);
+        return { missing: false, rows, prev: before.length ? before[before.length - 1] : null };
+    }
+    function canEditPnl() { return mode === 'month' && report.pnl && !report.pnl.missing && !(VIEW_AS.active) && !isAdmin; }
+    // 이번 달 줄이 없으면 지난달 수수료율·비용 이름을 가져와 빈칸으로 시작
+    function pnlDraft() {
+        const r = report.pnl.rows[0];
+        if (r) return { fee_rate: r.fee_rate, extra_sales: Number(r.extra_sales) || 0, items: (r.items || []).map(x => ({ label: x.label || '', amount: Number(x.amount) || 0 })) };
+        const pv = report.pnl.prev;
+        return { fee_rate: pv ? pv.fee_rate : null, extra_sales: 0,
+            items: (pv && pv.items && pv.items.length ? pv.items.map(x => x.label) : PNL_DEFAULT_ITEMS).map(label => ({ label, amount: 0 })) };
+    }
+    function pnlCalc() {
+        const s = report.s, cost = report.cost, rows = report.pnl && !report.pnl.missing ? report.pnl.rows : [];
+        const sales = s.money.sales, purchase = s.money.cost, bamnat = cost ? cost.taxInvoice : 0;
+        let fee = 0, extra = 0;
+        const items = new Map();
+        if (mode === 'month' && canEditPnl()) {
+            const d = report.draft;
+            fee = sales * (Number(d.fee_rate) || 0) / 100; extra = Number(d.extra_sales) || 0;
+            d.items.forEach(x => { if (x.label || x.amount) items.set(x.label || '(이름 없음)', (items.get(x.label || '(이름 없음)') || 0) + (Number(x.amount) || 0)); });
+        } else {
+            rows.forEach(r => {
+                fee += (s.money.byMonth[r.month.slice(0, 7)] || 0) * (Number(r.fee_rate) || 0) / 100;
+                extra += Number(r.extra_sales) || 0;
+                (r.items || []).forEach(x => items.set(x.label || '(이름 없음)', (items.get(x.label || '(이름 없음)') || 0) + (Number(x.amount) || 0)));
+            });
+        }
+        const itemSum = [...items.values()].reduce((a, b) => a + b, 0);
+        const income = sales + extra, spend = purchase + bamnat + fee + itemSum;
+        return { sales, extra, purchase, bamnat, fee, items, income, spend, profit: income - spend };
+    }
+    function pnlBox() {
+        if (!report.s.qty && !(report.pnl && report.pnl.rows.length)) return '';
+        if (!report.pnl || report.pnl.missing) return '';
+        const edit = canEditPnl();
+        if (edit && !report.draft) report.draft = pnlDraft();
+        const c = pnlCalc();
+        const rate = c.income ? Math.round(c.profit / c.income * 1000) / 10 : 0;
+        const line = (label, v, opt = {}) => `<div class="${opt.cls || ''}"><span>${label}${opt.sub ? ` <span class="pl-sub">${opt.sub}</span>` : ''}</span><b>${opt.minus && v ? '− ' : ''}${won(v)}원</b></div>`;
+        const d = report.draft;
+        const manual = edit ? `
+            <div class="pl-edit">
+                <label>쇼핑몰 수수료율 <input id="pl-fee" inputmode="decimal" value="${d.fee_rate ?? ''}" placeholder="예: 12.5" oninput="pnlInput()"> %</label>
+                <label>기타 매출 <input id="pl-extra" inputmode="numeric" value="${d.extra_sales ? fmt(d.extra_sales) : ''}" placeholder="예: 받은 배송비" oninput="pnlInput()"> 원</label>
+                <div class="pl-items">${d.items.map((x, i) => `<div class="pl-item">
+                    <input class="pl-label" value="${esc(x.label)}" placeholder="비용 이름" oninput="pnlInput()">
+                    <input class="pl-amt" inputmode="numeric" value="${x.amount ? fmt(x.amount) : ''}" placeholder="0" oninput="pnlInput()"> 원
+                    <button type="button" class="pl-x" onclick="pnlRemove(${i})" title="줄 빼기">×</button></div>`).join('')}</div>
+                <button type="button" class="btn" onclick="pnlAdd()">+ 비용 줄 추가</button>
+                <span class="pl-status" id="pl-status">${esc(pnlStatus)}</span>
+            </div>` : '';
+        return `<section class="pnl">
+            <h2>손익 계산표 <span>${edit ? '위 표는 자동 계산, 아래 칸에 적으면 바로 저장돼요' : mode === 'month' ? '보기 전용' : '달마다 적은 값을 더한 것 (적는 건 [월별]에서)'}</span></h2>
+            <div class="two">
+                <div class="rows">
+                    <div class="pl-head"><span>매출</span><b></b></div>
+                    ${line('판매 매출', c.sales, { sub: '판매가×출고' })}
+                    ${line('기타 매출', c.extra, { sub: '직접 적음' })}
+                    ${line('매출 합계', c.income, { cls: 'strong' })}
+                </div>
+                <div class="rows">
+                    <div class="pl-head"><span>매입·비용</span><b></b></div>
+                    ${line('상품 매입', c.purchase, { sub: '도매가×출고', minus: true })}
+                    ${line('밤낮딜리버리 비용', c.bamnat, { sub: '정산서 세금계산서 금액', minus: true })}
+                    ${line('쇼핑몰 수수료', c.fee, { sub: edit ? `${d.fee_rate || 0}%` : '', minus: true })}
+                    ${[...c.items].map(([k, v]) => line(esc(k), v, { sub: '직접 적음', minus: true })).join('')}
+                    ${line('비용 합계', c.spend, { cls: 'strong', minus: true })}
+                </div>
+            </div>
+            <div class="pl-result ${c.profit < 0 ? 'neg' : ''}"><span>순이익 (매출 − 비용)</span><b>${c.profit < 0 ? '− ' : ''}${won(Math.abs(c.profit))}원</b><small>이익률 ${rate}%</small></div>
+            ${manual}
+            <p class="note" style="border:0;padding-top:4px">* 판매가·도매가가 없는 상품은 매출·매입에서 빠져요. 배송비·할인·쿠폰은 계산하지 않은 대략의 손익이에요.${mode === 'day' || mode === 'range' ? ' 일별·기간 지정에서는 직접 적은 값이 그 달 전체 기준으로 더해져요.' : ''}</p>
+        </section>`;
+    }
+    function readDraft() {
+        const d = report.draft;
+        const fee = String(document.getElementById('pl-fee').value).replace(/[%\s]/g, '');
+        d.fee_rate = fee === '' ? null : Math.min(100, Math.max(0, Number(fee) || 0));
+        d.extra_sales = Math.max(0, Math.round(num(document.getElementById('pl-extra').value)));
+        d.items = [...document.querySelectorAll('.pl-item')].map(el => ({ label: el.querySelector('.pl-label').value.trim(), amount: Math.max(0, Math.round(num(el.querySelector('.pl-amt').value))) }));
+    }
+    function refreshPnl() {
+        const box = document.querySelector('section.pnl');
+        const focus = document.activeElement, fid = focus && focus.id, idx = focus && focus.closest('.pl-item') ? [...document.querySelectorAll('.pl-item')].indexOf(focus.closest('.pl-item')) : -1;
+        const cls = focus && focus.className, pos = focus && focus.selectionStart;
+        box.outerHTML = pnlBox();
+        let el = fid ? document.getElementById(fid) : idx >= 0 ? document.querySelectorAll('.pl-item')[idx]?.querySelector('.' + String(cls).split(' ')[0]) : null;
+        if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) { /* 숫자칸 */ } }
+    }
+    function pnlInput() {
+        readDraft();
+        pnlStatus = '저장 중...';
+        clearTimeout(pnlTimer);
+        pnlTimer = setTimeout(savePnl, 700);
+        // 합계만 바로 다시 그림 (입력 중인 칸은 그대로)
+        const c = pnlCalc();
+        const res = document.querySelector('.pl-result');
+        if (res) {
+            res.classList.toggle('neg', c.profit < 0);
+            res.querySelector('b').textContent = `${c.profit < 0 ? '− ' : ''}${won(Math.abs(c.profit))}원`;
+            res.querySelector('small').textContent = `이익률 ${c.income ? Math.round(c.profit / c.income * 1000) / 10 : 0}%`;
+        }
+        const st = document.getElementById('pl-status'); if (st) st.textContent = pnlStatus;
+    }
+    function pnlAdd() { readDraft(); report.draft.items.push({ label: '', amount: 0 }); refreshPnl(); const l = document.querySelectorAll('.pl-label'); l[l.length - 1].focus(); }
+    function pnlRemove(i) { readDraft(); report.draft.items.splice(i, 1); refreshPnl(); pnlInput(); }
+    async function savePnl() {
+        const d = report.draft, month = report.p.from;
+        const row = { company, month, fee_rate: d.fee_rate, extra_sales: d.extra_sales, items: d.items.filter(x => x.label || x.amount) };
+        const { data, error } = await client.from('seller_pnl').upsert(row, { onConflict: 'company,month' }).select().single();
+        if (error) { pnlStatus = '⚠️ 저장하지 못했어요. 다시 적어주세요.'; }
+        else {
+            const i = report.pnl.rows.findIndex(r => r.month === month);
+            if (i >= 0) report.pnl.rows[i] = data; else report.pnl.rows.push(data);
+            const t = new Date(Date.now() + 9 * 3600e3).toISOString().slice(11, 16);
+            pnlStatus = `✓ 자동 저장됨 ${t}`;
+        }
+        refreshPnl();
+    }
+
+    // 매출 칸: 판매가가 등록된 상품만 계산. 가격이 하나도 없으면 안내만.
+    function moneyBox(s) {
+        if (!s.qty) return '';
+        const m = s.money, pm = report.prev.money;
+        if (!catalog || !catalog.length) {
+            return `<div class="money-hint">💡 상품관리에 <b>판매가·도매가</b>를 적어두면 여기에서 <b>매출</b>과 도매 원가도 함께 볼 수 있어요.
+                <a class="btn" href="/products${location.search.includes('view=1') ? location.search : ''}">상품관리 가기</a></div>`;
+        }
+        const pct = n => Math.round(n / s.qty * 100);
+        const margin = m.bothSales - m.bothCost;
+        return `<section class="money">
+            <h2>매출 <span>상품관리에 적힌 판매가·도매가 × 출고 수량</span></h2>
+            <div class="kpis">
+                <div class="kpi"><div class="l">판매 매출</div><div class="v">${won(m.sales)}<small>원</small></div><div class="c">${change(Math.round(m.sales), Math.round(pm.sales), '원')}</div></div>
+                <div class="kpi"><div class="l">도매 원가</div><div class="v">${won(m.cost)}<small>원</small></div><div class="c">사입한 값 합계</div></div>
+                <div class="kpi"><div class="l">차액 (판매 − 도매)</div><div class="v">${won(margin)}<small>원</small></div><div class="c">두 가격이 다 있는 상품만</div></div>
+                <div class="kpi"><div class="l">가격 있는 출고</div><div class="v">${pct(m.saleQty)}<small>%</small></div><div class="c">${fmt(m.saleQty)} / ${fmt(s.qty)}개</div></div>
+            </div>
+            ${m.saleQty < s.qty ? `<p class="note" style="margin-top:-8px;border:0;padding:0">* 판매가가 없는 상품 ${fmt(s.qty - m.saleQty)}개는 매출에서 빠졌어요. 상품관리에서 판매가를 적으면 바로 더해집니다. (배송비·할인·쿠폰은 계산하지 않아요)</p>` : '<p class="note" style="margin-top:-8px;border:0;padding:0">* 배송비·할인·쿠폰은 계산하지 않은 대략의 금액이에요.</p>'}
+        </section>`;
+    }
+
+    function render() {
+        const { p, s, cost, b } = report;
+        const shipDays = Object.values(s.byDay).filter(v => v.count).length;
+        document.title = `${company} ${p.label} 출고 리포트`;
+        const one = p.from === p.to;
+        const top = showAllProducts ? s.products : s.products.slice(0, 10), topMax = s.products.length ? s.products[0].qty : 1;
+        document.getElementById('result').innerHTML = `
+        <div class="sheet">
+            <div class="head">
+                <div><div class="t">밤낮딜리버리 ${MODES.find(m => m[0] === mode)[1]} 출고 리포트</div><div class="company">${esc(company)}</div></div>
+                <div class="month">${esc(p.label)}${isRunning(p) ? ' <span style="font-size:12px;color:var(--sub)">(진행 중)</span>' : ''}</div>
+            </div>
+            <div class="kpis">
+                <div class="kpi main"><div class="l">출고 건수</div><div class="v">${fmt(s.count)}<small>건</small></div><div class="c">${change(s.count, report.prev.count, '건')}</div></div>
+                <div class="kpi"><div class="l">출고 상품 수량</div><div class="v">${fmt(s.qty)}<small>개</small></div><div class="c">${change(s.qty, report.prev.qty, '개')}</div></div>
+                <div class="kpi"><div class="l">세금계산서 금액</div><div class="v">${cost ? won(cost.taxInvoice) : '-'}<small>원</small></div><div class="c">${cost && report.prevCost ? change(Math.round(cost.taxInvoice), Math.round(report.prevCost.taxInvoice), '원') : ''}</div></div>
+                ${one
+                    ? `<div class="kpi"><div class="l">출고 상품 종류</div><div class="v">${fmt(s.products.length)}<small>가지</small></div><div class="c">이 날 나간 상품 가짓수</div></div>`
+                    : `<div class="kpi"><div class="l">하루 평균 출고</div><div class="v">${shipDays ? (s.count / shipDays).toFixed(1) : '0'}<small>건</small></div><div class="c">출고한 날 ${shipDays}일 기준</div></div>`}
+            </div>
+            ${moneyBox(s)}
+            ${one ? '' : `<section>
+                <h2>${b.unit} 출고 건수 <span>막대에 마우스를 올리면 건수·수량이 보여요</span></h2>
+                ${s.count ? chart(b.list) : '<div class="empty">이 기간에 출고된 주문이 없습니다.</div>'}
+            </section>`}
+            <div class="two">
+                <section>
+                    <h2>많이 나간 상품 ${showAllProducts ? `전체 ${fmt(s.products.length)}가지` : `TOP ${Math.min(10, s.products.length) || 10}`} <span>수량 기준</span></h2>
+                    ${top.length ? `<ol class="rank">${top.map((x, i) => `<li><span class="n">${i + 1}</span>
+                        <span class="name"><div title="${esc(x.name)}">${esc(x.name)}</div><div class="meter"><i style="width:${Math.max(4, x.qty / topMax * 100)}%"></i></div></span>
+                        <span class="q">${fmt(x.qty)}개${x.sales ? `<small>${won(x.sales)}원</small>` : ''}</span></li>`).join('')}</ol>
+                        ${s.products.length > 10 ? `<button class="btn more" onclick="showAllProducts=!showAllProducts;render()">${showAllProducts ? 'TOP 10만 보기' : `상품 ${fmt(s.products.length)}가지 모두 보기`}</button>` : ''}` : '<div class="empty">출고된 상품이 없습니다.</div>'}
+                </section>
+                <section>
+                    <h2>이 기간 비용 <span>정산서 ${cost ? cost.sheets : 0}장 합계</span></h2>
+                    ${cost ? `<div class="rows">
+                        ${ITEMS.map(it => `<div><span>${it.label}</span><b>${cost[it.key] ? won(cost[it.key]) + '원' : '-'}</b></div>`).join('')}
+                        <div class="strong"><span>세금계산서 금액</span><b>${won(cost.taxInvoice)}원</b></div>
+                        <div><span>대납금액 <span style="font-size:12px;color:var(--sub)">(물건값, 세금계산서 제외)</span></span><b>${cost.prepaid ? won(cost.prepaid) + '원' : '-'}</b></div>
+                    </div>` : '<div class="empty">비용 정보를 불러오지 못했습니다.</div>'}
+                    <h2 style="margin-top:18px">출고 방법별 <span>건수</span></h2>
+                    <div class="rows">${Object.keys(TYPE_LABEL).filter(k => s.byType[k]).map(k => `<div><span>${TYPE_LABEL[k]}</span><b>${fmt(s.byType[k])}건</b></div>`).join('') || '<div><span>출고 없음</span><b>-</b></div>'}</div>
+                </section>
+            </div>
+            ${pnlBox()}
+            ${one || !s.count ? '' : `<section>
+                <h2>${b.unit} 출고 표</h2>
+                <div class="table-box"><table>
+                    <thead><tr><th>${b.unit === '날짜별' ? '날짜' : b.unit === '주별' ? '주' : '월'}</th><th class="r">출고 건수</th><th class="r">출고 수량</th></tr></thead>
+                    <tbody>${b.list.map(x => `<tr><td>${esc(x.name)}</td><td class="r">${x.count ? fmt(x.count) + '건' : '-'}</td><td class="r">${x.qty ? fmt(x.qty) + '개' : '-'}</td></tr>`).join('')}
+                    <tr><td><b>합계</b></td><td class="r"><b>${fmt(s.count)}건</b></td><td class="r"><b>${fmt(s.qty)}개</b></td></tr></tbody>
+                </table></div>
+            </section>`}
+            <p class="note">* 출고 건수는 송장번호 기준입니다 (합배송으로 한 상자에 같이 나간 주문은 1건). 송장번호가 등록되면 바로 반영되며, 출고일은 [출고완료]한 날(없으면 주문 접수일)입니다.<br>
+            * 비용은 이 기간에 받으신 정산서를 더한 금액이며, 정산서 상호가 가입 상호와 다르면 빠질 수 있습니다.<br>
+            * 만든 날: ${today()}</p>
+        </div>`;
+        bindTip();
+    }
+
+    function downloadExcel() {
+        if (!report) return;
+        const { p, s, cost, b } = report;
+        const wb = XLSX.utils.book_new();
+        const head = { font: { bold: true }, fill: { fgColor: { rgb: 'E0E7FF' } } };
+        const sheet = (aoa, widths) => {
+            const ws = XLSX.utils.aoa_to_sheet(aoa);
+            ws['!cols'] = widths.map(w => ({ wch: w }));
+            const range = XLSX.utils.decode_range(ws['!ref']);
+            for (let c = range.s.c; c <= range.e.c; c++) { const a = XLSX.utils.encode_cell({ r: 0, c }); if (ws[a]) ws[a].s = head; }
+            return ws;
+        };
+        const sum = [['항목', '값'], ['업체', company], ['기간', p.label], ['출고 건수(송장 기준)', s.count], ['출고 상품 수량', s.qty]];
+        Object.keys(TYPE_LABEL).filter(k => s.byType[k]).forEach(k => sum.push([`출고 방법: ${TYPE_LABEL[k]}`, s.byType[k]]));
+        if (catalog && catalog.length) sum.push(['판매 매출(판매가×수량)', Math.round(s.money.sales)], ['도매 원가(도매가×수량)', Math.round(s.money.cost)], ['차액(두 가격 다 있는 상품)', Math.round(s.money.bothSales - s.money.bothCost)], ['판매가 있는 출고 수량', s.money.saleQty]);
+        if (report.pnl && !report.pnl.missing) {
+            const c = pnlCalc();
+            sum.push(['[손익] 판매 매출', Math.round(c.sales)], ['[손익] 기타 매출', Math.round(c.extra)], ['[손익] 상품 매입', Math.round(c.purchase)], ['[손익] 밤낮딜리버리 비용', Math.round(c.bamnat)], ['[손익] 쇼핑몰 수수료', Math.round(c.fee)]);
+            c.items.forEach((v, k) => sum.push([`[손익] ${k}`, Math.round(v)]));
+            sum.push(['[손익] 순이익', Math.round(c.profit)]);
+        }
+        if (cost) { ITEMS.forEach(it => sum.push([it.label, Math.round(cost[it.key])])); sum.push(['세금계산서 금액', Math.round(cost.taxInvoice)], ['대납금액', Math.round(cost.prepaid)], ['정산서 장수', cost.sheets]); }
+        XLSX.utils.book_append_sheet(wb, sheet(sum, [26, 22]), '요약');
+        const days = [['날짜', '요일', '출고 건수', '출고 수량']];
+        for (let d = p.from; d <= p.to; d = addDays(d, 1)) { const v = s.byDay[d]; days.push([d, dow(d), v ? v.count : 0, v ? v.qty : 0]); }
+        days.push(['합계', '', s.count, s.qty]);
+        XLSX.utils.book_append_sheet(wb, sheet(days, [12, 6, 10, 10]), '날짜별');
+        if (b.unit !== '날짜별') XLSX.utils.book_append_sheet(wb, sheet([[b.unit === '주별' ? '주' : '월', '출고 건수', '출고 수량'], ...b.list.map(x => [x.name, x.count, x.qty])], [16, 10, 10]), b.unit);
+        XLSX.utils.book_append_sheet(wb, sheet([['순위', '상품명', '출고 수량', '주문 줄 수', '판매가', '판매 매출', '도매가', '도매 원가'], ...s.products.map((x, i) => [i + 1, x.name, x.qty, x.orders, x.sale ?? '', x.sales || '', x.whole ?? '', x.cost || ''])], [6, 50, 10, 10, 10, 12, 10, 12]), '상품별');
+        XLSX.writeFile(wb, `${company}_출고리포트_${p.from}_${p.to}.xlsx`);
+    }
+
+    init();
+</script>
+</body>
+</html>

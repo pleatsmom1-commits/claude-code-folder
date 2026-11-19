@@ -27,7 +27,7 @@ const itemKey = p => [p.company, p.wholesale_company, p.wholesale_product, p.col
 let nextId = 1, nextLog = 1, codeSeq = 0;
 const now = () => new Date().toISOString();
 function newProduct(r, who) {
-  return { id: nextId++, code: 'P' + String(++codeSeq).padStart(6, '0'), company: '', wholesale_company: '', wholesale_product: '', color: '', size: '', mall_names: [], photo_url: '', memo: '', delete_requested_at: null, delete_request_reason: '', delete_requested_by: null, deleted_at: null, created_at: now(), created_by: who, updated_at: now(), updated_by: who, ...r };
+  return { id: nextId++, code: 'P' + String(++codeSeq).padStart(6, '0'), company: '', wholesale_company: '', wholesale_product: '', color: '', size: '', mall_names: [], photo_url: '', memo: '', sale_price: null, wholesale_price: null, delete_requested_at: null, delete_request_reason: '', delete_requested_by: null, deleted_at: null, created_at: now(), created_by: who, updated_at: now(), updated_by: who, ...r };
 }
 const tables = {
   orders: [], couriers: [], address_book: [], pickup_requests: [], settlements: [], settle_contacts: [], stock_items: [],
@@ -237,26 +237,28 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   const formPath = path.join(__dirname, 'out', 'products-form.xlsx'); await fdl.saveAs(formPath);
   const fwb = XLSX.readFile(formPath);
   const head = XLSX.utils.sheet_to_json(fwb.Sheets['상품등록'], { header: 1 })[0];
-  check('form has admin columns + 작성방법 sheet', head.join() === '거래처명,도매업체명,도매상품명,컬러,사이즈,플랫폼,쇼핑몰상품명,메모' && fwb.SheetNames.includes('작성방법'), head.join());
+  check('form has admin columns + 작성방법 sheet', head.join() === '거래처명,도매업체명,도매상품명,컬러,사이즈,판매가,도매가,플랫폼,쇼핑몰상품명,메모' && fwb.SheetNames.includes('작성방법'), head.join());
   const flower = byProd('꽃니트');
   const upPath = path.join(__dirname, 'out', 'products-upload.xlsx');
   const uwb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(uwb, XLSX.utils.aoa_to_sheet([head,
-    ['사아샵', '도매S', '114', '검정', 'F', '스마트스토어', '코지 가디건', ''],
-    ['사아샵', '도매S', '114', '검정', 'F', '지그재그', '[당일] 코지', ''],
-    ['가나샵', '도매A', '꽃니트', '검정', 'F', '쿠팡', '플라워 니트 쿠팡', ''],
-    ['가나샵', '도매A', '꽃니트', '검정', 'F', '스마트스토어', '플라워 니트', ''],
-    ['', '도매Z', '없는상품', '', '', '쿠팡', '거래처없음', ''],
-    ['사아샵', '', '이름만', '', '', '', '', ''],
+    ['사아샵', '도매S', '114', '검정', 'F', '32,000', '14000', '스마트스토어', '코지 가디건', ''],
+    ['사아샵', '도매S', '114', '검정', 'F', '', '', '지그재그', '[당일] 코지', ''],
+    ['가나샵', '도매A', '꽃니트', '검정', 'F', '', '', '쿠팡', '플라워 니트 쿠팡', ''],
+    ['가나샵', '도매A', '꽃니트', '검정', 'F', '', '', '스마트스토어', '플라워 니트', ''],
+    ['가나샵', '도매C', '청바지', '블루', 'S', '45000', '', '', '', ''],
+    ['', '도매Z', '없는상품', '', '', '', '', '쿠팡', '거래처없음', ''],
+    ['사아샵', '', '이름만', '', '', '', '', '', '', ''],
   ]), '상품등록');
   XLSX.writeFile(uwb, upPath);
   await page.setInputFiles('#upload-input', upPath); await page.waitForTimeout(800);
   const info = await page.textContent('#upload-info');
-  check('upload preview counts (new 1, add 1, skipped 2)', info.includes('새 상품 1개') && info.includes('쇼핑몰상품명 추가 1개') && info.includes('건너뜀 2줄'), info);
+  check('upload preview counts (new 1, add 1, skipped 2)', info.includes('새 상품 1개') && info.includes('쇼핑몰상품명 추가 1개') && info.includes('가격 변경 1개') && info.includes('건너뜀 2줄'), info);
   await page.click('#upload-confirm'); await page.waitForTimeout(1200);
   const cozy = byProd('114');
   check('excel rows merged into one product with 2 names', cozy.company === '사아샵' && cozy.mall_names?.length === 2, JSON.stringify(cozy));
   check('existing product got only the new mall name', byProd('꽃니트').mall_names.length === 2 && byProd('꽃니트').mall_names[1].platform === '쿠팡', JSON.stringify(byProd('꽃니트').mall_names));
+  check('excel prices: new product 32000/14000, existing 청바지 sale 45000', cozy.sale_price === 32000 && cozy.wholesale_price === 14000 && byProd('청바지').sale_price === 45000, `${cozy.sale_price}/${cozy.wholesale_price}/${byProd('청바지').sale_price}`);
   check('new product got automatic next code', /^P\d{6}$/.test(cozy.code) && cozy.code > flower.code, cozy.code);
 
   // 목록 다운로드: 플랫폼마다 한 줄
