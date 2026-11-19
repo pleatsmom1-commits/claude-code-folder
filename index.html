@@ -274,6 +274,26 @@
                     </div>
                 </div>
 
+                <!-- 사입 목록 만들기: 풀필먼트를 안 쓰는 택배 업체용, 주문 접수 없이 도매 매장별 사입 목록만 정리 (order-ai.js aiRenderBuy) -->
+                <div id="buy-ai-card" class="bg-white rounded-xl shadow-sm border-2 border-amber-200 p-5 space-y-3">
+                    <div>
+                        <h3 class="text-base font-black text-slate-900">🛒 사입 목록 만들기 <span class="ml-1 px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] align-middle">AI</span></h3>
+                        <p class="text-xs text-slate-500 mt-0.5">쇼핑몰 주문서 엑셀을 올리면 <b class="text-amber-800">도매 매장별로 사입할 상품</b>(도매상품명·컬러·사이즈·수량)을 한 번에 정리해 드려요. 엑셀 받기·카톡 복사도 돼요. <span class="text-slate-400">※ 주문 접수는 되지 않아요.</span></p>
+                    </div>
+                    <div id="buy-ai-drop-zone" class="border-2 border-dashed border-amber-200 rounded-xl p-5 text-center bg-amber-50/50 transition"
+                        ondragover="event.preventDefault(); this.classList.add('border-amber-500', 'bg-amber-100')"
+                        ondragleave="this.classList.remove('border-amber-500', 'bg-amber-100')"
+                        ondrop="aiDrop(event, 'buy')">
+                        <p class="text-xs text-slate-600 mb-3">스마트스토어·쿠팡·지그재그·에이블리 등 어떤 양식이든 그대로 올려 주세요. (파일을 여기로 끌어와도 돼요)</p>
+                        <input type="file" id="buy-ai-file-input" accept=".xlsx, .xls, .csv" class="hidden" onchange="aiFileChosen(event, 'buy')">
+                        <button id="btn-buy-ai-upload" onclick="document.getElementById('buy-ai-file-input').click()" class="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-lg text-sm shadow">
+                            주문서 올려서 사입 목록 만들기
+                        </button>
+                        <p id="buy-ai-status" class="hidden mt-3 text-xs font-bold"></p>
+                    </div>
+                    <div id="buy-ai-result" class="hidden space-y-3"></div>
+                </div>
+
                 <div id="store-form-card" class="hidden bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
                     <div class="flex justify-between items-start flex-wrap gap-3">
                         <div>
