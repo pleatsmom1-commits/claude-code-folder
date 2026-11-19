@@ -44,7 +44,7 @@ create policy seller_own_stock_moves_select on public.seller_own_stock_moves
     for select to authenticated
     using (public.is_admin() or public.norm_company(company) = public.my_stock_company());
 
--- 4. 재고 바꾸기 (셀러 본인 상품만)
+-- 4. 재고 바꾸기 (셀러 본인 상품만, 관리자·직원은 못 바꿈)
 --  p_items: [{"product_id": 1, "qty": 5}]   → p_mode 'set' : 그 수량으로 맞춤
 --           [{"product_id": 1, "change": -2}] → p_mode 'add' : 더하거나 뺌 (0 아래로는 안 내려감)
 --  돌려주는 값: 바뀐 상품 수
@@ -63,6 +63,10 @@ declare
     new_q   integer;
     n       integer := 0;
 begin
+    -- 이 재고표는 셀러가 직접 관리합니다. 밤낮딜리버리 관리자·직원 계정은 보기만 되고 바꿀 수 없음 (대표님 결정 2026-11-19)
+    if public.is_admin() then
+        raise exception '내 재고표는 업체 대표님이 직접 관리합니다. 밤낮딜리버리 관리자는 수정할 수 없습니다.';
+    end if;
     if me is null or me = '' then
         raise exception '승인된 셀러 계정만 내 재고표를 바꿀 수 있습니다.';
     end if;
