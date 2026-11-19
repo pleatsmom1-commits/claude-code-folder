@@ -615,11 +615,11 @@ async function sendShipTest() {
 //    (재고 출고 화면 picking.html 이 ship_status '미출고'로 주문할 상품을 고르기 때문).
 //  - 같은 받는분 주문이 여러 개면 상품명이 가장 비슷한 주문부터, 같으면 출고일에 가까운 주문부터 짝을 맞춥니다.
 //    엑셀에서 '미출고'인 줄도 자기 주문 하나를 차지해서, 그 주문에는 송장이 들어가지 않습니다.
-//  - 송장 빠진 주문: 출고일 포함 최근 7일 안에 [접수완료]된 풀필먼트 주문 중 송장번호가 없는 주문
+//  - 송장 빠진 주문: 고른 출고일 당일 접수된 [접수완료] 풀필먼트 주문 중 송장번호가 없는 주문
 // =====================================================================
 const SHIP_COURIER = '우체국택배';
 const SHIP_MATCH_DAYS = 14;    // 출고일 며칠 전 접수 주문까지 짝을 찾을지
-const SHIP_MISSING_DAYS = 7;   // 송장 빠진 주문: 출고일 포함 며칠 동안 접수된 주문을 볼지
+const SHIP_MISSING_DAYS = 1;   // 송장 빠진 주문: 고른 출고일 하루에 접수된 주문만 (대표님 2026-11-19)
 const SHIP_BACKFILL_DAYS = 30; // [지난 송장도 넣기] 버튼: 최근 며칠 치 저장된 송장 엑셀
 let shipLinkQueue = Promise.resolve();
 let shipMissingOrders = [];
@@ -777,8 +777,8 @@ function renderShipMissing(date, shipments, orders) {
     const nUn = shipMissingOrders.filter(o => o.unshipped).length;
     const md = d => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
     document.getElementById('ship-missing-summary').innerHTML = shipMissingOrders.length
-        ? `<b class="text-rose-600">${shipMissingOrders.length}건</b> <span class="text-slate-500">(엑셀에 없음 ${shipMissingOrders.length - nUn}건 · 엑셀에 미출고로 적힘 ${nUn}건) · ${md(from)}~${md(date)} 접수완료된 풀필먼트 주문 기준</span>`
-        : `<b class="text-emerald-600">없음</b> <span class="text-slate-500">· ${md(from)}~${md(date)} 접수완료된 풀필먼트 주문은 모두 송장번호가 있습니다</span>`;
+        ? `<b class="text-rose-600">${shipMissingOrders.length}건</b> <span class="text-slate-500">(엑셀에 없음 ${shipMissingOrders.length - nUn}건 · 엑셀에 미출고로 적힘 ${nUn}건) · ${md(date)} 접수된 풀필먼트 주문(접수완료) 기준</span>`
+        : `<b class="text-emerald-600">없음</b> <span class="text-slate-500">· ${md(date)} 접수된 풀필먼트 주문(접수완료)은 모두 송장번호가 있습니다</span>`;
     if (!shipMissingOrders.length) { el.innerHTML = ''; return; }
     el.innerHTML = `<div class="overflow-auto max-h-[50vh] border border-slate-200 rounded-lg"><table class="w-full text-left text-xs">
         <thead class="bg-slate-100 text-slate-600 font-bold sticky top-0"><tr>
