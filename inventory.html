@@ -108,7 +108,12 @@
 <div id="save-bar" class="hidden fixed bottom-0 inset-x-0 bg-white border-t border-amber-300 shadow-[0_-4px_12px_rgba(0,0,0,.08)] p-3 z-40">
     <div class="max-w-7xl mx-auto flex items-center gap-2 flex-wrap">
         <span id="save-info" class="text-sm font-bold text-amber-700"></span>
-        <input id="save-reason" placeholder="이유를 한 번에 적기 (줄마다 적은 이유가 먼저)" class="flex-1 min-w-[200px] px-3 py-2 border rounded-lg text-xs">
+        <label class="flex items-center gap-1 text-xs font-bold text-slate-600">셀러에게 보일 사유
+            <select id="save-seller-reason" class="px-2 py-2 border border-amber-400 rounded-lg text-xs font-normal">
+                <option value="">고르기</option><option>실사 수량 차이</option><option>불량 발견</option><option>반품 입고</option><option>오출고 회수</option><option>기타</option>
+            </select>
+        </label>
+        <input id="save-reason" placeholder="내부 메모(이유) 한 번에 적기 · 셀러에겐 안 보임 (줄마다 적은 이유가 먼저)" class="flex-1 min-w-[200px] px-3 py-2 border rounded-lg text-xs">
         <button onclick="resetPending()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold">되돌리기</button>
         <button id="save-btn" onclick="savePending()" class="px-5 py-2 bg-amber-500 hover:bg-amber-600 disabled:bg-slate-300 text-white rounded-lg text-xs font-bold">저장</button>
     </div>
@@ -203,6 +208,7 @@
     let viewCompany = '';   // 관리자가 [화면 보기]로 보는 업체 (view-as.js)
     let products = [];              // 상품관리 (삭제 안 된 것)
     let inv = new Map();            // product_id → 재고 줄
+    let adjustReady = true;         // inventory_adjust(셀러용 사유) DB 함수가 있는지
     let pending = new Map();        // product_id → { a, b, defect, location, reason } (관리자가 고치는 중인 값)
     let picked = null;              // 입고 창에서 고른 상품
     let upload = null;
@@ -495,20 +501,33 @@
             alert(`수량을 바꾼 상품은 이유를 적어주세요. (${missing.length}개)\n줄마다 적거나, 아래 칸에 한 번에 적으면 됩니다.`);
             return;
         }
+        // 셀러에게는 내부 메모 대신 이 목록 사유만 보입니다 (재고 증감 내역의 '재고 정리 · 사유')
+        const sellerReason = document.getElementById('save-seller-reason').value;
+        if (items.some(qtyChanged) && !sellerReason) {
+            alert('셀러에게 보일 사유를 골라주세요.\n(실사 수량 차이 / 불량 발견 / 반품 입고 / 오출고 회수 / 기타)');
+            document.getElementById('save-seller-reason').focus();
+            return;
+        }
         const btn = document.getElementById('save-btn');
         btn.disabled = true;
         let done = 0;
         try {
             for (const [id, pd] of items) {
                 const q = qtyOf(id);
-                const { error } = await client.rpc('inventory_move', {
-                    p_product_id: id, p_kind: '조정', p_da: pd.a - q.a, p_db: pd.b - q.b, p_dd: pd.defect - q.defect,
-                    p_reason: pd.reason.trim() || common, p_location: pd.location, p_memo: null,
-                });
+                const args = { p_product_id: id, p_da: pd.a - q.a, p_db: pd.b - q.b, p_dd: pd.defect - q.defect, p_reason: pd.reason.trim() || common, p_location: pd.location };
+                let { error } = adjustReady
+                    ? await client.rpc('inventory_adjust', { ...args, p_seller_reason: sellerReason })
+                    : { error: { code: 'PGRST202' } };
+                // DB 설정(stock_seller_reason.sql) 전이면 예전 방식으로 저장 (사유는 남지 않음)
+                if (error && (error.code === 'PGRST202' || error.code === '42883')) {
+                    adjustReady = false;
+                    ({ error } = await client.rpc('inventory_move', { ...args, p_kind: '조정', p_memo: null }));
+                }
                 if (error) throw error;
                 done++;
             }
             document.getElementById('save-reason').value = '';
+            document.getElementById('save-seller-reason').value = '';
         } catch (error) {
             alert(`저장 중 오류가 났습니다. (${done}개는 저장됨)\n\n` + errorMessage(error));
         } finally {
@@ -674,13 +693,13 @@
         const d = n => (n > 0 ? `<span class="text-emerald-600">+${n}</span>` : n < 0 ? `<span class="text-rose-600">${n}</span>` : '<span class="text-slate-300">0</span>');
         document.getElementById('log-list').innerHTML = data.length ? `
             <table class="w-full text-left">
-                <thead class="text-slate-500 border-b"><tr><th class="p-1.5">언제</th><th class="p-1.5">작업</th><th class="p-1.5 text-center">상품화</th><th class="p-1.5 text-center">미상품화</th><th class="p-1.5 text-center">불량</th><th class="p-1.5">${isAdmin ? '이유 · 누가' : '메모'}</th></tr></thead>
+                <thead class="text-slate-500 border-b"><tr><th class="p-1.5">언제</th><th class="p-1.5">작업</th><th class="p-1.5 text-center">상품화</th><th class="p-1.5 text-center">미상품화</th><th class="p-1.5 text-center">불량</th><th class="p-1.5">${isAdmin ? '이유 · 누가' : '사유 · 메모'}</th></tr></thead>
                 <tbody class="divide-y divide-slate-100">${data.map(l => `
                     <tr><td class="p-1.5 whitespace-nowrap">${fmtTime(l.at)}</td><td class="p-1.5 font-bold whitespace-nowrap">${esc(isAdmin ? l.kind : (['조정', '최종재고'].includes(l.kind) ? '재고 정리' : l.kind))}</td>
                     <td class="p-1.5 text-center whitespace-nowrap">${d(l.d_a)} → ${l.a_after}</td>
                     <td class="p-1.5 text-center whitespace-nowrap">${d(l.d_b)} → ${l.b_after}</td>
                     <td class="p-1.5 text-center whitespace-nowrap">${d(l.d_defect)} → ${l.defect_after}</td>
-                    <td class="p-1.5">${isAdmin ? `${esc(l.reason)} <span class="text-slate-400">${esc(l.actor_name)}</span>` : (['조정', '최종재고'].includes(l.kind) ? '' : esc(l.reason))}</td></tr>`).join('')}
+                    <td class="p-1.5">${isAdmin ? `${l.seller_reason ? `<span class="px-1.5 py-0.5 rounded bg-teal-50 text-teal-700 font-bold">셀러에게: ${esc(l.seller_reason)}</span> ` : ''}${esc(l.reason)} <span class="text-slate-400">${esc(l.actor_name)}</span>` : (['조정', '최종재고'].includes(l.kind) ? esc(l.seller_reason || (l.kind === '최종재고' ? '실사 수량 맞춤' : '')) : esc(l.reason))}</td></tr>`).join('')}
                 </tbody>
             </table>` : '<div class="text-slate-400">기록이 없습니다.</div>';
     }
