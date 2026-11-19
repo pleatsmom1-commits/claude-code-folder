@@ -43,6 +43,17 @@ makeMonth(PREV, 220, ids.seller, '예시샵');
 makeMonth(LAST, 50, ids.other, '다른샵');
 orders.push({ id: 'keep1', seller_id: ids.seller, seller_company: '예시샵', product: '보관 상품', qty: 3, tracking_no: 'K1', ship_status: '출고완료', order_type: 'keep', shipped_at: new Date(`${LAST}-10T12:00:00+09:00`).toISOString() });
 orders.push({ id: 'unship', seller_id: ids.seller, seller_company: '예시샵', product: '미출고 상품', qty: 1, tracking_no: null, ship_status: '미출고', order_type: 'fulfillment', shipped_at: null });
+// 상품관리 가격 (일부 상품만 가격 있음)
+const catalog = [
+  { id: 1, company: '예시샵', wholesale_company: '도매A', wholesale_product: '꽃니트', color: '검정', size: 'F', mall_names: [{ platform: '스마트스토어', name: '플라워 니트' }], sale_price: 32000, wholesale_price: 14000, deleted_at: null },
+  { id: 2, company: '예시샵', wholesale_company: '도매A', wholesale_product: '꽃니트', color: '아이보리', size: 'F', mall_names: [{ platform: '스마트스토어', name: '플라워 니트' }], sale_price: 32000, wholesale_price: 14000, deleted_at: null },
+  { id: 3, company: '예시샵', wholesale_company: '도매B', wholesale_product: '와이드', color: '연청', size: 'M', mall_names: [{ platform: '', name: '데일리 와이드진' }], sale_price: 39000, wholesale_price: 18000, deleted_at: null },
+  { id: 4, company: '예시샵', wholesale_company: '도매C', wholesale_product: '반팔', color: '화이트', size: 'F', mall_names: [{ platform: '', name: '골지 반팔티' }], sale_price: 15000, wholesale_price: null, deleted_at: null },
+  { id: 5, company: '다른샵', wholesale_company: '도매A', wholesale_product: '꽃니트', color: '검정', size: 'F', mall_names: [{ platform: '', name: '플라워 니트' }], sale_price: 99000, wholesale_price: 1, deleted_at: null },
+];
+catalog.forEach(x => Object.assign(x, { code: 'P' + String(x.id).padStart(6, '0'), memo: '', photo_url: '', delete_requested_at: null, delete_request_reason: '' }));
+const pnlRows = [];
+const pnlWrites = [];
 const settlements = [];
 const S = (company, date, d) => settlements.push({ company, settle_date: date, total: 0, result: '청구', token: 't' + settlements.length, data: d });
 for (const [m, k] of [[LAST, 1], [PREV, .85]]) for (const day of ['05', '12', '19', '26']) {
@@ -62,6 +73,8 @@ function applyFilters(rows, url) {
     if (v.startsWith('eq.')) rows = rows.filter(r => String(r[k]) === decodeURIComponent(v.slice(3)));
     else if (v.startsWith('gte.')) rows = rows.filter(r => r[k] && Date.parse(r[k]) >= Date.parse(v.slice(4)));
     else if (v.startsWith('lt.')) rows = rows.filter(r => r[k] && Date.parse(r[k]) < Date.parse(v.slice(3)));
+    else if (v.startsWith('lte.')) rows = rows.filter(r => r[k] && Date.parse(r[k]) <= Date.parse(v.slice(4)));
+    else if (v === 'is.null') rows = rows.filter(r => r[k] == null);
   }
   const off = +(url.searchParams.get('offset') || 0), lim = url.searchParams.get('limit');
   return lim ? rows.slice(off, off + +lim) : rows;
@@ -92,6 +105,18 @@ const orderQueries = [];
     }
     if (url.pathname === '/rest/v1/rpc/my_stock_visible') return json(200, true);
     if (url.pathname.startsWith('/rest/v1/rpc/')) return json(200, null);
+    if (url.pathname === '/rest/v1/products' && method === 'GET') return json(200, applyFilters(catalog.filter(p => isAdmin || (who && p.company === who.profile.company)), url));
+    if (url.pathname === '/rest/v1/seller_pnl') {
+      if (method === 'GET') return json(200, applyFilters(pnlRows.filter(r => isAdmin || (who && r.company === who.profile.company)), url));
+      if (method === 'POST') {
+        if (isAdmin) return json(403, { message: 'no' });
+        const row = { ...body, company: who.profile.company, updated_at: new Date().toISOString() };
+        pnlWrites.push(row);
+        const i = pnlRows.findIndex(r => r.company === row.company && r.month === row.month);
+        if (i >= 0) pnlRows[i] = row; else pnlRows.push(row);
+        return json(201, (headers['accept'] || '').includes('vnd.pgrst.object') ? row : [row]);
+      }
+    }
     if (url.pathname === '/rest/v1/orders' && method === 'GET') {
       orderQueries.push({ admin: isAdmin, q: decodeURIComponent(url.search) });
       return json(200, applyFilters(orders.filter(o => isAdmin || (who && o.seller_id === who.id)), url));
@@ -111,6 +136,14 @@ const orderQueries = [];
   await shot((NAV_ONLY ? '전' : '후') + '_셀러_위쪽버튼_휴대폰.png', { clip: { x: 0, y: Math.max(0, nb.y - 60), width: 390, height: nb.height + 80 } });
   await page.setViewportSize({ width: 1280, height: 900 });
   if (NAV_ONLY) { await browser.close(); return; }
+  if (process.env.PRE) {   // 바꾸기 전 상품관리 그림만
+    await page.goto('file://' + path.join(ROOT, 'products.html')); await page.waitForTimeout(1800);
+    await shot('전_상품관리_목록.png', { clip: { x: 0, y: 0, width: 1280, height: 520 } });
+    await page.evaluate(() => openEdit(1)); await page.waitForTimeout(400);
+    const mb = await page.locator('#edit-modal form').boundingBox();
+    await shot('전_상품관리_등록창.png', { clip: { x: mb.x - 10, y: Math.max(0, mb.y - 10), width: mb.width + 20, height: Math.min(900, mb.height + 20) } });
+    await browser.close(); return;
+  }
   check('seller sees [월별 리포트] button', await page.isVisible('#nav-report-btn'));
   check('seller order screen still shows', await page.isVisible('#seller-dashboard').catch(() => false) || (await page.textContent('body')).includes('주문'));
 
@@ -125,7 +158,40 @@ const orderQueries = [];
   check('top products shown', (await page.locator('.rank li').count()) === 10);
   check('chart bars drawn', (await page.locator('#day-chart path.bar').count()) > 15);
   check('compare with prev month', text.includes('지난달보다'));
+  // 매출: 플라워 니트(검정·아이보리) 32,000 / 와이드진 39,000 / 골지 반팔티 15,000 (도매가 없음)
+  const priceOf = o => /^플라워 니트/.test(o.product) ? [32000, 14000] : /^데일리 와이드진/.test(o.product) ? [39000, 18000] : /^골지 반팔티/.test(o.product) ? [15000, null] : null;
+  const expSales = mine.reduce((n, o) => n + (priceOf(o) ? priceOf(o)[0] * o.qty : 0), 0);
+  const expCost = mine.reduce((n, o) => n + (priceOf(o) && priceOf(o)[1] ? priceOf(o)[1] * o.qty : 0), 0);
+  const moneyText = await page.textContent('section.money');
+  check('sales = sale price × qty (own products only)', moneyText.includes(expSales.toLocaleString('ko-KR')), String(expSales));
+  check('wholesale cost', moneyText.includes(expCost.toLocaleString('ko-KR')), String(expCost));
+  // 손익 계산표: 수수료 10%, 광고비 100,000 적으면 자동저장
+  check('pnl table shown with defaults', (await page.locator('.pl-item').count()) === 3);
+  await page.fill('#pl-fee', '10'); await page.locator('.pl-amt').first().fill('100,000'); await page.locator('.pl-amt').first().dispatchEvent('input');
+  await page.waitForTimeout(1500);
+  check('pnl autosaved', pnlWrites.length >= 1 && pnlRows[0] && Number(pnlRows[0].fee_rate) === 10 && pnlRows[0].items.some(x => x.label === '광고비' && x.amount === 100000), JSON.stringify(pnlRows[0]));
+  check('pnl saved status', (await page.textContent('#pl-status')).includes('저장됨'));
+  const cost = settlements.filter(x => x.company === '예시샵' && x.settle_date.startsWith(LAST)).reduce((n, x) => n + x.data.serviceTotal + x.data.vat, 0);
+  const expProfit = expSales - expCost - cost - Math.round(expSales * 0.1) - 100000;
+  const resText = await page.textContent('.pl-result');
+  check('net profit computed', resText.includes(Math.abs(expProfit).toLocaleString('ko-KR')), `${expProfit} / ${resText}`);
+  await page.click('button:has-text("+ 비용 줄 추가")'); await page.locator('.pl-label').last().fill('촬영비'); await page.locator('.pl-amt').last().fill('50000'); await page.locator('.pl-amt').last().dispatchEvent('input');
+  await page.waitForTimeout(1500);
+  check('added cost row saved', pnlRows[0].items.some(x => x.label === '촬영비' && x.amount === 50000));
+  await shot('후_손익계산표_PC.png', { fullPage: true });
+  await page.goto(PAGE); await page.waitForTimeout(2000);
+  check('pnl values reload', (await page.inputValue('#pl-fee')) === '10' && (await page.locator('.pl-item').count()) === 4);
   await shot('후_월별리포트_PC.png', { fullPage: true });
+  // 상품관리 화면 그림 (판매가·도매가 칸)
+  if (SHOTS) {
+    const pre = '후';
+    await page.goto('file://' + path.join(ROOT, 'products.html')); await page.waitForTimeout(1800);
+    await shot(pre + '_상품관리_목록.png', { clip: { x: 0, y: 0, width: 1280, height: 520 } });
+    await page.evaluate(() => openEdit(1)); await page.waitForTimeout(400);
+    const mb = await page.locator('#edit-modal form').boundingBox();
+    await shot(pre + '_상품관리_등록창.png', { clip: { x: mb.x - 10, y: Math.max(0, mb.y - 10), width: mb.width + 20, height: Math.min(900, mb.height + 20) } });
+    await page.goto(PAGE); await page.waitForTimeout(1500);
+  }
   await page.hover('#day-chart rect.hit >> nth=9'); await page.waitForTimeout(200);
   check('tooltip on hover', await page.isVisible('#tip'));
   await page.click('#prev-btn'); await page.waitForTimeout(1500);
@@ -167,6 +233,7 @@ const orderQueries = [];
   orderQueries.length = 0;
   await page.goto(PAGE + `?company=${encodeURIComponent('예시샵')}&view=1&uid=${ids.seller}`); await page.waitForTimeout(2000);
   check('admin view-as filters by seller_id', orderQueries.length && orderQueries.every(q => q.q.includes(`seller_id=eq.${ids.seller}`)));
+  check('admin view-as pnl read-only (no inputs) but shows saved cost', !(await page.isVisible('#pl-fee')) && (await page.textContent('section.pnl')).includes('촬영비'));
   check('admin view-as same count', (await page.textContent('#result')).includes(`${boxes.toLocaleString('ko-KR')}건`));
   check('view-as bar shown', await page.isVisible('#view-as-bar'));
   check('no page errors', !errors.length, errors.join(' | '));
