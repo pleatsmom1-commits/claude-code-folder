@@ -53,21 +53,30 @@ export async function handlePickupNotify(request, env) {
   }
 
   const vars = pickupVariables(p);
-  const useAlimtalk = !!(env.SOLAPI_PICKUP_TEMPLATE_ID && env.SOLAPI_PF_ID) && !prefix;
+  // 테스트 사이트도 템플릿이 있으면 카톡으로 보내서(대표님 휴대폰) 실제 카톡 모양을 확인할 수 있게 합니다.
+  const useAlimtalk = !!(env.SOLAPI_PICKUP_TEMPLATE_ID && env.SOLAPI_PF_ID);
   const from = normPhone(env.SOLAPI_SENDER);
   const results = [];
   for (const to of targets) {
     const message = useAlimtalk
       ? { to, from, kakaoOptions: { pfId: env.SOLAPI_PF_ID, templateId: env.SOLAPI_PICKUP_TEMPLATE_ID, disableSms: false, variables: vars } }
       : { to, from, text: prefix + pickupText(vars) };
-    const r = await solapiSend(env, message);
+    let r = await solapiSend(env, message);
+    // 카톡 요청 자체가 거절되면(템플릿 문제 등) 바로 문자로 다시 보냅니다.
+    if (useAlimtalk && r.status !== 'sent') {
+      const sms = await solapiSend(env, { to, from, text: prefix + pickupText(vars) });
+      r = sms.status === 'sent' ? { ...sms, sms: true, kakaoError: r.message } : r;
+    }
     results.push({ to: maskPhone(to), ...r });
   }
   const allSent = results.every(r => r.status === 'sent');
-  const channel = useAlimtalk ? 'alimtalk' : 'sms';
-  const failText = results.filter(r => r.status !== 'sent').map(r => `${r.to}: ${r.message || r.error || '실패'}`).join(' / ');
+  const channel = useAlimtalk && !results.some(r => r.sms) ? 'alimtalk' : 'sms';
+  const failText = [
+    ...results.filter(r => r.sms).map(r => `${r.to}: 카톡이 안 돼서 문자로 보냄 (${r.kakaoError || ''})`),
+    ...results.filter(r => r.status !== 'sent').map(r => `${r.to}: ${r.message || r.error || '실패'}`),
+  ].join(' / ');
   await record(!isProduction ? 'test' : (allSent ? 'sent' : 'failed'), channel, targets.map(maskPhone).join(', '),
-    !isProduction ? `테스트 사이트라 대표님 휴대폰으로만 보냄 (실제: ${teamPhones.map(maskPhone).join(', ') || '번호 없음'})${failText ? ' / 실패 ' + failText : ''}` : failText);
+    !isProduction ? `테스트 사이트라 대표님 휴대폰으로만 보냄 (실제: ${teamPhones.map(maskPhone).join(', ') || '번호 없음'})${failText ? ' / ' + failText : ''}` : failText);
   return json({ status: allSent ? 'sent' : 'failed', channel, test: !isProduction, results }, allSent ? 200 : 502);
 }
 

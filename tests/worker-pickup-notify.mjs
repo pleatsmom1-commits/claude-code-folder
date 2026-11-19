@@ -34,3 +34,14 @@ r = await (await handlePickupNotify(post('bamnat-delivery.bamnat.workers.dev', {
 ok(r.status === 'skipped' && sent.length === 0 && recorded.at(-1).p_result === 'failed', 'no phones -> skipped + recorded as failed');
 const res = await handlePickupNotify(post('x', { id: 'bad' }), base);
 ok(res.status === 400, 'bad id rejected');
+
+// 테스트 사이트 + 템플릿 → 대표님 휴대폰으로 카톡
+sent = []; claim = [row()];
+r = await (await handlePickupNotify(post('test-bamnat-delivery.bamnat.workers.dev', { id: ID }), { ...base, SOLAPI_PICKUP_TEMPLATE_ID: 'TP1' })).json();
+ok(r.channel === 'alimtalk' && sent.length === 1 && sent[0].to === '01054259060' && sent[0].kakaoOptions, 'test site + template -> 알림톡 to admin');
+// 카톡 요청이 거절되면 문자로 다시
+sent = []; claim = [row()]; let n = 0;
+const f0 = globalThis.fetch;
+globalThis.fetch = async (url, init) => { if (String(url).includes('solapi') && JSON.parse(init.body).message.kakaoOptions) { sent.push(JSON.parse(init.body).message); return new Response(JSON.stringify({ errorCode: 'ValidationError', errorMessage: '템플릿 변수 불일치' }), { status: 400 }); } return f0(url, init); };
+r = await (await handlePickupNotify(post('bamnat-delivery.bamnat.workers.dev', { id: ID }), { ...base, SOLAPI_PICKUP_TEMPLATE_ID: 'TP1' })).json();
+ok(r.status === 'sent' && r.channel === 'sms' && sent.filter(m => m.text).length === 2 && recorded.at(-1).p_detail.includes('카톡이 안 돼서 문자로'), 'kakao rejected -> SMS fallback recorded');
