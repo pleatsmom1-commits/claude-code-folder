@@ -3,7 +3,7 @@
 -- Supabase 대시보드 > SQL Editor 에 전체를 붙여넣고 [Run] 하세요. (여러 번 실행해도 안전합니다)
 -- (schema.sql, pickup.sql 을 먼저 실행한 상태여야 합니다)
 --  - 셀러가 [사입팀 픽업요청]을 접수하면 사이트가 사입팀 휴대폰으로 카톡(알림톡)을 보냅니다 (worker/pickup_notify.js).
---  - 보내는 시간: 한국시간 22:30 ~ 다음날 06:00 에 접수된 요청만 (관리자 화면에서 바꿀 수 있음)
+--  - 보내는 시간: 한국시간 22:30 ~ 다음날 04:00 에 접수된 요청만 (관리자 화면에서 바꿀 수 있음)
 --  - 받는 번호: 처음엔 사입팀 010-5091-5784 (관리자 화면 [사입픽업요청] 탭 위쪽에서 바꿀 수 있음)
 --  - 보낸 결과는 픽업요청마다 기록돼서 관리자 화면 [카톡 전송 내역] 버튼으로 봅니다.
 --  - 이 SQL 을 실행하기 전에 들어온 요청은 보내지 않습니다.
@@ -38,12 +38,14 @@ create policy app_settings_admin_all on public.app_settings
 insert into public.app_settings (key, value) values
     ('pickup_notify_phones', '010-5091-5784'),
     ('pickup_notify_start',  '22:30'),
-    ('pickup_notify_end',    '06:00')
+    ('pickup_notify_end',    '04:00')
 on conflict (key) do update set value = excluded.value, updated_at = now()
  where public.app_settings.value = '';
+-- 예전 기본값(06:00)으로 이미 실행했다면 대표님 결정(2026-11-20)대로 04:00 으로 바꿉니다
+update public.app_settings set value = '04:00', updated_at = now() where key = 'pickup_notify_end' and value = '06:00';
 
 -- 방금(30분 안에) 접수된, 아직 보내지 않은 픽업요청 1건을 "전송함"으로 표시하고 내용과 받을 번호를 돌려줍니다.
---  - 접수 시각(한국시간)이 보내는 시간(22:30~06:00) 안일 때만 돌려줍니다.
+--  - 접수 시각(한국시간)이 보내는 시간(22:30~04:00) 안일 때만 돌려줍니다.
 --  - 아무나 불러도 같은 요청으로 카톡이 두 번 가지 않습니다.
 drop function if exists public.claim_pickup_notice(uuid);
 create function public.claim_pickup_notice(p_id uuid)
@@ -63,9 +65,9 @@ declare
 begin
     begin
         v_start := coalesce(nullif((select s.value from public.app_settings s where s.key = 'pickup_notify_start'), ''), '22:30')::time;
-        v_end   := coalesce(nullif((select s.value from public.app_settings s where s.key = 'pickup_notify_end'), ''), '06:00')::time;
+        v_end   := coalesce(nullif((select s.value from public.app_settings s where s.key = 'pickup_notify_end'), ''), '04:00')::time;
     exception when others then
-        v_start := '22:30'; v_end := '06:00';
+        v_start := '22:30'; v_end := '04:00';
     end;
 
     return query
