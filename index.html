@@ -833,17 +833,21 @@
                     <button id="admin-tab-stock" onclick="switchAdminTab('stock')" class="">
                         재고관리
                     </button>
-                    <button id="admin-tab-products" onclick="switchAdminTab('products')" class="">
-                        상품관리
+                    <button id="admin-tab-products" onclick="switchAdminTab('products')" class="" title="상호통일 적용">
+                        상품관리 <i data-lucide="link" class="w-3 h-3 text-indigo-400" title="상호통일 적용"></i>
                     </button>
-                    <button id="admin-tab-inventory" onclick="switchAdminTab('inventory')" class="">
-                        재고표
+                    <button id="admin-tab-inventory" onclick="switchAdminTab('inventory')" class="" title="상호통일 적용">
+                        재고표 <i data-lucide="link" class="w-3 h-3 text-indigo-400" title="상호통일 적용"></i>
                     </button>
-                    <button id="admin-tab-picking" onclick="switchAdminTab('picking')" class="">
-                        재고출고
+                    <button id="admin-tab-picking" onclick="switchAdminTab('picking')" class="" title="상호통일 적용">
+                        재고출고 <i data-lucide="link" class="w-3 h-3 text-indigo-400" title="상호통일 적용"></i>
                     </button>
-                    <button id="admin-tab-history" onclick="switchAdminTab('history')" class="">
-                        재고 증감 내역
+                    <button id="admin-tab-history" onclick="switchAdminTab('history')" class="" title="상호통일 적용">
+                        재고 증감 내역 <i data-lucide="link" class="w-3 h-3 text-indigo-400" title="상호통일 적용"></i>
+                    </button>
+                    <!-- 상호통일 (company-unify.html, supabase/company_unify.sql). 🔗 표시 탭에 적용됨 -->
+                    <button id="admin-tab-unify" onclick="switchAdminTab('unify')" class="">
+                        <i data-lucide="link" class="w-4 h-4"></i> 상호통일
                     </button>
                     <button id="admin-tab-settle" onclick="switchAdminTab('settle')" class="">
                         정산서 발송
@@ -1699,6 +1703,11 @@
                     <a href="/stock-history" target="_blank" class="text-xs font-bold text-indigo-600 hover:underline">새 창에서 크게 열기</a>
                 </div>
                 <iframe id="admin-history-frame" title="재고 증감 내역" class="w-full bg-white rounded-xl border border-slate-200" style="height: calc(100vh - 220px); min-height: 600px;"></iframe>
+            </div>
+
+            <!-- 3-9c. 상호통일 (company-unify.html 을 그대로 불러와 보여줌) -->
+            <div id="admin-unify-panel" class="hidden space-y-2">
+                <iframe id="admin-unify-frame" title="상호통일" class="w-full bg-white rounded-xl border border-slate-200" style="height: calc(100vh - 220px); min-height: 600px;"></iframe>
             </div>
 
             <!-- 3-10. AI 사용료 (ai-cost.html 을 그대로 불러와 보여줌) -->
@@ -6221,7 +6230,7 @@
         // 관리자 메뉴 묶음: 큰 묶음 → 그 안의 탭
         const ADMIN_GROUPS = {
             order: ['orders', 'pickup', 'ship'],
-            stock: ['stock', 'products', 'inventory', 'picking', 'history'],
+            stock: ['stock', 'products', 'inventory', 'picking', 'history', 'unify'],
             settle: ['settle'],
             sellers: ['sellers'],
             inquiry: ['inquiry', 'chatlog'],
@@ -6268,6 +6277,8 @@
             document.getElementById('admin-picking-panel').classList.toggle('hidden', tab !== 'picking');
             document.getElementById('admin-tab-history').className = tab === 'history' ? on : off;
             document.getElementById('admin-history-panel').classList.toggle('hidden', tab !== 'history');
+            document.getElementById('admin-tab-unify').className = tab === 'unify' ? on : off;
+            document.getElementById('admin-unify-panel').classList.toggle('hidden', tab !== 'unify');
             document.getElementById('admin-tab-aicost').className = tab === 'aicost' ? on : off;
             document.getElementById('admin-aicost-panel').classList.toggle('hidden', tab !== 'aicost');
             document.getElementById('admin-ship-panel').classList.toggle('hidden', tab !== 'ship');
@@ -6293,9 +6304,9 @@
             if (tab === 'chatlog') onChatLogTabOpened();
             if (tab === 'staff') onStaffTabOpened();
             if (tab === 'activity') onActivityTabOpened();
-            if (tab === 'products' || tab === 'inventory' || tab === 'picking' || tab === 'aicost' || tab === 'history') {
+            if (tab === 'products' || tab === 'inventory' || tab === 'picking' || tab === 'aicost' || tab === 'history' || tab === 'unify') {
                 const frame = document.getElementById(`admin-${tab}-frame`);
-                const page = tab === 'aicost' ? 'ai-cost' : tab === 'history' ? 'stock-history' : tab;
+                const page = tab === 'aicost' ? 'ai-cost' : tab === 'history' ? 'stock-history' : tab === 'unify' ? 'company-unify' : tab;
                 if (!frame.getAttribute('src')) frame.setAttribute('src', `${page}.html?embed=1`);
             }
         }
