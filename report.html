@@ -268,20 +268,31 @@
     }
 
     // 기간 안의 출고 주문 (1000건씩 나눠서 받음)
+    // 출고로 세는 주문 = ① [출고완료]된 주문 (날짜: 출고완료 시각) + ② 아직 [미출고]지만 송장번호가 들어간 주문
+    //   (관리자 [송장 엑셀]이 주문에 송장번호만 넣고 출고상태는 그대로 두므로. 날짜: 주문 접수일 — 풀필먼트는 접수 당일 출고)
     async function fetchShipped(p) {
         const from = new Date(`${p.from}T00:00:00+09:00`).toISOString(), to = new Date(`${addDays(p.to, 1)}T00:00:00+09:00`).toISOString();
-        const out = [];
-        for (let page = 0; page < 50; page++) {
-            let q = client.from('orders').select('product,qty,tracking_no,order_type,shipped_at,wholesale_company,wholesale_product')
-                .eq('ship_status', '출고완료').gte('shipped_at', from).lt('shipped_at', to)
-                .order('shipped_at', { ascending: true }).range(page * 1000, page * 1000 + 999);
-            // 관리자 미리보기: 그 업체 주문만 (셀러는 DB 규칙상 원래 자기 것만)
-            if (isAdmin) q = viewUid ? q.eq('seller_id', viewUid) : q.eq('seller_company', company);
-            const { data, error } = await q;
-            if (error) throw error;
-            out.push(...(data || []));
-            if (!data || data.length < 1000) break;
-        }
+        const cols = 'id,product,qty,tracking_no,order_type,shipped_at,created_at,wholesale_company,wholesale_product';
+        const pages = async build => {
+            const out = [];
+            for (let page = 0; page < 50; page++) {
+                let q = build().range(page * 1000, page * 1000 + 999);
+                // 관리자 미리보기: 그 업체 주문만 (셀러는 DB 규칙상 원래 자기 것만)
+                if (isAdmin) q = viewUid ? q.eq('seller_id', viewUid) : q.eq('seller_company', company);
+                const { data, error } = await q;
+                if (error) throw error;
+                out.push(...(data || []));
+                if (!data || data.length < 1000) break;
+            }
+            return out;
+        };
+        const [done, tracked] = await Promise.all([
+            pages(() => client.from('orders').select(cols).eq('ship_status', '출고완료').gte('shipped_at', from).lt('shipped_at', to).order('shipped_at', { ascending: true }).order('id')),
+            pages(() => client.from('orders').select(cols).eq('ship_status', '미출고').not('tracking_no', 'is', null).neq('tracking_no', '').gte('created_at', from).lt('created_at', to).order('created_at', { ascending: true }).order('id')),
+        ]);
+        const seen = new Set(), out = [];
+        for (const o of done) { seen.add(o.id); out.push(o); }
+        for (const o of tracked) if (!seen.has(o.id)) { seen.add(o.id); out.push({ ...o, shipped_at: o.created_at }); }
         return out.filter(o => o.order_type !== 'keep');
     }
 
@@ -672,7 +683,7 @@
                     <tr><td><b>합계</b></td><td class="r"><b>${fmt(s.count)}건</b></td><td class="r"><b>${fmt(s.qty)}개</b></td></tr></tbody>
                 </table></div>
             </section>`}
-            <p class="note">* 출고 건수는 송장번호 기준입니다 (합배송으로 한 상자에 같이 나간 주문은 1건). 출고일은 송장이 등록된 날이며, 송장이 등록되면 바로 반영됩니다.<br>
+            <p class="note">* 출고 건수는 송장번호 기준입니다 (합배송으로 한 상자에 같이 나간 주문은 1건). 송장번호가 등록되면 바로 반영되며, 출고일은 [출고완료]한 날(없으면 주문 접수일)입니다.<br>
             * 비용은 이 기간에 받으신 정산서를 더한 금액이며, 정산서 상호가 가입 상호와 다르면 빠질 수 있습니다.<br>
             * 만든 날: ${today()}</p>
         </div>`;

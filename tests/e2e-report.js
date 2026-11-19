@@ -33,7 +33,7 @@ function makeMonth(m, n, seller, company) {
     const name = NAMES[Math.min(NAMES.length - 1, Math.floor(Math.pow(rand(), 1.8) * NAMES.length))];
     const t = 'T' + (seq++);
     const row = { id: 'o' + seq, seller_id: seller, seller_company: company, product: name, qty: rand() < .15 ? 2 : 1, tracking_no: t, ship_status: '출고완료',
-      order_type: rand() < .1 ? 'store_post' : 'fulfillment', shipped_at: new Date(`${m}-${String(d).padStart(2, '0')}T15:30:00+09:00`).toISOString() };
+      order_type: rand() < .1 ? 'store_post' : 'fulfillment', shipped_at: new Date(`${m}-${String(d).padStart(2, '0')}T15:30:00+09:00`).toISOString(), created_at: new Date(`${m}-${String(d).padStart(2, '0')}T09:10:00+09:00`).toISOString() };
     orders.push(row);
     if (rand() < .08) orders.push({ ...row, id: 'o' + (seq++), product: NAMES[4] }); // 합배송(같은 송장)
   }
@@ -42,6 +42,8 @@ makeMonth(LAST, 260, ids.seller, '예시샵');
 makeMonth(PREV, 220, ids.seller, '예시샵');
 makeMonth(LAST, 50, ids.other, '다른샵');
 orders.push({ id: 'keep1', seller_id: ids.seller, seller_company: '예시샵', product: '보관 상품', qty: 3, tracking_no: 'K1', ship_status: '출고완료', order_type: 'keep', shipped_at: new Date(`${LAST}-10T12:00:00+09:00`).toISOString() });
+// 송장 엑셀로 송장번호만 들어간 주문 (출고상태는 미출고 그대로, 출고 시각 없음) → 접수일로 셈
+for (let i = 0; i < 6; i++) orders.push({ id: 'trk' + i, seller_id: ids.seller, seller_company: '예시샵', product: '플라워 니트/검정/F/1개', qty: 1, tracking_no: 'TRK' + i, ship_status: '미출고', order_type: 'fulfillment', shipped_at: null, created_at: new Date(`${LAST}-1${i}T10:00:00+09:00`).toISOString() });
 orders.push({ id: 'unship', seller_id: ids.seller, seller_company: '예시샵', product: '미출고 상품', qty: 1, tracking_no: null, ship_status: '미출고', order_type: 'fulfillment', shipped_at: null });
 // 상품관리 가격 (일부 상품만 가격 있음)
 const catalog = [
@@ -75,6 +77,8 @@ function applyFilters(rows, url) {
     else if (v.startsWith('lt.')) rows = rows.filter(r => r[k] && Date.parse(r[k]) < Date.parse(v.slice(3)));
     else if (v.startsWith('lte.')) rows = rows.filter(r => r[k] && Date.parse(r[k]) <= Date.parse(v.slice(4)));
     else if (v === 'is.null') rows = rows.filter(r => r[k] == null);
+    else if (v === 'not.is.null') rows = rows.filter(r => r[k] != null);
+    else if (v.startsWith('neq.')) rows = rows.filter(r => String(r[k]) !== decodeURIComponent(v.slice(4)));
   }
   const off = +(url.searchParams.get('offset') || 0), lim = url.searchParams.get('limit');
   return lim ? rows.slice(off, off + +lim) : rows;
@@ -149,7 +153,9 @@ const orderQueries = [];
 
   await page.goto(PAGE); await page.waitForTimeout(2000);
   const text = await page.textContent('#result');
-  const mine = orders.filter(o => o.seller_id === ids.seller && o.ship_status === '출고완료' && o.order_type !== 'keep' && o.shipped_at.startsWith(LAST.slice(0, 4)) && new Date(Date.parse(o.shipped_at) + 9 * 3600e3).toISOString().startsWith(LAST));
+  const shipDay = o => o.ship_status === '출고완료' ? o.shipped_at : (o.tracking_no ? o.created_at : null);
+  const mine = orders.filter(o => o.seller_id === ids.seller && o.order_type !== 'keep' && shipDay(o) && new Date(Date.parse(shipDay(o)) + 9 * 3600e3).toISOString().startsWith(LAST));
+  check('tracking-only orders counted', mine.filter(o => o.ship_status === '미출고').length === 6);
   const boxes = new Set(mine.map(o => o.tracking_no)).size, qty = mine.reduce((n, o) => n + o.qty, 0);
   check('default month = last month', text.includes(`${+LAST.slice(0, 4)}년 ${+LAST.slice(5)}월`));
   check('ship count = distinct tracking', text.includes(`${boxes.toLocaleString('ko-KR')}건`), String(boxes));
