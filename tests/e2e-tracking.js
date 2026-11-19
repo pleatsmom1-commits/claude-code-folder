@@ -50,6 +50,7 @@ const tables = {
     ord(ids.other, '무드투문', '고객마', '(합)티셔츠 cream', at(TODAY, 9), { order_no: 300, item_no: 1 }),
     ord(ids.other, '무드투문', '고객마', '(합)티셔츠 mint', at(TODAY, 9), { order_no: 300, item_no: 2 }),
     ord(ids.other, '무드투문', '고객바', '티셔츠', at(TODAY, 9)),
+    ord(ids.seller, '럭스걸', '어제빠짐', '바지', at(YESTERDAY, 11)),   // 어제 접수 → 오늘 출고일 목록엔 안 나옴
   ],
   couriers: [{ id: 'c1', name: '우체국택배', sort_order: 1 }],
   address_book: [], pickup_requests: [], settlements: [], settle_contacts: [], shipments: [],
@@ -200,7 +201,7 @@ fs.mkdirSync(OUT, { recursive: true });
     check('연결 결과 안내', /주문 \d+건에 송장번호/.test(linkText), linkText);
     const miss = (await page.textContent('#ship-missing')).replace(/\s+/g, ' ');
     check('송장 빠진 주문: 고객빠짐(엑셀에 없음) + 고객마 cream(미출고) 보임', miss.includes('고객빠짐') && miss.includes('엑셀에 없음') && miss.includes('고객마') && miss.includes('미출고'), miss.slice(0, 300));
-    check('송장 빠진 주문: 접수대기·보관요청·송장 있는 주문은 안 보임', !miss.includes('고객대기') && !miss.includes('사무실보관') && !miss.includes('고객다'), miss.slice(0, 300));
+    check('송장 빠진 주문: 접수대기·보관요청·송장 있는 주문은 안 보임', !miss.includes('고객대기') && !miss.includes('어제빠짐') && !miss.includes('사무실보관') && !miss.includes('고객다'), miss.slice(0, 300));
     // 다시 올려도 두 번 저장 안 함
     const before = patches.length;
     await page.setInputFiles('#ship-file-input', xlsxFile); await page.waitForTimeout(1500);
