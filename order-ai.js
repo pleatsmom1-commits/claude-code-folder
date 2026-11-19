@@ -8,7 +8,8 @@
 //     보내는사람 = 밤낮딜리버리(상호), C/S 연락처 = 직전 풀필먼트 접수 번호 → 없으면 가입 연락처
 // index.html 의 전역 값(supabaseClient, currentSellerAccount, ordersMaster …)을 그대로 씁니다.
 // =====================================================================
-let aiOrder = { mode: 'order', fileName: '', sheetName: '', platform: '', rows: [], products: null, stock: new Map() };
+let aiOrder = { mode: 'order', fileName: '', sheetName: '', platform: '', rows: [], products: null, stock: new Map(),
+    ownStock: new Map(), ownReady: false, useOwn: true };  // ownStock: 셀러 '내 재고표'(seller_own_stock, 'buy' 화면에서만)
 
 // 화면이 두 곳: 'order' = 풀필먼트 [쇼핑몰 주문서 그대로 올리기] 탭, 'buy' = 매장/사무실 택배 화면의 [사입 목록 만들기] (2026-11-19)
 //  'buy' 는 주문 접수 없이, 주문서를 읽어 도매 매장별 사입할 상품만 정리 (풀필먼트·재고보관을 안 쓰는 택배 업체용)
@@ -83,6 +84,7 @@ async function aiFileChosen(e, mode = 'order') {
         if (!fresh.error) { res = fresh; built = aiBuildRows(rows, res.mapping); }
     }
     aiOrder.platform = res.platform || '';
+    aiOrder.ownDone = false;
     aiOrder.rows = built;
     if (aiOrder.rows.length === 0) { aiStatus('주문서에서 주문 줄을 찾지 못했어요. 받는분·주소·상품명 칸이 있는 주문서인지 확인해 주세요.', true); return; }
     aiStatus('');
@@ -218,9 +220,17 @@ async function aiLoadProducts() {
         ]);
         aiOrder.products = p.data || [];
         aiOrder.stock = new Map((s.data || []).map(r => [r.product_id, r.qty_a]));
+        if (aiOrder.mode === 'buy') await aiLoadOwnStock();
     } catch (err) {
         console.warn('상품관리 불러오기 실패 (매칭 없이 진행)', err);
     }
+}
+
+// 셀러 '내 재고표' (supabase/own_stock.sql). SQL 실행 전이면 표가 없어 재고 없이 계산
+async function aiLoadOwnStock() {
+    const { data, error } = await fetchAllRows(() => supabaseClient.from('seller_own_stock').select('product_id,qty').order('product_id'));
+    aiOrder.ownReady = !error;
+    aiOrder.ownStock = new Map((data || []).map(r => [r.product_id, r.qty]));
 }
 
 function aiMatch(o) {
@@ -368,7 +378,9 @@ function aiRender() {
 //  'buy' 화면(택배 업체용)은 사무실 재고를 쓰지 않으므로 재고를 빼지 않고 주문 수량 그대로
 function aiBuyList(live) {
     const map = new Map();
-    const useStock = aiOrder.mode !== 'buy';
+    const buy = aiOrder.mode === 'buy';
+    const useStock = !buy || (aiOrder.ownReady && aiOrder.useOwn);
+    const stockOf = id => buy ? (aiOrder.ownStock.get(id) || 0) : (aiOrder.stock.get(id) || 0);
     let fromStock = 0;
     live.forEach(o => {
         const parts = aiOptionParts(o.option);
@@ -380,26 +392,29 @@ function aiBuyList(live) {
             product: (p && p.wholesale_product) || o.wholesaleProduct || o.mallProduct || '',
             color: p ? (p.color || '') : (parts[0] || ''),
             size: p ? (p.size || '') : (parts[1] || ''),
-            ordered: 0, stock: p && useStock ? (aiOrder.stock.get(p.id) || 0) : null,
+            ordered: 0, stock: p && useStock ? stockOf(p.id) : null, pid: p ? p.id : null,
             mall: new Set(),
         };
         row.ordered += o.qty;
         if (o.mallProduct) row.mall.add(o.mallProduct);
         map.set(key, row);
     });
-    const rows = [];
+    const rows = [], stockRows = [];
     map.forEach(r => {
         const use = r.stock === null ? 0 : Math.min(r.stock, r.ordered);
         fromStock += use;
+        r.use = use;
         r.need = r.ordered - use;
         if (r.need > 0) rows.push(r);
+        if (use > 0) stockRows.push(r);
     });
     rows.sort((a, b) => (a.company || '힣').localeCompare(b.company || '힣', 'ko') || a.product.localeCompare(b.product, 'ko'));
-    return { rows, fromStock, needTotal: rows.reduce((n, r) => n + r.need, 0) };
+    return { rows, stockRows, fromStock, needTotal: rows.reduce((n, r) => n + r.need, 0) };
 }
 
-const aiBuyNote = r => r.stock !== null ? `주문 ${r.ordered} · 재고 ${r.stock}`
-    : aiOrder.mode === 'buy' ? [...r.mall].slice(0, 2).join(', ') : '상품관리에 없음';
+const aiBuyNote = r => aiOrder.mode === 'buy'
+    ? [...r.mall].slice(0, 2).join(', ') + (r.stock !== null ? ` (주문 ${r.ordered} · 내 재고 ${r.stock})` : '')
+    : r.stock !== null ? `주문 ${r.ordered} · 재고 ${r.stock}` : '상품관리에 없음';
 function aiBuyBox(live) {
     const b = aiBuyList(live);
     if (!live.length) return '';
@@ -417,7 +432,8 @@ function aiBuyBox(live) {
             <div>
                 <p class="text-sm font-black text-amber-800">🛒 사입할 상품 목록 <span class="text-xs font-bold">(${b.rows.length}가지 · ${b.needTotal}개)</span></p>
                 <p class="text-[11px] text-slate-600 mt-0.5">${buy
-                    ? `도매 매장 <b class="text-amber-800">${new Set(b.rows.map(r => r.company)).size}곳</b> · 사입할 상품 <b class="text-amber-800">${b.needTotal}개</b> — 같은 상품은 주문 수량을 합쳤어요.`
+                    ? (aiOrder.ownReady && aiOrder.useOwn ? `📦 내 재고로 보낼 상품 <b class="text-emerald-700">${b.fromStock}개</b> · ` : '')
+                      + `🛒 도매 매장 <b class="text-amber-800">${new Set(b.rows.map(r => r.company)).size}곳</b>에서 사입할 상품 <b class="text-amber-800">${b.needTotal}개</b> — 같은 상품은 주문 수량을 합쳤어요.`
                     : `📦 사무실 재고로 나갈 상품 <b class="text-emerald-700">${b.fromStock}개</b> · 🛒 매장에서 사입할 상품 <b class="text-amber-800">${b.needTotal}개</b> — 재고는 지금 기준이며, 출고 때 먼저 들어온 주문부터 재고가 쓰여요.`}</p>
             </div>
             <div class="flex gap-1.5">
@@ -434,7 +450,27 @@ function aiBuyBox(live) {
                 <tbody>${body}</tbody>
             </table>
         </div>
+        ${buy && aiOrder.ownReady ? `<div class="flex flex-wrap items-center gap-3 pt-1">
+            <label class="flex items-center gap-1.5 text-xs font-bold text-slate-700 cursor-pointer"><input type="checkbox" id="buy-use-own" ${aiOrder.useOwn ? 'checked' : ''} ${aiOrder.ownDone ? 'disabled' : ''} onchange="aiSetUseOwn(this.checked)" class="w-4 h-4"> <a href="/my-stock" target="_blank" class="text-teal-700 underline">내 재고표</a> 수량만큼 빼고 계산</label>
+            ${aiOrder.ownDone ? '<span class="text-xs font-bold text-teal-700">✅ 내 재고표에서 뺐어요</span>' : aiOrder.useOwn && b.fromStock ? `<button id="btn-buy-own-out" onclick="aiOwnStockOut()" class="px-3 py-1.5 bg-white border border-teal-300 hover:bg-teal-50 text-teal-800 text-xs font-bold rounded-lg">내 재고로 보낸 ${b.fromStock}개, 내 재고표에서 빼기</button>
+            <span class="text-[11px] text-slate-500">상품을 다 보낸 뒤 눌러 주세요.</span>` : ''}
+        </div>` : ''}
     </div>`;
+}
+
+function aiSetUseOwn(on) { if (aiOrder.ownDone) return; aiOrder.useOwn = on; aiRender(); }
+
+// 내 재고로 보낸 만큼 '내 재고표'에서 빼기 (한 번만 누르도록 누른 뒤엔 재고를 다시 불러와 0개로 보임)
+async function aiOwnStockOut() {
+    const b = aiBuyList(aiOrder.rows.filter(o => !o.removed));
+    const items = b.stockRows.filter(r => r.pid && r.use > 0).map(r => ({ product_id: r.pid, change: -r.use }));
+    if (!items.length) return;
+    if (!confirm(`내 재고표에서 ${b.fromStock}개(${items.length}가지 상품)를 뺄까요?\n상품을 다 보낸 뒤에만 눌러 주세요.`)) return;
+    const { error } = await supabaseClient.rpc('own_stock_apply', { p_items: items, p_mode: 'add', p_reason: `주문서 출고 (${aiOrder.fileName})`.slice(0, 200) });
+    if (error) { alert('내 재고표를 바꾸지 못했어요.\n' + (error.message || '')); return; }
+    aiOrder.ownDone = true;   // 같은 주문서로 두 번 빼지 않게 (화면의 계산은 뺀 전 기준 그대로)
+    aiRender();
+    alert(`내 재고표에서 ${b.fromStock}개를 뺐어요.`);
 }
 
 function aiBuyExcel() {

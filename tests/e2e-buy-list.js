@@ -36,6 +36,7 @@ const tables = {
   order_file_formats: [{ id: 1, company: '애플샵', signature: '주문번호|수취인명|수취인연락처', platform: '스마트스토어', mapping: {}, use_count: 3, last_used_at: new Date().toISOString() }],
   couriers: [{ id: 'c1', name: '우체국택배', sort_order: 1 }],
   address_book: [], pickup_requests: [], settlements: [], settle_contacts: [],
+  seller_own_stock: [{ product_id: 1, company: '애플샵', qty: 5, updated_at: new Date().toISOString() }], seller_own_stock_moves: [],
 };
 const requests = [];
 const apiCalls = []; // 사이트 서버(/api/...)로 보낸 요청 (회원가입·승인 알림 문자)
@@ -105,6 +106,19 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
       if (method === 'PATCH') { rows.forEach(p => Object.assign(p, body)); return json(200, rows); }
       if ((headers['accept'] || '').includes('vnd.pgrst.object')) return rows.length ? json(200, rows[0]) : json(406, { code: 'PGRST116', message: 'no rows' });
       return json(200, rows);
+    }
+    if (url.pathname === '/rest/v1/rpc/own_stock_apply') {
+      let n = 0;
+      for (const it of body.p_items) {
+        let row = tables.seller_own_stock.find(r => r.product_id === it.product_id);
+        const old = row ? row.qty : 0;
+        const q = Math.max(0, body.p_mode === 'set' ? it.qty : old + it.change);
+        if (!row) { row = { product_id: it.product_id, company: '애플샵', qty: 0 }; tables.seller_own_stock.push(row); }
+        row.qty = q; row.updated_at = new Date().toISOString();
+        if (q !== old) tables.seller_own_stock_moves.push({ product_id: it.product_id, change: q - old, qty_after: q, reason: body.p_reason, created_at: new Date().toISOString() });
+        n++;
+      }
+      return json(200, n);
     }
     const table = url.pathname.replace('/rest/v1/', '');
     if (tables[table]) {
@@ -182,9 +196,13 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   const groups = page.locator('#buy-ai-result table').first().locator('tbody tr');
   check('4 product groups', (await groups.count()) === 4, String(await groups.count()));
   check('matched product prefilled', (await groups.nth(0).locator('input').nth(0).inputValue()) === '청평화A');
-  // 재고(3)가 있어도 택배 업체 사입 목록은 주문 수량 그대로
+  // 밤낮 사무실 재고(3)는 안 쓰고, 셀러 '내 재고표'(블랙 M 5개)만 뺌
   const buyTxt = await page.innerText('#ai-buy-box');
-  check('stock ignored in buy mode', !buyTxt.includes('재고 3') && buyTxt.includes('사입할 상품'), buyTxt.slice(0, 300));
+  check('office stock ignored, own stock used', !buyTxt.includes('재고 3') && buyTxt.includes('내 재고로 보낼 상품 1개') && !buyTxt.includes('블랙'), buyTxt.slice(0, 300));
+  check('own-stock checkbox + out button', (await vis('#buy-use-own')) && (await vis('#btn-buy-own-out')));
+  await page.uncheck('#buy-use-own'); await page.waitForTimeout(150);
+  check('uncheck own stock → black back in list', (await page.innerText('#ai-buy-box')).includes('블랙'));
+  await page.check('#buy-use-own'); await page.waitForTimeout(150);
   check('unknown wholesale grouped as 도매처 없음', buyTxt.includes('(도매처 없음)'));
   check('different unknown products not merged', buyTxt.includes('니트 머플러') && buyTxt.includes('가디건'));
 
@@ -210,13 +228,19 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#ai-buy-box button:has-text("엑셀 받기")')]);
   const xf = path.join(__dirname, 'out', 'buy-list.xlsx'); await dl.saveAs(xf);
   const xr = XLSX.utils.sheet_to_json(XLSX.readFile(xf).Sheets['사입할 상품'], { header: 1 });
-  check('excel has header + 4 rows', xr.length === 5 && xr[0][5] === '쇼핑몰상품명', JSON.stringify(xr));
+  check('excel has header + 3 rows (black from own stock)', xr.length === 4 && xr[0][5] === '쇼핑몰상품명', JSON.stringify(xr));
 
   // 상품관리에 기억하기
   const prodBefore = tables.products.length;
   await page.click('#btn-buy-remember'); await page.waitForTimeout(800);
   check('products created', tables.products.length === prodBefore + 2, String(tables.products.length));
   check('no orders created', tables.orders.length === ordersBefore);
+
+  // 내 재고로 보낸 만큼 빼기
+  await page.click('#btn-buy-own-out'); await page.waitForTimeout(500);
+  check('own stock deducted 5→4', tables.seller_own_stock.find(r => r.product_id === 1).qty === 4);
+  check('done text, button gone', (await page.innerText('#ai-buy-box')).includes('내 재고표에서 뺐어요') && !(await vis('#btn-buy-own-out')));
+  check('move logged with file name', (tables.seller_own_stock_moves[0] || {}).reason === '주문서 출고 (smartstore-orders.xlsx)');
 
   // 빼기
   await groups.nth(0).locator('button').click(); await page.waitForTimeout(150);
@@ -235,6 +259,37 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   const t2 = await page.innerText('#ai-result');
   check('fulfillment AI still shows recipients + submit', t2.includes('박민수') && (await vis('#btn-ai-submit')));
   { const fb = await page.innerText('#ai-buy-box'); check('fulfillment buy box still uses stock', fb.includes('사무실 재고로 나갈 상품 1개'), fb.slice(0, 200)); }
+  // ---------- 내 재고표 화면 ----------
+  await page.goto('file:///home/user/claude-code-folder/my-stock.html'); await page.waitForTimeout(1500);
+  const ms = await page.innerText('#app');
+  check('my-stock shows company + products', ms.includes('애플샵') && ms.includes('울팬츠') && ms.includes('디오트 2층 15호'), ms.slice(0, 300));
+  check('my-stock stats', ms.includes('등록 상품') && ms.includes('총 재고'));
+  check('own qty shown', (await page.inputValue('#q-1')) === '4');
+  await page.click('#q-1 + button'); await page.waitForTimeout(400);
+  check('+ saves', tables.seller_own_stock.find(r => r.product_id === 1).qty === 5 && (await page.inputValue('#q-1')) === '5');
+  await page.fill('#q-2', '7'); await page.dispatchEvent('#q-2', 'change'); await page.waitForTimeout(400);
+  check('type number saves', (tables.seller_own_stock.find(r => r.product_id === 2) || {}).qty === 7);
+  await page.waitForTimeout(300);
+  check('moves listed', (await page.innerText('#moves')).includes('직접 수정'));
+  await page.click('.tabs button:has-text("재고 0")'); await page.waitForTimeout(150);
+  check('filter zero hides stocked', !(await page.isVisible('#q-1')));
+  await page.click('.tabs button:has-text("전체")'); await page.waitForTimeout(150);
+  // 엑셀 받기 → 고쳐서 올리기
+  const [dl2] = await Promise.all([page.waitForEvent('download'), page.click('button:has-text("엑셀 받기")')]);
+  const sf = path.join(__dirname, 'out', 'my-stock.xlsx'); await dl2.saveAs(sf);
+  const sw = XLSX.readFile(sf); const sr = XLSX.utils.sheet_to_json(sw.Sheets['내 재고'], { header: 1 });
+  check('excel download has codes + qty', sr[0][0] === '상품코드' && sr[0][6] === '내 재고' && sr.length === tables.products.length + 1, JSON.stringify(sr[0]));
+  sr[1][6] = 12;
+  const sw2 = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(sw2, XLSX.utils.aoa_to_sheet(sr), '내 재고'); const sf2 = path.join(__dirname, 'out', 'my-stock-edit.xlsx'); XLSX.writeFile(sw2, sf2);
+  await page.setInputFiles('#xl', sf2); await page.waitForTimeout(800);
+  check('excel upload applied', tables.seller_own_stock.find(r => r.product_id === 1).qty === 12, lastDialog());
+  await page.evaluate(() => { document.querySelectorAll('body > div').forEach(d => { if (/테스트 사이트입니다/.test(d.textContent || '') && d.textContent.length < 200) d.style.display = 'none'; }); });
+  await page.screenshot({ path: SHOT('my-stock.png'), fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 }); await page.waitForTimeout(200);
+  await page.screenshot({ path: SHOT('my-stock-phone.png'), fullPage: false });
+  check('no horizontal scroll on phone', await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+  await page.setViewportSize({ width: 1400, height: 900 });
+
   // 관리자 화면/로그인 화면 기본 확인
   check('no page script errors', pageErrors.length === 0, pageErrors.join(' | '));
   const fails = results.filter(r => r.startsWith('FAIL'));

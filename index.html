@@ -276,9 +276,15 @@
 
                 <!-- 사입 목록 만들기: 풀필먼트를 안 쓰는 택배 업체용, 주문 접수 없이 도매 매장별 사입 목록만 정리 (order-ai.js aiRenderBuy) -->
                 <div id="buy-ai-card" class="bg-white rounded-xl shadow-sm border-2 border-amber-200 p-5 space-y-3">
+                    <div class="flex flex-wrap items-start justify-between gap-2">
                     <div>
                         <h3 class="text-base font-black text-slate-900">🛒 사입 목록 만들기 <span class="ml-1 px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] align-middle">AI</span></h3>
                         <p class="text-xs text-slate-500 mt-0.5">쇼핑몰 주문서 엑셀을 올리면 <b class="text-amber-800">도매 매장별로 사입할 상품</b>(도매상품명·컬러·사이즈·수량)을 한 번에 정리해 드려요. 엑셀 받기·카톡 복사도 돼요. <span class="text-slate-400">※ 주문 접수는 되지 않아요.</span></p>
+                    </div>
+                    <div class="flex gap-1.5 shrink-0">
+                        <a href="/products" class="px-3 py-1.5 bg-white border border-sky-300 hover:bg-sky-50 text-sky-800 text-xs font-bold rounded-lg">🗂️ 상품관리</a>
+                        <a href="/my-stock" class="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg">📦 내 재고표</a>
+                    </div>
                     </div>
                     <div id="buy-ai-drop-zone" class="border-2 border-dashed border-amber-200 rounded-xl p-5 text-center bg-amber-50/50 transition"
                         ondragover="event.preventDefault(); this.classList.add('border-amber-500', 'bg-amber-100')"
