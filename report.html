@@ -108,6 +108,7 @@
     .money-hint { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: 12px; padding: 10px 14px; font-size: 13px; margin: -6px 0 18px; }
     .rank .q small { display: block; font-size: 11px; color: var(--sub); font-weight: 700; }
     .rank li { grid-template-columns: 26px 1fr 84px; }
+    .offsite-note { display: flex; gap: 8px; align-items: flex-start; background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: 12px; padding: 10px 14px; font-size: 13px; line-height: 1.5; margin: -6px 0 18px; }
     @media print { .money-hint, .pl-edit .btn, .pl-x, .pl-status { display: none !important; } .more, .modes, .picker { display: none !important; } .table-box { max-height: none; border: 0; } }
 </style>
 </head>
@@ -650,6 +651,7 @@
                     ? `<div class="kpi"><div class="l">출고 상품 종류</div><div class="v">${fmt(s.products.length)}<small>가지</small></div><div class="c">이 날 나간 상품 가짓수</div></div>`
                     : `<div class="kpi"><div class="l">하루 평균 출고</div><div class="v">${shipDays ? (s.count / shipDays).toFixed(1) : '0'}<small>건</small></div><div class="c">출고한 날 ${shipDays}일 기준</div></div>`}
             </div>
+            <div class="offsite-note"><span>📌</span><span>카톡 등으로 <b>따로 보내주신 풀필먼트 주문(오전 단건 추가 등)</b>은 이 사이트에 등록되지 않아, 이 리포트의 출고 건수에 빠질 수 있어요. 정산서 건수와 다르면 이런 주문 때문일 수 있습니다.</span></div>
             ${moneyBox(s)}
             ${one ? '' : `<section>
                 <h2>${b.unit} 출고 건수 <span>막대에 마우스를 올리면 건수·수량이 보여요</span></h2>
