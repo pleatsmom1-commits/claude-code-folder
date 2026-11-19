@@ -187,6 +187,7 @@ async function loadSavedShipments() {
         if (shipSaved.length) shipExcel = null;   // 저장된 것을 보여줌 (엑셀은 이미 저장됨)
     }
     renderShipTable();
+    shipRefreshOrderTracking(date, shipSaved);   // 저장된 송장 → 주문에 송장번호 + 송장 빠진 주문
 }
 
 // [조회]: 고른 출고일에 저장된 송장 목록을 다시 불러오기 (복사완료 / 미복사로 골라 보기)
@@ -603,5 +604,220 @@ async function sendShipTest() {
         alert(r.status === 'sent' ? `시험 발송 접수 완료 (${r.to})\n잠시 후 휴대폰을 확인해 주세요.` : `시험 발송 실패\n\n${r.message}`);
     } catch (err) {
         alert('시험 발송하지 못했습니다.\n\n' + err.message);
+    }
+}
+
+// =====================================================================
+// 주문에 송장번호 넣기 + 송장 빠진 주문 확인 (2026-11-19 대표님 요청)
+//  - 이 출고일에 올린 송장 엑셀(저장된 shipments)의 [업체 + 받는분]이 같은 주문을 찾아
+//    주문의 송장번호(tracking_no)·택배사(우체국택배)를 채웁니다. → 셀러 화면 주문 옆에 송장번호 + [배송조회]
+//  - 이미 송장번호가 있는 주문은 건드리지 않습니다. 출고상태(ship_status)도 바꾸지 않습니다
+//    (재고 출고 화면 picking.html 이 ship_status '미출고'로 주문할 상품을 고르기 때문).
+//  - 같은 받는분 주문이 여러 개면 상품명이 가장 비슷한 주문부터, 같으면 출고일에 가까운 주문부터 짝을 맞춥니다.
+//    엑셀에서 '미출고'인 줄도 자기 주문 하나를 차지해서, 그 주문에는 송장이 들어가지 않습니다.
+//  - 송장 빠진 주문: 고른 출고일 당일 접수된 [접수완료] 풀필먼트 주문 중 송장번호가 없는 주문
+// =====================================================================
+const SHIP_COURIER = '우체국택배';
+const SHIP_MATCH_DAYS = 14;    // 출고일 며칠 전 접수 주문까지 짝을 찾을지
+const SHIP_MISSING_DAYS = 1;   // 송장 빠진 주문: 고른 출고일 하루에 접수된 주문만 (대표님 2026-11-19)
+const SHIP_BACKFILL_DAYS = 30; // [지난 송장도 넣기] 버튼: 최근 며칠 치 저장된 송장 엑셀
+let shipLinkQueue = Promise.resolve();
+let shipMissingOrders = [];
+
+function shipKstDay(ts) { return kstDateString(new Date(ts)); }
+function shipAddDays(ymd, days) {
+    const dt = new Date(ymd + 'T00:00:00Z');
+    dt.setUTCDate(dt.getUTCDate() + days);
+    return dt.toISOString().slice(0, 10);
+}
+function shipNormName(v) { return String(v ?? '').replace(/\s+/g, '').toLowerCase(); }
+// 주문의 업체: 가입 상호 + 보내는분 '밤낮딜리버리(상호)' 괄호 안 상호
+function shipOrderCompanies(o) {
+    const set = new Set([settleNorm(o.seller_company)]);
+    const m = String(o.sender_name || '').match(/\((.+)\)\s*$/);
+    if (m) set.add(settleNorm(m[1]));
+    set.delete('');
+    return set;
+}
+function shipNormProduct(v) { return String(v ?? '').replace(/^\s*\(합\)\s*/, '').replace(/[\s/·,()\[\]-]+/g, '').toLowerCase(); }
+function shipProductScore(a, b) {
+    a = shipNormProduct(a); b = shipNormProduct(b);
+    if (!a || !b) return 0;
+    if (a === b) return 3;
+    if (a.startsWith(b) || b.startsWith(a)) return 2;
+    if (a.includes(b) || b.includes(a)) return 1;
+    return 0;
+}
+
+// 송장 엑셀 줄(업체별 items) ↔ 주문 짝 맞추기. 반환: [{ id, tracking }]
+function shipMatchOrders(date, shipments, orders) {
+    const from = shipAddDays(date, -SHIP_MATCH_DAYS);
+    const byKey = new Map();
+    for (const o of orders) {
+        if (orderTypeOf(o) !== 'fulfillment' || o.tracking_no || !String(o.recipient || '').trim()) continue;
+        const day = shipKstDay(o.created_at);
+        if (day < from || day > date) continue;
+        for (const c of shipOrderCompanies(o)) {
+            const key = c + '|' + shipNormName(o.recipient);
+            if (!byKey.has(key)) byKey.set(key, []);
+            byKey.get(key).push(o);
+        }
+    }
+    const newest = (a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''));
+    const used = new Set();
+    const out = [];
+    for (const s of shipments) {
+        const byRec = new Map();
+        for (const it of s.items || []) {
+            if (it.store) continue;
+            const r = shipNormName(it.recipient);
+            if (!r) continue;
+            if (!byRec.has(r)) byRec.set(r, []);
+            byRec.get(r).push(it);
+        }
+        for (const [rec, items] of byRec) {
+            if (!items.some(x => x.tracking)) continue;
+            let left = (byKey.get(settleNorm(s.company) + '|' + rec) || []).filter(o => !used.has(o.id)).sort(newest);
+            if (!left.length) continue;
+            const claimed = [];   // [{ order, tracking }]
+            const take = (it, o) => { claimed.push({ order: o, tracking: it.tracking || '' }); left = left.filter(x => x !== o); };
+            const rest = [];
+            for (const it of items) {   // 1) 상품명이 비슷한 주문
+                let best = null, bestScore = 0;
+                for (const o of left) { const sc = shipProductScore(it.product, o.product); if (sc > bestScore) { best = o; bestScore = sc; } }
+                if (best) take(it, best); else rest.push(it);
+            }
+            for (const it of rest) if (left.length) take(it, left[0]);   // 2) 남은 줄은 출고일에 가까운 주문부터
+            // 3) 합배송: 엑셀엔 한 줄인데 같은 주문번호의 상품이 더 있으면 같은 송장
+            for (const o of [...left]) {
+                const mate = claimed.find(c => c.tracking && c.order.order_no != null && c.order.order_no === o.order_no);
+                if (mate) take({ tracking: mate.tracking }, o);
+            }
+            for (const c of claimed) {
+                used.add(c.order.id);
+                if (c.tracking) out.push({ id: c.order.id, tracking: c.tracking });
+            }
+        }
+    }
+    return out;
+}
+
+// 송장 짝 맞추기·빠진 주문 확인에 쓰는 주문 (DB 에서 새로 읽음)
+async function shipFetchOrdersAround(fromDay, toDay) {
+    const start = new Date(`${fromDay}T00:00:00+09:00`).toISOString();
+    const end = new Date(`${toDay}T23:59:59.999+09:00`).toISOString();
+    const { data, error } = await fetchAllRows(() => supabaseClient.from('orders')
+        .select('id,seller_id,seller_company,sender_name,recipient,product,created_at,order_type,order_no,item_no,status,courier,tracking_no')
+        .gte('created_at', start).lte('created_at', end).order('created_at', { ascending: true }));
+    if (error) throw error;
+    return data || [];
+}
+
+// 짝 맞춘 송장번호를 주문에 저장 (같은 송장번호끼리 묶어서). 반환: 저장한 주문 수
+async function shipSaveOrderTracking(pairs) {
+    const byTracking = new Map();
+    pairs.forEach(p => { if (!byTracking.has(p.tracking)) byTracking.set(p.tracking, []); byTracking.get(p.tracking).push(p.id); });
+    let n = 0;
+    for (const [tracking, ids] of byTracking) {
+        for (let i = 0; i < ids.length; i += 200) {
+            const { data, error } = await supabaseClient.from('orders')
+                .update({ tracking_no: tracking, courier: SHIP_COURIER })
+                .in('id', ids.slice(i, i + 200)).is('tracking_no', null).select('id');
+            if (error) throw error;
+            (data || []).forEach(row => {
+                const o = (typeof ordersMaster !== 'undefined' ? ordersMaster : []).find(x => x.id === row.id);
+                if (o) { o.tracking_no = tracking; o.courier = SHIP_COURIER; }
+            });
+            n += (data || []).length;
+        }
+    }
+    return n;
+}
+
+// 이 출고일의 저장된 송장 → 주문에 넣기 + 빠진 주문 다시 보기 (여러 번 눌려도 차례대로 한 번씩)
+function shipRefreshOrderTracking(date, shipments) {
+    shipLinkQueue = shipLinkQueue.then(async () => {
+        const statusEl = document.getElementById('ship-link-status');
+        if (!statusEl || !/^\d{4}-\d{2}-\d{2}$/.test(date || '')) return;
+        try {
+            const orders = await shipFetchOrdersAround(shipAddDays(date, -SHIP_MATCH_DAYS), date);
+            const pairs = shipments.length ? shipMatchOrders(date, shipments, orders) : [];
+            const n = pairs.length ? await shipSaveOrderTracking(pairs) : 0;
+            if (n) {
+                const saved = new Map(pairs.map(p => [p.id, p.tracking]));
+                orders.forEach(o => { if (saved.has(o.id)) { o.tracking_no = saved.get(o.id); o.courier = SHIP_COURIER; } });
+            }
+            statusEl.innerHTML = !shipments.length ? '이 출고일에 올린 송장 엑셀이 없습니다.'
+                : n ? `✅ 주문 ${n}건에 송장번호를 넣었습니다 (${SHIP_COURIER}). 셀러 화면 주문 옆에 바로 보입니다.`
+                : '송장번호는 이미 모두 주문에 들어가 있습니다.';
+            renderShipMissing(date, shipments, orders);
+        } catch (err) {
+            statusEl.textContent = '송장번호를 주문에 넣지 못했습니다: ' + dbErrorMessage(err);
+        }
+    }).catch(() => {});
+    return shipLinkQueue;
+}
+
+// 송장 빠진 주문 목록
+function renderShipMissing(date, shipments, orders) {
+    const el = document.getElementById('ship-missing');
+    if (!el) return;
+    const from = shipAddDays(date, -(SHIP_MISSING_DAYS - 1));
+    const unshippedKeys = new Set();
+    shipments.forEach(s => (s.items || []).forEach(it => { if (!it.tracking) unshippedKeys.add(settleNorm(s.company) + '|' + shipNormName(it.recipient)); }));
+    const hidden = typeof hiddenOrderIds !== 'undefined' ? hiddenOrderIds : new Set();
+    const separate = typeof separateOrderIds !== 'undefined' ? separateOrderIds : new Set();
+    shipMissingOrders = orders.filter(o => {
+        if (orderTypeOf(o) !== 'fulfillment' || o.status !== '접수완료' || o.tracking_no) return false;
+        if (hidden.has(o.id) || separate.has(o.id)) return false;
+        const day = shipKstDay(o.created_at);
+        return day >= from && day <= date;
+    }).map(o => ({ ...o, unshipped: [...shipOrderCompanies(o)].some(c => unshippedKeys.has(c + '|' + shipNormName(o.recipient))) }))
+      .sort((a, b) => String(a.seller_company || '').localeCompare(String(b.seller_company || ''), 'ko') || String(a.created_at).localeCompare(String(b.created_at)));
+    const nUn = shipMissingOrders.filter(o => o.unshipped).length;
+    const md = d => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
+    document.getElementById('ship-missing-summary').innerHTML = shipMissingOrders.length
+        ? `<b class="text-rose-600">${shipMissingOrders.length}건</b> <span class="text-slate-500">(엑셀에 없음 ${shipMissingOrders.length - nUn}건 · 엑셀에 미출고로 적힘 ${nUn}건) · ${md(date)} 접수된 풀필먼트 주문(접수완료) 기준</span>`
+        : `<b class="text-emerald-600">없음</b> <span class="text-slate-500">· ${md(date)} 접수된 풀필먼트 주문(접수완료)은 모두 송장번호가 있습니다</span>`;
+    if (!shipMissingOrders.length) { el.innerHTML = ''; return; }
+    el.innerHTML = `<div class="overflow-auto max-h-[50vh] border border-slate-200 rounded-lg"><table class="w-full text-left text-xs">
+        <thead class="bg-slate-100 text-slate-600 font-bold sticky top-0"><tr>
+            <th class="p-2.5">업체</th><th class="p-2.5 whitespace-nowrap">NO.</th><th class="p-2.5">받는분</th><th class="p-2.5">쇼핑몰 상품명</th><th class="p-2.5 whitespace-nowrap">접수일시</th><th class="p-2.5">확인할 내용</th>
+        </tr></thead><tbody class="divide-y divide-slate-100">${shipMissingOrders.map(o => `<tr class="${o.unshipped ? 'bg-amber-50/60' : ''}">
+            <td class="p-2.5 font-bold whitespace-nowrap">${escapeHtml(o.seller_company || '')}</td>
+            <td class="p-2.5 font-mono whitespace-nowrap">${escapeHtml(orderNoLabel(o, getOrderGroups(orders)))}</td>
+            <td class="p-2.5 whitespace-nowrap">${escapeHtml(o.recipient || '')}</td>
+            <td class="p-2.5 max-w-xs truncate" title="${escapeHtml(o.product || '')}">${escapeHtml(o.product || '')}</td>
+            <td class="p-2.5 whitespace-nowrap text-slate-500">${escapeHtml(formatKstDateTime(o.created_at))}</td>
+            <td class="p-2.5 whitespace-nowrap">${o.unshipped
+                ? '<span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold">엑셀에 미출고로 적힘</span>'
+                : '<span class="px-2 py-0.5 rounded bg-rose-100 text-rose-700 font-bold">엑셀에 없음</span>'}</td>
+        </tr>`).join('')}</tbody></table></div>`;
+}
+
+// [지난 송장도 주문에 넣기]: 최근 30일 동안 저장된 송장 엑셀을 날짜 순서대로 다시 맞춰 봅니다.
+async function shipBackfillOrderTracking() {
+    const today = kstDateString();
+    const from = shipAddDays(today, -SHIP_BACKFILL_DAYS);
+    const statusEl = document.getElementById('ship-link-status');
+    statusEl.textContent = `최근 ${SHIP_BACKFILL_DAYS}일 송장을 주문에 넣는 중…`;
+    try {
+        const { data, error } = await supabaseClient.from('shipments').select('company,ship_date,items').gte('ship_date', from).lte('ship_date', today).order('ship_date', { ascending: true });
+        if (error) throw error;
+        const days = [...new Set((data || []).map(s => s.ship_date))].sort();
+        const orders = days.length ? await shipFetchOrdersAround(shipAddDays(days[0], -SHIP_MATCH_DAYS), today) : [];
+        let total = 0;
+        for (const d of days) {
+            const pairs = shipMatchOrders(d, data.filter(s => s.ship_date === d), orders);
+            if (!pairs.length) continue;
+            total += await shipSaveOrderTracking(pairs);
+            const saved = new Map(pairs.map(p => [p.id, p.tracking]));
+            orders.forEach(o => { if (saved.has(o.id)) { o.tracking_no = saved.get(o.id); o.courier = SHIP_COURIER; } });
+        }
+        statusEl.textContent = total ? `✅ 지난 송장 엑셀 ${days.length}일치로 주문 ${total}건에 송장번호를 넣었습니다.` : `최근 ${SHIP_BACKFILL_DAYS}일 송장은 이미 모두 주문에 들어가 있습니다.`;
+        const date = document.getElementById('ship-date').value;
+        if (date) renderShipMissing(date, shipSaved, await shipFetchOrdersAround(shipAddDays(date, -SHIP_MATCH_DAYS), date));
+    } catch (err) {
+        statusEl.textContent = '지난 송장을 넣지 못했습니다: ' + dbErrorMessage(err);
     }
 }
