@@ -115,6 +115,10 @@
             <a id="nav-products-btn" href="/products" class="hidden shrink-0 whitespace-nowrap sm:ml-2 justify-center px-3 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
                 <i data-lucide="tags" class="w-4 h-4"></i> 상품관리
             </a>
+            <!-- 셀러 로그인 시에만 표시: 월별 이용 리포트 (report.html) — 한 달 출고 건수·비용·많이 나간 상품 -->
+            <a id="nav-report-btn" href="/report" class="hidden shrink-0 whitespace-nowrap sm:ml-2 justify-center px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
+                <i data-lucide="calendar-days" class="w-4 h-4"></i> 월별 리포트
+            </a>
             </div>
         </div>
         <div class="flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-2 w-full sm:w-auto">
@@ -3588,7 +3592,7 @@
         // 업체 화면 보기 중에는 재고 확인·재고 증감·이용 현황·상품관리도 그 업체 화면(보기 전용, view-as.js)으로 새 창에 엽니다.
         function setViewAsNavLinks() {
             const company = encodeURIComponent(currentSellerAccount.company || '');
-            [['nav-stock-btn', '/inventory'], ['nav-history-btn', '/stock-history'], ['nav-usage-btn', '/usage'], ['nav-products-btn', '/products']].forEach(([id, path]) => {
+            [['nav-stock-btn', '/inventory'], ['nav-history-btn', '/stock-history'], ['nav-usage-btn', '/usage'], ['nav-products-btn', '/products'], ['nav-report-btn', '/report']].forEach(([id, path]) => {
                 const a = document.getElementById(id);
                 a.href = `${path}?company=${company}&view=1&uid=${encodeURIComponent(currentUserId)}`;
                 a.target = '_blank';
@@ -3632,6 +3636,9 @@
             const productsBtn = document.getElementById('nav-products-btn');
             productsBtn.classList.toggle('hidden', currentRole !== 'seller');
             productsBtn.classList.toggle('flex', currentRole === 'seller');
+            const reportBtn = document.getElementById('nav-report-btn');
+            reportBtn.classList.toggle('hidden', currentRole !== 'seller');
+            reportBtn.classList.toggle('flex', currentRole === 'seller');
             // 휴대폰에서 셀러 버튼 묶음(2개씩)과 회원정보 줄은 로그인했을 때만 자리 차지
             const sellerBtns = document.getElementById('nav-seller-btns');
             sellerBtns.classList.toggle('hidden', currentRole !== 'seller');

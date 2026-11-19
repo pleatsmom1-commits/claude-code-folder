@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>밤낮딜리버리 월별 이용 리포트</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+    :root {
+        --bg: #f1f5f9; --card: #ffffff; --line: #e2e8f0; --text: #0f172a; --sub: #64748b;
+        --accent: #4f46e5; --accent-bg: #e0e7ff; --bar: #6366f1; --track: #eef2ff;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; font-size: 15px; line-height: 1.5; }
+    .wrap { max-width: 860px; margin: 0 auto; padding: 16px 16px 40px; }
+    .brand { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0 14px; }
+    .brand b { font-size: 16px; }
+    .brand a { font-size: 13px; color: var(--sub); text-decoration: none; }
+    .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+    .btn { border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 700; color: var(--text); cursor: pointer; white-space: nowrap; text-decoration: none; display: inline-block; }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn:disabled { opacity: .4; cursor: default; }
+    select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; font-size: 14px; font-weight: 700; background: #fff; }
+    .sheet { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 22px; }
+    .head { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 8px; border-bottom: 2px solid var(--text); padding-bottom: 12px; margin-bottom: 16px; }
+    .head .t { font-size: 13px; color: var(--sub); font-weight: 700; }
+    .head .company { font-size: 22px; font-weight: 800; }
+    .head .month { font-size: 18px; font-weight: 800; color: var(--accent); }
+    .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 18px; }
+    .kpi { background: #f8fafc; border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+    .kpi.main { background: var(--accent-bg); border-color: #c7d2fe; }
+    .kpi .l { font-size: 12px; color: var(--sub); font-weight: 700; }
+    .kpi .v { font-size: 24px; font-weight: 800; margin-top: 2px; }
+    .kpi .v small { font-size: 13px; font-weight: 700; margin-left: 2px; }
+    .kpi .c { font-size: 12px; color: var(--sub); margin-top: 2px; }
+    .up { color: #059669; font-weight: 700; } .down { color: #e11d48; font-weight: 700; }
+    h2 { font-size: 15px; margin: 0 0 10px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+    h2 span { font-size: 12px; color: var(--sub); font-weight: 400; }
+    section { margin-bottom: 20px; }
+    .chart { position: relative; }
+    .chart svg { width: 100%; height: 150px; display: block; }
+    .chart rect.hit { fill: transparent; cursor: default; }
+    .chart rect.hit:hover + rect, .chart rect.bar:hover { opacity: .75; }
+    .tip { position: absolute; pointer-events: none; background: var(--text); color: #fff; font-size: 12px; font-weight: 700; padding: 4px 8px; border-radius: 6px; white-space: nowrap; transform: translate(-50%, -110%); display: none; }
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .rows div { display: flex; justify-content: space-between; padding: 7px 2px; border-bottom: 1px solid var(--line); font-size: 14px; }
+    .rows div b { font-weight: 800; }
+    .rows div.strong { color: var(--accent); }
+    .rows div.strong b { font-size: 16px; }
+    .rank { list-style: none; margin: 0; padding: 0; }
+    .rank li { display: grid; grid-template-columns: 26px 1fr 64px; gap: 8px; align-items: center; padding: 6px 2px; border-bottom: 1px solid var(--line); font-size: 14px; }
+    .rank .n { font-weight: 800; color: var(--sub); text-align: center; }
+    .rank li:nth-child(-n+3) .n { color: var(--accent); }
+    .rank .name { min-width: 0; }
+    .rank .name div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rank .meter { height: 6px; background: var(--track); border-radius: 3px; margin-top: 4px; }
+    .rank .meter i { display: block; height: 6px; background: var(--bar); border-radius: 3px; }
+    .rank .q { text-align: right; font-weight: 800; }
+    .empty { color: var(--sub); font-size: 13px; padding: 14px 2px; }
+    .note { font-size: 12px; color: var(--sub); margin: 14px 0 0; border-top: 1px solid var(--line); padding-top: 10px; }
+    .state { text-align: center; padding: 60px 16px; color: var(--sub); background: #fff; border-radius: 14px; border: 1px solid var(--line); }
+    .preview-bar { background: #fef3c7; color: #92400e; text-align: center; padding: 8px; font-size: 13px; font-weight: 700; }
+    .foot { text-align: center; font-size: 12px; color: var(--sub); margin-top: 18px; }
+    @media (max-width: 640px) {
+        .sheet { padding: 16px; }
+        .kpis { grid-template-columns: 1fr 1fr; }
+        .two { grid-template-columns: 1fr; }
+        .kpi .v { font-size: 20px; }
+    }
+    /* 인쇄 / PDF 저장: 리포트 한 장만 */
+    @media print {
+        @page { size: A4; margin: 12mm; }
+        body { background: #fff; font-size: 13px; }
+        .wrap { max-width: none; padding: 0; }
+        .brand, .toolbar, .foot, .preview-bar, #view-as-bar, #test-site-banner { display: none !important; }
+        .sheet { border: 0; padding: 0; border-radius: 0; }
+        .kpi, .rank .meter, .rank .meter i, .chart svg { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        section { break-inside: avoid; }
+    }
+</style>
+</head>
+<body>
+<div id="preview-bar" class="preview-bar" hidden>관리자 미리보기 화면입니다 (업체에게 보이는 모양)</div>
+<div class="wrap">
+    <div class="brand"><b>밤낮딜리버리 월별 이용 리포트</b><a href="/">← 주문접수 화면</a></div>
+    <div id="app"><div class="state">불러오는 중입니다...</div></div>
+    <div class="foot">문의: 밤낮딜리버리 카카오톡 채널</div>
+</div>
+<script src="config.js"></script>
+<script src="view-as.js"></script>
+<script>
+    // 한 달 동안의 출고 건수·비용·많이 나간 상품을 한 장으로 보여줍니다.
+    //  - 출고: 내 주문(orders) 중 '출고완료'이고 출고일(shipped_at, 한국시간)이 그 달인 것. DB 규칙상 셀러는 자기 주문만 읽힘.
+    //    출고 건수 = 송장번호 수(같은 송장으로 묶인 합배송은 1건), 출고 상품 수 = 수량 합계. 보관요청(keep)은 뺌.
+    //  - 비용: 정산서(get_my_settlements) 중 정산일이 그 달인 것의 합계 (usage.html 과 같은 계산).
+    //  - 새 SQL 은 필요 없습니다.
+    const ITEMS = [
+        { key: 'pickupCost', label: '픽업/반납 비용' },
+        { key: 'unsentCost', label: '대납미송/기타방문 비용' },
+        { key: 'shippingFee', label: '택배비' },
+        { key: 'fulfillCost', label: '풀필 비용' },
+        { key: 'etcCost', label: '기타 비용' },
+        { key: 'vat', label: '부가세' },
+    ];
+    const TYPE_LABEL = { fulfillment: '고객 풀필먼트', store_post: '매장·사무실 우체국택배', store_sameday: '매장·사무실 당일택배' };
+    let client, company = '', previewCompany = '', viewUid = '', isAdmin = false, month = '';
+
+    function esc(value) {
+        return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    function num(v) { const n = Number(String(v ?? '').replace(/[,\s원]/g, '')); return isFinite(n) ? n : 0; }
+    function won(n) { return Math.round(n).toLocaleString('ko-KR'); }
+    function showState(html) { document.getElementById('app').innerHTML = `<div class="state">${html}</div>`; }
+    // 'YYYY-MM' 계산 (한국시간 기준)
+    function kstNow() { return new Date(Date.now() + 9 * 3600e3); }
+    function monthKey(d) { return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`; }
+    function addMonth(m, n) { const [y, mo] = m.split('-').map(Number); return monthKey(new Date(Date.UTC(y, mo - 1 + n, 1))); }
+    function daysIn(m) { const [y, mo] = m.split('-').map(Number); return new Date(Date.UTC(y, mo, 0)).getUTCDate(); }
+    function monthLabel(m) { const [y, mo] = m.split('-'); return `${y}년 ${Number(mo)}월`; }
+    function kstDay(iso) { return new Date(Date.parse(iso) + 9 * 3600e3).toISOString().slice(0, 10); }
+    // 그 달의 시작/끝 (한국시간 0시 → UTC)
+    function monthRangeUtc(m) {
+        const next = addMonth(m, 1);
+        return [new Date(`${m}-01T00:00:00+09:00`).toISOString(), new Date(`${next}-01T00:00:00+09:00`).toISOString()];
+    }
+
+    async function init() {
+        if (!window.supabase) { showState('화면을 불러오지 못했습니다. 새로고침해주세요.'); return; }
+        client = VIEW_AS.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const { data: { session } } = await client.auth.getSession();
+        if (!session) { showState('로그인 후 리포트를 볼 수 있습니다.<br><br><a class="btn primary" href="/">로그인하러 가기</a>'); return; }
+        const { data: profile, error: pErr } = await client.from('profiles').select('company,role,status').eq('id', session.user.id).single();
+        if (pErr || !profile) { showState('계정 정보를 불러오지 못했습니다.<br>다시 로그인해주세요.<br><br><a class="btn" href="/">주문접수 화면</a>'); return; }
+        if (profile.role === 'admin') {
+            const params = new URLSearchParams(location.search);
+            previewCompany = params.get('company') || '';
+            viewUid = params.get('uid') || '';
+            if (!previewCompany) { showState('관리자는 업체 [화면 보기]에서 [월별 리포트]로 열어주세요.<br><br><a class="btn" href="/">주문접수 화면</a>'); return; }
+            isAdmin = true;
+            company = previewCompany;
+            if (VIEW_AS.company) VIEW_AS.start('월별 리포트');
+            else document.getElementById('preview-bar').hidden = false;
+        } else {
+            if (profile.status !== 'approved') { showState('관리자 승인 후 리포트를 볼 수 있습니다.'); return; }
+            company = profile.company;
+        }
+        // 기본: 지난 달 (한 달이 다 끝난 달). 주소에 ?month=2026-10 이 있으면 그 달.
+        const thisMonth = monthKey(kstNow());
+        const qm = new URLSearchParams(location.search).get('month') || '';
+        month = /^\d{4}-\d{2}$/.test(qm) && qm <= thisMonth ? qm : addMonth(thisMonth, -1);
+        const options = Array.from({ length: 13 }, (_, i) => addMonth(thisMonth, -i));
+        document.getElementById('app').innerHTML = `
+        <div class="toolbar">
+            <button class="btn" id="prev-btn" onclick="move(-1)">◀ 이전 달</button>
+            <select id="month-sel" onchange="month=this.value;load()">${options.map(m => `<option value="${m}">${monthLabel(m)}${m === thisMonth ? ' (이번 달, 진행 중)' : ''}</option>`).join('')}</select>
+            <button class="btn" id="next-btn" onclick="move(1)">다음 달 ▶</button>
+            <button class="btn primary" style="margin-left:auto" onclick="window.print()">인쇄 · PDF 저장</button>
+        </div>
+        <div id="result"></div>`;
+        load();
+    }
+
+    function move(n) {
+        const sel = document.getElementById('month-sel');
+        const next = addMonth(month, n);
+        if (![...sel.options].some(o => o.value === next)) return;
+        month = next;
+        load();
+    }
+
+    // 한 달 치 출고 주문 (1000건 넘으면 나눠서 받음)
+    async function fetchShipped(m) {
+        const [from, to] = monthRangeUtc(m);
+        const out = [];
+        for (let page = 0; page < 20; page++) {
+            let q = client.from('orders').select('id,product,qty,tracking_no,order_type,shipped_at')
+                .eq('ship_status', '출고완료').gte('shipped_at', from).lt('shipped_at', to)
+                .order('shipped_at', { ascending: true }).range(page * 1000, page * 1000 + 999);
+            // 관리자 미리보기: 그 업체 주문만 (셀러는 DB 규칙상 원래 자기 것만)
+            if (isAdmin) q = viewUid ? q.eq('seller_id', viewUid) : q.eq('seller_company', company);
+            const { data, error } = await q;
+            if (error) throw error;
+            out.push(...(data || []));
+            if (!data || data.length < 1000) break;
+        }
+        return out.filter(o => o.order_type !== 'keep');
+    }
+
+    function summarize(list) {
+        const tracks = new Set();
+        let noTrack = 0, qty = 0;
+        const byDay = {}, byType = {}, byProduct = new Map();
+        list.forEach(o => {
+            const t = String(o.tracking_no || '').trim();
+            const q = Math.max(1, Number(o.qty) || 1);
+            const isNew = t ? !tracks.has(t) : true;
+            if (t) tracks.add(t); else noTrack++;
+            qty += q;
+            const d = kstDay(o.shipped_at);
+            if (isNew) byDay[d] = (byDay[d] || 0) + 1;
+            if (isNew) byType[o.order_type || 'fulfillment'] = (byType[o.order_type || 'fulfillment'] || 0) + 1;
+            // "상품명 / 컬러 / 사이즈 / 2개" 의 끝 수량은 떼고 묶음 (수량은 qty 칸으로 셈)
+            const name = String(o.product || '').replace(/\s+/g, ' ').replace(/\s*\/\s*/g, ' / ').replace(/(\s*\/)?\s*\d+\s*개\s*$/, '').trim() || '(상품명 없음)';
+            const key = name.toLowerCase().replace(/\s/g, '');
+            const p = byProduct.get(key) || { name, qty: 0 };
+            p.qty += q;
+            byProduct.set(key, p);
+        });
+        return { count: tracks.size + noTrack, qty, byDay, byType, products: [...byProduct.values()].sort((a, b) => b.qty - a.qty || a.name.localeCompare(b.name, 'ko')) };
+    }
+
+    async function settleSum(m) {
+        const from = `${m}-01`, to = `${m}-${String(daysIn(m)).padStart(2, '0')}`;
+        const { data, error } = await client.rpc('get_my_settlements', { p_from: from, p_to: to, p_company: previewCompany || null });
+        if (error) return null;
+        const sum = { days: (data || []).length, serviceTotal: 0, prepaid: 0 };
+        ITEMS.forEach(it => { sum[it.key] = 0; });
+        (data || []).forEach(r => {
+            const d = r.data || {};
+            ['serviceTotal', 'prepaid', ...ITEMS.map(it => it.key)].forEach(k => { sum[k] += num(d[k]); });
+        });
+        sum.taxInvoice = sum.serviceTotal + sum.vat;
+        return sum;
+    }
+
+    function change(now, before, unit) {
+        if (!before) return '<span>지난달 기록 없음</span>';
+        const diff = now - before;
+        if (!diff) return '지난달과 같음';
+        const pct = Math.round(Math.abs(diff) / before * 100);
+        return `지난달보다 <span class="${diff > 0 ? 'up' : 'down'}">${diff > 0 ? '▲' : '▼'} ${Math.abs(diff).toLocaleString('ko-KR')}${unit} (${pct}%)</span>`;
+    }
+
+    function dayChart(byDay) {
+        const n = daysIn(month), W = 620, H = 150, top = 18, bottom = 22, left = 4;
+        const vals = Array.from({ length: n }, (_, i) => byDay[`${month}-${String(i + 1).padStart(2, '0')}`] || 0);
+        const max = Math.max(1, ...vals);
+        const slot = (W - left) / n, bw = Math.max(4, Math.min(14, slot - 4));
+        const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
+        let bars = '', labels = '';
+        vals.forEach((v, i) => {
+            const x = left + i * slot + (slot - bw) / 2;
+            const h = v ? Math.max(3, (H - top - bottom) * v / max) : 0;
+            const y = H - bottom - h;
+            const dow = WEEK[new Date(`${month}-${String(i + 1).padStart(2, '0')}T00:00:00Z`).getUTCDay()];
+            const tip = `${Number(month.slice(5))}월 ${i + 1}일(${dow}) ${v}건`;
+            if (h) bars += `<path class="bar" d="M${x},${H - bottom} V${y + 3} q0,-3 3,-3 h${bw - 6} q3,0 3,3 V${H - bottom} Z" fill="var(--bar)"/>`;
+            if (v && v === max) bars += `<text x="${x + bw / 2}" y="${y - 5}" text-anchor="middle" font-size="11" font-weight="700" fill="#0f172a">${v}</text>`;
+            bars += `<rect class="hit" x="${left + i * slot}" y="0" width="${slot}" height="${H}" data-tip="${tip}"/>`;
+            if (i === 0 || (i + 1) % 5 === 0) labels += `<text x="${x + bw / 2}" y="${H - 6}" text-anchor="middle" font-size="11" fill="#64748b">${i + 1}일</text>`;
+        });
+        return `<div class="chart" id="day-chart"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="날짜별 출고 건수">
+            <line x1="0" x2="${W}" y1="${H - bottom}" y2="${H - bottom}" stroke="#cbd5e1" stroke-width="1"/>${bars}${labels}</svg><div class="tip" id="tip"></div></div>`;
+    }
+
+    function bindTip() {
+        const box = document.getElementById('day-chart'), tip = document.getElementById('tip');
+        if (!box) return;
+        box.querySelectorAll('rect.hit').forEach(r => {
+            r.addEventListener('mouseenter', () => {
+                const b = r.getBoundingClientRect(), c = box.getBoundingClientRect();
+                tip.textContent = r.dataset.tip;
+                tip.style.left = `${b.left - c.left + b.width / 2}px`;
+                tip.style.top = '24px';
+                tip.style.display = 'block';
+            });
+            r.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+        });
+    }
+
+    async function load() {
+        const sel = document.getElementById('month-sel');
+        sel.value = month;
+        document.getElementById('next-btn').disabled = sel.selectedIndex === 0;
+        document.getElementById('prev-btn').disabled = sel.selectedIndex === sel.options.length - 1;
+        const box = document.getElementById('result');
+        box.innerHTML = '<div class="state">불러오는 중입니다...</div>';
+        let cur, prev, cost, prevCost;
+        try {
+            [cur, prev, cost, prevCost] = await Promise.all([fetchShipped(month), fetchShipped(addMonth(month, -1)), settleSum(month), settleSum(addMonth(month, -1))]);
+        } catch (e) {
+            box.innerHTML = `<div class="state">리포트를 불러오지 못했습니다.<br>잠시 후 다시 시도해주세요.<br><span style="font-size:12px">${esc(e.message || e)}</span></div>`;
+            return;
+        }
+        const s = summarize(cur), p = summarize(prev);
+        const top = s.products.slice(0, 10), topMax = top.length ? top[0].qty : 1;
+        const shipDays = Object.keys(s.byDay).length;
+        const isThisMonth = month === monthKey(kstNow());
+        document.title = `${company} ${monthLabel(month)} 이용 리포트`;
+        box.innerHTML = `
+        <div class="sheet">
+            <div class="head">
+                <div><div class="t">밤낮딜리버리 월별 이용 리포트</div><div class="company">${esc(company)}</div></div>
+                <div class="month">${monthLabel(month)}${isThisMonth ? ' <span style="font-size:12px;color:var(--sub)">(진행 중)</span>' : ''}</div>
+            </div>
+            <div class="kpis">
+                <div class="kpi main"><div class="l">출고 건수</div><div class="v">${s.count.toLocaleString('ko-KR')}<small>건</small></div><div class="c">${change(s.count, p.count, '건')}</div></div>
+                <div class="kpi"><div class="l">출고 상품 수량</div><div class="v">${s.qty.toLocaleString('ko-KR')}<small>개</small></div><div class="c">${change(s.qty, p.qty, '개')}</div></div>
+                <div class="kpi"><div class="l">세금계산서 금액</div><div class="v">${cost ? won(cost.taxInvoice) : '-'}<small>원</small></div><div class="c">${cost && prevCost ? change(Math.round(cost.taxInvoice), Math.round(prevCost.taxInvoice), '원') : ''}</div></div>
+                <div class="kpi"><div class="l">하루 평균 출고</div><div class="v">${shipDays ? (s.count / shipDays).toFixed(1) : '0'}<small>건</small></div><div class="c">출고한 날 ${shipDays}일 기준</div></div>
+            </div>
+            <section>
+                <h2>날짜별 출고 건수 <span>막대에 마우스를 올리면 그날 건수가 보여요</span></h2>
+                ${s.count ? dayChart(s.byDay) : '<div class="empty">이 달에 출고된 주문이 없습니다.</div>'}
+            </section>
+            <div class="two">
+                <section>
+                    <h2>많이 나간 상품 TOP ${top.length || 10} <span>수량 기준</span></h2>
+                    ${top.length ? `<ol class="rank">${top.map((x, i) => `<li><span class="n">${i + 1}</span>
+                        <span class="name"><div title="${esc(x.name)}">${esc(x.name)}</div><div class="meter"><i style="width:${Math.max(4, x.qty / topMax * 100)}%"></i></div></span>
+                        <span class="q">${x.qty.toLocaleString('ko-KR')}개</span></li>`).join('')}</ol>` : '<div class="empty">출고된 상품이 없습니다.</div>'}
+                </section>
+                <section>
+                    <h2>이 달 비용 <span>정산서 ${cost ? cost.days : 0}장 합계</span></h2>
+                    ${cost ? `<div class="rows">
+                        ${ITEMS.map(it => `<div><span>${it.label}</span><b>${cost[it.key] ? won(cost[it.key]) + '원' : '-'}</b></div>`).join('')}
+                        <div class="strong"><span>세금계산서 금액</span><b>${won(cost.taxInvoice)}원</b></div>
+                        <div><span>대납금액 <span style="font-size:12px;color:var(--sub)">(물건값, 세금계산서 제외)</span></span><b>${cost.prepaid ? won(cost.prepaid) + '원' : '-'}</b></div>
+                    </div>` : '<div class="empty">비용 정보를 불러오지 못했습니다.</div>'}
+                    <h2 style="margin-top:18px">출고 방법별 <span>건수</span></h2>
+                    <div class="rows">${Object.keys(TYPE_LABEL).filter(k => s.byType[k]).map(k => `<div><span>${TYPE_LABEL[k]}</span><b>${s.byType[k].toLocaleString('ko-KR')}건</b></div>`).join('') || '<div><span>출고 없음</span><b>-</b></div>'}</div>
+                </section>
+            </div>
+            <p class="note">* 출고 건수는 송장번호 기준입니다 (합배송으로 한 상자에 같이 나간 주문은 1건). 출고일은 송장이 등록된 날입니다.<br>
+            * 비용은 이 달에 받으신 정산서를 더한 금액이며, 정산서 상호가 가입 상호와 다르면 빠질 수 있습니다.<br>
+            * 만든 날: ${kstNow().toISOString().slice(0, 10)}</p>
+        </div>`;
+        bindTip();
+    }
+
+    init();
+</script>
+</body>
+</html>
