@@ -5,7 +5,6 @@
 //  index.html 의 supabaseClient, currentRole, escapeHtml, fetchAllRows, dbErrorMessage 를 사용합니다.
 // =====================================================================
 
-const STOCK_PAGE_PATH = '/stock';
 // 엑셀 머리줄 → DB 칸. 머리줄 이름이 조금 달라도 찾을 수 있게 여러 이름을 둡니다.
 const STOCK_COLUMNS = [
     { key: 'company',           label: '거래처명',         aliases: ['거래처명', '거래처', '업체명', '상호명', '상호'] },
@@ -385,7 +384,8 @@ function previewStockPage() {
     const key = document.getElementById('stock-f-company').value;
     const s = stockCompanySummary().find(x => stockNorm(x.company) === key);
     if (!s) return;
-    window.open(`${STOCK_PAGE_PATH}?company=${encodeURIComponent(s.company)}`, '_blank');
+    // 셀러 [재고 확인]은 새 재고표(/inventory)를 보여주므로, 미리보기도 그 업체의 새 재고표(보기 전용)로 엽니다.
+    window.open(`/inventory?company=${encodeURIComponent(s.company)}&view=1`, '_blank');
 }
 
 // ---------------------------------------------------------------------

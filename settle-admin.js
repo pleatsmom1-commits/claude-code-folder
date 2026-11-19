@@ -106,6 +106,20 @@ function settleStoresDiff(prev, cur) {
     return out;
 }
 
+// 청구 안내문 아래 참고사항: 입금은 정산일 오전에 입금 확인한 시점까지 반영 (요일은 날짜로 자동 계산, settle.html 과 같은 문구)
+function settlePayNoteLines(key) {
+    const m = String(key || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return [];
+    const day = '일월화수목금토'[new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getDay()];
+    return [
+        `[ 청구관련 참고사항 ]`,
+        `나 오늘 오전에 입금했는데 왜 청구액이 다르지?`,
+        `입금액은 ${Number(m[2])}월 ${Number(m[3])}일(${day}) 오전에 입금 확인한 시점까지 들어온 금액입니다.`,
+        `그 이후에 입금하셨다면 다음 정산서에 반영되니 걱정하지 않으셔도 되십니다.`,
+        ``,
+    ];
+}
+
 function settleShortDate(key) {
     const [, m, d] = String(key || '').split('-');
     return m && d ? `${m}/${d}` : key;
@@ -575,6 +589,7 @@ async function settleCopyText(company, date, result, total, account, token) {
         `■ 청구금액: ${settleWon(total)}원`,
         account ? `■ 입금계좌: ${account}` : null,
         ``,
+        ...(result === '청구' ? settlePayNoteLines(date) : []),
         `상세 정산서: ${settleLink(token)}`,
     ].filter(x => x !== null);
     try {

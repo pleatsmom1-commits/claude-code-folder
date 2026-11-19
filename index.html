@@ -100,7 +100,7 @@
                 <i data-lucide="shopping-bag" class="w-4 h-4"></i> 사입팀 픽업요청
             </button>
             <!-- 셀러 로그인 시에만 표시: 내 재고 확인 페이지 (stock.html) -->
-            <a id="nav-stock-btn" href="/stock" class="hidden shrink-0 whitespace-nowrap sm:ml-2 justify-center px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
+            <a id="nav-stock-btn" href="/inventory" class="hidden shrink-0 whitespace-nowrap sm:ml-2 justify-center px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
                 <i data-lucide="package" class="w-4 h-4"></i> 재고 확인
             </a>
             <!-- 셀러 로그인 시에만 표시: 내 재고 증감 내역 (stock-history.html). 재고를 숨긴 셀러는 [재고 확인]과 같이 숨김 -->
@@ -114,6 +114,10 @@
             <!-- 셀러 로그인 시에만 표시: 내 상품관리 페이지 (products.html) -->
             <a id="nav-products-btn" href="/products" class="hidden shrink-0 whitespace-nowrap sm:ml-2 justify-center px-3 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
                 <i data-lucide="tags" class="w-4 h-4"></i> 상품관리
+            </a>
+            <!-- 셀러 로그인 시에만 표시: 출고 리포트 (report.html) — 일별·월별·분기별·연도별·기간 출고 건수·비용·많이 나간 상품 -->
+            <a id="nav-report-btn" href="/report" class="hidden shrink-0 whitespace-nowrap sm:ml-2 justify-center px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
+                <i data-lucide="calendar-days" class="w-4 h-4"></i> 출고 리포트
             </a>
             </div>
         </div>
@@ -175,6 +179,29 @@
                 </form>
             </div>
         </div>
+
+        <!-- 새로고침(F5) 때 로그인 기록이 남아 있으면 로그인 창 대신 '불러오는 중'을 잠깐 보여줍니다 -->
+        <div id="auth-loading" class="hidden max-w-md mx-auto my-24 text-center text-sm font-bold text-slate-400">
+            <div class="w-8 h-8 mx-auto mb-3 border-4 border-slate-200 border-t-indigo-500 rounded-full animate-spin"></div>
+            화면을 불러오는 중입니다...
+        </div>
+        <script>
+            (function () {
+                try {
+                    var hasSession = Object.keys(localStorage).some(function (k) { return /^sb-.*-auth-token$/.test(k); });
+                    if (!hasSession) return;
+                    document.getElementById('auth-screen').classList.add('hidden');
+                    document.getElementById('auth-loading').classList.remove('hidden');
+                    // 혹시 10초가 지나도 화면이 안 바뀌면 로그인 창을 다시 보여줍니다
+                    setTimeout(function () {
+                        var loading = document.getElementById('auth-loading');
+                        if (loading.classList.contains('hidden')) return;
+                        loading.classList.add('hidden');
+                        document.getElementById('auth-screen').classList.remove('hidden');
+                    }, 10000);
+                } catch (e) {}
+            })();
+        </script>
 
         <!-- 2. SELLER DASHBOARD -->
         <div id="seller-dashboard" class="hidden space-y-6">
@@ -860,6 +887,7 @@
                                 <option value="접수완료">접수완료</option>
                             </select>
                             <span id="admin-order-count" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full">총 0건</span>
+                            <span id="admin-earliest-time" class="hidden text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-full" title="지금 조회된 주문 중 셀러가 가장 먼저 접수한 시간"></span>
                         </div>
                         <div class="flex gap-2 items-center">
                             <span id="admin-ship-summary" class="ship-ui text-[11px] text-slate-500"></span>
@@ -871,6 +899,24 @@
                             <button onclick="markSeparateSelectedOrders()" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs rounded-lg shadow-sm" title="이 사이트 밖에서 이미 따로 처리·배송한 접수건에 표시합니다 (접수완료로 바뀜)">따로 처리됨</button>
                             <button onclick="setHiddenSelectedOrders(true)" class="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg shadow-sm" title="테스트 접수건 등을 목록에서 안 보이게 합니다 (지우지 않음)">선택 숨기기</button>
                         </div>
+                    </div>
+
+                    <!-- 업체별 접수 현황: 접수대기/접수완료 업체 목록 + 누르면 그 업체 주문만 조회 -->
+                    <div class="border border-slate-200 rounded-xl p-3 space-y-2 bg-white">
+                        <div class="flex flex-wrap items-center gap-1.5 pb-2 border-b border-dashed border-slate-200">
+                            <span class="text-xs font-black text-slate-700 mr-1">기준 시간</span>
+                            <input type="datetime-local" id="admin-basis-from" class="px-2 py-1 border rounded-lg text-xs bg-white">
+                            <span class="text-xs text-slate-500">부터</span>
+                            <span class="text-xs text-slate-400">~</span>
+                            <input type="datetime-local" id="admin-basis-to" class="px-2 py-1 border rounded-lg text-xs bg-white">
+                            <span class="text-xs text-slate-500">까지</span>
+                            <button type="button" onclick="setAdminBasisQuick('today')" class="px-2.5 py-1 rounded-lg text-[11px] font-bold border border-slate-300 bg-white hover:bg-slate-50 text-slate-600">오늘 0시부터</button>
+                            <button type="button" onclick="setAdminBasisQuick('now')" class="px-2.5 py-1 rounded-lg text-[11px] font-bold border border-slate-300 bg-white hover:bg-slate-50 text-slate-600" title="지금 이후에 들어오거나 접수완료한 주문만 셉니다">지금부터</button>
+                            <button type="button" onclick="applyAdminBasis()" class="px-3 py-1 rounded-lg text-[11px] font-black bg-indigo-600 hover:bg-indigo-700 text-white">기준 적용</button>
+                            <button type="button" onclick="setAdminBasisQuick('clear')" class="px-2.5 py-1 rounded-lg text-[11px] font-bold border border-slate-300 bg-white hover:bg-slate-50 text-slate-600">기준 지우기</button>
+                            <span id="admin-basis-note" class="text-[11px] text-slate-400">접수대기는 <b>접수일시</b>, 접수완료는 <b>관리자 접수시간</b>으로 셉니다</span>
+                        </div>
+                        <div id="admin-company-tabs" class="space-y-2"></div>
                     </div>
 
                     <!-- 주문 조회: 기간 버튼 / 날짜 지정 / 검색 (셀러 조회와 같은 방식) -->
@@ -2520,6 +2566,7 @@
 
         function initSupabaseAuto() {
             if (!(SUPABASE_URL && SUPABASE_KEY && window.supabase)) {
+                hideAuthLoading(true);
                 setDbBadge(false, 'DB 라이브러리 로딩 실패');
                 return;
             }
@@ -2528,6 +2575,7 @@
                     ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { global: { fetch: viewOnlyFetch } })
                     : window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
             } catch (e) {
+                hideAuthLoading(true);
                 setDbBadge(false, 'DB 키 오류');
                 return;
             }
@@ -2538,6 +2586,26 @@
             supabaseClient.auth.onAuthStateChange((event, session) => {
                 setTimeout(() => handleAuthEvent(event, session), 0);
             });
+        }
+
+        // 새로고침 때 띄운 '불러오는 중'을 닫습니다. showLogin=true 면 로그인 창을 다시 보여줍니다.
+        function hideAuthLoading(showLogin) {
+            const loading = document.getElementById('auth-loading');
+            if (!loading || loading.classList.contains('hidden')) return;
+            loading.classList.add('hidden');
+            if (showLogin) document.getElementById('auth-screen').classList.remove('hidden');
+        }
+
+        // 관리자가 보던 탭을 기억했다가 새로고침(F5) 뒤에도 그 탭을 다시 엽니다 (이 브라우저 창 안에서만).
+        function saveAdminTab(tab) {
+            try { sessionStorage.setItem('bamnat.adminTab', tab); } catch (e) {}
+        }
+        function loadAdminTab() {
+            let tab = null;
+            try { tab = sessionStorage.getItem('bamnat.adminTab'); } catch (e) {}
+            if (!tab || !ADMIN_GROUP_OF[tab]) return 'orders';
+            if (ADMIN_GROUP_OF[tab] === 'staff' && !isOwnerAccount()) return 'orders';
+            return tab;
         }
 
         async function handleAuthEvent(event, session) {
@@ -2614,10 +2682,11 @@
                 history.replaceState(null, '', location.pathname);   // 셀러가 이 주소로 들어오면 그냥 내 화면
             }
 
+            hideAuthLoading(false);
             document.getElementById('auth-screen').classList.add('hidden');
             if (currentRole === 'admin') {
                 document.getElementById('admin-dashboard').classList.remove('hidden');
-                switchAdminTab('orders');
+                switchAdminTab(loadAdminTab());
                 resetAdminSearch(false);
                 fetchSellersFromDB();
                 fetchCouriers();
@@ -2645,6 +2714,7 @@
             sellerProfiles = [];
             addressBook = [];
             trackingDrafts = {};
+            hideAuthLoading(false);
             document.getElementById('auth-screen').classList.remove('hidden');
             document.getElementById('seller-dashboard').classList.add('hidden');
             document.getElementById('admin-dashboard').classList.add('hidden');
@@ -3512,6 +3582,7 @@
         async function logout() {
             if (viewAsMode) { exitViewAs(); return; }   // 보기 중에 로그아웃하면 관리자 로그인까지 풀리므로 돌아가기만
             closeLeftoverModal();
+            try { sessionStorage.removeItem('bamnat.adminTab'); } catch (e) {}
             if (supabaseClient) await supabaseClient.auth.signOut();
             showLoginScreen();
         }
@@ -3521,7 +3592,7 @@
         // 업체 화면 보기 중에는 재고 확인·재고 증감·이용 현황·상품관리도 그 업체 화면(보기 전용, view-as.js)으로 새 창에 엽니다.
         function setViewAsNavLinks() {
             const company = encodeURIComponent(currentSellerAccount.company || '');
-            [['nav-stock-btn', '/stock'], ['nav-history-btn', '/stock-history'], ['nav-usage-btn', '/usage'], ['nav-products-btn', '/products']].forEach(([id, path]) => {
+            [['nav-stock-btn', '/inventory'], ['nav-history-btn', '/stock-history'], ['nav-usage-btn', '/usage'], ['nav-products-btn', '/products'], ['nav-report-btn', '/report']].forEach(([id, path]) => {
                 const a = document.getElementById(id);
                 a.href = `${path}?company=${company}&view=1&uid=${encodeURIComponent(currentUserId)}`;
                 a.target = '_blank';
@@ -3530,7 +3601,7 @@
         }
 
         // 셀러 [재고 증감] 버튼 (stock-history.html 의 SELLER_OPEN 과 같이 바꿉니다)
-        const SELLER_HISTORY_OPEN = true;
+        const SELLER_HISTORY_OPEN = false;   // 2026-11-19 대표님: 셀러는 재고표 [기록]으로만
 
         async function refreshNavStockBtn() {
             if (!supabaseClient) return;
@@ -3565,6 +3636,9 @@
             const productsBtn = document.getElementById('nav-products-btn');
             productsBtn.classList.toggle('hidden', currentRole !== 'seller');
             productsBtn.classList.toggle('flex', currentRole === 'seller');
+            const reportBtn = document.getElementById('nav-report-btn');
+            reportBtn.classList.toggle('hidden', currentRole !== 'seller');
+            reportBtn.classList.toggle('flex', currentRole === 'seller');
             // 휴대폰에서 셀러 버튼 묶음(2개씩)과 회원정보 줄은 로그인했을 때만 자리 차지
             const sellerBtns = document.getElementById('nav-seller-btns');
             sellerBtns.classList.toggle('hidden', currentRole !== 'seller');
@@ -4714,6 +4788,102 @@
             if (adminQuery.seller !== 'ALL' && !companies.includes(adminQuery.seller)) adminQuery.seller = 'ALL';
         }
 
+        // 업체별 접수 현황 (선택한 기간 기준, 숨긴 접수건은 [숨긴 접수건도 보기]일 때만 셈)
+        // 기준 시간: 접수대기는 접수일시(created_at), 접수완료는 관리자 접수시간(accepted_at)으로 비교 (한국시간)
+        const ADMIN_BASIS_KEY = 'bamnat_admin_basis';
+        let adminBasis = (() => { try { return JSON.parse(localStorage.getItem(ADMIN_BASIS_KEY)) || { from: '', to: '' }; } catch { return { from: '', to: '' }; } })();
+        const kstLocalToMs = v => v ? new Date(v + ':00+09:00').getTime() : null;
+        function orderInAdminBasis(o) {
+            if (!adminBasis.from && !adminBasis.to) return true;
+            const t = o.status === '접수완료' ? o.accepted_at : o.created_at;
+            if (!t) return false;
+            const ms = new Date(t).getTime();
+            const from = kstLocalToMs(adminBasis.from), to = kstLocalToMs(adminBasis.to);
+            return !(from && ms < from) && !(to && ms > to + 59999);
+        }
+        function fillAdminBasisInputs() {
+            const f = document.getElementById('admin-basis-from'), t = document.getElementById('admin-basis-to');
+            if (f) f.value = adminBasis.from || '';
+            if (t) t.value = adminBasis.to || '';
+        }
+        function applyAdminBasis() {
+            const from = document.getElementById('admin-basis-from').value || '';
+            const to = document.getElementById('admin-basis-to').value || '';
+            if (from && to && from > to) { alert('기준 시작 시간이 끝 시간보다 늦습니다. 시간을 확인해주세요.'); return; }
+            adminBasis = { from, to };
+            try { localStorage.setItem(ADMIN_BASIS_KEY, JSON.stringify(adminBasis)); } catch {}
+            renderAdminTable();
+        }
+        function setAdminBasisQuick(kind) {
+            const f = document.getElementById('admin-basis-from'), t = document.getElementById('admin-basis-to');
+            if (kind === 'clear') { f.value = ''; t.value = ''; }
+            else {
+                const today = kstDateString();
+                const nowKst = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 16);
+                f.value = kind === 'today' ? `${today}T00:00` : nowKst;
+                t.value = '';
+            }
+            applyAdminBasis();
+        }
+
+        function adminCompanyStatusList(status) {
+            const byCompany = {};
+            ordersMaster.forEach(o => {
+                if (o.status !== status) return;
+                if (!adminQuery.showHidden && hiddenOrderIds.has(o.id)) return;
+                if (!orderInDateRange(o, adminFrom, adminTo)) return;
+                if (!orderInAdminBasis(o)) return;
+                const c = o.seller_company || '-';
+                (byCompany[c] = byCompany[c] || new Set()).add(o.order_no ?? o.id);
+            });
+            return Object.entries(byCompany).map(([company, set]) => ({ company, count: set.size }))
+                .sort((a, b) => b.count - a.count || a.company.localeCompare(b.company, 'ko'));
+        }
+        function renderAdminCompanyTabs() {
+            const box = document.getElementById('admin-company-tabs');
+            if (!box) return;
+            fillAdminBasisInputs();
+            const fmtB = v => v.replace('T', ' ');
+            const hasBasis = adminBasis.from || adminBasis.to;
+            const periodLabel = hasBasis
+                ? `기준 시간 ${adminBasis.from ? fmtB(adminBasis.from) : '처음'} ~ ${adminBasis.to ? fmtB(adminBasis.to) : '지금'}${(adminFrom || adminTo) ? ` · 기간 ${adminFrom || '처음'} ~ ${adminTo || '오늘'}` : ''}`
+                : (!adminFrom && !adminTo) ? '전체 기간' : `${adminFrom || '처음'} ~ ${adminTo || '오늘'}`;
+            const note = document.getElementById('admin-basis-note');
+            if (note) note.innerHTML = hasBasis
+                ? '<span class="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-black">기준 시간 적용 중</span> 아래 주문 목록도 이 시간 기준으로 보입니다 (접수대기=접수일시, 접수완료=관리자 접수시간)'
+                : '접수대기는 <b>접수일시</b>, 접수완료는 <b>관리자 접수시간</b>으로 셉니다';
+            const row = (status, label, color) => {
+                const list = adminCompanyStatusList(status);
+                const total = list.reduce((n, x) => n + x.count, 0);
+                const allActive = adminQuery.status === status && adminQuery.seller === 'ALL';
+                const chip = (active, onclick, text, title) => `<button type="button" onclick="${onclick}" title="${title}" class="px-2.5 py-1 rounded-full text-[11px] font-bold border transition whitespace-nowrap ${active ? color.on : color.off}">${text}</button>`;
+                const chips = list.map(x => {
+                    const active = adminQuery.status === status && adminQuery.seller === x.company;
+                    const enc = escapeHtml(JSON.stringify(x.company));
+                    return chip(active, `pickAdminCompanyTab(${enc}, '${status}')`, `${escapeHtml(x.company)} <span class="font-black">${x.count}</span>`, `${escapeHtml(x.company)} ${label} 주문만 보기`);
+                }).join('');
+                return `<div class="flex flex-wrap items-center gap-1.5">
+                    <span class="text-xs font-black ${color.title} whitespace-nowrap mr-1">${label} 업체 <span class="text-base">${list.length}</span>곳 · 주문 ${total}건</span>
+                    ${list.length ? chip(allActive, `pickAdminCompanyTab('ALL', '${status}')`, `${label} 전체`, `모든 업체의 ${label} 주문 보기`) + chips : `<span class="text-[11px] text-slate-400">없음</span>`}
+                </div>`;
+            };
+            const filtered = adminQuery.status !== 'ALL' || adminQuery.seller !== 'ALL';
+            box.innerHTML = `
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <span class="text-xs font-bold text-slate-600">업체별 접수 현황 <span class="font-normal text-slate-400">(${periodLabel} 기준 · 업체 이름을 누르면 그 업체 주문만 보입니다)</span></span>
+                    ${filtered ? `<button type="button" onclick="pickAdminCompanyTab('ALL', 'ALL')" class="px-2.5 py-1 rounded-lg text-[11px] font-bold border border-slate-300 bg-white hover:bg-slate-50 text-slate-600">모든 업체·상태 보기</button>` : ''}
+                </div>
+                ${row('접수대기', '접수대기', { title: 'text-orange-700', on: 'bg-orange-500 border-orange-500 text-white', off: 'bg-orange-50 border-orange-200 text-orange-800 hover:bg-orange-100' })}
+                ${row('접수완료', '접수완료', { title: 'text-emerald-700', on: 'bg-emerald-600 border-emerald-600 text-white', off: 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100' })}`;
+        }
+        function pickAdminCompanyTab(company, status) {
+            const sel = document.getElementById('admin-seller-filter');
+            sel.value = company;
+            if (sel.value !== company) sel.value = 'ALL';
+            document.getElementById('admin-status-filter').value = status;
+            runAdminSearch();
+        }
+
         // 관리자 화면의 현재 필터(거래처 + 구분 + 출고상태 + 기간 + 검색)를 적용한 주문 목록
         function getAdminFilteredOrders() {
             const { seller: sellerFilter, ship: shipFilter, type: typeFilter, status: statusFilter, field, keyword } = adminQuery;
@@ -4724,6 +4894,7 @@
                 if (statusFilter !== 'ALL' && o.status !== statusFilter) return false;
                 if (!matchesOrderType(o, typeFilter)) return false;
                 if (!orderInDateRange(o, adminFrom, adminTo)) return false;
+                if (!orderInAdminBasis(o)) return false;
                 if (!orderMatchesKeyword(o, field, keyword, Object.keys(SEARCH_FIELDS))) return false;
                 if (shipFilter === 'ALL') return true;
                 const state = orderShipState(o, groups);
@@ -4743,6 +4914,7 @@
             const groups = getOrderGroups();
             const filtered = getAdminFilteredOrders();
             document.getElementById('chk-all-admin').checked = false;
+            renderAdminCompanyTabs();
 
             // 주문 단위 요약 (전체 기준)
             const summary = { '미출고': 0, '부분출고': 0, '출고완료': 0 };
@@ -4758,6 +4930,14 @@
 
             const orderCount = new Set(filtered.map(o => o.order_no ?? o.id)).size;
             document.getElementById('admin-order-count').innerText = `주문 ${orderCount}건 · 상품 ${filtered.length}개`;
+            // 조회된 주문 중 제일 빠른 셀러 접수시간 (간단접수에서 넘긴 건은 처음 접수한 시간)
+            const earliestEl = document.getElementById('admin-earliest-time');
+            const earliest = filtered.reduce((best, o) => {
+                const t = o.origin_created_at || o.created_at;
+                return t && (!best || new Date(t) < new Date(best.t)) ? { t, o } : best;
+            }, null);
+            earliestEl.classList.toggle('hidden', !earliest);
+            if (earliest) earliestEl.innerText = `제일 빠른 접수 ${formatPickupTime(earliest.t)} · ${earliest.o.seller_company || "-"} NO.${orderNoLabel(earliest.o, groups)}`;
             const hiddenNow = ordersMaster.filter(o => hiddenOrderIds.has(o.id)).length;
             document.getElementById('admin-hidden-count').innerText = hiddenNow ? `(${hiddenNow}개)` : '';
             document.getElementById('btn-admin-unhide').classList.toggle('hidden', !(adminQuery.showHidden && hiddenNow));
@@ -5814,6 +5994,7 @@
             const off = "px-5 py-2.5 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center gap-1.5";
             const group = ADMIN_GROUP_OF[tab];
             ADMIN_LAST_TAB[group] = tab;
+            saveAdminTab(tab);
             document.getElementById('admin-tab-orders').className = tab === 'orders' ? on : off;
             document.getElementById('admin-tab-sellers').className = tab === 'sellers' ? on : off;
             document.getElementById('admin-tab-settle').className = tab === 'settle' ? on : off;
@@ -6312,13 +6493,28 @@
             const sameday = list.filter(o => orderTypeOf(o) === 'store_sameday');
 
             const shipHeaders = SHOW_SHIPPING_UI ? ['상품 출고상태', '주문 출고상태', '택배사', '송장번호'] : [];
-            const extraHeaders = [...shipHeaders, '셀러 가입상호', '접수일시', '처리상태', '관리자 접수시간', '사무실 보관요청', '보관요청 메모'];
-            const extraWidths = [...(SHOW_SHIPPING_UI ? [14, 18, 16, 18] : []), 16, 18, 12, 18, 14, 36];
-            const formRows = arr => arr.map(o => {
+            const extraHeaders = [...shipHeaders, '셀러 가입상호', '접수일시', '처리상태', '관리자 접수시간', '사무실 보관요청', '보관요청 메모', '화면 주문번호'];
+            const extraWidths = [...(SHOW_SHIPPING_UI ? [14, 18, 16, 18] : []), 16, 18, 12, 18, 14, 36, 14];
+            // 엑셀 NO 는 합배송 15-1, 15-2 대신 1, 2, 3 숫자로 (시트마다 작은 주문번호부터 1번).
+            //   화면에 보이는 주문번호(15-1 등)는 맨 끝 '화면 주문번호' 칸에 남깁니다.
+            const plainNoMap = arr => {
+                const sorted = [...arr].sort((a, b) => {
+                    const na = a.order_no == null ? Infinity : Number(a.order_no);
+                    const nb = b.order_no == null ? Infinity : Number(b.order_no);
+                    return (na - nb) || ((Number(a.item_no) || 0) - (Number(b.item_no) || 0))
+                        || String(a.created_at || '').localeCompare(String(b.created_at || ''));
+                });
+                return new Map(sorted.map((o, i) => [o, i + 1]));
+            };
+            const formRows = arr => {
+              const plainNo = plainNoMap(arr);
+              return arr.map(o => {
                 const state = orderShipState(o, groups);
                 const g = groups[o.order_no];
+                const base = orderToTemplateRow(o, groups);
+                base[0] = plainNo.get(o);
                 return [
-                    ...orderToTemplateRow(o, groups),
+                    ...base,
                     ...(SHOW_SHIPPING_UI ? [
                         o.ship_status || '미출고',
                         state === '부분출고' ? `부분출고 (${g.shipped}/${g.total})` : state,
@@ -6331,9 +6527,11 @@
                     // 관리자가 [접수]를 눌러 접수완료가 된 시각 (예전 주문·접수대기는 빈칸)
                     o.status === '접수완료' && o.accepted_at ? formatKstDateTime(o.accepted_at) : '',
                     o.keep_request || '',
-                    o.keep_memo || ''
+                    o.keep_memo || '',
+                    orderNoLabel(o, groups)
                 ];
-            });
+              });
+            };
 
             // 4. 사무실 보관요청건: 같은 셀러 · 같은 날 · 같은 메모는 한 줄로
             const keepMap = new Map();

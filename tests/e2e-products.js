@@ -186,7 +186,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   check('admin page header + company filter', (await page.isVisible('#page-header')) && (await page.isVisible('#f-company')));
 
   // 새 상품 등록 (사진 포함, 플랫폼 2개)
-  await page.click('button:has-text("+ 상품 등록")'); await page.waitForTimeout(300);
+  await page.click('button:has-text("단건 상품 등록")'); await page.waitForTimeout(300);
   check('edit modal open', await page.isVisible('#edit-modal'));
   await page.fill('#e-company', '가나샵');
   await page.fill('#e-wholesale_company', '도매C'); await page.fill('#e-wholesale_product', '청바지');
@@ -205,7 +205,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   check('new product appears in list', (await page.textContent('#list')).includes('와이드 데님'));
 
   // 중복 등록 막기
-  await page.click('button:has-text("+ 상품 등록")'); await page.waitForTimeout(300);
+  await page.click('button:has-text("단건 상품 등록")'); await page.waitForTimeout(300);
   await page.fill('#e-company', '가나 샵');
   await page.fill('#e-wholesale_company', '도매C'); await page.fill('#e-wholesale_product', '청바지');
   await page.fill('#e-color', '블루'); await page.fill('#e-size', 'S');
@@ -233,7 +233,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
 
   // 등록 양식 받기 → 채워서 올리기 (새 상품 2줄을 하나로 합침 + 기존 상품(도매처·상품명·컬러·사이즈로 찾음)에 이름 추가 + 잘못된 줄)
   // 양식에는 상품코드 칸이 없음 (항상 자동)
-  const [fdl] = await Promise.all([page.waitForEvent('download'), page.click('button:has-text("등록 양식 받기")')]);
+  const [fdl] = await Promise.all([page.waitForEvent('download'), page.click('button:has-text("엑셀 일괄등록 양식 받기")')]);
   const formPath = path.join(__dirname, 'out', 'products-form.xlsx'); await fdl.saveAs(formPath);
   const fwb = XLSX.readFile(formPath);
   const head = XLSX.utils.sheet_to_json(fwb.Sheets['상품등록'], { header: 1 })[0];
@@ -260,7 +260,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   check('new product got automatic next code', /^P\d{6}$/.test(cozy.code) && cozy.code > flower.code, cozy.code);
 
   // 목록 다운로드: 플랫폼마다 한 줄
-  const [ldl] = await Promise.all([page.waitForEvent('download'), page.click('button:has-text("엑셀 다운로드")')]);
+  const [ldl] = await Promise.all([page.waitForEvent('download'), page.click('button:has-text("등록상품 엑셀 다운로드")')]);
   const listPath = path.join(__dirname, 'out', 'products-list.xlsx'); await ldl.saveAs(listPath);
   const lrows = XLSX.utils.sheet_to_json(XLSX.readFile(listPath).Sheets['상품등록'], { header: 1 });
   check('list download: one row per platform name', lrows.filter(r => r[3] === '꽃니트').length === 2 && lrows.filter(r => r[3] === '청바지').length === 2, JSON.stringify(lrows.slice(0, 4)));
@@ -291,7 +291,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   check('seller has no company filter / column', !(await page.isVisible('#f-company')) && !(await page.innerText('thead')).includes('거래처명'));
 
   // 셀러 등록 (회사는 서버가 정함)
-  await page.click('button:has-text("+ 상품 등록")'); await page.waitForTimeout(300);
+  await page.click('button:has-text("단건 상품 등록")'); await page.waitForTimeout(300);
   check('seller modal has no company input', !(await page.isVisible('#e-company')));
   await page.fill('#e-wholesale_company', '도매D'); await page.fill('#e-wholesale_product', '셀러상품');
   await page.fill('#e-names .name-row:nth-child(1) .n-name', '셀러 상품명');

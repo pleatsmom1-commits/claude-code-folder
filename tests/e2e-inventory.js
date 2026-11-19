@@ -323,6 +323,25 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   }
   check('재고 있는 상품 restores full list', (await visibleRows()) === allCount);
 
+  // 검색줄 [초기화] 버튼: 검색어·거래처·재고 상태를 한 번에 처음으로
+  const barShot = async name => {
+    const a = await page.locator('#stats').boundingBox(), b = await page.locator('#f-keyword').locator('xpath=..').boundingBox();
+    await page.screenshot({ path: path.join(__dirname, 'out', name), clip: { x: b.x - 8, y: a.y - 8, width: b.width + 16, height: b.y + b.height - a.y + 16 } });
+  };
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.fill('#f-keyword', '꽃니트'); await page.dispatchEvent('#f-keyword', 'input');
+  await page.selectOption('#f-company', '가나샵'); await page.selectOption('#f-status', 'a'); await page.waitForTimeout(200);
+  await barShot('shot-inventory-reset-filled.png');
+  if (await page.locator('#f-reset').count()) {
+    await page.click('#f-reset'); await page.waitForTimeout(200);
+    check('[초기화] clears keyword / company / status', (await page.inputValue('#f-keyword')) === '' && (await page.inputValue('#f-company')) === '' && (await page.inputValue('#f-status')) === 'stock');
+    check('[초기화] shows full list again', (await visibleRows()) === allCount, String(await visibleRows()));
+    check('[초기화] puts cursor in search box', await page.evaluate(() => document.activeElement && document.activeElement.id === 'f-keyword'));
+    await barShot('shot-inventory-reset-done.png');
+  } else {
+    await page.fill('#f-keyword', ''); await page.selectOption('#f-company', ''); await page.selectOption('#f-status', 'stock');
+  }
+
   // ---------- 재고 확정 ----------
   let banner = await page.textContent('#day-banner');
   check('banner: 재고가 확정되지 않았습니다 + 재고출고중 (weekday 10:00)', banner.includes('재고가 확정되지 않았습니다') && banner.includes('재고출고중') && banner.includes('재고정리완료'), banner.replace(/\s+/g, ' '));
@@ -369,7 +388,13 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   const sText = await page.textContent('#list');
   check('seller sees own stock only, read-only', sText.includes('꽃니트') && (await page.locator('#list .qty').count()) === 0 && !(await page.isVisible('button:has-text("+ 입고")')), sText.slice(0, 120));
   const sBanner = await page.textContent('#day-banner');
+  check('seller also has [초기화] button', await page.isVisible('#f-reset'));
   check('seller banner: 재고출고중 without confirm button', sBanner.includes('재고출고중') && !sBanner.includes('재고정리완료'), sBanner.replace(/\s+/g, ' '));
+  await row('꽃니트').locator('button', { hasText: '기록' }).click(); await page.waitForTimeout(800);
+  const sLog = await page.textContent('#log-list');
+  check('seller log: 재고 정리 + picked reason, internal memo/actor hidden', sLog.includes('재고 정리') && sLog.includes('실사 수량 차이') && !sLog.includes('재고 다시 셈') && !sLog.includes('관리') && !sLog.includes('조정'), sLog.replace(/\s+/g, ' ').slice(0, 300));
+  await page.screenshot({ path: path.join(__dirname, 'out', 'shot-inventory-seller-log.png') });
+  await page.keyboard.press('Escape'); await page.evaluate(() => closeModal('log-modal'));
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: path.join(__dirname, 'out', 'shot-inventory-seller-mobile.png'), fullPage: true });
 

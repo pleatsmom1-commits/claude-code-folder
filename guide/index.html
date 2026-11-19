@@ -220,7 +220,7 @@ body.route-f .feat.on{display:block}
   <div class="feat-q">기능별 사용법도 볼 수 있어요. <b>궁금한 기능을 눌러주세요.</b></div>
   <div class="feats" role="group" aria-label="기능별 사용법">
     <button type="button" class="feat-btn" data-feat="products" aria-pressed="false"><span class="fi">🟦</span><span>상품등록·관리<small>도매처·쇼핑몰 상품명 묶어두기</small></span></button>
-    <button type="button" class="feat-btn" data-feat="stock" aria-pressed="false"><span class="fi">🟩</span><span>재고 확인<small>사무실에 있는 내 물건·출고 내역</small></span></button>
+    <button type="button" class="feat-btn" data-feat="stock" aria-pressed="false"><span class="fi">🟩</span><span>재고 확인<small>사무실에 있는 내 물건·최종 재고</small></span></button>
     <button type="button" class="feat-btn" data-feat="usage" aria-pressed="false"><span class="fi">🟪</span><span>이용 현황<small>이번 달 이용 금액·세금계산서 금액</small></span></button>
     <button type="button" class="feat-btn" data-feat="settle" aria-pressed="false"><span class="fi">🧾</span><span>정산서 보고 입금하기<small>문자로 받은 정산서 보는 법</small></span></button>
     <button type="button" class="feat-btn" data-feat="orders" aria-pressed="false"><span class="fi">📋</span><span>내 주문 확인·수정<small>접수한 주문 찾기·고치기·엑셀</small></span></button>
@@ -467,7 +467,7 @@ body.route-f .feat.on{display:block}
   <figure><img src="img/products.webp" alt="상품관리 화면. 상품코드, 도매업체명, 도매상품명, 컬러, 사이즈, 플랫폼별 쇼핑몰상품명" loading="lazy"><figcaption>상품관리 화면 (예시)</figcaption></figure>
   <h3>하나씩 등록하기</h3>
   <ol class="steps-n">
-    <li><b>[+ 상품 등록]</b>을 누릅니다.</li>
+    <li><b>[단건 상품 등록]</b>을 누릅니다.</li>
     <li><b>도매업체명</b>과 <b>도매상품명</b>을 적어요. (이 두 칸은 꼭 적어야 해요.) 컬러·사이즈도 적어주세요.</li>
     <li><b>플랫폼별 쇼핑몰상품명</b>에 스마트스토어·쿠팡 등 플랫폼 이름과, 거기서 쓰는 상품명을 적어요. 플랫폼마다 이름이 다르면 <b>[+ 줄 추가]</b>로 더 적을 수 있어요.</li>
     <li>컬러가 보이는 <b>사진 1장</b>과 메모를 넣고 싶으면 넣고 <b>[저장]</b>을 누릅니다. 상품코드는 자동으로 붙어요.</li>
@@ -475,30 +475,30 @@ body.route-f .feat.on{display:block}
   <figure><img src="img/product-add.webp" alt="상품 등록 창. 도매업체명, 도매상품명, 컬러, 사이즈, 플랫폼별 쇼핑몰상품명, 사진, 메모" loading="lazy"><figcaption>상품 등록 창 (예시)</figcaption></figure>
   <h3>엑셀로 한꺼번에 등록하기</h3>
   <ol class="steps-n">
-    <li><b>[등록 양식 받기]</b>로 빈 엑셀 파일을 받아요.</li>
+    <li><b>[엑셀 일괄등록 양식 받기]</b>로 빈 엑셀 파일을 받아요.</li>
     <li>엑셀에 상품을 한 줄에 하나씩 적고 저장합니다.</li>
-    <li><b>[엑셀로 등록]</b>으로 그 파일을 올리고, 확인 창에서 내용을 본 뒤 <b>[등록하기]</b>를 누릅니다.</li>
+    <li><b>[일괄 엑셀 등록]</b>으로 그 파일을 올리고, 확인 창에서 내용을 본 뒤 <b>[등록하기]</b>를 누릅니다.</li>
   </ol>
   <h3>찾기·고치기·지우기</h3>
   <ul>
     <li>위쪽 <b>검색 칸</b>에 상품코드나 상품명을 넣으면 도매처·도매상품명·플랫폼별 상품명이 바로 나와요.</li>
     <li>고칠 때는 그 줄의 <b>[수정]</b>을 누르세요. 바꾼 내용은 모두 <b>[기록]</b>에 남아서 언제 무엇을 바꿨는지 볼 수 있어요.</li>
     <li>지우고 싶으면 <b>[삭제 요청]</b>을 누르세요. 실수로 지워지지 않도록 밤낮딜리버리가 확인한 뒤 지워집니다.</li>
-    <li><b>[엑셀 다운로드]</b>로 등록한 상품 목록 전체를 엑셀로 받을 수 있어요.</li>
+    <li><b>[등록상품 엑셀 다운로드]</b>로 등록한 상품 목록 전체를 엑셀로 받을 수 있어요.</li>
   </ul>
   <div class="note tip"><p>💡 등록해 두면 <b>[쇼핑몰 주문서 그대로 올리기]</b>에서 쇼핑몰 상품명만 보고도 어느 도매처 물건인지 자동으로 찾아주고, 사무실에 있는 재고도 함께 보여줘요.</p></div>
 </section>
 
 <section class="ch feat" id="f-stock">
-  <div class="chhead"><div class="num">🟩</div><div><h2>재고 확인</h2><p>화면 맨 위 초록 <b>[재고 확인]</b> 버튼을 누르면 열려요. 밤낮딜리버리 사무실에 맡겨둔 내 물건이 얼마나 있는지 봅니다.</p></div></div>
+  <div class="chhead"><div class="num">🟩</div><div><h2>재고 확인</h2><p>화면 맨 위 초록 <b>[재고 확인]</b> 버튼을 누르면 열려요. 밤낮딜리버리 사무실에 맡겨둔 내 물건의 최종 재고를 상품별로 봅니다.</p></div></div>
   <ol class="steps-n">
-    <li><b>[보관중 재고]</b> 탭에서 지금 사무실에 있는 내 물건을 봅니다. 위쪽 숫자 칸에서 보관중 건수·수량을 한눈에 볼 수 있어요.</li>
-    <li><b>[출고 내역]</b> 탭을 누르면 이미 나간 물건과 <b>재고출고일</b>을 볼 수 있어요.</li>
-    <li>검색 칸에 상품명을 넣어 찾고, <b>[엑셀 다운로드]</b>로 엑셀 파일로 받을 수 있어요.</li>
+    <li><b>상품화</b>는 라벨 작업까지 끝나 바로 나갈 수 있는 수량, <b>미상품화</b>는 라벨 전 수량, <b>불량</b>은 따로 빼둔 수량이에요.</li>
+    <li>위 숫자 칸을 누르면 그 상품만 골라 보고, 검색 칸에 상품코드·상품명·도매처를 넣어 찾을 수 있어요.</li>
+    <li>상품 줄 끝 <b>[기록]</b>을 누르면 그 상품이 언제 들어오고 나갔는지 보여요. <b>[엑셀 다운로드]</b>로 엑셀 파일로도 받을 수 있어요.</li>
   </ol>
-  <figure><img src="img/stock.webp" alt="재고 확인 화면. 보관중 건수, 수량, 출고된 건수와 재고 표" loading="lazy"><figcaption>보관중 재고 (예시)</figcaption></figure>
-  <figure><img src="img/stock-out.webp" alt="재고 확인 화면의 출고 내역 탭" loading="lazy"><figcaption>출고 내역 (예시)</figcaption></figure>
-  <div class="note tip"><p>📢 손님 주문을 접수하면 <b>사무실에 있는 내 재고부터 먼저</b> 나가고, 나간 만큼 재고에서 자동으로 빠집니다.</p></div>
+  <figure><img src="img/stock.webp" alt="재고표 화면. 재고 기준 안내, 재고 있는 상품·상품화·미상품화·불량 숫자와 상품별 표" loading="lazy"><figcaption>재고 확인 (예시)</figcaption></figure>
+  <figure><img src="img/stock-log.webp" alt="재고 기록 창. 입고, 라벨완료, 출고, 재고 정리 순서로 수량 변화" loading="lazy"><figcaption>[기록] 창 (예시)</figcaption></figure>
+  <div class="note tip"><p>📢 그날 사입된 상품은 재고로 잡지 않고 바로 출고해요. 출고하고 남은 상품만 오후에 재고로 들어오고, 다음 날부터 주문이 오면 <b>사무실에 있는 내 재고에서</b> 나갑니다. 상품마다 들어오고 나간 내역은 상품 줄의 <b>[기록]</b> 버튼을 누르면 볼 수 있어요.</p></div>
 </section>
 
 <section class="ch feat" id="f-usage">
