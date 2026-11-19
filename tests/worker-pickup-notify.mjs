@@ -1,6 +1,6 @@
 // 새 픽업요청 사입팀 알림(worker/pickup_notify.js) 점검. 사용: node tests/worker-pickup-notify.mjs
 const W = new URL('..', import.meta.url).href.replace(/\/$/, '');
-const { handlePickupNotify, parsePhones } = await import(W + '/worker/pickup_notify.js');
+const { handlePickupNotify, handlePickupNotifyTest, parsePhones } = await import(W + '/worker/pickup_notify.js');
 const base = { SUPABASE_URL: 'https://sb', SUPABASE_KEY: 'k', SOLAPI_API_KEY: 'a', SOLAPI_API_SECRET: 's', SOLAPI_SENDER: '01054259060', ADMIN_NOTIFY_PHONE: '01054259060', SOLAPI_PF_ID: 'PF' };
 const row = () => ({ seller_company: '가나샵', orderer_name: '가나샵', orderer_phone: '010-1234-5678', store_name: '청평화 누보', store_location: '청평화 2층 B-12', store_phone: '02-111-2222', prepay: true, prepay_misong: false, memo: '검정 2장', created_at: '2026-11-07T11:30:00Z', phones: '010-1111-2222, 01033334444, 010-1111-2222' });
 let sent = [], claim = [row()], recorded = [];
@@ -45,3 +45,19 @@ const f0 = globalThis.fetch;
 globalThis.fetch = async (url, init) => { if (String(url).includes('solapi') && JSON.parse(init.body).message.kakaoOptions) { sent.push(JSON.parse(init.body).message); return new Response(JSON.stringify({ errorCode: 'ValidationError', errorMessage: '템플릿 변수 불일치' }), { status: 400 }); } return f0(url, init); };
 r = await (await handlePickupNotify(post('bamnat-delivery.bamnat.workers.dev', { id: ID }), { ...base, SOLAPI_PICKUP_TEMPLATE_ID: 'TP1' })).json();
 ok(r.status === 'sent' && r.channel === 'sms' && sent.filter(m => m.text).length === 2 && recorded.at(-1).p_detail.includes('카톡이 안 돼서 문자로'), 'kakao rejected -> SMS fallback recorded');
+
+// 관리자 [테스트 보내기]
+globalThis.fetch = async (url, init) => {
+  const u = String(url);
+  if (u.includes('rpc/is_admin')) return new Response(JSON.stringify(init.headers.Authorization === 'Bearer ADM'));
+  if (u.includes('solapi')) { sent.push(JSON.parse(init.body).message); return new Response(JSON.stringify({ statusCode: '2000' })); }
+  throw new Error('unexpected ' + u);
+};
+const tpost = (tok, body) => new Request('https://bamnat-delivery.bamnat.workers.dev/api/pickup/notify-test', { method: 'POST', headers: { Authorization: 'Bearer ' + tok }, body: JSON.stringify(body) });
+sent = [];
+let tr = await handlePickupNotifyTest(tpost('X', { phone: '01012345678' }), base);
+ok(tr.status === 403 && sent.length === 0, 'test send: non-admin blocked');
+tr = await (await handlePickupNotifyTest(tpost('ADM', { phone: '010-9999-8888' }), { ...base, SOLAPI_PICKUP_TEMPLATE_ID: 'TP1' })).json();
+ok(tr.status === 'sent' && tr.channel === 'alimtalk' && sent[0].to === '01099998888' && sent[0].kakaoOptions.variables['#{매장상호}'].includes('테스트'), 'test send: admin -> 알림톡 to given phone');
+tr = await handlePickupNotifyTest(tpost('ADM', { phone: '123' }), base);
+ok(tr.status === 400, 'test send: bad phone');

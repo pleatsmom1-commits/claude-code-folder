@@ -88,6 +88,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await context.route('**/*', async route => {
     const req = route.request();
     const url = new URL(req.url());
+    if (url.protocol === 'file:' && url.pathname === '/api/pickup/notify-test') { notifyCalls.push({ test: req.postDataJSON() }); return route.fulfill({ contentType: 'application/json', body: '{"status":"sent","channel":"alimtalk","to":"010-****-8888"}' }); }
     if (url.protocol === 'file:' && url.pathname === '/api/pickup/notify') { notifyCalls.push(req.postDataJSON()); return route.fulfill({ contentType: 'application/json', body: '{"status":"sent"}' }); }
     if (url.protocol === 'file:' || url.protocol === 'about:') return route.continue();
     const lib = Object.entries(LIB).find(([k]) => req.url().includes(k));
@@ -166,7 +167,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await context.exposeBinding('__recordNotify', (_, b) => { notifyCalls.push(JSON.parse(b)); });
   await context.addInitScript(() => {
     const orig = window.fetch;
-    window.fetch = (u, init) => String(u).startsWith('/api/pickup/notify') ? (window.__recordNotify(init.body), Promise.resolve(new Response('{}'))) : orig(u, init);
+    window.fetch = (u, init) => String(u) === '/api/pickup/notify-test' ? (window.__recordNotify(JSON.stringify({ test: JSON.parse(init.body) })), Promise.resolve(new Response('{"status":"sent","channel":"alimtalk","to":"010-****-8888"}'))) : String(u).startsWith('/api/pickup/notify') ? (window.__recordNotify(init.body), Promise.resolve(new Response('{}'))) : orig(u, init);
   });
   const page = await context.newPage();
   const pageErrors = [];
@@ -218,6 +219,11 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   check('hint 22:30 ~ 다음날 04:00, 1명', (await page.innerText('#pickup-notify-status')).includes('22:30 ~ 다음날 04:00') && (await page.innerText('#pickup-notify-status')).includes('1명'));
   check('pickup list shows request', (await page.innerText('#pickup-admin-list')).includes('청평화 누보'));
   await page.screenshot({ path: path.join(__dirname, 'out', 'shot-pickup-notify.png'), clip: { x: 0, y: 0, width: 1400, height: 620 } });
+  await page.fill('#pickup-notify-test-phone', '010-9999-8888'); await page.click('#btn-pickup-notify-test'); await page.waitForTimeout(800);
+  check('test send called with phone', notifyCalls.some(c => c.test && c.test.phone === '01099998888'), JSON.stringify(notifyCalls));
+  check('test send result shown', (await page.innerText('#pickup-notify-test-result')).includes('카톡을 보냈습니다'));
+  check('test phone saved', (tables.app_settings.find(x => x.key === 'pickup_notify_test_phone') || {}).value === '010-9999-8888');
+  await page.screenshot({ path: path.join(__dirname, 'out', 'shot-pickup-notify-test.png'), clip: { x: 0, y: 0, width: 1400, height: 700 } });
   await page.click('#btn-pickup-notify-log'); await page.waitForTimeout(800);
   const logText = await page.innerText('#pickup-notify-log-list');
   check('log: 7 days shows 3 sent/failed, not unsent', logText.includes('청평화 누보 A-3') && logText.includes('디오트 하늘') && logText.includes('테크노 별') && !logText.includes('낮에 접수한 매장') && (await page.innerText('#pickup-notify-log-count')) === '3건', logText);
