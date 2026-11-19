@@ -45,6 +45,10 @@
     .note { font-size: 12px; color: var(--sub); margin: 10px 2px 0; }
     .tip { background: #f0fdfa; border: 1px solid #99f6e4; color: #115e59; border-radius: 10px; padding: 10px 12px; font-size: 13px; }
     .tip a { color: #0f766e; font-weight: 800; }
+    .notice { background: #fffbeb; border: 2px solid #fcd34d; color: #78350f; }
+    .notice b { font-size: 15px; }
+    .notice p { margin: 6px 0 0; font-size: 13px; }
+    .notice p.sm { font-size: 12px; color: #92400e; }
     .foot { text-align: center; font-size: 12px; color: var(--sub); margin-top: 18px; }
     .qty { display: inline-flex; align-items: center; gap: 4px; }
     .qty button { width: 30px; height: 30px; border: 1px solid var(--line); background: #fff; border-radius: 8px; font-size: 16px; font-weight: 800; cursor: pointer; }
@@ -138,12 +142,17 @@
         const have = products.filter(p => qtyOf(p.id) > 0).length;
         document.getElementById('app').innerHTML = `
         <div class="card hero">
-            <div><div class="company">${esc(company)}</div><div class="desc">내 사무실에 있는 재고를 직접 적어 두는 표예요. 밤낮딜리버리 사무실 재고와는 따로예요.</div></div>
+            <div><div class="company">${esc(company)}</div><div class="desc">내 매장·사무실에 있는 재고를 직접 적어 두는 표예요.</div></div>
             <div class="stats">
                 <div class="stat gray"><b>${products.length.toLocaleString('ko-KR')}</b><span>등록 상품</span></div>
                 <div class="stat"><b>${have.toLocaleString('ko-KR')}</b><span>재고 있는 상품</span></div>
                 <div class="stat"><b>${total.toLocaleString('ko-KR')}</b><span>총 재고 (개)</span></div>
             </div>
+        </div>
+        <div class="card notice">
+            <b>📢 대표님 매장·사무실에서 직접 관리하는 상품관리 및 재고표입니다</b>
+            <p>밤낮딜리버리 사무실에서 관리되지 않는 재고예요. 주로 <b>풀필먼트를 이용하지 않고, 픽업/택배수령을 이용하시는 대표님들</b>을 위한 기능이에요.</p>
+            <p class="sm">풀필먼트로 밤낮딜리버리 사무실에 맡긴 재고는 주문접수 화면의 [재고 확인]에서 보세요.</p>
         </div>
         ${tableMissing ? '<div class="card tip" style="background:#fff7ed;border-color:#fed7aa;color:#9a3412">아직 준비 중이에요. (관리자: supabase/own_stock.sql 실행 필요)</div>' : ''}
         <div class="card">
