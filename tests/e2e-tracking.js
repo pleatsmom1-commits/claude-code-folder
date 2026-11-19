@@ -216,6 +216,7 @@ fs.mkdirSync(OUT, { recursive: true });
   await login('seller@x.com', 'password1');
   check('seller dashboard', await vis('#seller-dashboard'));
   const sellerText = (await page.textContent('#seller-order-list')).replace(/\s+/g, ' ');
+  { const w = page.locator('.seller-work').last(); await w.scrollIntoViewIfNeeded(); const wb = await w.boundingBox(); await page.screenshot({ path: path.join(OUT, `note-seller-top-${process.env.NOTE_TAG || tag}.png`), clip: { x: 0, y: Math.max(0, wb.y - 10), width: 1400, height: 420 } }); }
   check('셀러는 자기 주문만 (무드투문 고객 안 보임)', !sellerText.includes('고객마') && !sellerText.includes('고객바'));
   await page.locator('#seller-order-scroll').scrollIntoViewIfNeeded();
   const sbox = await page.locator('#seller-order-scroll').boundingBox();
