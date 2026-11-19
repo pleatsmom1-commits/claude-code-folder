@@ -120,3 +120,45 @@ function pickupText(vars) {
     + `대납미송: ${vars['#{대납미송}']}\n`
     + `요청사항: ${vars['#{요청사항}']}`;
 }
+
+// =====================================================================
+// 관리자 [테스트 보내기] → POST /api/pickup/notify-test { phone }
+//  - 시간과 상관없이, 적은 번호 1개로 예시 픽업요청을 실제와 같은 방식(카톡, 안 되면 문자)으로 보냅니다.
+//  - 관리자 로그인한 사람만 쓸 수 있고, 전송 내역에는 남기지 않습니다.
+// =====================================================================
+export async function handlePickupNotifyTest(request, env) {
+  if (request.method !== 'POST') return json({ error: 'POST 요청만 받습니다.' }, 405);
+  const userToken = (request.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '').trim();
+  if (!userToken) return json({ error: '로그인이 필요합니다.' }, 401);
+  const adminRes = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/is_admin`, {
+    method: 'POST', body: '{}',
+    headers: { apikey: env.SUPABASE_KEY, Authorization: `Bearer ${userToken}`, 'Content-Type': 'application/json' },
+  });
+  if (!adminRes.ok || (await adminRes.json()) !== true) return json({ error: '관리자 계정만 보낼 수 있습니다. 다시 로그인해 주세요.' }, 403);
+
+  let body;
+  try { body = await request.json(); } catch { return json({ error: '요청 형식이 올바르지 않습니다.' }, 400); }
+  const to = normPhone(body.phone);
+  if (!to) return json({ error: '테스트 받을 휴대폰 번호가 올바르지 않습니다.' }, 400);
+  if (!env.SOLAPI_API_KEY || !env.SOLAPI_API_SECRET || !env.SOLAPI_SENDER) return json({ error: '발송 설정(솔라피 키)이 아직 없습니다.' }, 500);
+
+  const vars = pickupVariables({
+    created_at: new Date().toISOString(), orderer_name: '[테스트] 밤낮샵', orderer_phone: '010-0000-0000',
+    store_name: '[테스트] 예시매장', store_location: '디오트 2층 B-12', store_phone: '010-0000-0000',
+    prepay: true, prepay_misong: false, memo: '테스트 발송입니다. 픽업하지 마세요.',
+  });
+  const from = normPhone(env.SOLAPI_SENDER);
+  const useAlimtalk = !!(env.SOLAPI_PICKUP_TEMPLATE_ID && env.SOLAPI_PF_ID);
+  let channel = useAlimtalk ? 'alimtalk' : 'sms';
+  let note = '';
+  let r = await solapiSend(env, useAlimtalk
+    ? { to, from, kakaoOptions: { pfId: env.SOLAPI_PF_ID, templateId: env.SOLAPI_PICKUP_TEMPLATE_ID, disableSms: false, variables: vars } }
+    : { to, from, text: '[테스트] ' + pickupText(vars) });
+  if (useAlimtalk && r.status !== 'sent') {
+    note = `카톡이 안 돼서 문자로 보냈습니다. (카톡 거절 이유: ${r.message || '알 수 없음'})`;
+    r = await solapiSend(env, { to, from, text: '[테스트] ' + pickupText(vars) });
+    channel = 'sms';
+  }
+  if (r.status !== 'sent') return json({ status: 'failed', error: r.message || '보내지 못했습니다.' }, 502);
+  return json({ status: 'sent', channel, to: maskPhone(to), note });
+}

@@ -1129,6 +1129,12 @@
                         <button type="button" onclick="savePickupNotifyPhones()" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-black">저장</button>
                     </div>
                     <p id="pickup-notify-status" class="text-[11px] font-bold text-slate-400"></p>
+                    <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-dashed border-amber-200">
+                        <span class="text-[11px] font-bold text-slate-600">테스트 받을 번호</span>
+                        <input type="text" id="pickup-notify-test-phone" placeholder="예) 010-1234-5678" class="px-3 py-1.5 border rounded-lg text-xs bg-white w-44">
+                        <button type="button" id="btn-pickup-notify-test" onclick="sendPickupNotifyTest()" class="px-4 py-1.5 bg-white border-2 border-amber-400 hover:bg-amber-50 text-amber-700 rounded-lg text-xs font-black">📨 테스트 보내기</button>
+                        <span id="pickup-notify-test-result" class="text-[11px] font-bold text-slate-400">시간과 상관없이 예시 픽업요청 1건을 이 번호로 지금 바로 보내 봅니다. (사입팀에게는 가지 않아요)</span>
+                    </div>
                 </div>
                 <!-- 카톡 전송 내역 창 -->
                 <div id="pickup-notify-log-modal" class="hidden fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onclick="if (event.target === this) closePickupNotifyLog()">
@@ -5836,7 +5842,7 @@
         }
 
         // ---- 관리자: 사입팀 카톡 자동 전송 설정 (DB: app_settings, supabase/pickup_notify.sql) ----
-        const PICKUP_NOTIFY_KEYS = ['pickup_notify_phones', 'pickup_notify_start', 'pickup_notify_end'];
+        const PICKUP_NOTIFY_KEYS = ['pickup_notify_phones', 'pickup_notify_start', 'pickup_notify_end', 'pickup_notify_test_phone'];
         let pickupNotifyReady = false;
         async function loadPickupNotifyPhones() {
             if (!supabaseClient || currentRole !== 'admin') return;
@@ -5853,6 +5859,9 @@
             document.getElementById('pickup-notify-phones').value = map.pickup_notify_phones || '';
             document.getElementById('pickup-notify-start').value = map.pickup_notify_start || '22:30';
             document.getElementById('pickup-notify-end').value = map.pickup_notify_end || '04:00';
+            let savedTest = map.pickup_notify_test_phone || '';
+            try { savedTest = savedTest || localStorage.getItem('pickupNotifyTestPhone') || ''; } catch (e) {}
+            if (savedTest && !document.getElementById('pickup-notify-test-phone').value) document.getElementById('pickup-notify-test-phone').value = savedTest;
             showPickupNotifyCount();
         }
 
@@ -5892,6 +5901,39 @@
             document.getElementById('pickup-notify-phones').value = value;
             showPickupNotifyCount();
             alert('사입팀 카톡 설정을 저장했습니다.');
+        }
+
+        // ---- 관리자: [테스트 보내기] (worker/pickup_notify.js handlePickupNotifyTest) ----
+        async function sendPickupNotifyTest() {
+            const input = document.getElementById('pickup-notify-test-phone');
+            const out = document.getElementById('pickup-notify-test-result');
+            const digits = input.value.replace(/\D/g, '');
+            if (!/^01\d{8,9}$/.test(digits)) return alert('테스트 받을 휴대폰 번호를 정확히 적어주세요. 예) 010-1234-5678');
+            try { localStorage.setItem('pickupNotifyTestPhone', input.value.trim()); } catch (e) {}
+            if (pickupNotifyReady) supabaseClient.from('app_settings').upsert({ key: 'pickup_notify_test_phone', value: input.value.trim(), updated_at: new Date().toISOString() }).then(() => {});
+            const btn = document.getElementById('btn-pickup-notify-test');
+            btn.disabled = true; btn.innerText = '보내는 중...';
+            out.className = 'text-[11px] font-bold text-slate-500'; out.innerText = '보내는 중입니다...';
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                const res = await fetch('/api/pickup/notify-test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
+                    body: JSON.stringify({ phone: digits })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok && data.status === 'sent') {
+                    out.className = 'text-[11px] font-bold text-emerald-700';
+                    out.innerText = `✓ ${data.to} 로 ${data.channel === 'alimtalk' ? '카톡' : '문자'}을 보냈습니다. 휴대폰을 확인해 주세요.` + (data.note ? ' ' + data.note : '');
+                } else {
+                    out.className = 'text-[11px] font-bold text-rose-600';
+                    out.innerText = '보내지 못했습니다. ' + (data.error || `(오류 ${res.status})`);
+                }
+            } catch (e) {
+                out.className = 'text-[11px] font-bold text-rose-600';
+                out.innerText = '보내지 못했습니다. 인터넷 연결을 확인해 주세요.';
+            }
+            btn.disabled = false; btn.innerText = '📨 테스트 보내기';
         }
 
         // ---- 관리자: 카톡 전송 내역 (pickup_requests 의 notify_* 칸) ----
