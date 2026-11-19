@@ -90,7 +90,25 @@
     th { text-align: left; font-size: 12px; color: var(--sub); padding: 7px 8px; border-bottom: 2px solid var(--line); position: sticky; top: 0; background: #fff; }
     td { padding: 6px 8px; border-bottom: 1px solid var(--line); }
     td.r, th.r { text-align: right; }
-    @media print { .more, .modes, .picker { display: none !important; } .table-box { max-height: none; border: 0; } }
+    .pnl .two { gap: 12px 20px; }
+    .pl-head { border-bottom: 2px solid var(--text) !important; font-weight: 800; }
+    .pl-sub { font-size: 11px; color: var(--sub); font-weight: 400; }
+    .pl-result { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: #ecfdf5; color: #065f46; }
+    .pl-result span { font-weight: 800; } .pl-result b { font-size: 22px; margin-left: auto; } .pl-result small { font-weight: 700; }
+    .pl-result.neg { background: #fff1f2; color: #9f1239; }
+    .pl-edit { margin-top: 12px; padding: 12px; border: 1px dashed #c7d2fe; border-radius: 12px; background: #f8fafc; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+    .pl-edit label { font-weight: 700; display: flex; align-items: center; gap: 6px; }
+    .pl-edit input { padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; min-width: 0; }
+    #pl-fee { width: 80px; text-align: right; } #pl-extra, .pl-amt { width: 130px; text-align: right; }
+    .pl-item { display: flex; align-items: center; gap: 6px; }
+    .pl-label { flex: 1; max-width: 220px; }
+    .pl-x { border: 0; background: transparent; color: var(--sub); font-size: 18px; cursor: pointer; }
+    .pl-status { font-size: 12px; color: var(--sub); }
+    .pl-edit > .btn { align-self: flex-start; }
+    .money-hint { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: 12px; padding: 10px 14px; font-size: 13px; margin: -6px 0 18px; }
+    .rank .q small { display: block; font-size: 11px; color: var(--sub); font-weight: 700; }
+    .rank li { grid-template-columns: 26px 1fr 84px; }
+    @media print { .money-hint, .pl-edit .btn, .pl-x, .pl-status { display: none !important; } .more, .modes, .picker { display: none !important; } .table-box { max-height: none; border: 0; } }
 </style>
 </head>
 <body>
@@ -124,6 +142,8 @@
     const FIRST_YEAR = 2025;
     let client, company = '', previewCompany = '', viewUid = '', isAdmin = false;
     let mode = 'month', cur = null, report = null, showAllProducts = false;
+    let catalog = null;          // 상품관리 상품 (판매가·도매가로 매출 계산). 못 읽으면 null
+    const priceCache = new Map();
 
     function esc(value) {
         return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -252,7 +272,7 @@
         const from = new Date(`${p.from}T00:00:00+09:00`).toISOString(), to = new Date(`${addDays(p.to, 1)}T00:00:00+09:00`).toISOString();
         const out = [];
         for (let page = 0; page < 50; page++) {
-            let q = client.from('orders').select('product,qty,tracking_no,order_type,shipped_at')
+            let q = client.from('orders').select('product,qty,tracking_no,order_type,shipped_at,wholesale_company,wholesale_product')
                 .eq('ship_status', '출고완료').gte('shipped_at', from).lt('shipped_at', to)
                 .order('shipped_at', { ascending: true }).range(page * 1000, page * 1000 + 999);
             // 관리자 미리보기: 그 업체 주문만 (셀러는 DB 규칙상 원래 자기 것만)
@@ -265,9 +285,51 @@
         return out.filter(o => o.order_type !== 'keep');
     }
 
+    // ---- 매출: 상품관리의 판매가·도매가 (supabase/product_price.sql) ----
+    const nk = v => String(v ?? '').toLowerCase().replace(/[\s\[\]()_\-]/g, '');
+    async function loadCatalog() {
+        if (catalog !== null) return;
+        const all = [];
+        for (let page = 0; page < 20; page++) {
+            const { data, error } = await client.from('products')
+                .select('company,wholesale_company,wholesale_product,color,size,mall_names,sale_price,wholesale_price,deleted_at')
+                .is('deleted_at', null).order('id').range(page * 1000, page * 1000 + 999);
+            if (error) { catalog = []; return; }     // 가격 칸 SQL 실행 전 등
+            all.push(...(data || []));
+            if (!data || data.length < 1000) break;
+        }
+        // 관리자 미리보기는 그 업체 상품만 (셀러는 DB 규칙상 자기 것만)
+        catalog = all.filter(x => (x.sale_price != null || x.wholesale_price != null) && (!isAdmin || nk(x.company) === nk(company)));
+    }
+    // 주문 한 줄 → 상품관리 상품의 가격. 쇼핑몰상품명이나 도매상품명으로 찾고, 컬러·사이즈가 맞는 것을 먼저 씁니다.
+    function priceFor(o) {
+        if (!catalog || !catalog.length) return null;
+        const key = [o.product, o.wholesale_company, o.wholesale_product].join('\u0000');
+        if (priceCache.has(key)) return priceCache.get(key);
+        const parts = String(o.product || '').split('/').map(x => x.trim()).filter(Boolean);
+        if (parts.length > 1 && /^\d+\s*개$/.test(parts[parts.length - 1])) parts.pop();
+        const base = nk(parts[0]), rest = parts.slice(1).map(nk), whole = nk(o.product);
+        const wp = nk(o.wholesale_product), wc = nk(o.wholesale_company);
+        const cands = catalog.filter(x =>
+            (base && ((x.mall_names || []).some(n => nk(n.name) === base) || nk(x.wholesale_product) === base))
+            || (wp && nk(x.wholesale_product) === wp && (!wc || nk(x.wholesale_company) === wc)));
+        const fits = v => !nk(v) || rest.includes(nk(v)) || whole.includes(nk(v));
+        let pick = cands.filter(x => fits(x.color) && fits(x.size));
+        if (!pick.length) pick = cands;
+        let res = null;
+        if (pick.length) {
+            const one = f => { const vals = [...new Set(pick.map(x => x[f]).filter(v => v != null))]; return vals.length === 1 ? vals[0] : null; };
+            res = { sale: one('sale_price'), whole: one('wholesale_price') };
+            if (res.sale == null && res.whole == null) res = null;
+        }
+        priceCache.set(key, res);
+        return res;
+    }
+
     function summarize(list) {
         const tracks = new Set();
         let count = 0, qty = 0;
+        const money = { sales: 0, cost: 0, saleQty: 0, costQty: 0, bothSales: 0, bothCost: 0, byMonth: {} };
         const byDay = {}, byType = {}, byProduct = new Map();
         list.forEach(o => {
             const t = String(o.tracking_no || '').trim();
@@ -282,11 +344,15 @@
             // "상품명 / 컬러 / 사이즈 / 2개" 의 끝 수량은 떼고 묶음 (수량은 qty 칸으로 셈)
             const name = String(o.product || '').replace(/\s+/g, ' ').replace(/\s*\/\s*/g, ' / ').replace(/(\s*\/)?\s*\d+\s*개\s*$/, '').trim() || '(상품명 없음)';
             const key = name.toLowerCase().replace(/\s/g, '');
-            const p = byProduct.get(key) || { name, qty: 0, orders: 0 };
+            const p = byProduct.get(key) || { name, qty: 0, orders: 0, sales: 0, cost: 0, sale: null, whole: null };
             p.qty += q; p.orders++;
+            const pr = priceFor(o);
+            if (pr && pr.sale != null) { money.sales += pr.sale * q; money.saleQty += q; p.sales += pr.sale * q; p.sale = pr.sale; money.byMonth[d.slice(0, 7)] = (money.byMonth[d.slice(0, 7)] || 0) + pr.sale * q; }
+            if (pr && pr.whole != null) { money.cost += pr.whole * q; money.costQty += q; p.cost += pr.whole * q; p.whole = pr.whole; }
+            if (pr && pr.sale != null && pr.whole != null) { money.bothSales += pr.sale * q; money.bothCost += pr.whole * q; }
             byProduct.set(key, p);
         });
-        return { count, qty, byDay, byType, products: [...byProduct.values()].sort((a, b) => b.qty - a.qty || a.name.localeCompare(b.name, 'ko')) };
+        return { count, qty, money, byDay, byType, products: [...byProduct.values()].sort((a, b) => b.qty - a.qty || a.name.localeCompare(b.name, 'ko')) };
     }
 
     async function settleSum(p) {
@@ -380,18 +446,177 @@
         const box = document.getElementById('result');
         box.innerHTML = '<div class="state">불러오는 중입니다...</div>';
         const p = cur, pp = prevPeriod(mode, p);
-        let rows, prevRows, cost, prevCost;
+        let rows, prevRows, cost, prevCost, pnl;
         try {
-            [rows, prevRows, cost, prevCost] = await Promise.all([fetchShipped(p), fetchShipped(pp), settleSum(p), settleSum(pp)]);
+            await loadCatalog();
+            [rows, prevRows, cost, prevCost, pnl] = await Promise.all([fetchShipped(p), fetchShipped(pp), settleSum(p), settleSum(pp), loadPnl(p)]);
         } catch (e) {
             box.innerHTML = `<div class="state">리포트를 불러오지 못했습니다.<br>잠시 후 다시 시도해주세요.<br><span style="font-size:12px">${esc(e.message || e)}</span></div>`;
             return;
         }
         if (p !== cur) return;   // 그사이 다른 기간을 골랐으면 버림
         const s = summarize(rows), ps = summarize(prevRows);
-        report = { p, s, cost, prev: ps, prevCost, b: buckets(p, s.byDay) };
+        report = { p, s, cost, prev: ps, prevCost, pnl, draft: null, b: buckets(p, s.byDay) };
+        pnlStatus = '';
         showAllProducts = false;
         render();
+    }
+
+    // ---- 손익 계산표 (supabase/seller_pnl.sql) ----
+    // 자동: 판매 매출(판매가×출고), 상품 매입(도매가×출고), 밤낮딜리버리 비용(정산서 세금계산서 금액)
+    // 셀러가 적음(달마다 자동저장): 쇼핑몰 수수료율, 기타 매출, 비용 줄(광고비 등)
+    const PNL_DEFAULT_ITEMS = ['광고비', '포장·부자재비', '기타 비용'];
+    let pnlTimer = null, pnlStatus = '';
+    function monthStarts(p) { const out = []; for (let m = p.from.slice(0, 7) + '-01'; m <= p.to; m = addMonths(m, 1)) out.push(m); return out; }
+    async function loadPnl(p) {
+        const months = monthStarts(p);
+        let q = client.from('seller_pnl').select('company,month,fee_rate,extra_sales,items,updated_at')
+            .gte('month', addMonths(months[0], -1)).lte('month', months[months.length - 1]).order('month');
+        if (isAdmin) q = q.eq('company', company);
+        const { data, error } = await q;
+        if (error) return { missing: true, rows: [], prev: null };
+        const rows = (data || []).filter(r => months.includes(r.month));
+        const before = (data || []).filter(r => r.month < months[0]);
+        return { missing: false, rows, prev: before.length ? before[before.length - 1] : null };
+    }
+    function canEditPnl() { return mode === 'month' && report.pnl && !report.pnl.missing && !(VIEW_AS.active) && !isAdmin; }
+    // 이번 달 줄이 없으면 지난달 수수료율·비용 이름을 가져와 빈칸으로 시작
+    function pnlDraft() {
+        const r = report.pnl.rows[0];
+        if (r) return { fee_rate: r.fee_rate, extra_sales: Number(r.extra_sales) || 0, items: (r.items || []).map(x => ({ label: x.label || '', amount: Number(x.amount) || 0 })) };
+        const pv = report.pnl.prev;
+        return { fee_rate: pv ? pv.fee_rate : null, extra_sales: 0,
+            items: (pv && pv.items && pv.items.length ? pv.items.map(x => x.label) : PNL_DEFAULT_ITEMS).map(label => ({ label, amount: 0 })) };
+    }
+    function pnlCalc() {
+        const s = report.s, cost = report.cost, rows = report.pnl && !report.pnl.missing ? report.pnl.rows : [];
+        const sales = s.money.sales, purchase = s.money.cost, bamnat = cost ? cost.taxInvoice : 0;
+        let fee = 0, extra = 0;
+        const items = new Map();
+        if (mode === 'month' && canEditPnl()) {
+            const d = report.draft;
+            fee = sales * (Number(d.fee_rate) || 0) / 100; extra = Number(d.extra_sales) || 0;
+            d.items.forEach(x => { if (x.label || x.amount) items.set(x.label || '(이름 없음)', (items.get(x.label || '(이름 없음)') || 0) + (Number(x.amount) || 0)); });
+        } else {
+            rows.forEach(r => {
+                fee += (s.money.byMonth[r.month.slice(0, 7)] || 0) * (Number(r.fee_rate) || 0) / 100;
+                extra += Number(r.extra_sales) || 0;
+                (r.items || []).forEach(x => items.set(x.label || '(이름 없음)', (items.get(x.label || '(이름 없음)') || 0) + (Number(x.amount) || 0)));
+            });
+        }
+        const itemSum = [...items.values()].reduce((a, b) => a + b, 0);
+        const income = sales + extra, spend = purchase + bamnat + fee + itemSum;
+        return { sales, extra, purchase, bamnat, fee, items, income, spend, profit: income - spend };
+    }
+    function pnlBox() {
+        if (!report.s.qty && !(report.pnl && report.pnl.rows.length)) return '';
+        if (!report.pnl || report.pnl.missing) return '';
+        const edit = canEditPnl();
+        if (edit && !report.draft) report.draft = pnlDraft();
+        const c = pnlCalc();
+        const rate = c.income ? Math.round(c.profit / c.income * 1000) / 10 : 0;
+        const line = (label, v, opt = {}) => `<div class="${opt.cls || ''}"><span>${label}${opt.sub ? ` <span class="pl-sub">${opt.sub}</span>` : ''}</span><b>${opt.minus && v ? '− ' : ''}${won(v)}원</b></div>`;
+        const d = report.draft;
+        const manual = edit ? `
+            <div class="pl-edit">
+                <label>쇼핑몰 수수료율 <input id="pl-fee" inputmode="decimal" value="${d.fee_rate ?? ''}" placeholder="예: 12.5" oninput="pnlInput()"> %</label>
+                <label>기타 매출 <input id="pl-extra" inputmode="numeric" value="${d.extra_sales ? fmt(d.extra_sales) : ''}" placeholder="예: 받은 배송비" oninput="pnlInput()"> 원</label>
+                <div class="pl-items">${d.items.map((x, i) => `<div class="pl-item">
+                    <input class="pl-label" value="${esc(x.label)}" placeholder="비용 이름" oninput="pnlInput()">
+                    <input class="pl-amt" inputmode="numeric" value="${x.amount ? fmt(x.amount) : ''}" placeholder="0" oninput="pnlInput()"> 원
+                    <button type="button" class="pl-x" onclick="pnlRemove(${i})" title="줄 빼기">×</button></div>`).join('')}</div>
+                <button type="button" class="btn" onclick="pnlAdd()">+ 비용 줄 추가</button>
+                <span class="pl-status" id="pl-status">${esc(pnlStatus)}</span>
+            </div>` : '';
+        return `<section class="pnl">
+            <h2>손익 계산표 <span>${edit ? '위 표는 자동 계산, 아래 칸에 적으면 바로 저장돼요' : mode === 'month' ? '보기 전용' : '달마다 적은 값을 더한 것 (적는 건 [월별]에서)'}</span></h2>
+            <div class="two">
+                <div class="rows">
+                    <div class="pl-head"><span>매출</span><b></b></div>
+                    ${line('판매 매출', c.sales, { sub: '판매가×출고' })}
+                    ${line('기타 매출', c.extra, { sub: '직접 적음' })}
+                    ${line('매출 합계', c.income, { cls: 'strong' })}
+                </div>
+                <div class="rows">
+                    <div class="pl-head"><span>매입·비용</span><b></b></div>
+                    ${line('상품 매입', c.purchase, { sub: '도매가×출고', minus: true })}
+                    ${line('밤낮딜리버리 비용', c.bamnat, { sub: '정산서 세금계산서 금액', minus: true })}
+                    ${line('쇼핑몰 수수료', c.fee, { sub: edit ? `${d.fee_rate || 0}%` : '', minus: true })}
+                    ${[...c.items].map(([k, v]) => line(esc(k), v, { sub: '직접 적음', minus: true })).join('')}
+                    ${line('비용 합계', c.spend, { cls: 'strong', minus: true })}
+                </div>
+            </div>
+            <div class="pl-result ${c.profit < 0 ? 'neg' : ''}"><span>순이익 (매출 − 비용)</span><b>${c.profit < 0 ? '− ' : ''}${won(Math.abs(c.profit))}원</b><small>이익률 ${rate}%</small></div>
+            ${manual}
+            <p class="note" style="border:0;padding-top:4px">* 판매가·도매가가 없는 상품은 매출·매입에서 빠져요. 배송비·할인·쿠폰은 계산하지 않은 대략의 손익이에요.${mode === 'day' || mode === 'range' ? ' 일별·기간 지정에서는 직접 적은 값이 그 달 전체 기준으로 더해져요.' : ''}</p>
+        </section>`;
+    }
+    function readDraft() {
+        const d = report.draft;
+        const fee = String(document.getElementById('pl-fee').value).replace(/[%\s]/g, '');
+        d.fee_rate = fee === '' ? null : Math.min(100, Math.max(0, Number(fee) || 0));
+        d.extra_sales = Math.max(0, Math.round(num(document.getElementById('pl-extra').value)));
+        d.items = [...document.querySelectorAll('.pl-item')].map(el => ({ label: el.querySelector('.pl-label').value.trim(), amount: Math.max(0, Math.round(num(el.querySelector('.pl-amt').value))) }));
+    }
+    function refreshPnl() {
+        const box = document.querySelector('section.pnl');
+        const focus = document.activeElement, fid = focus && focus.id, idx = focus && focus.closest('.pl-item') ? [...document.querySelectorAll('.pl-item')].indexOf(focus.closest('.pl-item')) : -1;
+        const cls = focus && focus.className, pos = focus && focus.selectionStart;
+        box.outerHTML = pnlBox();
+        let el = fid ? document.getElementById(fid) : idx >= 0 ? document.querySelectorAll('.pl-item')[idx]?.querySelector('.' + String(cls).split(' ')[0]) : null;
+        if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) { /* 숫자칸 */ } }
+    }
+    function pnlInput() {
+        readDraft();
+        pnlStatus = '저장 중...';
+        clearTimeout(pnlTimer);
+        pnlTimer = setTimeout(savePnl, 700);
+        // 합계만 바로 다시 그림 (입력 중인 칸은 그대로)
+        const c = pnlCalc();
+        const res = document.querySelector('.pl-result');
+        if (res) {
+            res.classList.toggle('neg', c.profit < 0);
+            res.querySelector('b').textContent = `${c.profit < 0 ? '− ' : ''}${won(Math.abs(c.profit))}원`;
+            res.querySelector('small').textContent = `이익률 ${c.income ? Math.round(c.profit / c.income * 1000) / 10 : 0}%`;
+        }
+        const st = document.getElementById('pl-status'); if (st) st.textContent = pnlStatus;
+    }
+    function pnlAdd() { readDraft(); report.draft.items.push({ label: '', amount: 0 }); refreshPnl(); const l = document.querySelectorAll('.pl-label'); l[l.length - 1].focus(); }
+    function pnlRemove(i) { readDraft(); report.draft.items.splice(i, 1); refreshPnl(); pnlInput(); }
+    async function savePnl() {
+        const d = report.draft, month = report.p.from;
+        const row = { company, month, fee_rate: d.fee_rate, extra_sales: d.extra_sales, items: d.items.filter(x => x.label || x.amount) };
+        const { data, error } = await client.from('seller_pnl').upsert(row, { onConflict: 'company,month' }).select().single();
+        if (error) { pnlStatus = '⚠️ 저장하지 못했어요. 다시 적어주세요.'; }
+        else {
+            const i = report.pnl.rows.findIndex(r => r.month === month);
+            if (i >= 0) report.pnl.rows[i] = data; else report.pnl.rows.push(data);
+            const t = new Date(Date.now() + 9 * 3600e3).toISOString().slice(11, 16);
+            pnlStatus = `✓ 자동 저장됨 ${t}`;
+        }
+        refreshPnl();
+    }
+
+    // 매출 칸: 판매가가 등록된 상품만 계산. 가격이 하나도 없으면 안내만.
+    function moneyBox(s) {
+        if (!s.qty) return '';
+        const m = s.money, pm = report.prev.money;
+        if (!catalog || !catalog.length) {
+            return `<div class="money-hint">💡 상품관리에 <b>판매가·도매가</b>를 적어두면 여기에서 <b>매출</b>과 도매 원가도 함께 볼 수 있어요.
+                <a class="btn" href="/products${location.search.includes('view=1') ? location.search : ''}">상품관리 가기</a></div>`;
+        }
+        const pct = n => Math.round(n / s.qty * 100);
+        const margin = m.bothSales - m.bothCost;
+        return `<section class="money">
+            <h2>매출 <span>상품관리에 적힌 판매가·도매가 × 출고 수량</span></h2>
+            <div class="kpis">
+                <div class="kpi"><div class="l">판매 매출</div><div class="v">${won(m.sales)}<small>원</small></div><div class="c">${change(Math.round(m.sales), Math.round(pm.sales), '원')}</div></div>
+                <div class="kpi"><div class="l">도매 원가</div><div class="v">${won(m.cost)}<small>원</small></div><div class="c">사입한 값 합계</div></div>
+                <div class="kpi"><div class="l">차액 (판매 − 도매)</div><div class="v">${won(margin)}<small>원</small></div><div class="c">두 가격이 다 있는 상품만</div></div>
+                <div class="kpi"><div class="l">가격 있는 출고</div><div class="v">${pct(m.saleQty)}<small>%</small></div><div class="c">${fmt(m.saleQty)} / ${fmt(s.qty)}개</div></div>
+            </div>
+            ${m.saleQty < s.qty ? `<p class="note" style="margin-top:-8px;border:0;padding:0">* 판매가가 없는 상품 ${fmt(s.qty - m.saleQty)}개는 매출에서 빠졌어요. 상품관리에서 판매가를 적으면 바로 더해집니다. (배송비·할인·쿠폰은 계산하지 않아요)</p>` : '<p class="note" style="margin-top:-8px;border:0;padding:0">* 배송비·할인·쿠폰은 계산하지 않은 대략의 금액이에요.</p>'}
+        </section>`;
     }
 
     function render() {
@@ -414,6 +639,7 @@
                     ? `<div class="kpi"><div class="l">출고 상품 종류</div><div class="v">${fmt(s.products.length)}<small>가지</small></div><div class="c">이 날 나간 상품 가짓수</div></div>`
                     : `<div class="kpi"><div class="l">하루 평균 출고</div><div class="v">${shipDays ? (s.count / shipDays).toFixed(1) : '0'}<small>건</small></div><div class="c">출고한 날 ${shipDays}일 기준</div></div>`}
             </div>
+            ${moneyBox(s)}
             ${one ? '' : `<section>
                 <h2>${b.unit} 출고 건수 <span>막대에 마우스를 올리면 건수·수량이 보여요</span></h2>
                 ${s.count ? chart(b.list) : '<div class="empty">이 기간에 출고된 주문이 없습니다.</div>'}
@@ -423,7 +649,7 @@
                     <h2>많이 나간 상품 ${showAllProducts ? `전체 ${fmt(s.products.length)}가지` : `TOP ${Math.min(10, s.products.length) || 10}`} <span>수량 기준</span></h2>
                     ${top.length ? `<ol class="rank">${top.map((x, i) => `<li><span class="n">${i + 1}</span>
                         <span class="name"><div title="${esc(x.name)}">${esc(x.name)}</div><div class="meter"><i style="width:${Math.max(4, x.qty / topMax * 100)}%"></i></div></span>
-                        <span class="q">${fmt(x.qty)}개</span></li>`).join('')}</ol>
+                        <span class="q">${fmt(x.qty)}개${x.sales ? `<small>${won(x.sales)}원</small>` : ''}</span></li>`).join('')}</ol>
                         ${s.products.length > 10 ? `<button class="btn more" onclick="showAllProducts=!showAllProducts;render()">${showAllProducts ? 'TOP 10만 보기' : `상품 ${fmt(s.products.length)}가지 모두 보기`}</button>` : ''}` : '<div class="empty">출고된 상품이 없습니다.</div>'}
                 </section>
                 <section>
@@ -437,6 +663,7 @@
                     <div class="rows">${Object.keys(TYPE_LABEL).filter(k => s.byType[k]).map(k => `<div><span>${TYPE_LABEL[k]}</span><b>${fmt(s.byType[k])}건</b></div>`).join('') || '<div><span>출고 없음</span><b>-</b></div>'}</div>
                 </section>
             </div>
+            ${pnlBox()}
             ${one || !s.count ? '' : `<section>
                 <h2>${b.unit} 출고 표</h2>
                 <div class="table-box"><table>
@@ -466,6 +693,13 @@
         };
         const sum = [['항목', '값'], ['업체', company], ['기간', p.label], ['출고 건수(송장 기준)', s.count], ['출고 상품 수량', s.qty]];
         Object.keys(TYPE_LABEL).filter(k => s.byType[k]).forEach(k => sum.push([`출고 방법: ${TYPE_LABEL[k]}`, s.byType[k]]));
+        if (catalog && catalog.length) sum.push(['판매 매출(판매가×수량)', Math.round(s.money.sales)], ['도매 원가(도매가×수량)', Math.round(s.money.cost)], ['차액(두 가격 다 있는 상품)', Math.round(s.money.bothSales - s.money.bothCost)], ['판매가 있는 출고 수량', s.money.saleQty]);
+        if (report.pnl && !report.pnl.missing) {
+            const c = pnlCalc();
+            sum.push(['[손익] 판매 매출', Math.round(c.sales)], ['[손익] 기타 매출', Math.round(c.extra)], ['[손익] 상품 매입', Math.round(c.purchase)], ['[손익] 밤낮딜리버리 비용', Math.round(c.bamnat)], ['[손익] 쇼핑몰 수수료', Math.round(c.fee)]);
+            c.items.forEach((v, k) => sum.push([`[손익] ${k}`, Math.round(v)]));
+            sum.push(['[손익] 순이익', Math.round(c.profit)]);
+        }
         if (cost) { ITEMS.forEach(it => sum.push([it.label, Math.round(cost[it.key])])); sum.push(['세금계산서 금액', Math.round(cost.taxInvoice)], ['대납금액', Math.round(cost.prepaid)], ['정산서 장수', cost.sheets]); }
         XLSX.utils.book_append_sheet(wb, sheet(sum, [26, 22]), '요약');
         const days = [['날짜', '요일', '출고 건수', '출고 수량']];
@@ -473,7 +707,7 @@
         days.push(['합계', '', s.count, s.qty]);
         XLSX.utils.book_append_sheet(wb, sheet(days, [12, 6, 10, 10]), '날짜별');
         if (b.unit !== '날짜별') XLSX.utils.book_append_sheet(wb, sheet([[b.unit === '주별' ? '주' : '월', '출고 건수', '출고 수량'], ...b.list.map(x => [x.name, x.count, x.qty])], [16, 10, 10]), b.unit);
-        XLSX.utils.book_append_sheet(wb, sheet([['순위', '상품명', '출고 수량', '주문 줄 수'], ...s.products.map((x, i) => [i + 1, x.name, x.qty, x.orders])], [6, 50, 10, 10]), '상품별');
+        XLSX.utils.book_append_sheet(wb, sheet([['순위', '상품명', '출고 수량', '주문 줄 수', '판매가', '판매 매출', '도매가', '도매 원가'], ...s.products.map((x, i) => [i + 1, x.name, x.qty, x.orders, x.sale ?? '', x.sales || '', x.whole ?? '', x.cost || ''])], [6, 50, 10, 10, 10, 12, 10, 12]), '상품별');
         XLSX.writeFile(wb, `${company}_출고리포트_${p.from}_${p.to}.xlsx`);
     }
 
