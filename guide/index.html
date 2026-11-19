@@ -296,12 +296,13 @@ body.route-f .feat.on{display:block}
   <div class="note pick">
     <p>처음 이용하시는 대표님은 <b>주문접수 홈페이지</b>(https://bamnat-delivery.bamnat.workers.dev/)에 로그인한 뒤 아래처럼 픽업요청을 접수하시면 됩니다.</p>
     <p>그다음부터는 <b>SO솔루션(사입접수 프로그램)</b>으로 더 간편하게 접수하실 수 있어요. 상호와 연락처를 카톡으로 남겨주시면 프로그램 아이디를 만들어 사용법과 함께 보내드립니다.</p>
+    <p>SO솔루션 픽업요청은 가능한 <b>23시 전까지</b>, 최대 <b>새벽 1시까지</b> 접수할 수 있어요. 새벽 1시 이후 급하게 접수해야 하면 아래 [사입팀 픽업요청]으로 접수해 주세요. 밤낮 사입팀에게 바로 전송돼요.</p>
   </div>
   <ol class="steps">
     <li>로그인 후 화면 맨 위 왼쪽에 있는 주황색 <b>[사입팀 픽업요청]</b> 버튼을 누릅니다.</li>
   </ol>
   <figure><img src="img/nav.webp" alt="화면 맨 위 메뉴. 주황색 사입팀 픽업요청, 초록 재고 확인, 보라 이용 현황, 파랑 상품관리 버튼" loading="lazy"><figcaption>맨 위 메뉴. 주황색이 [사입팀 픽업요청]입니다.</figcaption></figure>
-  <figure><img src="img/pickup-notice.webp" alt="픽업요청은 매일 23시 전까지 접수해 달라는 공지" loading="lazy"></figure>
+  <figure><img src="img/pickup-notice.webp" alt="SO솔루션 픽업요청은 가능한 23시 전, 최대 새벽 1시까지. 새벽 1시 이후 급하면 이 화면에서 접수한다는 공지" loading="lazy"></figure>
   <ol class="steps" start="2" style="counter-reset:s 1">
     <li><b>주문자 정보</b>: 매장에 주문할 때 쓴 상호(또는 쇼핑몰명)와 연락처입니다. 보통 자동으로 채워져 있어요.</li>
     <li><b>픽업할 매장정보</b>: 매장 상호, 위치(예: 디오트 2층 B-123), 매장 연락처를 적습니다. 매장이 여러 곳이면 한 곳씩 따로 접수합니다.</li>
@@ -327,11 +328,10 @@ body.route-f .feat.on{display:block}
 <!-- keep box: 4·5 공통 -->
 <section class="ch" id="keep">
   <div class="chhead"><div class="num">!</div><div><h2>택배 접수 전에 꼭: 사무실 보관요청</h2><p>4장 택배접수를 하기 전에 이 노란 칸부터 골라야 접수가 됩니다. <b>하루에 한 번만</b> 하면 돼요.</p></div></div>
-  <figure class="narrow"><img src="img/keep.webp" alt="픽업건 중 사무실 보관요청 칸. 하루 한 번 필수 체크. 보관건 있습니다, 보관건 없습니다, 이미 접수했습니다 중 고르고 접수 버튼" loading="lazy"><figcaption>오늘 처음 들어왔을 때: 택배접수 화면 오른쪽 위의 노란 칸</figcaption></figure>
+  <figure class="narrow"><img src="img/keep.webp" alt="픽업건 중 사무실 보관요청 칸. 하루 한 번 필수 체크. 보관건 있습니다, 보관건 없습니다 중 고르고 접수 버튼" loading="lazy"><figcaption>오늘 처음 들어왔을 때: 택배접수 화면 오른쪽 위의 노란 칸</figcaption></figure>
   <ul>
-    <li><b>1. 보관건 있습니다</b>: 오늘 픽업한 물건 중 보내지 말고 사무실에 보관(킵)할 것이 있을 때. 아래 칸에 무엇을 보관할지 적고 <b>[접수]</b>를 누르세요. 예) 풀필 외 남은 재고 킵해주세요</li>
+    <li><b>1. 보관건 있습니다</b>: 오늘 픽업한 물건 중 보내지 말고 사무실에 보관(킵)할 것이 있을 때. 아래 칸에 무엇을 보관할지 적고 <b>[접수]</b>를 누르세요. 예) 풀필 외 남은 재고 킵해주세요. 접수한 뒤에는 아래 <b>내 접수 주문목록</b>에서 접수된 내용을 한 번 확인해 주세요.</li>
     <li><b>2. 보관건 없습니다</b>: 보관할 것이 없을 때. 고르고 <b>[접수]</b>를 누르세요.</li>
-    <li><b>3. 이미 접수했습니다</b>: 오늘 보관 내용을 이미 다른 방법으로 접수했을 때.</li>
   </ul>
   <h3>한 번 고르면 그날은 끝</h3>
   <p>[접수]를 누르면 노란 칸이 한 줄로 줄어들어요. 그날은 로그인을 다시 해도, 다른 컴퓨터나 휴대폰에서 들어와도 다시 고르지 않아도 됩니다. 다음 날이 되면(밤 12시가 지나면) 다시 한 번 골라주세요.</p>
@@ -437,8 +437,9 @@ body.route-f .feat.on{display:block}
     <thead><tr><th>무엇</th><th>언제까지</th></tr></thead>
     <tbody>
       <tr><td>택배 접수 (매장/사무실 · 고객풀필먼트)</td><td class="t">24시간 가능</td></tr>
-      <tr><td>웹페이지를 통한 픽업요청</td><td class="t">매일 23시 전</td></tr>
-      <tr><td>SO솔루션 픽업요청</td><td>새벽 1시까지 가능 (24시 이후 건은 픽업이 안 될 수도 있어요)</td></tr>
+      <tr><td>SO솔루션 픽업요청</td><td class="t">가능한 23시 전까지, 최대 새벽 1시까지</td></tr>
+      <tr><td>새벽 1시 이후 급한 픽업요청</td><td>주문접수 홈페이지의 [사입팀 픽업요청]으로 접수하면 밤낮 사입팀에게 전송돼요</td></tr>
+      <tr><td colspan="2">※ 23시 이후 접수 건들에 대해선 사입팀 동선에 따라 픽업이 간혹 불발 될 수도 있는 점 양해 부탁드립니다.</td></tr>
       <tr><td>오전 7시 30분 ~ 오후 2시 접수 중 급한 당일 출고 건</td><td>카카오톡 단톡방으로 꼭 따로 알려주세요</td></tr>
     </tbody>
   </table></div>

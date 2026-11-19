@@ -85,9 +85,12 @@ create trigger products_unify before insert or update of company on public.produ
 
 -- ---------------------------------------------------------------------
 -- 지금 있는 자료를 메인 상호로 옮기기 (관리자만). 줄을 추가할 때 화면이 자동으로 부릅니다.
---   같은 상품(도매처·도매상품·컬러·사이즈)이 두 상호에 모두 있으면 그 상품은 옮기지 않고 알려줍니다.
+--   같은 상품(도매처·도매상품·컬러·사이즈)이 두 상호에 모두 있으면 먼저 옮기지 않고 waiting 목록으로 알려줍니다.
+--   화면에서 "수량을 합치겠습니까?"에 승인하면 p_merge = true 로 다시 불러, 수량을 메인 상호 상품에 더하고
+--   다른 상호 쪽 상품은 삭제 처리합니다 (증감 내역에 '상호통일' 조정으로 남음). 결과의 dups = 합친 상품 목록.
 -- ---------------------------------------------------------------------
-create or replace function public.company_unify_apply(p_alias text default null)
+drop function if exists public.company_unify_apply(text);
+create or replace function public.company_unify_apply(p_alias text default null, p_merge boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -96,12 +99,16 @@ as $$
 declare
     a       record;
     p       record;
+    t       record;
+    si      record;
+    ti      record;
     v_prod  int := 0;
     v_inv   int := 0;
     v_moves int := 0;
     v_other int := 0;
     v_n     int;
-    v_dups  jsonb := '[]'::jsonb;
+    v_dups  jsonb := '[]'::jsonb;   -- 합친 상품
+    v_wait  jsonb := '[]'::jsonb;   -- 겹쳐서 합치기 승인을 기다리는 상품 (옮기지 않음)
 begin
     if not public.is_admin() and auth.uid() is not null then
         raise exception '관리자만 할 수 있습니다.' using errcode = '42501';
@@ -110,14 +117,61 @@ begin
              where p_alias is null or public.norm_company(alias) = public.norm_company(p_alias) loop
         if public.norm_company(a.alias) = public.norm_company(a.main) then continue; end if;
 
-        -- 상품: 한 줄씩 (겹치는 상품은 건너뜀)
-        for p in select id, code from public.products where public.norm_company(company) = public.norm_company(a.alias) loop
-            begin
+        -- 상품: 한 줄씩. 메인 상호에 같은 상품이 이미 있으면 수량을 그 상품에 더하고(합치기) 이쪽 상품은 삭제 처리
+        for p in select * from public.products where public.norm_company(company) = public.norm_company(a.alias) loop
+            select * into t from public.products x
+             where x.deleted_at is null and x.id <> p.id
+               and public.norm_company(x.company) = public.norm_company(a.main)
+               and public.norm_company(x.wholesale_company) = public.norm_company(p.wholesale_company)
+               and public.norm_company(x.wholesale_product) = public.norm_company(p.wholesale_product)
+               and public.norm_company(x.color) = public.norm_company(p.color)
+               and public.norm_company(x.size) = public.norm_company(p.size)
+             limit 1;
+            if t.id is null or p.deleted_at is not null then
                 update public.products set company = a.main where id = p.id;
                 v_prod := v_prod + 1;
-            exception when unique_violation then
-                v_dups := v_dups || jsonb_build_object('code', p.code, 'alias', a.alias, 'main', a.main);
-            end;
+                continue;
+            end if;
+            -- 같은 상품이 두 상호에 모두 있음 → 관리자가 [합치기]를 승인했을 때(p_merge)만 수량 합치기
+            select * into si from public.inventory where product_id = p.id;
+            if not coalesce(p_merge, false) then
+                v_wait := v_wait || jsonb_build_object('code', p.code, 'into', t.code,
+                            'name', concat_ws(' ', p.wholesale_company, p.wholesale_product, nullif(p.color, ''), nullif(p.size, '')),
+                            'qty', coalesce(si.qty_a + si.qty_b + si.qty_defect, 0));
+                continue;
+            end if;
+            if si.product_id is not null and (si.qty_a + si.qty_b + si.qty_defect) > 0 then
+                insert into public.inventory (product_id, company, qty_a, qty_b, qty_defect, location, updated_by)
+                values (t.id, t.company, 0, 0, 0, si.location, auth.uid())
+                on conflict (product_id) do nothing;
+                update public.inventory set qty_a = qty_a + si.qty_a, qty_b = qty_b + si.qty_b, qty_defect = qty_defect + si.qty_defect,
+                       location = case when location = '' then si.location else location end,
+                       updated_at = now(), updated_by = auth.uid()
+                 where product_id = t.id
+                returning * into ti;
+                insert into public.inventory_moves (product_id, company, code, kind, d_a, d_b, d_defect, a_after, b_after, defect_after, reason, actor_name)
+                values (t.id, t.company, t.code, '조정', si.qty_a, si.qty_b, si.qty_defect, ti.qty_a, ti.qty_b, ti.qty_defect,
+                        '상호통일: ' || a.alias || ' ' || p.code || ' 수량 합침', '상호통일'),
+                       (p.id, a.main, p.code, '조정', -si.qty_a, -si.qty_b, -si.qty_defect, 0, 0, 0,
+                        '상호통일: ' || t.code || '(으)로 수량 옮김', '상호통일');
+                update public.inventory set qty_a = 0, qty_b = 0, qty_defect = 0, updated_at = now(), updated_by = auth.uid() where product_id = p.id;
+            end if;
+            -- 쇼핑몰상품명은 메인 상품에 없던 것만 더함
+            update public.products set mall_names = mall_names || coalesce((
+                    select jsonb_agg(n) from jsonb_array_elements(p.mall_names) n
+                     where not exists (select 1 from jsonb_array_elements(t.mall_names) m
+                                        where public.norm_company(m->>'name') = public.norm_company(n->>'name'))), '[]'::jsonb)
+             where id = t.id;
+            -- 재고출고에서 기억한 상품 연결도 메인 상품으로
+            if to_regclass('public.product_aliases') is not null then
+                update public.product_aliases set product_id = t.id where product_id = p.id;
+            end if;
+            -- 이쪽 상품은 삭제 처리 (기록은 남음)
+            update public.products set deleted_at = now(), company = a.main,
+                   memo = trim(memo || ' [상호통일: ' || t.code || '에 합침]')
+             where id = p.id;
+            v_dups := v_dups || jsonb_build_object('code', p.code, 'into', t.code,
+                        'qty', coalesce(si.qty_a + si.qty_b + si.qty_defect, 0));
         end loop;
 
         -- 재고·기록은 상품을 따라감 (옮기지 못한 상품의 재고는 그대로)
@@ -170,7 +224,7 @@ begin
             get diagnostics v_n = row_count; v_other := v_other + v_n;
         end if;
     end loop;
-    return jsonb_build_object('products', v_prod, 'inventory', v_inv, 'moves', v_moves, 'other', v_other, 'dups', v_dups);
+    return jsonb_build_object('products', v_prod, 'inventory', v_inv, 'moves', v_moves, 'other', v_other, 'dups', v_dups, 'waiting', v_wait);
 end $$;
 
 -- 화면용: 상호마다 상품·재고가 몇 개씩 있는지 (메인 상호 고를 때 참고)
@@ -188,5 +242,5 @@ as $$
 $$;
 
 grant execute on function public.main_company(text) to authenticated;
-grant execute on function public.company_unify_apply(text) to authenticated;
+grant execute on function public.company_unify_apply(text, boolean) to authenticated;
 grant execute on function public.company_unify_counts() to authenticated;

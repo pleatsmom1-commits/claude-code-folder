@@ -8,27 +8,43 @@
 //     보내는사람 = 밤낮딜리버리(상호), C/S 연락처 = 직전 풀필먼트 접수 번호 → 없으면 가입 연락처
 // index.html 의 전역 값(supabaseClient, currentSellerAccount, ordersMaster …)을 그대로 씁니다.
 // =====================================================================
-let aiOrder = { fileName: '', sheetName: '', platform: '', rows: [], products: null, stock: new Map() };
+let aiOrder = { mode: 'order', fileName: '', sheetName: '', platform: '', rows: [], products: null, stock: new Map(),
+    ownStock: new Map(), ownReady: false, useOwn: true };  // ownStock: 셀러 '내 재고표'(seller_own_stock, 'buy' 화면에서만)
+
+// 화면이 두 곳: 'order' = 풀필먼트 [쇼핑몰 주문서 그대로 올리기] 탭, 'buy' = 매장/사무실 택배 화면의 [사입 목록 만들기] (2026-11-19)
+//  'buy' 는 주문 접수 없이, 주문서를 읽어 도매 매장별 사입할 상품만 정리 (풀필먼트·재고보관을 안 쓰는 택배 업체용)
+const AI_IDS = {
+    order: { result: 'ai-result', drop: 'ai-drop-zone', status: 'ai-status' },
+    buy: { result: 'buy-ai-result', drop: 'buy-ai-drop-zone', status: 'buy-ai-status' },
+};
+const aiEl = k => document.getElementById(AI_IDS[aiOrder.mode][k]);
+// 다른 화면에서 새 파일을 올리면 앞 화면의 결과는 닫음 (같은 aiOrder 를 같이 쓰므로)
+function aiUseMode(mode) {
+    if (aiOrder.mode === mode) return;
+    if (aiOrder.rows.length) aiReset();
+    aiOrder.mode = mode;
+}
 
 const AI_FIELD_LABEL = { recipient: '받는분', phone: '연락처', address: '주소', product: '상품명', option: '옵션', qty: '수량', memo: '배송메세지' };
 const aiEsc = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const aiNorm = v => String(v ?? '').replace(/\s+/g, '').toLowerCase();
 const aiCell = v => (v === undefined || v === null) ? '' : String(v).trim();
 
-function aiDrop(e) {
+function aiDrop(e, mode = 'order') {
     e.preventDefault();
     e.stopPropagation();
-    document.getElementById('ai-drop-zone').classList.remove('border-indigo-500', 'bg-indigo-50');
+    e.currentTarget?.classList.remove('border-indigo-500', 'bg-indigo-50', 'border-amber-500', 'bg-amber-100');
     const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
     if (files.length !== 1) { alert('주문서 파일은 한 번에 1개씩 올려주세요.'); return; }
-    aiFileChosen({ target: { files, value: '' } });
+    aiFileChosen({ target: { files, value: '' } }, mode);
 }
 
-async function aiFileChosen(e) {
+async function aiFileChosen(e, mode = 'order') {
+    aiUseMode(mode);
     const file = e.target.files[0];
     e.target.value = '';
     if (!file) return;
-    if (!canAddOrders()) { alert('관리자 승인 전이거나 이용이 정지된 계정은 주문을 등록할 수 없습니다.'); return; }
+    if (!canAddOrders()) { alert(mode === 'buy' ? '관리자 승인 전이거나 이용이 정지된 계정은 사용할 수 없습니다.' : '관리자 승인 전이거나 이용이 정지된 계정은 주문을 등록할 수 없습니다.'); return; }
     if (!/\.(xlsx|xls|csv)$/i.test(file.name)) { alert('엑셀 파일(.xlsx, .xls, .csv)만 올릴 수 있습니다.'); return; }
     aiStatus('📄 주문서를 읽는 중…');
     let rows;
@@ -68,6 +84,7 @@ async function aiFileChosen(e) {
         if (!fresh.error) { res = fresh; built = aiBuildRows(rows, res.mapping); }
     }
     aiOrder.platform = res.platform || '';
+    aiOrder.ownDone = false;
     aiOrder.rows = built;
     if (aiOrder.rows.length === 0) { aiStatus('주문서에서 주문 줄을 찾지 못했어요. 받는분·주소·상품명 칸이 있는 주문서인지 확인해 주세요.', true); return; }
     aiStatus('');
@@ -203,9 +220,17 @@ async function aiLoadProducts() {
         ]);
         aiOrder.products = p.data || [];
         aiOrder.stock = new Map((s.data || []).map(r => [r.product_id, r.qty_a]));
+        if (aiOrder.mode === 'buy') await aiLoadOwnStock();
     } catch (err) {
         console.warn('상품관리 불러오기 실패 (매칭 없이 진행)', err);
     }
+}
+
+// 셀러 '내 재고표' (supabase/own_stock.sql). SQL 실행 전이면 표가 없어 재고 없이 계산
+async function aiLoadOwnStock() {
+    const { data, error } = await fetchAllRows(() => supabaseClient.from('seller_own_stock').select('product_id,qty').order('product_id'));
+    aiOrder.ownReady = !error;
+    aiOrder.ownStock = new Map((data || []).map(r => [r.product_id, r.qty]));
 }
 
 function aiMatch(o) {
@@ -262,6 +287,7 @@ const AI_DUP_TEXT = '최근 3일안에 동일한 주문건이 있으니 확인�
 const AI_UNKNOWN_TEXT = '도매처명·도매상품명을 모르는 주문은 쇼핑몰상품명과 같게 기록되며, 이로 인한 출고 오류는 책임질 수 없습니다.';
 
 function aiRender() {
+    if (aiOrder.mode === 'buy') return aiRenderBuy();
     const box = document.getElementById('ai-result');
     const live = aiOrder.rows.filter(o => !o.removed);
     const bad = live.filter(o => aiProblem(o).length);
@@ -349,50 +375,66 @@ function aiRender() {
 // 사입할 상품 목록 (2026-11-17 대표님 요청): 사무실 재고로 못 채우는 수량만 도매처별로 모아 보여줌
 //  상품관리에 있는 상품: 같은 상품 주문 수량을 합친 뒤 지금 재고만큼 빼고 남는 수량
 //  상품관리에 없는 상품: 재고를 알 수 없으므로 주문 수량 그대로
+//  'buy' 화면(택배 업체용)은 사무실 재고를 쓰지 않으므로 재고를 빼지 않고 주문 수량 그대로
 function aiBuyList(live) {
     const map = new Map();
+    const buy = aiOrder.mode === 'buy';
+    const useStock = !buy || (aiOrder.ownReady && aiOrder.useOwn);
+    const stockOf = id => buy ? (aiOrder.ownStock.get(id) || 0) : (aiOrder.stock.get(id) || 0);
     let fromStock = 0;
     live.forEach(o => {
         const parts = aiOptionParts(o.option);
         const p = o.match;
-        const key = p ? 'p' + p.id : [o.wholesaleCompany, o.wholesaleProduct, o.option].map(aiNorm).join('|');
+        // 도매상품명을 모르면 쇼핑몰상품명으로 구분 (다른 상품이 한 줄로 합쳐지지 않게)
+        const key = p ? 'p' + p.id : [o.wholesaleCompany, o.wholesaleProduct || o.mallProduct, o.option].map(aiNorm).join('|');
         const row = map.get(key) || {
             company: (p && p.wholesale_company) || o.wholesaleCompany || '',
             product: (p && p.wholesale_product) || o.wholesaleProduct || o.mallProduct || '',
             color: p ? (p.color || '') : (parts[0] || ''),
             size: p ? (p.size || '') : (parts[1] || ''),
-            ordered: 0, stock: p ? (aiOrder.stock.get(p.id) || 0) : null,
+            ordered: 0, stock: p && useStock ? stockOf(p.id) : null, pid: p ? p.id : null,
+            mall: new Set(),
         };
         row.ordered += o.qty;
+        if (o.mallProduct) row.mall.add(o.mallProduct);
         map.set(key, row);
     });
-    const rows = [];
+    const rows = [], stockRows = [];
     map.forEach(r => {
         const use = r.stock === null ? 0 : Math.min(r.stock, r.ordered);
         fromStock += use;
+        r.use = use;
         r.need = r.ordered - use;
         if (r.need > 0) rows.push(r);
+        if (use > 0) stockRows.push(r);
     });
     rows.sort((a, b) => (a.company || '힣').localeCompare(b.company || '힣', 'ko') || a.product.localeCompare(b.product, 'ko'));
-    return { rows, fromStock, needTotal: rows.reduce((n, r) => n + r.need, 0) };
+    return { rows, stockRows, fromStock, needTotal: rows.reduce((n, r) => n + r.need, 0) };
 }
 
+const aiBuyNote = r => aiOrder.mode === 'buy'
+    ? [...r.mall].slice(0, 2).join(', ') + (r.stock !== null ? ` (주문 ${r.ordered} · 내 재고 ${r.stock})` : '')
+    : r.stock !== null ? `주문 ${r.ordered} · 재고 ${r.stock}` : '상품관리에 없음';
 function aiBuyBox(live) {
     const b = aiBuyList(live);
     if (!live.length) return '';
+    const buy = aiOrder.mode === 'buy';
     const body = b.rows.map(r => `<tr class="border-b border-amber-100">
         <td class="px-2 py-1.5 font-bold">${aiEsc(r.company) || '<span class="text-rose-600">(도매처 없음)</span>'}</td>
         <td class="px-2 py-1.5">${aiEsc(r.product)}</td>
         <td class="px-2 py-1.5">${aiEsc(r.color)}</td>
         <td class="px-2 py-1.5">${aiEsc(r.size)}</td>
         <td class="px-2 py-1.5 text-center font-black text-amber-800">${r.need}</td>
-        <td class="px-2 py-1.5 text-[11px] text-slate-500">${r.stock === null ? '상품관리에 없음' : `주문 ${r.ordered} · 재고 ${r.stock}`}</td>
+        <td class="px-2 py-1.5 text-[11px] text-slate-500">${aiEsc(aiBuyNote(r))}</td>
     </tr>`).join('') || '<tr><td colspan="6" class="px-2 py-4 text-center text-emerald-700 font-bold">모두 사무실 재고로 나갈 수 있어요. 사입할 상품이 없습니다.</td></tr>';
     return `<div id="ai-buy-box" class="border border-amber-200 bg-amber-50/60 rounded-lg p-3 space-y-2">
         <div class="flex flex-wrap items-center justify-between gap-2">
             <div>
                 <p class="text-sm font-black text-amber-800">🛒 사입할 상품 목록 <span class="text-xs font-bold">(${b.rows.length}가지 · ${b.needTotal}개)</span></p>
-                <p class="text-[11px] text-slate-600 mt-0.5">📦 사무실 재고로 나갈 상품 <b class="text-emerald-700">${b.fromStock}개</b> · 🛒 매장에서 사입할 상품 <b class="text-amber-800">${b.needTotal}개</b> — 재고는 지금 기준이며, 출고 때 먼저 들어온 주문부터 재고가 쓰여요.</p>
+                <p class="text-[11px] text-slate-600 mt-0.5">${buy
+                    ? (aiOrder.ownReady && aiOrder.useOwn ? `📦 내 재고로 보낼 상품 <b class="text-emerald-700">${b.fromStock}개</b> · ` : '')
+                      + `🛒 도매 매장 <b class="text-amber-800">${new Set(b.rows.map(r => r.company)).size}곳</b>에서 사입할 상품 <b class="text-amber-800">${b.needTotal}개</b> — 같은 상품은 주문 수량을 합쳤어요.`
+                    : `📦 사무실 재고로 나갈 상품 <b class="text-emerald-700">${b.fromStock}개</b> · 🛒 매장에서 사입할 상품 <b class="text-amber-800">${b.needTotal}개</b> — 재고는 지금 기준이며, 출고 때 먼저 들어온 주문부터 재고가 쓰여요.`}</p>
             </div>
             <div class="flex gap-1.5">
                 <button onclick="aiBuyExcel()" ${b.rows.length ? '' : 'disabled'} class="px-3 py-1.5 bg-white border border-amber-300 hover:bg-amber-100 disabled:opacity-40 text-amber-800 text-xs font-bold rounded-lg">엑셀 받기</button>
@@ -403,21 +445,41 @@ function aiBuyBox(live) {
             <table class="w-full text-xs">
                 <thead class="bg-amber-50 text-amber-800"><tr>
                     <th class="px-2 py-1.5 text-left">도매처명</th><th class="px-2 py-1.5 text-left">도매상품명</th><th class="px-2 py-1.5 text-left">컬러</th>
-                    <th class="px-2 py-1.5 text-left">사이즈</th><th class="px-2 py-1.5">사입할 수량</th><th class="px-2 py-1.5 text-left">참고</th>
+                    <th class="px-2 py-1.5 text-left">사이즈</th><th class="px-2 py-1.5">사입할 수량</th><th class="px-2 py-1.5 text-left">${buy ? '쇼핑몰상품명' : '참고'}</th>
                 </tr></thead>
                 <tbody>${body}</tbody>
             </table>
         </div>
+        ${buy && aiOrder.ownReady ? `<div class="flex flex-wrap items-center gap-3 pt-1">
+            <label class="flex items-center gap-1.5 text-xs font-bold text-slate-700 cursor-pointer"><input type="checkbox" id="buy-use-own" ${aiOrder.useOwn ? 'checked' : ''} ${aiOrder.ownDone ? 'disabled' : ''} onchange="aiSetUseOwn(this.checked)" class="w-4 h-4"> <a href="/my-stock" target="_blank" class="text-teal-700 underline">내 재고표</a> 수량만큼 빼고 계산</label>
+            ${aiOrder.ownDone ? '<span class="text-xs font-bold text-teal-700">✅ 내 재고표에서 뺐어요</span>' : aiOrder.useOwn && b.fromStock ? `<button id="btn-buy-own-out" onclick="aiOwnStockOut()" class="px-3 py-1.5 bg-white border border-teal-300 hover:bg-teal-50 text-teal-800 text-xs font-bold rounded-lg">내 재고로 보낸 ${b.fromStock}개, 내 재고표에서 빼기</button>
+            <span class="text-[11px] text-slate-500">상품을 다 보낸 뒤 눌러 주세요.</span>` : ''}
+        </div>` : ''}
     </div>`;
+}
+
+function aiSetUseOwn(on) { if (aiOrder.ownDone) return; aiOrder.useOwn = on; aiRender(); }
+
+// 내 재고로 보낸 만큼 '내 재고표'에서 빼기 (한 번만 누르도록 누른 뒤엔 재고를 다시 불러와 0개로 보임)
+async function aiOwnStockOut() {
+    const b = aiBuyList(aiOrder.rows.filter(o => !o.removed));
+    const items = b.stockRows.filter(r => r.pid && r.use > 0).map(r => ({ product_id: r.pid, change: -r.use }));
+    if (!items.length) return;
+    if (!confirm(`내 재고표에서 ${b.fromStock}개(${items.length}가지 상품)를 뺄까요?\n상품을 다 보낸 뒤에만 눌러 주세요.`)) return;
+    const { error } = await supabaseClient.rpc('own_stock_apply', { p_items: items, p_mode: 'add', p_reason: `주문서 출고 (${aiOrder.fileName})`.slice(0, 200) });
+    if (error) { alert('내 재고표를 바꾸지 못했어요.\n' + (error.message || '')); return; }
+    aiOrder.ownDone = true;   // 같은 주문서로 두 번 빼지 않게 (화면의 계산은 뺀 전 기준 그대로)
+    aiRender();
+    alert(`내 재고표에서 ${b.fromStock}개를 뺐어요.`);
 }
 
 function aiBuyExcel() {
     const b = aiBuyList(aiOrder.rows.filter(o => !o.removed));
     if (!b.rows.length) return;
-    const aoa = [['도매처명', '도매상품명', '컬러', '사이즈', '사입할 수량', '참고']]
-        .concat(b.rows.map(r => [r.company, r.product, r.color, r.size, r.need, r.stock === null ? '상품관리에 없음' : `주문 ${r.ordered} · 재고 ${r.stock}`]));
+    const aoa = [['도매처명', '도매상품명', '컬러', '사이즈', '사입할 수량', aiOrder.mode === 'buy' ? '쇼핑몰상품명' : '참고']]
+        .concat(b.rows.map(r => [r.company, r.product, r.color, r.size, r.need, aiOrder.mode === 'buy' ? [...r.mall].join(', ') : aiBuyNote(r)]));
     const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = [{ wch: 16 }, { wch: 24 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, { wch: 18 }];
+    ws['!cols'] = [{ wch: 16 }, { wch: 24 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, { wch: 30 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '사입할 상품');
     const d = new Date(), ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
@@ -463,13 +525,14 @@ function aiToggleRow(i) { aiOrder.rows[i].removed = !aiOrder.rows[i].removed; ai
 
 function aiReset() {
     aiOrder.rows = [];
-    document.getElementById('ai-result').classList.add('hidden');
-    document.getElementById('ai-drop-zone').classList.remove('hidden');
+    aiEl('result').classList.add('hidden');
+    aiEl('result').innerHTML = '';  // 두 화면에 같은 id(ai-buy-box)가 남지 않게
+    aiEl('drop').classList.remove('hidden');
     aiStatus('');
 }
 
 function aiStatus(text, isError) {
-    const el = document.getElementById('ai-status');
+    const el = aiEl('status');
     el.textContent = text;
     el.className = `mt-3 text-xs font-bold ${isError ? 'text-rose-600' : 'text-indigo-700'} ${text ? '' : 'hidden'}`;
 }
@@ -577,7 +640,7 @@ async function aiSaveNewProducts(np) {
     let msg = '';
     if (made) msg += `\n🗂️ 상품관리에 새 상품 ${made}개를 등록했어요.`;
     if (added) msg += `\n🗂️ 기존 상품 ${added}개에 쇼핑몰상품명을 덧붙였어요.`;
-    if (fails.length) msg += `\n⚠️ 상품관리 등록이 안 된 상품 ${fails.length}개: ${fails.slice(0, 5).join(', ')} (주문은 정상 접수됨, [상품관리]에서 직접 등록해 주세요)`;
+    if (fails.length) msg += `\n⚠️ 상품관리 등록이 안 된 상품 ${fails.length}개: ${fails.slice(0, 5).join(', ')} (${aiOrder.mode === 'buy' ? '' : '주문은 정상 접수됨, '}[상품관리]에서 직접 등록해 주세요)`;
     return msg.trim();
 }
 
@@ -643,4 +706,102 @@ async function aiSubmit() {
     if (typeof showLeftoverModal === 'function') showLeftoverModal(`풀필먼트 주문 총 ${batch.length}건이 접수되었어요`);
     else { alert(`총 ${batch.length}건의 주문이 접수되었습니다!`); if (isKakaoNoticeTime()) alert(KAKAO_NOTICE_MESSAGE); }
     aiReset();
+}
+
+// =====================================================================
+// 사입 목록 만들기 (매장/사무실 택배 화면, 2026-11-19 대표님 요청)
+//  풀필먼트·재고보관을 안 쓰는 일반/당일택배 업체: 쇼핑몰 주문서를 올리면 주문 접수 없이
+//  도매 매장별로 사입할 상품(도매상품명·컬러·사이즈·수량)만 정리 → 엑셀 받기 / 텍스트 복사
+//  받는분·연락처·주소는 화면에 보여주지 않고 저장하지도 않음 (상품만 정리)
+// =====================================================================
+// 같은 쇼핑몰상품명+옵션 줄을 한 묶음으로 (도매처는 묶음 단위로 한 번만 적으면 됨)
+function aiBuyGroups() {
+    const map = new Map();
+    aiOrder.rows.forEach((o, i) => {
+        const k = aiNorm(o.mallProduct) + '|' + aiNorm(o.option);
+        const g = map.get(k) || { key: k, idx: [], first: o, qty: 0, removed: true };
+        g.idx.push(i);
+        if (!o.removed) { g.qty += o.qty; g.removed = false; }
+        map.set(k, g);
+    });
+    return [...map.values()];
+}
+
+function aiSetGroupField(gi, field, value) {
+    const g = aiBuyGroups()[gi];
+    if (!g) return;
+    g.idx.forEach(i => { aiOrder.rows[i][field] = String(value || '').trim(); });
+    aiRender();
+}
+
+function aiToggleGroup(gi) {
+    const g = aiBuyGroups()[gi];
+    if (!g) return;
+    g.idx.forEach(i => { aiOrder.rows[i].removed = !g.removed; });
+    aiRender();
+}
+
+// 적어 준 도매처를 상품관리에 기억 → 다음에 같은 상품은 도매처가 저절로 채워짐
+async function aiBuyRemember() {
+    const np = aiNewProducts(aiOrder.rows.filter(o => !o.removed));
+    if (!np.creates.length && !np.adds.length) return;
+    const btn = document.getElementById('btn-buy-remember');
+    if (btn) btn.disabled = true;
+    const msg = await aiSaveNewProducts(np);
+    await aiLoadProducts();
+    aiOrder.rows.forEach(o => {
+        if (o.match) return;
+        o.match = aiMatch(o);
+        if (o.match) { o.wholesaleCompany = o.match.wholesale_company; o.wholesaleProduct = o.match.wholesale_product; }
+    });
+    aiRender();
+    if (msg) alert(msg + '\n다음부터 같은 상품은 도매처가 저절로 채워져요.');
+}
+
+function aiRenderBuy() {
+    const box = aiEl('result');
+    const live = aiOrder.rows.filter(o => !o.removed);
+    const groups = aiBuyGroups();
+    const noCompany = groups.filter(g => !g.removed && !g.first.wholesaleCompany).length;
+    const np = aiNewProducts(live);
+    const regCount = np.creates.length + np.adds.length;
+    const input = (gi, field, v, ph) => `<input type="text" value="${aiEsc(v)}" placeholder="${ph}" onchange="aiSetGroupField(${gi}, '${field}', this.value)"
+        class="w-full min-w-[110px] px-2 py-1 border rounded text-xs ${v ? 'border-slate-200' : 'border-amber-400 bg-amber-50'}">`;
+    const tr = groups.map((g, gi) => {
+        const o = g.first;
+        const matchTxt = o.match ? `<span class="text-emerald-700 font-bold">상품관리 ${aiEsc(o.match.code)}</span>` : '<span class="text-slate-400">처음 보는 상품</span>';
+        return `<tr class="${g.removed ? 'opacity-40 line-through' : !o.wholesaleCompany ? 'bg-amber-50/60' : ''} border-b border-slate-100 align-top">
+            <td class="px-2 py-2 min-w-[180px]">${o.mallProduct ? aiEsc(aiMallText(o)) : '<span class="text-rose-600">(상품명 없음)</span>'}</td>
+            <td class="px-2 py-2 text-center font-bold">${g.removed ? '-' : g.qty}</td>
+            <td class="px-2 py-2">${input(gi, 'wholesaleCompany', o.wholesaleCompany, '도매처명 (예: 청평화 A동 12호)')}</td>
+            <td class="px-2 py-2">${input(gi, 'wholesaleProduct', o.wholesaleProduct, '도매상품명 (모르면 비워두세요)')}</td>
+            <td class="px-2 py-2 whitespace-nowrap text-[11px]">${matchTxt}</td>
+            <td class="px-2 py-2"><button onclick="aiToggleGroup(${gi})" class="px-2 py-1 border border-slate-200 rounded text-[11px] font-bold text-slate-600 hover:bg-slate-50 whitespace-nowrap">${g.removed ? '되살리기' : '빼기'}</button></td>
+        </tr>`;
+    }).join('');
+    box.innerHTML = `
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+                <p class="text-sm font-bold text-slate-800">📋 ${aiEsc(aiOrder.fileName)}${aiOrder.sheetName ? ` <span class="text-xs font-normal text-slate-500">· '${aiEsc(aiOrder.sheetName)}' 시트를 읽었어요</span>` : ''} ${aiOrder.platform ? `<span class="ml-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[11px]">${aiEsc(aiOrder.platform)} 양식</span>` : ''}</p>
+                <p class="text-xs text-slate-500 mt-0.5">주문 ${live.length}줄 · 상품 ${groups.filter(g => !g.removed).length}가지 · 이 화면은 <b>사입 목록만 정리</b>해요 (주문 접수·저장 안 됨)</p>
+            </div>
+            <button onclick="aiReset()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold rounded-lg">다른 파일 올리기</button>
+        </div>
+        ${noCompany ? `<p class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">처음 보는 상품 ${noCompany}가지는 <b>도매처명</b>을 적어 주세요. 비워두면 사입 목록에 '(도매처 없음)'으로 모여요.</p>` : ''}
+        <div class="overflow-x-auto border border-slate-200 rounded-lg">
+            <table class="w-full text-xs">
+                <thead class="bg-slate-50 text-slate-500"><tr>
+                    <th class="px-2 py-2 text-left">쇼핑몰 상품 / 옵션</th><th class="px-2 py-2">주문 수량</th>
+                    <th class="px-2 py-2 text-left">도매처명</th><th class="px-2 py-2 text-left">도매상품명</th><th class="px-2 py-2 text-left">상품관리</th><th></th>
+                </tr></thead>
+                <tbody>${tr}</tbody>
+            </table>
+        </div>
+        ${regCount ? `<div class="flex flex-wrap items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+            <span class="text-xs text-emerald-800">적어 주신 도매처를 기억해 둘까요? 다음부터 같은 상품은 저절로 채워져요.</span>
+            <button id="btn-buy-remember" onclick="aiBuyRemember()" class="px-2.5 py-1 bg-white border border-emerald-300 hover:bg-emerald-100 text-emerald-800 text-[11px] font-bold rounded">상품관리에 기억하기 (${regCount}가지)</button>
+        </div>` : ''}
+        ${aiBuyBox(live)}`;
+    box.classList.remove('hidden');
+    aiEl('drop').classList.add('hidden');
 }

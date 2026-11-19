@@ -96,7 +96,8 @@ const applyCalls = [];
       let n = 0;
       products.forEach(p => { const m = mainOf(p.company); if (m !== p.company) { p.company = m; n++; } });
       inventory.forEach(i => { i.company = products.find(p => p.id === i.product_id).company; });
-      return json(200, { products: n, inventory: n, moves: 0, other: 0, dups: [] });
+      return body.p_merge ? json(200, { products: 0, inventory: 0, moves: 2, other: 0, dups: [{ code: 'P000009', into: 'P000003', qty: 4 }], waiting: [] })
+        : json(200, { products: n, inventory: n, moves: 0, other: 0, dups: [], waiting: [{ code: 'P000009', into: 'P000003', name: '도매A 꽃니트 검정 F', qty: 4 }] });
     }
     if (url.pathname === '/rest/v1/rpc/my_stock_visible') return json(200, true);
     if (url.pathname === '/rest/v1/rpc/stock_terms_status') return json(200, true);
@@ -160,8 +161,10 @@ const applyCalls = [];
   check('same name rejected', dialogs[dialogs.length - 1].includes('두 상호가 같습니다'));
   await uf.fill('#a-main', '미닛걸');
   await uf.click('#a-save'); await page.waitForTimeout(1500);
-  check('apply called with alias', applyCalls.length === 1 && applyCalls[0].p_alias === '에스비컴퍼니', JSON.stringify(applyCalls));
-  check('result alert shows moved count', dialogs[dialogs.length - 1].includes('상품 2개'), dialogs[dialogs.length - 1]);
+  check('apply first without merge, then merge after 승인', applyCalls.length === 2 && applyCalls[0].p_merge === false && applyCalls[1].p_merge === true, JSON.stringify(applyCalls));
+  check('first alert shows moved count + waiting', dialogs.some(d => d.includes('상품 2개') && d.includes('아직 옮기지 않은 상품 1개')));
+  check('asks 합치겠습니까 with product list before merging', dialogs.some(d => d.includes('합치겠습니까') && d.includes('도매A 꽃니트 검정 F') && d.includes('재고 4개')));
+  check('merged result alert', dialogs[dialogs.length - 1].includes('P000009 → P000003 (수량 4개 더함)'), dialogs[dialogs.length - 1]);
   const tb = await uf.textContent('#tbody');
   check('list shows main/alias/member', tb.includes('미닛걸') && tb.includes('에스비컴퍼니') && tb.includes('회원') && tb.includes('상품 3개'), tb);
   // 메인 상호를 다른 상호로 다시 쓰면 막기
