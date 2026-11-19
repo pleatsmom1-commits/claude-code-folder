@@ -596,15 +596,25 @@
                             <option value="부분출고">부분출고</option>
                             <option value="출고완료">출고완료</option>
                         </select>
+                        <select id="history-tracking" class="px-2 py-1.5 border rounded-lg text-xs bg-white" title="송장번호가 들어온 주문 / 아직 안 들어온 주문만 골라 봅니다">
+                            <option value="all">송장 전체</option>
+                            <option value="has">송장 있는 주문</option>
+                            <option value="none">송장 없는 주문만</option>
+                        </select>
                         <select id="history-sort" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
                             <option value="desc">최신순</option>
                             <option value="asc">오래된순 (1번부터)</option>
                         </select>
                         <button type="button" id="btn-history-search" onclick="runHistorySearch()" class="px-5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-black flex items-center gap-1"><i data-lucide="search" class="w-3.5 h-3.5"></i> 조회</button>
                         <button type="button" onclick="resetHistorySearch()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-bold">초기화</button>
-                        <button type="button" onclick="downloadSellerHistoryExcel()" class="ml-auto px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1">
+                        <div class="ml-auto flex flex-wrap gap-2">
+                        <button type="button" id="btn-tracking-excel" onclick="downloadSellerTrackingExcel()" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold flex items-center gap-1" title="조회한 주문 중 송장번호가 있는 주문만 엑셀로 받습니다 (쇼핑몰 송장 일괄 등록용)">
+                            <i data-lucide="truck" class="w-3.5 h-3.5"></i> 송장번호 엑셀
+                        </button>
+                        <button type="button" onclick="downloadSellerHistoryExcel()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1">
                             <i data-lucide="file-down" class="w-3.5 h-3.5"></i> 조회결과 엑셀
                         </button>
+                        </div>
                     </div>
                 </div>
 
@@ -618,6 +628,7 @@
                                 <th class="p-3 whitespace-nowrap">NO.</th>
                                 <th class="p-3 whitespace-nowrap">접수번호</th>
                                 <th class="ship-ui p-3 whitespace-nowrap">운송장정보<span class="block text-[10px] font-normal text-slate-400">택배사 / 송장번호</span></th>
+                                <th class="p-3 whitespace-nowrap">송장번호<span class="block text-[10px] font-normal text-slate-400">우체국택배 / 배송조회</span></th>
                                 <th class="p-3 whitespace-nowrap">수화인(받는사람)</th>
                                 <th class="p-3 whitespace-nowrap">연락처</th>
                                 <th class="p-3 whitespace-nowrap">주소</th>
@@ -1558,6 +1569,18 @@
                             </thead>
                             <tbody id="ship-list" class="divide-y divide-slate-100"></tbody>
                         </table>
+                    </div>
+                    <!-- 주문에 송장번호 넣기 + 송장 빠진 주문 확인 (ship-admin.js, 2026-11-19) -->
+                    <div id="ship-missing-box" class="border border-rose-200 bg-rose-50/30 rounded-xl p-4 space-y-2">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <h4 class="font-bold text-slate-900 flex items-center gap-1"><i data-lucide="search-check" class="w-4 h-4 text-rose-600"></i> 송장 빠진 주문</h4>
+                            <span id="ship-missing-summary" class="text-xs"></span>
+                            <button type="button" onclick="shipBackfillOrderTracking()" class="ml-auto px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg" title="최근 30일 동안 올렸던 송장 엑셀로, 아직 송장번호가 없는 주문을 다시 맞춰 봅니다">지난 송장도 주문에 넣기 (최근 30일)</button>
+                        </div>
+                        <p class="text-[11px] text-slate-500">송장 엑셀을 올리면 <b>업체 + 받는분</b>이 같은 주문에 송장번호(우체국택배)가 자동으로 들어가고, 셀러 화면 주문 옆에 송장번호와 [배송조회]가 보입니다.
+                            아래는 <b>고른 출고일 당일에 접수</b>된 풀필먼트 주문(접수완료) 중 송장번호가 아직 없는 주문입니다. (숨긴 접수건 · 따로 처리됨 · 보관요청 · 매장 접수는 빠짐)</p>
+                        <div id="ship-link-status" class="text-xs text-emerald-700"></div>
+                        <div id="ship-missing"></div>
                     </div>
                     <p class="ship-full text-[11px] text-slate-500">* 연락처는 [정산서 발송] 탭의 거래처 연락처를 같이 씁니다 (없으면 회원가입 연락처). 연락처가 없거나 단톡방으로 보낼 업체는 [단톡방용 문구 복사]를 눌러 붙여넣으세요.</p>
                 </div>
@@ -4226,6 +4249,26 @@
             return item + tracking + (partial ? `<span class="block mt-1 text-[10px] font-bold text-orange-600">부분출고 ${g.shipped}/${g.total}</span>` : '');
         }
 
+        // 셀러 화면: 송장번호 + [배송조회] (우체국택배 배송조회 화면을 새 창으로 엽니다. 무료, 로그인 없음)
+        //  송장번호는 관리자가 [운송장 전송] 탭에 송장 엑셀을 올리면 업체·받는분이 같은 주문에 자동으로 들어갑니다 (ship-admin.js).
+        const EPOST_TRACE_URL = 'https://service.epost.go.kr/trace.RetrieveDomRigiTraceList.comm?sid1=';
+        function trackingUrl(o) {
+            const no = String(o.tracking_no || '').replace(/\D/g, '');
+            if (!no) return '';
+            // 우체국택배가 아닌 택배사(당일택배 등)는 배송조회 버튼 없이 번호만 보여줍니다.
+            if (o.courier && !/우체국/.test(o.courier)) return '';
+            return EPOST_TRACE_URL + no;
+        }
+        function trackingCellHtml(o) {
+            // 보관요청·매장 접수(송장 엑셀에 업체별로 안 나뉨)는 송장번호가 들어오지 않으면 '-'
+            if (isKeepOrder(o) || (isStoreOrder(o) && !o.tracking_no)) return '<span class="text-slate-300">-</span>';
+            if (!o.tracking_no) return '<span class="text-[11px] text-slate-400">아직 없음</span>';
+            const url = trackingUrl(o);
+            return `<b class="block font-mono text-sky-700 select-all">${escapeHtml(o.tracking_no)}</b>`
+                + (url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="track-link inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded bg-sky-50 border border-sky-200 hover:bg-sky-100 text-sky-700 text-[11px] font-bold">🚚 배송조회</a>`
+                    : `<span class="block text-[10px] text-slate-500">${escapeHtml(o.courier || '')}</span>`);
+        }
+
         function renderSellerTable() {
             const tbody = document.getElementById('seller-order-list');
             const allMine = ordersMaster.filter(o => o.seller_id === currentUserId);
@@ -4234,7 +4277,7 @@
             document.getElementById('chk-all-seller').checked = false;
 
             if (myOrders.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="14" class="text-center py-6 text-slate-400">${allMine.length ? '조회 조건에 맞는 주문이 없습니다.' : '접수된 주문이 없습니다.'}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="15" class="text-center py-6 text-slate-400">${allMine.length ? '조회 조건에 맞는 주문이 없습니다.' : '접수된 주문이 없습니다.'}</td></tr>`;
                 return;
             }
 
@@ -4259,6 +4302,7 @@
                         <td class="ship-ui p-3 whitespace-nowrap">${keepRow ? '<span class="text-slate-300">-</span>' : o.tracking_no
                             ? `<span class="block text-[11px] text-slate-600">${escapeHtml(o.courier || '-')}</span><b class="font-mono text-sky-700">${escapeHtml(o.tracking_no)}</b>`
                             : '<span class="text-[10px] text-slate-400">미등록</span>'}</td>
+                        <td class="p-3 whitespace-nowrap">${trackingCellHtml(o)}</td>
                         <td class="p-3 font-semibold text-slate-900 whitespace-nowrap">${escapeHtml(o.recipient)}</td>
                         <td class="p-3 whitespace-nowrap">${escapeHtml(o.phone)}</td>
                         <td class="p-3 max-w-xs truncate" title="${fullAddress}">${fullAddress}</td>
@@ -4364,6 +4408,7 @@
                 type: document.getElementById('history-type').value,
                 status: document.getElementById('history-status').value,
                 ship: document.getElementById('history-ship').value,
+                tracking: document.getElementById('history-tracking').value,
                 sort: document.getElementById('history-sort').value
             };
             renderSellerTable();
@@ -4375,8 +4420,9 @@
             document.getElementById('history-type').value = 'all';
             document.getElementById('history-status').value = 'all';
             document.getElementById('history-ship').value = 'all';
+            document.getElementById('history-tracking').value = 'all';
             document.getElementById('history-sort').value = 'desc';
-            historyQuery = { field: 'all', keyword: '', type: 'all', status: 'all', ship: 'all', sort: 'desc' };
+            historyQuery = { field: 'all', keyword: '', type: 'all', status: 'all', ship: 'all', tracking: 'all', sort: 'desc' };
             setHistoryPreset('today', run);
         }
 
@@ -4411,7 +4457,7 @@
 
         // 셀러 주문 목록에 기간 + 검색어 적용
         function getSellerHistoryOrders() {
-            const { keyword, field, type: typeFilter, status = 'all', ship = 'all' } = historyQuery;
+            const { keyword, field, type: typeFilter, status = 'all', ship = 'all', tracking = 'all' } = historyQuery;
             const groups = ship === 'all' ? null : getOrderGroups();
             const oldestFirst = historyQuery.sort === 'asc';
             const bySellerNo = (a, b) =>
@@ -4426,6 +4472,8 @@
                 && (status === 'all' || o.status === status)
                 // 출고상태(주문 단위)로 고르면 출고 대상이 아닌 보관요청 건은 빠집니다.
                 && (ship === 'all' || (!isKeepOrder(o) && orderShipState(o, groups) === ship))
+                // 송장 없는 주문만: 풀필먼트 주문만 봅니다 (보관요청·매장 접수는 송장이 주문별로 붙지 않음)
+                && (tracking === 'all' || (tracking === 'has' ? (!isKeepOrder(o) && !!o.tracking_no) : (orderTypeOf(o) === 'fulfillment' && !o.tracking_no)))
             ).sort(bySellerNo);
         }
 
@@ -6481,6 +6529,35 @@
                 console.error(err);
                 alert('엑셀 다운로드 중 오류가 발생했습니다: ' + err.message);
             }
+        }
+
+        // 셀러: 송장번호 엑셀 (조회한 주문 중 송장번호가 있는 주문만) → 쇼핑몰 송장 일괄 등록에 씁니다.
+        function downloadSellerTrackingExcel() {
+            const list = getSellerHistoryOrders().filter(o => !isKeepOrder(o));
+            const withNo = list.filter(o => o.tracking_no);
+            const missing = list.length - withNo.length;
+            if (!withNo.length) {
+                alert(list.length
+                    ? `조회한 주문 ${list.length}건에 아직 송장번호가 없습니다.\n송장번호는 출고 후 밤낮딜리버리에서 등록하면 보입니다.`
+                    : '다운로드할 주문이 없습니다. 조회 기간/검색어를 확인해주세요.');
+                return;
+            }
+            const groups = getOrderGroups();
+            const rows = [['접수일시', 'NO.', '받는분', '연락처', '주소', '쇼핑몰 상품명', '택배사', '송장번호'],
+                ...withNo.map(o => [formatKstDateTime(o.created_at), sellerNoLabel(o, groups), o.recipient || '', o.phone || '',
+                    `${o.address || ''} ${o.detail_address || ''}`.trim(), o.product || '', o.courier || '우체국택배', String(o.tracking_no)])];
+            const ws = XLSX.utils.aoa_to_sheet(rows);
+            // 송장번호·연락처는 글자로 (엑셀이 숫자로 바꿔 앞자리 0 이나 끝자리가 사라지지 않게)
+            for (let r = 1; r < rows.length; r++) for (const c of [3, 7]) {
+                const ref = XLSX.utils.encode_cell({ r, c });
+                if (ws[ref]) { ws[ref].t = 's'; ws[ref].z = '@'; }
+            }
+            ws['!cols'] = [18, 8, 12, 15, 40, 36, 12, 18].map(wch => ({ wch }));
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '송장번호');
+            const p = getKstParts();
+            XLSX.writeFile(wb, `밤낮딜리버리_송장번호_${historyFrom || '전체'}~${historyTo || `${p.y}-${p.m}-${p.d}`}.xlsx`);
+            if (missing) alert(`송장번호가 있는 ${withNo.length}건을 받았습니다.\n조회한 주문 중 송장번호가 아직 없는 ${missing}건은 빠졌습니다. ([송장 없는 주문만]으로 확인할 수 있습니다)`);
         }
 
         // 관리자: 현재 필터 기준 접수건 엑셀 (8개 시트)
