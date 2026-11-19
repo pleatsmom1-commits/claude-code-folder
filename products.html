@@ -10,6 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="view-as.js"></script>
+<script src="company-unify.js"></script>
 <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
     .modal { position: fixed; inset: 0; background: rgba(15, 23, 42, .6); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
@@ -294,6 +295,7 @@
         }
         if (!isAdmin && profile.status !== 'approved') { showState('관리자 승인 후 상품관리를 이용할 수 있습니다.'); return; }
         document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !isAdmin));
+        if (isAdmin) await COMPANY_UNIFY.load(client);   // 상호통일 (company-unify.js)
         document.querySelectorAll('.seller-only').forEach(el => el.classList.toggle('hidden', isAdmin));
         if (!isAdmin) document.querySelector('#f-status option[value="deleted"]').remove();
         document.getElementById('header-company').textContent = isAdmin ? '관리자 · 전체 거래처' : `${profile.company}`;
@@ -317,12 +319,15 @@
         return [...map.values()].sort((a, b) => a.localeCompare(b, 'ko'));
     }
 
+    // 상호통일된 상호는 '미닛걸 (+에스비컴퍼니)'처럼 다른 상호를 같이 보여줌
+    function unifyLabel(c) { const al = COMPANY_UNIFY.aliasesOf(c); return al.length ? `${c} (+${al.join(', ')})` : c; }
+
     function renderCompanies() {
         if (!isAdmin) return;
         const sel = document.getElementById('f-company');
         const cur = sel.value;
         const list = companies();
-        sel.innerHTML = `<option value="">거래처 전체 (${list.length}곳)</option>` + list.map(c => `<option value="${esc(norm(c))}">${esc(c)}</option>`).join('');
+        sel.innerHTML = `<option value="">거래처 전체 (${list.length}곳)</option>` + list.map(c => `<option value="${esc(norm(c))}">${esc(unifyLabel(c))}</option>`).join('');
         // 관리자 [업체 화면 보기]에서 /products?company=상호 로 열면 그 업체를 미리 골라 둡니다 (처음 한 번)
         const want = presetCompany ? norm(presetCompany) : cur;
         presetCompany = '';
@@ -347,7 +352,7 @@
             if (status === 'deleted' && st !== 'deleted') return false;
             if (company && norm(p.company) !== company) return false;
             if (kw) {
-                const text = norm([p.code, p.company, p.wholesale_company, p.wholesale_product, p.color, p.size, namesText(p.mall_names), p.memo].join('|'));
+                const text = norm([p.code, p.company, ...COMPANY_UNIFY.aliasesOf(p.company), p.wholesale_company, p.wholesale_product, p.color, p.size, namesText(p.mall_names), p.memo].join('|'));
                 if (!text.includes(kw)) return false;
             }
             return true;
@@ -496,7 +501,7 @@
         row.mall_names = [...document.querySelectorAll('#e-names .name-row')]
             .map(r => ({ platform: r.querySelector('.n-platform').value.trim(), name: r.querySelector('.n-name').value.trim() }))
             .filter(n => n.name);
-        const company = isAdmin ? document.getElementById('e-company').value.trim() : me.company;
+        const company = isAdmin ? COMPANY_UNIFY.main(document.getElementById('e-company').value.trim()) : me.company;
         if (isAdmin) {
             if (!company) { alert('거래처명을 입력해주세요.'); return; }
             row.company = company;
@@ -678,7 +683,7 @@
             rows.slice(1).forEach((r, i) => {
                 if (!r.some(v => String(v).trim())) return;
                 const item = {
-                    company: isAdmin ? cell(r, 'company') : me.company,
+                    company: isAdmin ? COMPANY_UNIFY.main(cell(r, 'company')) : me.company,
                     wholesale_company: cell(r, 'wholesale_company'), wholesale_product: cell(r, 'wholesale_product'),
                     color: cell(r, 'color'), size: cell(r, 'size'), memo: cell(r, 'memo'),
                 };

@@ -10,6 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="view-as.js"></script>
+<script src="company-unify.js"></script>
 <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
     .modal { position: fixed; inset: 0; background: rgba(15, 23, 42, .6); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
@@ -288,6 +289,7 @@
             if (!vErr && visible === false) { showState('지금은 재고표를 준비 중입니다.<br>준비가 끝나면 이곳에서 내 재고를 확인하실 수 있어요.'); return; }
         }
         document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !isAdmin));
+        if (isAdmin) await COMPANY_UNIFY.load(client);   // 상호통일 (company-unify.js)
         document.getElementById('header-company').textContent = isAdmin ? '관리자 · 전체 거래처' : (viewCompany || profile.company);
         document.getElementById('seller-rule').classList.toggle('hidden', isAdmin);
         await loadAll();
@@ -370,7 +372,7 @@
         const sel = document.getElementById('f-company');
         const cur = sel.value;
         const list = companies();
-        sel.innerHTML = `<option value="">거래처 전체 (${list.length}곳)</option>` + list.map(c => `<option value="${esc(norm(c))}">${esc(c)}</option>`).join('');
+        sel.innerHTML = `<option value="">거래처 전체 (${list.length}곳)</option>` + list.map(c => { const al = COMPANY_UNIFY.aliasesOf(c); return `<option value="${esc(norm(c))}">${esc(al.length ? `${c} (+${al.join(', ')})` : c)}</option>`; }).join('');
         sel.value = list.some(c => norm(c) === cur) ? cur : '';
         document.getElementById('company-options').innerHTML = list.map(c => `<option value="${esc(c)}">`).join('');
     }
@@ -387,7 +389,7 @@
             if (status === 'defect' && !q.defect) return false;
             if (company && norm(p.company) !== company) return false;
             if (kw) {
-                const text = norm([p.code, p.company, p.wholesale_company, p.wholesale_product, p.color, p.size, namesText(p.mall_names), q.location].join('|'));
+                const text = norm([p.code, p.company, ...COMPANY_UNIFY.aliasesOf(p.company), p.wholesale_company, p.wholesale_product, p.color, p.size, namesText(p.mall_names), q.location].join('|'));
                 if (!text.includes(kw)) return false;
             }
             return true;
@@ -588,6 +590,7 @@
     function intakeValues() {
         const v = {};
         I_FIELDS.forEach(f => { v[f] = document.getElementById('i-' + f).value.trim(); });
+        if (isAdmin) v.company = COMPANY_UNIFY.main(v.company);   // 다른 상호로 적어도 메인 상호로
         return v;
     }
     function suggest() {
@@ -808,7 +811,7 @@
                 const code = cell(r, 'code').toUpperCase();
                 let product = code ? byCode.get(code) : null;
                 if (code && !product) { skipped.push(`${line}번째 줄: 상품코드 ${code} 를 찾지 못함`); return; }
-                const item = { company: cell(r, 'company'), wholesale_company: cell(r, 'wholesale_company'), wholesale_product: cell(r, 'wholesale_product'), color: cell(r, 'color'), size: cell(r, 'size') };
+                const item = { company: COMPANY_UNIFY.main(cell(r, 'company')), wholesale_company: cell(r, 'wholesale_company'), wholesale_product: cell(r, 'wholesale_product'), color: cell(r, 'color'), size: cell(r, 'size') };
                 if (!product) product = byKey.get(itemKey(item));
                 const company = product ? product.company : item.company;
                 if (!company) { skipped.push(`${line}번째 줄: 거래처명 없음`); return; }
