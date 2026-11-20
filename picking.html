@@ -215,8 +215,9 @@
     // -----------------------------------------------------------------
     function matchOrder(o) {
         const company = norm(COMPANY_UNIFY.main(o.seller_company));
-        const text = norm(o.product);
-        const alias = aliases.get(company + '|' + text);
+        // (합)·(킵) 표시는 빼고 비교 (상품명 앞에 (킵)이 붙어도 같은 상품으로 찾음)
+        const text = norm(String(o.product || '').replace(/\((합|킵)\)/g, ''));
+        const alias = aliases.get(company + '|' + norm(o.product)) || aliases.get(company + '|' + text);
         if (alias && byId.has(alias.product_id)) return { product: byId.get(alias.product_id), how: '지정' };
         const mine = products.filter(p => norm(p.company) === company);
         const code = (String(o.product || '').toUpperCase().match(/P\d{6}/) || [])[0];
@@ -370,7 +371,15 @@
         const items = list.map(x => ({ order_id: x.o.id, product_id: x.product.id, qty: x.qty, note: `${orderNo(x.o)} ${x.o.recipient || ''}`.trim() }));
         const { data, error } = await client.rpc('inventory_pick', { p_items: items });
         if (error) { alert('출고확정하지 못했습니다. (아무것도 빠지지 않았습니다)\n\n' + errorMessage(error)); btn.disabled = false; return; }
-        alert(`출고확정했습니다. ${data}건`);
+        // 재고에서 나간 주문인데 상품명에 (킵)이 없으면 붙여 둡니다 (물류팀 엑셀 '킵출고리스트'에 잡히도록)
+        const noKeep = list.filter(x => !/킵/.test(x.o.product || ''));
+        let keepFail = 0;
+        for (const x of noKeep) {
+            const { error: ke } = await client.from('orders').update({ product: '(킵)' + (x.o.product || '') }).eq('id', x.o.id);
+            if (ke) keepFail++;
+        }
+        alert(`출고확정했습니다. ${data}건` + (noKeep.length ? `\n상품명에 (킵)이 없던 ${noKeep.length - keepFail}건은 (킵)을 붙였습니다.` : '')
+            + (keepFail ? `\n(킵)을 붙이지 못한 ${keepFail}건은 주문 목록에서 직접 고쳐 주세요.` : ''));
         await loadOrders();
     }
 
