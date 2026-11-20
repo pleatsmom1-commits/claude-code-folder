@@ -954,7 +954,7 @@
                             <span class="text-xs font-bold text-slate-600 ml-2">상태:</span>
                             <select id="admin-status-filter" class="px-3 py-1.5 border rounded-lg text-xs font-medium focus:outline-none">
                                 <option value="ALL">전체</option>
-                                <option value="접수대기">접수대기</option>
+                                <option value="접수대기" selected>접수대기</option>
                                 <option value="접수완료">접수완료</option>
                             </select>
                             <span id="admin-order-count" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full">총 0건</span>
@@ -4605,7 +4605,7 @@
         // 관리자: 주문 조회 (기간 / 검색) — [조회] 버튼(또는 기간 버튼)을 눌렀을 때만 바뀝니다.
         let adminFrom = null;
         let adminTo = null;
-        const ADMIN_QUERY_DEFAULT = { seller: 'ALL', type: 'all', ship: 'ALL', status: 'ALL', field: 'all', keyword: '', sort: 'desc', showHidden: false };
+        const ADMIN_QUERY_DEFAULT = { seller: 'ALL', type: 'all', ship: 'ALL', status: '접수대기', field: 'all', keyword: '', sort: 'desc', showHidden: false };
         let adminQuery = { ...ADMIN_QUERY_DEFAULT };
         function setAdminPreset(preset, run = true) {
             const [from, to] = presetRange(preset);
@@ -4644,7 +4644,7 @@
             document.getElementById('admin-seller-filter').value = 'ALL';
             document.getElementById('admin-type-filter').value = 'all';
             document.getElementById('admin-ship-filter').value = 'ALL';
-            document.getElementById('admin-status-filter').value = 'ALL';
+            document.getElementById('admin-status-filter').value = ADMIN_QUERY_DEFAULT.status;   // 처음 열 때·초기화 때는 '접수대기'부터 보이기
             document.getElementById('admin-keyword').value = '';
             document.getElementById('admin-field').value = 'all';
             document.getElementById('admin-sort').value = 'desc';
