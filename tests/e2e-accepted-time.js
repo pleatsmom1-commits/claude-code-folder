@@ -143,6 +143,8 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.click('#tab-btn-admin');
   await page.fill('#login-email', 'admin@x.com'); await page.fill('#login-pw', 'adminpass1');
   await page.click('#btn-login'); await page.waitForTimeout(1500);
+  check('처음 열면 상태 기본값 접수대기', await page.inputValue('#admin-status-filter') === '접수대기');
+  await page.selectOption('#admin-status-filter', 'ALL'); await page.evaluate(() => runAdminSearch()); await page.waitForTimeout(300);
   const [dl] = await Promise.all([page.waitForEvent('download'), page.click('button:has-text("엑셀 다운로드 (현재 필터 기준)")')]);
   const f = path.join(__dirname, 'out', 'accepted.xlsx'); await dl.saveAs(f);
   const wb = XLSX.readFile(f);
