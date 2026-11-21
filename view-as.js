@@ -49,7 +49,7 @@
             if (a.getAttribute('href') === '/' && !a.dataset.viewAs) {
                 a.dataset.viewAs = '1';
                 a.href = VA.backUrl();
-                if (/주문접수 화면/.test(a.textContent)) a.textContent = a.textContent.replace('주문접수 화면', '업체 화면으로 돌아가기');
+                if (/주문접수 화면|택배접수 화면으로/.test(a.textContent)) a.textContent = a.textContent.replace(/주문접수 화면|택배접수 화면으로/, '업체 화면으로 돌아가기');
             }
         });
         relabel();
