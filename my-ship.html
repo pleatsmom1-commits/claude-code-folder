@@ -72,7 +72,7 @@
         ['blank', '(빈칸)'],
         ['recipient', '받는분 이름'], ['phone', '받는분 연락처'], ['phone2', '받는분 연락처2'],
         ['zipcode', '받는분 우편번호'], ['address_full', '받는분 주소 (전체)'], ['address', '받는분 기본주소'], ['address_detail', '받는분 상세주소'],
-        ['product_full', '상품명 + 옵션 (+ 합친 상품)'], ['product', '상품명만'], ['option', '옵션만'], ['qty', '수량'],
+        ['product_full', '상품명 + 옵션'], ['product', '상품명만'], ['option', '옵션만'], ['qty', '수량'],
         ['memo', '배송메세지'], ['order_no', '주문번호'],
         ['sender_name', '보내는분 이름'], ['sender_phone', '보내는분 연락처'], ['sender_zipcode', '보내는분 우편번호'], ['sender_address', '보내는분 주소'],
         ['fixed', '직접 적은 값 (매번 같음)'],
@@ -144,6 +144,10 @@
         const { data } = missing ? { data: [] } : await client.from('seller_ship_orders').select('*').eq('ship_date', curDate).order('id');
         orders = data || [];
         checked = new Set(orders.map(o => o.id));
+        // 같은 날 같은 받는분(이름·연락처·주소) 주문 수 → 목록에 '같은 받는분 N건' 표시 (합배송 여부 확인용)
+        const same = new Map();
+        orders.forEach(o => { const k = [o.recipient, o.phone, o.address, o.address_detail].map(norm).join('|'); o._k = k; same.set(k, (same.get(k) || 0) + 1); });
+        orders.forEach(o => { o._same = same.get(o._k); });
         render();
     }
 
@@ -180,7 +184,6 @@
                 <select id="date-sel" onchange="curDate=this.value; loadOrders()">${(dates.some(d => d[0] === curDate) ? dates : [[curDate, 0], ...dates]).map(([d, n]) => `<option value="${d}" ${d === curDate ? 'selected' : ''}>${d} (${n}건)</option>`).join('')}</select>
                 <a class="btn" href="/?open=buy">＋ 쇼핑몰 주문서 올리기</a>
                 <span style="flex:1"></span>
-                <label class="sub"><input type="checkbox" id="merge-same" checked> 같은 받는분은 한 줄로 합치기</label>
                 <select id="tpl-sel">${templates.map(t => `<option value="${t.id}" ${def && t.id === def.id ? 'selected' : ''}>${esc(t.name || t.file_name)}</option>`).join('') || '<option value="">(양식 없음)</option>'}</select>
                 <button class="btn green" onclick="downloadWaybill()" ${orders.length && templates.length ? '' : 'disabled'}>📥 운송장 엑셀 받기 (<span id="sel-n">${checked.size}</span>건)</button>
                 <button class="btn red" onclick="delOrders()" ${orders.length ? '' : 'disabled'}>선택 지우기</button>
@@ -191,7 +194,7 @@
                     <thead><tr><th><input type="checkbox" ${orders.length && checked.size === orders.length ? 'checked' : ''} onchange="checkAll(this.checked)"></th><th>받는분</th><th>연락처</th><th>주소</th><th>상품 / 옵션</th><th>수량</th><th>배송메세지</th><th>주문번호</th><th></th></tr></thead>
                     <tbody>${orders.map(o => `<tr>
                         <td><input type="checkbox" ${checked.has(o.id) ? 'checked' : ''} onchange="check(${o.id}, this.checked)"></td>
-                        <td><b>${esc(o.recipient)}</b></td><td class="sub">${esc(o.phone)}</td>
+                        <td><b>${esc(o.recipient)}</b>${o._same > 1 ? `<div><span class="pill blue">같은 받는분 ${o._same}건</span></div>` : ''}</td><td class="sub">${esc(o.phone)}</td>
                         <td>${o.zipcode ? `<span class="sub">(${esc(o.zipcode)})</span> ` : ''}${esc(o.address)} ${esc(o.address_detail)}</td>
                         <td>${esc(o.product)}${o.option ? ` <span class="sub">/ ${esc(o.option)}</span>` : ''}</td><td>${o.qty}</td>
                         <td class="sub">${esc(o.memo)}</td><td class="sub">${esc(o.order_no)}</td>
@@ -298,21 +301,8 @@
     const cleanOption = opt => String(opt || '').split(/\s*[\/,]\s*|\n/)
         .map(t => t.replace(/^(컬러|색상|색깔|color|colour|사이즈|size|옵션|선택)\s*[:：=]\s*/i, '').trim()).filter(Boolean).join(' / ');
     function joinProduct(o) { return [o.product, cleanOption(o.option)].filter(Boolean).join(' / '); }
-    function buildLines(list, merge) {
-        if (!merge) return list.map(o => ({ ...o, product_full: joinProduct(o) + (o.qty > 1 ? ` ${o.qty}개` : ''), ids: [o.id] }));
-        const map = new Map();
-        list.forEach(o => {
-            const k = [o.recipient, o.phone, o.address, o.address_detail].map(norm).join('|');
-            const g = map.get(k);
-            const piece = joinProduct(o) + (o.qty > 1 ? ` ${o.qty}개` : '');
-            if (!g) map.set(k, { ...o, product_full: piece, ids: [o.id] });
-            else {
-                g.product_full += ', ' + piece; g.qty += o.qty; g.ids.push(o.id);
-                if (o.memo && !g.memo.includes(o.memo)) g.memo = [g.memo, o.memo].filter(Boolean).join(' / ');
-                if (o.order_no && !g.order_no.includes(o.order_no)) g.order_no = [g.order_no, o.order_no].filter(Boolean).join(',');
-            }
-        });
-        return [...map.values()];
+    function buildLines(list) {
+        return list.map(o => ({ ...o, product_full: joinProduct(o) + (o.qty > 1 ? ` ${o.qty}개` : ''), ids: [o.id] }));
     }
     function cellValue(c, o, s) {
         switch (c.field) {
@@ -343,7 +333,7 @@
         if (!t) { alert('먼저 운송장 양식을 올려 주세요.'); return; }
         const list = orders.filter(o => checked.has(o.id));
         if (!list.length) { alert('받을 주문을 골라 주세요.'); return; }
-        const lines = buildLines(list, document.getElementById('merge-same').checked);
+        const lines = buildLines(list);   // 주문 1건 = 1줄 (합배송·부분출고를 운송장 프로그램에서 직접 고를 수 있게, 대표님 요청 2026-11-21)
         const s = t.sender || {};
         const aoa = [...(s.pre_rows || []), t.columns.map(c => c.title)]
             .concat(lines.map(o => t.columns.map(c => cellValue(c, o, s))));

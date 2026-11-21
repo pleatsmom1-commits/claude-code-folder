@@ -236,17 +236,13 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   { const nm = (await page.evaluate(() => window.__names))[0] || ''; check('file name', nm.startsWith('운송장_CJ대한통운_') && nm.endsWith('.xlsx'), nm); }  // (Playwright 는 한글 파일 이름을 'download' 로 보여줘서 직접 확인)
   const xr = XLSX.utils.sheet_to_json(XLSX.readFile(of).Sheets['운송장'], { header: 1, defval: '' });
   check('header row = template', JSON.stringify(xr[0]) === JSON.stringify(cjHead), JSON.stringify(xr[0]));
-  check('3 lines (same recipient merged)', xr.length === 4, JSON.stringify(xr));
-  const park = xr.find(r => r[3] === '박민수') || [];
-  check('merged product + qty', String(park[8]).includes('고랭 울 팬츠') && String(park[8]).includes('니트 머플러 2개') && park[9] === 3, JSON.stringify(park));
+  check('4 lines (1 order = 1 line, no merge)', xr.length === 5, JSON.stringify(xr));
+  const parks = xr.filter(r => r[3] === '박민수'); const park = parks[0] || [];
+  check('same recipient → 2 separate lines', parks.length === 2 && park[8] === '고랭 울 팬츠 / 블랙 / M' && park[9] === 1 && parks[1][8] === '니트 머플러 2개' && parks[1][9] === 2, JSON.stringify(parks));
+  check('same-recipient hint in list', (await page.innerText('.orders')).includes('같은 받는분 2건'));
   check('sender + fixed values', park[0] === '애플샵' && park[1] === '010-9999-0000' && park[11] === '선불' && park[12] === '극소', JSON.stringify(park));
   check('full address', park[7] === '서울 강남구 테헤란로 1 101호' && park[6] === '06000', JSON.stringify(park));
   check('marked downloaded', tables.seller_ship_orders.every(o => o.downloaded_at) && (await page.innerText('#app')).includes('엑셀 받음'));
-  // 합치지 않기
-  await page.uncheck('#merge-same');
-  const [dl2] = await Promise.all([page.waitForEvent('download'), page.click('button:has-text("운송장 엑셀 받기")')]);
-  const of2 = path.join(__dirname, 'out', 'waybill2.xlsx'); await dl2.saveAs(of2);
-  check('no merge → 4 lines', XLSX.utils.sheet_to_json(XLSX.readFile(of2).Sheets['운송장'], { header: 1 }).length === 5);
   // 휴대폰
   await page.setViewportSize({ width: 390, height: 844 }); await page.waitForTimeout(200);
   await page.screenshot({ path: SHOT('my-ship-phone.png') });
