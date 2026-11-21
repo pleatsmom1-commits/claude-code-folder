@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>밤낮딜리버리 내 택배 주문</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<style>
+    :root { --bg: #f1f5f9; --card: #fff; --line: #e2e8f0; --text: #0f172a; --sub: #64748b; --accent: #2563eb; --accent-bg: #dbeafe; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; font-size: 15px; line-height: 1.5; }
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 16px 16px 40px; }
+    .brand { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0 14px; }
+    .brand b { font-size: 16px; }
+    .brand a { font-size: 13px; color: var(--sub); text-decoration: none; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+    h2 { font-size: 16px; margin: 0 0 4px; }
+    .desc { color: var(--sub); font-size: 13px; margin: 0 0 10px; }
+    .notice { background: #fffbeb; border: 2px solid #fcd34d; color: #78350f; }
+    .notice b { font-size: 15px; } .notice p { margin: 6px 0 0; font-size: 13px; }
+    .tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .btn { border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 700; color: var(--text); cursor: pointer; white-space: nowrap; text-decoration: none; display: inline-block; }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn.green { background: #059669; border-color: #059669; color: #fff; }
+    .btn.red { color: #e11d48; }
+    .btn:disabled { opacity: .4; cursor: default; }
+    select, input[type=text], input[type=date] { padding: 7px 9px; border: 1px solid var(--line); border-radius: 9px; font-size: 13px; background: #fff; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; font-size: 12px; color: var(--sub); font-weight: 700; padding: 8px 6px; border-bottom: 2px solid var(--line); white-space: nowrap; position: sticky; top: 0; background: #fff; z-index: 1; }
+    td { padding: 7px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    .table-box { overflow: auto; max-height: 65vh; }
+    .sub { color: var(--sub); font-size: 12px; }
+    .state { text-align: center; padding: 50px 16px; color: var(--sub); }
+    .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #f1f5f9; color: var(--sub); }
+    .pill.blue { background: var(--accent-bg); color: var(--accent); } .pill.green { background: #d1fae5; color: #047857; }
+    .tpl { display: flex; align-items: center; gap: 10px; padding: 10px 2px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+    .tpl:last-child { border-bottom: 0; }
+    .map td select { min-width: 190px; } .map td input[type=text] { width: 100%; min-width: 120px; }
+    .grid3 { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
+    .grid3 label { font-size: 12px; color: var(--sub); font-weight: 700; display: block; }
+    .grid3 input { width: 100%; margin-top: 2px; }
+    .modal-bg { position: fixed; inset: 0; background: rgba(15,23,42,.45); display: flex; align-items: flex-start; justify-content: center; padding: 24px 12px; overflow: auto; z-index: 50; }
+    .modal { background: #fff; border-radius: 16px; max-width: 900px; width: 100%; padding: 18px; }
+    .foot { text-align: center; font-size: 12px; color: var(--sub); margin-top: 18px; }
+    @media (max-width: 640px) {
+        .orders thead { display: none; }
+        .orders table, .orders tbody, .orders tr, .orders td { display: block; width: 100%; }
+        .orders tr { border-bottom: 1px solid var(--line); padding: 8px 2px; }
+        .orders td { border: 0; padding: 1px 0; }
+        .table-box { max-height: none; }
+    }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <div class="brand"><b>밤낮딜리버리 내 택배 주문</b><a href="/">← 주문접수 화면</a></div>
+    <div id="app"><div class="state">불러오는 중입니다...</div></div>
+    <div class="foot">문의: 밤낮딜리버리 카카오톡 채널</div>
+</div>
+<div id="modal"></div>
+<script src="config.js"></script>
+<script>
+    // 택배 업체용 '내 택배 주문' (2026-11-20 대표님 요청)
+    //  - 쇼핑몰 주문서는 주문접수 화면 [사입 목록 만들기]에서 올려 [내 택배 주문 목록에 넣기] → seller_ship_orders
+    //  - 운송장 프로그램 빈 양식을 한 번 올리면 칸 제목으로 짝을 맞춰 seller_ship_templates 에 저장
+    //  - [운송장 엑셀 받기]: 고른 주문을 그 양식 칸 순서 그대로 채운 엑셀로 내려받음
+    //  - 밤낮딜리버리 주문관리(orders)와 따로이며 관리자도 볼 수 없음. 90일 지난 주문은 저절로 지워짐 (supabase/ship_orders.sql)
+    const KEEP_DAYS = 90;
+    const FIELDS = [
+        ['blank', '(빈칸)'],
+        ['recipient', '받는분 이름'], ['phone', '받는분 연락처'], ['phone2', '받는분 연락처2'],
+        ['zipcode', '받는분 우편번호'], ['address_full', '받는분 주소 (전체)'], ['address', '받는분 기본주소'], ['address_detail', '받는분 상세주소'],
+        ['product_full', '상품명 + 옵션'], ['product', '상품명만'], ['option', '옵션만'], ['qty', '수량'],
+        ['memo', '배송메세지'], ['order_no', '주문번호'],
+        ['sender_name', '보내는분 이름'], ['sender_phone', '보내는분 연락처'], ['sender_zipcode', '보내는분 우편번호'], ['sender_address', '보내는분 주소'],
+        ['fixed', '직접 적은 값 (매번 같음)'],
+    ];
+    const FIELD_LABEL = Object.fromEntries(FIELDS);
+    let client, me = null, company = '', templates = [], orders = [], dates = [], curDate = '', checked = new Set(), missing = false;
+    const esc = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    const norm = v => String(v ?? '').replace(/\s+/g, '').toLowerCase();
+    const showState = html => { document.getElementById('app').innerHTML = `<div class="card state">${html}</div>`; };
+    const todayKey = () => new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
+
+    // 운송장 양식 칸 제목 → 넣을 값 짝 맞추기 (CJ·롯데·한진·우체국·로젠 등 흔한 제목 기준, 틀리면 업체가 고침)
+    function guessField(title) {
+        const t = norm(title).replace(/[()\[\]*·.:_\-\/]/g, '');
+        if (!t) return 'blank';
+        const sender = /보내는|송하인|발송인|송화인|발송자|보내시는|출고지|반품지/.test(t);
+        const recv = /받는|수하인|수취인|수령인|수화인|받으시는|고객|배송지|도착지/.test(t);
+        const phone = /전화|연락처|휴대|핸드폰|폰|tel|hp|mobile/.test(t);
+        if (sender) {
+            if (phone) return 'sender_phone';
+            if (/우편/.test(t)) return 'sender_zipcode';
+            if (/주소/.test(t)) return 'sender_address';
+            if (/명|이름|성명|상호/.test(t)) return 'sender_name';
+            return 'blank';
+        }
+        if (phone) return /2|두번째|기타|추가|보조|일반전화/.test(t) && !/1/.test(t) ? 'phone2' : 'phone';
+        if (/우편/.test(t)) return 'zipcode';
+        if (/주소/.test(t)) return /상세|나머지|번지|상세주소/.test(t) ? 'address_detail' : /기본/.test(t) ? 'address' : 'address_full';
+        if (recv && /명|이름|성명/.test(t)) return 'recipient';
+        if (/^(이름|성명|고객명)$/.test(t)) return 'recipient';
+        if (/옵션/.test(t)) return 'option';
+        if (/수량/.test(t) && !/박스|box/.test(t)) return 'qty';
+        if (/상품|품목|물품|내품|품명|제품/.test(t)) return 'product_full';
+        if (/메세지|메시지|요청|메모|비고|특기|배송시|배송메/.test(t)) return 'memo';
+        if (/주문번호|주문no|고객주문/.test(t)) return 'order_no';
+        return 'blank';
+    }
+
+    async function init() {
+        if (!window.supabase) { showState('화면을 불러오지 못했습니다. 새로고침해주세요.'); return; }
+        client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const { data: { session } } = await client.auth.getSession();
+        if (!session) { showState('로그인 후 이용할 수 있습니다.<br><br><a class="btn primary" href="/">로그인하러 가기</a>'); return; }
+        const { data: profile } = await client.from('profiles').select('id,company,role,status').eq('id', session.user.id).single();
+        if (!profile) { showState('계정 정보를 불러오지 못했습니다. 다시 로그인해주세요.'); return; }
+        if (profile.role === 'admin') { showState('🔒 내 택배 주문은 손님 개인정보라서 업체 대표님만 볼 수 있어요.<br>밤낮딜리버리 관리자 계정으로는 열 수 없습니다.<br><br><a class="btn" href="/">주문접수 화면</a>'); return; }
+        if (profile.status !== 'approved') { showState('관리자 승인 후 이용할 수 있습니다.'); return; }
+        me = profile; company = profile.company;
+        document.title = `${company} 내 택배 주문`;
+        client.rpc('ship_orders_purge').then(() => {}, () => {});   // 90일 지난 주문 지우기
+        await loadAll();
+    }
+
+    async function loadAll() {
+        const [t, d] = await Promise.all([
+            client.from('seller_ship_templates').select('*').order('id'),
+            client.from('seller_ship_orders').select('ship_date').order('ship_date', { ascending: false }).limit(5000),
+        ]);
+        missing = !!(t.error || d.error);
+        templates = t.data || [];
+        const cnt = new Map();
+        (d.data || []).forEach(r => cnt.set(r.ship_date, (cnt.get(r.ship_date) || 0) + 1));
+        dates = [...cnt.entries()];
+        if (!curDate || !cnt.has(curDate)) curDate = dates.length ? dates[0][0] : todayKey();
+        await loadOrders();
+    }
+
+    async function loadOrders() {
+        const { data } = missing ? { data: [] } : await client.from('seller_ship_orders').select('*').eq('ship_date', curDate).order('id');
+        orders = data || [];
+        checked = new Set(orders.map(o => o.id));
+        // 같은 날 같은 받는분(이름·연락처·주소) 주문 수 → 목록에 '같은 받는분 N건' 표시 (합배송 여부 확인용)
+        const same = new Map();
+        orders.forEach(o => { const k = [o.recipient, o.phone, o.address, o.address_detail].map(norm).join('|'); o._k = k; same.set(k, (same.get(k) || 0) + 1); });
+        orders.forEach(o => { o._same = same.get(o._k); });
+        render();
+    }
+
+    function render() {
+        const def = templates.find(t => t.is_default) || templates[0];
+        document.getElementById('app').innerHTML = `
+        <div class="card notice">
+            <b>📢 직접 택배를 보내시는 대표님을 위한 기능이에요</b>
+            <p>주로 <b>풀필먼트를 이용하지 않고, 픽업/택배수령을 이용하시는 대표님</b>이 쓰시는 화면이에요. 쇼핑몰 주문서를 올리면 이 목록에 모이고, 대표님이 쓰시는 <b>운송장 프로그램 엑셀 양식 그대로</b> 내려받을 수 있어요.</p>
+            <p>🔒 밤낮딜리버리 주문관리와는 따로이며, 밤낮딜리버리 관리자는 이 목록을 볼 수 없어요. 손님 정보(받는분·연락처·주소)는 <b>${KEEP_DAYS}일이 지나면 저절로 지워져요.</b></p>
+        </div>
+        ${missing ? '<div class="card" style="background:#fff7ed;border-color:#fed7aa;color:#9a3412">아직 준비 중이에요. (관리자: supabase/ship_orders.sql 실행 필요)</div>' : ''}
+        <div class="card">
+            <h2>① 내 운송장 양식</h2>
+            <p class="desc">대표님이 쓰시는 운송장 프로그램(CJ대한통운·롯데·한진·우체국·로젠 등)의 <b>빈 엑셀 양식</b>을 한 번만 올려 주세요. 칸 제목을 보고 짝을 맞춰 드려요.</p>
+            <div>${templates.map(t => `<div class="tpl">
+                <b>${esc(t.name || t.file_name)}</b> ${t.is_default ? '<span class="pill blue">기본</span>' : ''}
+                <span class="sub">${(t.columns || []).length}칸 · ${esc((t.columns || []).filter(c => c.field !== 'blank').map(c => c.title).slice(0, 5).join(', '))}${(t.columns || []).length > 5 ? '…' : ''}</span>
+                <span style="margin-left:auto" class="tools">
+                    ${t.is_default ? '' : `<button class="btn" onclick="setDefault(${t.id})">기본으로</button>`}
+                    <button class="btn" onclick="editTemplate(${t.id})">고치기</button>
+                    <button class="btn red" onclick="delTemplate(${t.id})">지우기</button>
+                </span></div>`).join('') || '<p class="sub">아직 등록한 양식이 없어요.</p>'}</div>
+            <div class="tools" style="margin-top:10px">
+                <button class="btn primary" onclick="document.getElementById('tpl-file').click()" ${missing ? 'disabled' : ''}>＋ 운송장 양식 올리기</button>
+                <input type="file" id="tpl-file" accept=".xlsx,.xls,.csv" hidden onchange="templateFile(event)">
+            </div>
+        </div>
+        <div class="card">
+            <h2>② 내 택배 주문 목록</h2>
+            <p class="desc">쇼핑몰 주문서는 주문접수 화면 <b>매장/사무실 접수 → [🛒 사입 목록 만들기]</b>에서 올리고 <b>[📮 내 택배 주문 목록에 넣기]</b>를 누르면 여기로 들어와요.</p>
+            <div class="tools">
+                <label class="sub">보낼 날짜</label>
+                <select id="date-sel" onchange="curDate=this.value; loadOrders()">${(dates.some(d => d[0] === curDate) ? dates : [[curDate, 0], ...dates]).map(([d, n]) => `<option value="${d}" ${d === curDate ? 'selected' : ''}>${d} (${n}건)</option>`).join('')}</select>
+                <a class="btn" href="/?open=buy">＋ 쇼핑몰 주문서 올리기</a>
+                <span style="flex:1"></span>
+                <select id="tpl-sel">${templates.map(t => `<option value="${t.id}" ${def && t.id === def.id ? 'selected' : ''}>${esc(t.name || t.file_name)}</option>`).join('') || '<option value="">(양식 없음)</option>'}</select>
+                <button class="btn green" onclick="downloadWaybill()" ${orders.length && templates.length ? '' : 'disabled'}>📥 운송장 엑셀 받기 (<span id="sel-n">${checked.size}</span>건)</button>
+                <button class="btn red" onclick="delOrders()" ${orders.length ? '' : 'disabled'}>선택 지우기</button>
+            </div>
+            ${!templates.length && orders.length ? '<p class="sub" style="color:#b45309;margin:8px 2px 0">먼저 위 ①에서 운송장 양식을 올려 주세요.</p>' : ''}
+            <div class="table-box orders" style="margin-top:10px">
+                <table>
+                    <thead><tr><th><input type="checkbox" ${orders.length && checked.size === orders.length ? 'checked' : ''} onchange="checkAll(this.checked)"></th><th>받는분</th><th>연락처</th><th>주소</th><th>상품 / 옵션</th><th>수량</th><th>배송메세지</th><th>주문번호</th><th></th></tr></thead>
+                    <tbody>${orders.map(o => `<tr>
+                        <td><input type="checkbox" ${checked.has(o.id) ? 'checked' : ''} onchange="check(${o.id}, this.checked)"></td>
+                        <td><b>${esc(o.recipient)}</b>${o._same > 1 ? `<div><span class="pill blue">같은 받는분 ${o._same}건</span></div>` : ''}</td><td class="sub">${esc(o.phone)}</td>
+                        <td>${o.zipcode ? `<span class="sub">(${esc(o.zipcode)})</span> ` : ''}${esc(o.address)} ${esc(o.address_detail)}</td>
+                        <td>${esc(o.product)}${o.option ? ` <span class="sub">/ ${esc(o.option)}</span>` : ''}</td><td>${o.qty}</td>
+                        <td class="sub">${esc(o.memo)}</td><td class="sub">${esc(o.order_no)}</td>
+                        <td>${o.downloaded_at ? '<span class="pill green">엑셀 받음</span>' : ''}</td>
+                    </tr>`).join('') || `<tr><td colspan="9" class="state" style="padding:30px">${curDate} 주문이 없어요.</td></tr>`}</tbody>
+                </table>
+            </div>
+        </div>`;
+    }
+
+    function check(id, on) { on ? checked.add(id) : checked.delete(id); document.getElementById('sel-n').textContent = checked.size; }
+    function checkAll(on) { checked = new Set(on ? orders.map(o => o.id) : []); render(); }
+
+    // ---------- 운송장 양식 ----------
+    async function templateFile(e) {
+        const file = e.target.files[0]; e.target.value = '';
+        if (!file) return;
+        let wb;
+        try {
+            const buf = new Uint8Array(await file.arrayBuffer());
+            wb = /\.csv$/i.test(file.name)
+                ? XLSX.read((() => { let t = new TextDecoder('utf-8').decode(buf); if (t.includes('�')) t = new TextDecoder('euc-kr').decode(buf); return t; })(), { type: 'string', raw: true })
+                : XLSX.read(buf, { type: 'array' });
+        } catch { alert('엑셀 파일을 읽지 못했어요.'); return; }
+        const sheet = wb.SheetNames[0];
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheet], { header: 1, defval: '' });
+        // 칸 제목 줄: 맨 위 10줄 중 글자 칸이 가장 많은 줄
+        let hr = 0, best = -1;
+        rows.slice(0, 10).forEach((r, i) => { const n = (r || []).filter(c => String(c).trim() && isNaN(Number(c))).length; if (n > best) { best = n; hr = i; } });
+        const head = (rows[hr] || []).map(c => String(c).trim());
+        while (head.length && !head[head.length - 1]) head.pop();
+        if (head.filter(Boolean).length < 2) { alert('칸 제목(받는분·주소 등)이 있는 운송장 양식 엑셀을 올려 주세요.'); return; }
+        const columns = head.map(title => ({ title, field: guessField(title), value: '' }));
+        openTemplate({ id: null, name: file.name.replace(/\.(xlsx|xls|csv)$/i, ''), file_name: file.name, sheet_name: sheet, header_row: hr, columns,
+            sender: templates[0] ? templates[0].sender : { name: company, phone: '', zipcode: '', address: '' }, pre_rows: rows.slice(0, hr) });
+    }
+
+    function editTemplate(id) { const t = templates.find(x => x.id === id); if (t) openTemplate(JSON.parse(JSON.stringify(t))); }
+
+    let draft = null;
+    function openTemplate(t) {
+        draft = t;
+        const s = t.sender || {};
+        const opts = sel => FIELDS.map(([k, l]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${l}</option>`).join('');
+        const found = t.columns.filter(c => c.field !== 'blank').length;
+        document.getElementById('modal').innerHTML = `<div class="modal-bg"><div class="modal">
+            <h2>운송장 양식 확인</h2>
+            <p class="desc">${esc(t.file_name)} · 칸 ${t.columns.length}개 중 <b>${found}개</b>의 짝을 찾았어요. 틀린 칸만 고쳐 주세요. 운송장 엑셀은 이 칸 순서 그대로 만들어져요.</p>
+            <div class="grid3" style="margin-bottom:10px">
+                <div><label>양식 이름</label><input type="text" id="t-name" value="${esc(t.name)}" placeholder="예: CJ대한통운"></div>
+            </div>
+            <div class="table-box" style="max-height:48vh"><table class="map">
+                <thead><tr><th>#</th><th>양식의 칸 제목</th><th>넣을 값</th><th>직접 적은 값</th></tr></thead>
+                <tbody>${t.columns.map((c, i) => `<tr>
+                    <td class="sub">${i + 1}</td><td><b>${esc(c.title) || '<span class="sub">(제목 없음)</span>'}</b></td>
+                    <td><select onchange="draft.columns[${i}].field=this.value; document.getElementById('fx-${i}').disabled = this.value !== 'fixed'">${opts(c.field)}</select></td>
+                    <td><input type="text" id="fx-${i}" value="${esc(c.value)}" ${c.field === 'fixed' ? '' : 'disabled'} placeholder="예: 선불, 1, 극소" oninput="draft.columns[${i}].value=this.value"></td>
+                </tr>`).join('')}</tbody>
+            </table></div>
+            <h2 style="margin-top:14px">보내는분 (매번 같은 값)</h2>
+            <div class="grid3">
+                <div><label>이름</label><input type="text" id="s-name" value="${esc(s.name)}"></div>
+                <div><label>연락처</label><input type="text" id="s-phone" value="${esc(s.phone)}" placeholder="010-0000-0000"></div>
+                <div><label>우편번호</label><input type="text" id="s-zip" value="${esc(s.zipcode)}"></div>
+                <div style="grid-column:1/-1"><label>주소</label><input type="text" id="s-addr" value="${esc(s.address)}"></div>
+            </div>
+            <div class="tools" style="justify-content:flex-end;margin-top:14px">
+                <button class="btn" onclick="closeModal()">닫기</button>
+                <button class="btn primary" onclick="saveTemplate()">이 양식 저장</button>
+            </div>
+        </div></div>`;
+    }
+    function closeModal() { document.getElementById('modal').innerHTML = ''; draft = null; }
+
+    async function saveTemplate() {
+        const v = id => document.getElementById(id).value.trim();
+        const row = {
+            name: v('t-name') || draft.file_name, file_name: draft.file_name, sheet_name: draft.sheet_name || '', header_row: draft.header_row || 0,
+            columns: draft.columns.map(c => ({ title: c.title, field: c.field, value: c.field === 'fixed' ? (c.value || '') : '', ...(c.pre ? { pre: c.pre } : {}) })),
+            sender: { name: v('s-name'), phone: v('s-phone'), zipcode: v('s-zip'), address: v('s-addr'), pre_rows: draft.pre_rows || (draft.sender || {}).pre_rows || [] },
+            updated_at: new Date().toISOString(),
+        };
+        const res = draft.id
+            ? await client.from('seller_ship_templates').update(row).eq('id', draft.id)
+            : await client.from('seller_ship_templates').insert({ ...row, is_default: !templates.length });
+        if (res.error) { alert('저장하지 못했어요.\n' + res.error.message); return; }
+        closeModal();
+        await loadAll();
+    }
+
+    async function setDefault(id) {
+        await client.from('seller_ship_templates').update({ is_default: false }).neq('id', id);
+        await client.from('seller_ship_templates').update({ is_default: true }).eq('id', id);
+        await loadAll();
+    }
+    async function delTemplate(id) {
+        if (!confirm('이 운송장 양식을 지울까요?')) return;
+        await client.from('seller_ship_templates').delete().eq('id', id);
+        await loadAll();
+    }
+
+    // ---------- 운송장 엑셀 ----------
+    // 옵션 "컬러: 블랙 / 사이즈: M" → "블랙 / M" (주문서 옵션 칸의 이름표는 빼고 값만)
+    const cleanOption = opt => String(opt || '').split(/\s*[\/,]\s*|\n/)
+        .map(t => t.replace(/^(컬러|색상|색깔|color|colour|사이즈|size|옵션|선택)\s*[:：=]\s*/i, '').trim()).filter(Boolean).join(' / ');
+    function joinProduct(o) { return [o.product, cleanOption(o.option)].filter(Boolean).join(' / '); }
+    function buildLines(list) {
+        return list.map(o => ({ ...o, product_full: joinProduct(o) + (o.qty > 1 ? ` ${o.qty}개` : ''), ids: [o.id] }));
+    }
+    function cellValue(c, o, s) {
+        switch (c.field) {
+            case 'recipient': return o.recipient;
+            case 'phone': return o.phone;
+            case 'phone2': return o.phone2 || '';
+            case 'zipcode': return o.zipcode;
+            case 'address_full': return [o.address, o.address_detail].filter(Boolean).join(' ');
+            case 'address': return o.address;
+            case 'address_detail': return o.address_detail;
+            case 'product_full': return o.product_full;
+            case 'product': return o.product;
+            case 'option': return o.option;
+            case 'qty': return o.qty;
+            case 'memo': return o.memo;
+            case 'order_no': return o.order_no;
+            case 'sender_name': return s.name || '';
+            case 'sender_phone': return s.phone || '';
+            case 'sender_zipcode': return s.zipcode || '';
+            case 'sender_address': return s.address || '';
+            case 'fixed': return c.value || '';
+            default: return '';
+        }
+    }
+
+    async function downloadWaybill() {
+        const t = templates.find(x => String(x.id) === document.getElementById('tpl-sel').value);
+        if (!t) { alert('먼저 운송장 양식을 올려 주세요.'); return; }
+        const list = orders.filter(o => checked.has(o.id));
+        if (!list.length) { alert('받을 주문을 골라 주세요.'); return; }
+        const lines = buildLines(list);   // 주문 1건 = 1줄 (합배송·부분출고를 운송장 프로그램에서 직접 고를 수 있게, 대표님 요청 2026-11-21)
+        const s = t.sender || {};
+        const aoa = [...(s.pre_rows || []), t.columns.map(c => c.title)]
+            .concat(lines.map(o => t.columns.map(c => cellValue(c, o, s))));
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
+        ws['!cols'] = t.columns.map(c => ({ wch: Math.max(8, Math.min(40, String(c.title).length * 2 + 4)) }));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, (t.sheet_name || 'Sheet1').slice(0, 31));
+        const ext = /\.csv$/i.test(t.file_name) ? 'csv' : /\.xls$/i.test(t.file_name) ? 'xls' : 'xlsx';
+        XLSX.writeFile(wb, `운송장_${t.name || '양식'}_${curDate}.${ext}`, { bookType: ext === 'xls' ? 'biff8' : ext });
+        await client.from('seller_ship_orders').update({ downloaded_at: new Date().toISOString() }).in('id', list.map(o => o.id));
+        list.forEach(o => { o.downloaded_at = new Date().toISOString(); });
+        render();
+    }
+
+    async function delOrders() {
+        const ids = [...checked];
+        if (!ids.length) return;
+        if (!confirm(`고른 주문 ${ids.length}건을 지울까요? (되돌릴 수 없어요)`)) return;
+        const { error } = await client.from('seller_ship_orders').delete().in('id', ids);
+        if (error) { alert('지우지 못했어요.\n' + error.message); return; }
+        await loadAll();
+    }
+
+    init();
+</script>
+</body>
+</html>
