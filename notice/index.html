@@ -33,12 +33,12 @@
 <script>
 (function(){
   var list=document.getElementById('list'), N=window.BAMNAT_NOTICES||[];
-  var seen=''; try{seen=localStorage.getItem('bamnat_notice_seen')||''}catch(e){}
+  var seen=[]; try{seen=JSON.parse(localStorage.getItem('bamnat_notice_seen_ids')||'[]')}catch(e){}
   var PER=10, pages=Math.max(1,Math.ceil(N.length/PER));
   var cur=parseInt((location.search.match(/[?&]page=(\d+)/)||[])[1]||'1',10);
   if(!(cur>=1)) cur=1; if(cur>pages) cur=pages;
   var html=N.slice((cur-1)*PER,cur*PER).map(function(n,i){
-    var isNew=!seen||n.date>seen;
+    var isNew=seen.indexOf(n.id)<0;
     var meta='<div class="meta"><span class="tag '+({'새 기능':'t1','풀필먼트':'t3','픽업·택배수령':'t4','모든 업체':'t5'}[n.tag]||'t2')+'">'+n.tag+'</span>'+n.date+(isNew?' <span class="new">NEW</span>':'')+'</div>';
     var inner=meta+'<div class="title">'+n.title+'</div><div class="sum">'+n.summary+'</div>';
     if(n.link) return '<a class="item" href="'+n.link+'">'+inner+'<div class="more">자세히 보기 →</div></a>';
@@ -52,7 +52,8 @@
     h+=pg(cur+1,'다음 ›',cur===pages?'off':'');
     document.getElementById('pager').innerHTML=h;
   }
-  try{ if(N[0]) localStorage.setItem('bamnat_notice_seen',N[0].date) }catch(e){}
+  // 공지사항 페이지를 열면 지금 있는 공지는 모두 '본 것'으로 기록 → 접수페이지 NEW 사라짐
+  try{ localStorage.setItem('bamnat_notice_seen_ids',JSON.stringify(N.map(function(n){return n.id}))) }catch(e){}
 })();
 </script>
 </body></html>

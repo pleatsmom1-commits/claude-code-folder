@@ -7045,9 +7045,10 @@
     </script>
 <script src="/notice/notices.js"></script>
 <script>
-// 공지사항 버튼 NEW 표시: 마지막으로 본 공지 날짜보다 새 공지가 있으면 보임
-(function(){ try{ var N=window.BAMNAT_NOTICES||[]; if(!N.length) return; var seen=localStorage.getItem('bamnat_notice_seen')||'';
-  if(N[0].date>seen){ var b=document.getElementById('nav-notice-new'); if(b) b.classList.remove('hidden'); } }catch(e){} })();
+// 공지사항 버튼 NEW 표시: 아직 공지사항 페이지에서 보지 않은 공지가 하나라도 있으면 보임 (같은 날 올린 공지도 구분)
+(function(){ var N=window.BAMNAT_NOTICES||[]; if(!N.length) return; var seen=[];
+  try{ seen=JSON.parse(localStorage.getItem('bamnat_notice_seen_ids')||'[]') }catch(e){}
+  if(N.some(function(n){ return seen.indexOf(n.id)<0 })){ var b=document.getElementById('nav-notice-new'); if(b) b.classList.remove('hidden'); } })();
 </script>
 </body>
 </html>
