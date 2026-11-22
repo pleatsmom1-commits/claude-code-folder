@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>밤낮딜리버리 공지사항</title>
+<meta property="og:title" content="📢 밤낮딜리버리 공지사항">
+<meta property="og:description" content="새 기능, 이용 시간, 바뀐 내용을 여기에서 알려 드려요.">
+<meta property="og:image" content="https://bamnat-delivery.bamnat.workers.dev/news/img/og.jpg">
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;color:#0f172a}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px 48px}
+.brand{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+.brand b{font-size:20px}.brand a{flex-shrink:0;white-space:nowrap;display:inline-flex;align-items:center;padding:8px 16px;border-radius:8px;background:#4f46e5;color:#fff;font-size:14px;font-weight:800;text-decoration:none;box-shadow:0 1px 3px rgba(15,23,42,.18)}
+.brand a:hover{background:#4338ca}
+.intro{background:#fff;border-radius:14px;padding:16px 18px;color:#475569;font-size:14px;margin-bottom:14px;border:1px solid #e2e8f0}
+.item{display:block;background:#fff;border-radius:14px;padding:16px 18px;margin-bottom:12px;border:1px solid #e2e8f0;text-decoration:none;color:inherit;box-shadow:0 2px 8px rgba(15,23,42,.04)}
+.item:hover{border-color:#a5b4fc}
+.meta{display:flex;align-items:center;gap:8px;font-size:12px;color:#64748b;margin-bottom:6px}
+.tag{padding:2px 8px;border-radius:999px;font-weight:800;background:#e0e7ff;color:#4338ca}.tag.t2{background:#fef3c7;color:#92400e}.tag.t3{background:#dcfce7;color:#166534}.tag.t4{background:#ffedd5;color:#9a3412}.tag.t5{background:#f1f5f9;color:#334155}
+.new{padding:2px 7px;border-radius:999px;font-weight:900;background:#f43f5e;color:#fff;font-size:10px}
+.title{font-size:17px;font-weight:800;line-height:1.4}.sum{font-size:14px;color:#475569;margin-top:6px;line-height:1.5}
+.more{margin-top:8px;font-size:13px;font-weight:800;color:#4f46e5}
+.body{display:none;margin-top:10px;padding-top:10px;border-top:1px dashed #cbd5e1;font-size:14px;line-height:1.65;color:#334155}.body p{margin:0 0 8px}
+.open .body{display:block}
+.pager{display:flex;justify-content:center;flex-wrap:wrap;gap:6px;margin-top:18px}
+.pager a,.pager span{min-width:36px;height:36px;padding:0 10px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;border:1px solid #e2e8f0;background:#fff;color:#334155;font-size:14px;font-weight:700;text-decoration:none}
+.pager a:hover{border-color:#a5b4fc}.pager .cur{background:#4f46e5;border-color:#4f46e5;color:#fff}.pager .off{color:#cbd5e1}
+</style></head><body><div class="wrap">
+<div class="brand"><b>📢 밤낮딜리버리 공지사항</b><a href="/">← 택배접수 화면으로</a></div>
+<div class="intro">새 기능, 이용 시간, 바뀐 내용을 여기에서 알려 드려요. 궁금한 점은 <a href="https://www.bamnatdelivery.com/?chat=open" style="color:#4f46e5;font-weight:700">AI 상담창</a>이나 카톡(010-5425-9060)으로 물어봐 주세요.</div>
+<div id="list"></div>
+<div id="pager" class="pager"></div>
+</div>
+<script src="notices.js"></script>
+<script>
+(function(){
+  var list=document.getElementById('list'), N=window.BAMNAT_NOTICES||[];
+  var seen=''; try{seen=localStorage.getItem('bamnat_notice_seen')||''}catch(e){}
+  var PER=10, pages=Math.max(1,Math.ceil(N.length/PER));
+  var cur=parseInt((location.search.match(/[?&]page=(\d+)/)||[])[1]||'1',10);
+  if(!(cur>=1)) cur=1; if(cur>pages) cur=pages;
+  var html=N.slice((cur-1)*PER,cur*PER).map(function(n,i){
+    var isNew=!seen||n.date>seen;
+    var meta='<div class="meta"><span class="tag '+({'새 기능':'t1','풀필먼트':'t3','픽업·택배수령':'t4','모든 업체':'t5'}[n.tag]||'t2')+'">'+n.tag+'</span>'+n.date+(isNew?' <span class="new">NEW</span>':'')+'</div>';
+    var inner=meta+'<div class="title">'+n.title+'</div><div class="sum">'+n.summary+'</div>';
+    if(n.link) return '<a class="item" href="'+n.link+'">'+inner+'<div class="more">자세히 보기 →</div></a>';
+    return '<div class="item" role="button" tabindex="0" onclick="if(!event.target.closest(\'a\'))this.classList.toggle(\'open\')">'+inner+'<div class="more">내용 펼치기 ▾</div><div class="body">'+(n.body||[]).map(function(p){return '<p>'+p+'</p>'}).join('')+'</div></div>';
+  }).join('');
+  list.innerHTML=html||'<div class="intro">아직 공지가 없어요.</div>';
+  if(pages>1){
+    var pg=function(k,label,cls){ return cls?'<span class="'+cls+'">'+label+'</span>':'<a href="?page='+k+'">'+label+'</a>'; };
+    var h=pg(cur-1,'‹ 이전',cur===1?'off':'');
+    for(var k=1;k<=pages;k++) h+=pg(k,k,k===cur?'cur':'');
+    h+=pg(cur+1,'다음 ›',cur===pages?'off':'');
+    document.getElementById('pager').innerHTML=h;
+  }
+  try{ if(N[0]) localStorage.setItem('bamnat_notice_seen',N[0].date) }catch(e){}
+})();
+</script>
+</body></html>

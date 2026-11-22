@@ -11,7 +11,7 @@ import { handleSignupNotify, handleSellerApproved } from './notify.js';
 import { handlePickupNotify, handlePickupNotifyTest } from './pickup_notify.js';
 import { handleShipSend } from './shipping.js';
 import { handleOrderAi } from './order_ai.js';
-import { handleAsk, handleSiteText } from './ask.js';
+import { handleAsk, handleSiteText, handleUnknownExtract } from './ask.js';
 import { handleInquiry, handleInquiryAnswer } from './inquiry.js';
 import { handleQuickOrder } from './quick_order.js';
 
@@ -28,6 +28,7 @@ export default {
     if (path === '/api/order-ai') return handleOrderAi(request, env);
     if (path === '/api/ask') return handleAsk(request, env);
     if (path === '/api/ask/site') return handleSiteText();
+    if (path === '/api/ask/unknown') return handleUnknownExtract(request, env);
     if (path === '/api/inquiry') return handleInquiry(request, env);
     if (path === '/api/inquiry/answer') return handleInquiryAnswer(request, env);
     if (path === '/api/quick-order') return handleQuickOrder(request, env);
