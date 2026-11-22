@@ -24,6 +24,10 @@ declare
     v_privileged boolean := public.is_admin() or auth.uid() is null;
 begin
     if tg_op = 'INSERT' then
+        -- 예외: 휴지통에서 복원할 때는 원래 접수시간 그대로 (order_trash.sql)
+        if v_privileged and coalesce(current_setting('bamnat.restore', true), '') = 'on' then
+            return new;
+        end if;
         if not v_privileged then new.origin_created_at := null; end if;
         new.accepted_at := case when new.status = '접수완료' then now() else null end;
         return new;
