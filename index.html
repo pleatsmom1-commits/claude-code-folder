@@ -294,6 +294,7 @@
                     <div class="flex gap-1.5 shrink-0">
                         <a href="/products" class="px-3 py-1.5 bg-white border border-sky-300 hover:bg-sky-50 text-sky-800 text-xs font-bold rounded-lg">🗂️ 상품관리</a>
                         <a href="/my-stock" class="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg">📦 내 재고표</a>
+                        <a href="/my-ship" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg">📮 내 택배 주문</a>
                     </div>
                     </div>
                     <div class="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 leading-relaxed">
@@ -897,6 +898,10 @@
                     <button id="admin-tab-chatlog" onclick="switchAdminTab('chatlog')" class="">
                         상담 기록
                     </button>
+                    <button id="admin-tab-unanswered" onclick="switchAdminTab('unanswered')" class="">
+                        답변하지 못한 질문
+                        <span id="admin-unanswered-badge" class="hidden px-1.5 py-0.5 bg-orange-500 text-white text-[10px] rounded-full"></span>
+                    </button>
                     <button id="admin-tab-sellers" onclick="switchAdminTab('sellers')" class="">
                         셀러 관리
                         <span id="admin-pending-badge" class="hidden px-1.5 py-0.5 bg-rose-500 text-white text-[10px] rounded-full"></span>
@@ -1368,6 +1373,31 @@
                     </div>
                     <div id="chatlog-list" class="space-y-2 max-h-[750px] overflow-y-auto"></div>
                 </div>
+            </div>
+
+            <!-- AI 상담 > 답변하지 못한 질문 (스크립트: inquiry-admin.js, supabase/ai_unanswered.sql) -->
+            <div id="admin-unanswered-panel" class="hidden bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+                <div class="flex justify-between items-start flex-wrap gap-2">
+                    <div>
+                        <h3 class="font-bold text-slate-900">답변하지 못한 질문 <span id="unanswered-count" class="text-xs font-normal text-slate-400"></span></h3>
+                        <p class="text-xs text-slate-500 mt-0.5">AI 가 답을 몰랐던 질문을 손님이 연락처를 남기지 않았어도 모두 모았습니다. 같은 질문은 한 번만 보입니다.<br>
+                            답을 적고 <b>[답변 등록]</b>을 누르면 <b>AI 답변 모음집</b>에 바로 들어가, 다음에 같은 질문이 오면 AI 가 이 답으로 안내합니다. (손님에게 문자는 가지 않습니다)</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <select id="unanswered-filter" onchange="renderUnanswered()" class="border border-slate-200 rounded-lg px-2 py-1 text-xs">
+                            <option value="open">답변 기다리는 질문</option>
+                            <option value="faq">답변 등록한 질문</option>
+                            <option value="skip">답 필요 없음으로 숨긴 질문</option>
+                            <option value="ai_ok">AI 가 사실 답했던 질문</option>
+                        </select>
+                        <button onclick="fetchUnanswered()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg">새로고침</button>
+                    </div>
+                </div>
+                <div id="unanswered-extract" class="hidden flex flex-wrap items-center justify-between gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
+                    <span>예전 질문 <b id="unanswered-extract-count"></b>개는 손님 질문 전체가 보입니다. AI 가 다시 읽고 <b>답하지 못한 부분만</b> 질문으로 정리할 수 있어요. (앞으로 들어오는 질문은 자동으로 정리됩니다)</span>
+                    <button onclick="extractUnknownParts(this)" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg">AI 로 모르는 부분만 뽑기</button>
+                </div>
+                <div id="unanswered-list" class="space-y-3"></div>
             </div>
 
             <!-- 3-3. 정산서 발송 (스크립트: settle-admin.js) -->
@@ -2856,7 +2886,10 @@
             } else {
                 setupSellerUI();
                 resetKeepRequest(); // 오늘 이미 골랐는지는 주문을 불러온 뒤 restoreKeepForToday 가 확인
-                switchSellerMode(loadSellerMode());
+                // /?open=buy : '내 택배 주문' 화면의 [쇼핑몰 주문서 올리기] → 매장/사무실 접수의 [사입 목록 만들기] 칸으로
+                const OPEN_BUY = new URLSearchParams(location.search).get('open') === 'buy';
+                switchSellerMode(OPEN_BUY ? 'store' : loadSellerMode());
+                if (OPEN_BUY) setTimeout(() => document.getElementById('buy-ai-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
                 resetHistorySearch(false); // 기본: 오늘 접수한 모든 내역
                 loadAddressBook();
             }
@@ -6317,7 +6350,7 @@
             stock: ['stock', 'products', 'inventory', 'picking', 'history', 'unify'],
             settle: ['settle'],
             sellers: ['sellers'],
-            inquiry: ['inquiry', 'chatlog'],
+            inquiry: ['inquiry', 'chatlog', 'unanswered'],
             aicost: ['aicost'],
             staff: ['activity', 'staff'],   // 대표 아이디만 보임 (staff-admin.js)
         };
@@ -6375,6 +6408,8 @@
             document.getElementById('admin-inquiry-panel').classList.toggle('hidden', tab !== 'inquiry');
             document.getElementById('admin-tab-chatlog').className = tab === 'chatlog' ? on : off;
             document.getElementById('admin-chatlog-panel').classList.toggle('hidden', tab !== 'chatlog');
+            document.getElementById('admin-tab-unanswered').className = tab === 'unanswered' ? on : off;
+            document.getElementById('admin-unanswered-panel').classList.toggle('hidden', tab !== 'unanswered');
             document.getElementById('admin-tab-activity').className = tab === 'activity' ? on : off;
             document.getElementById('admin-activity-panel').classList.toggle('hidden', tab !== 'activity');
             document.getElementById('admin-tab-staff').className = tab === 'staff' ? on : off;
@@ -6386,6 +6421,7 @@
             if (tab === 'ship') onShipTabOpened();
             if (tab === 'inquiry') onInquiryTabOpened();
             if (tab === 'chatlog') onChatLogTabOpened();
+            if (tab === 'unanswered') fetchUnanswered();
             if (tab === 'staff') onStaffTabOpened();
             if (tab === 'activity') onActivityTabOpened();
             if (tab === 'products' || tab === 'inventory' || tab === 'picking' || tab === 'aicost' || tab === 'history' || tab === 'unify') {
