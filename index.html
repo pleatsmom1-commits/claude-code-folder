@@ -1295,6 +1295,8 @@
                             <button onclick="applyPickupBulkStatus()" class="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm">선택 항목 상태변경</button>
                             <button onclick="savePickupDrafts()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-sm">변경 저장</button>
                             <button onclick="cancelPickupDrafts()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg shadow-sm">변경 취소</button>
+                            <button onclick="trashSelectedPickups()" class="px-3 py-1.5 bg-white border border-rose-300 hover:bg-rose-50 text-rose-600 font-bold text-xs rounded-lg shadow-sm" title="픽업요청을 아예 지웁니다. 셀러 '내 픽업요청 내역'에서도 사라지고, [휴지통]에서 90일 안에 복원할 수 있습니다">선택 삭제</button>
+                            <button type="button" id="btn-pickup-trash" onclick="openPickupTrash()" class="px-3 py-1.5 bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 font-bold text-xs rounded-lg shadow-sm" title="삭제한 픽업요청을 보고 복원합니다">🗑 휴지통 <span id="pickup-trash-count" class="font-normal"></span></button>
                             <button onclick="fetchAdminPickupRequests()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm flex items-center gap-1">
                                 <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> 새로고침
                             </button>
@@ -2067,6 +2069,33 @@
             </div>
             <div class="flex justify-end">
                 <button type="button" onclick="closeCombineModal()" class="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 관리자: 삭제한 픽업요청(휴지통) 보기·복원 (supabase/pickup_trash.sql) -->
+    <div id="pickup-trash-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50" onclick="if (event.target === this) closePickupTrash()">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-6 space-y-4 border border-slate-100 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div>
+                    <h3 class="font-bold text-slate-900 text-base">🗑 휴지통 · 삭제한 픽업요청</h3>
+                    <p class="text-xs text-slate-500">복원하면 접수시각·상태·처리시각까지 지우기 전 그대로 돌아옵니다. (복원해도 사입팀에게 카톡이 다시 가지 않습니다) 삭제하고 90일이 지나면 자동으로 완전히 지워집니다.</p>
+                </div>
+                <button onclick="closePickupTrash()" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="overflow-x-auto border border-slate-200 rounded-lg">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-slate-100 text-slate-600 font-bold">
+                        <tr><th class="p-2 w-8"><input type="checkbox" id="pickup-trash-chk-all" onchange="document.querySelectorAll('.pickup-trash-chk').forEach(c => c.checked = this.checked)" class="rounded border-slate-300"></th><th class="p-2">삭제한 때</th><th class="p-2">삭제한 사람</th><th class="p-2">접수시각</th><th class="p-2">주문자</th><th class="p-2">픽업할 매장</th><th class="p-2">사입팀 요청사항</th><th class="p-2">상태</th></tr>
+                    </thead>
+                    <tbody id="pickup-trash-list" class="divide-y divide-slate-100"></tbody>
+                </table>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button type="button" id="btn-pickup-trash-restore" onclick="restoreSelectedPickupTrash()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm">선택 복원</button>
+                <button type="button" onclick="closePickupTrash()" class="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg">닫기</button>
             </div>
         </div>
     </div>
@@ -6312,6 +6341,7 @@
                 return;
             }
             pickupRequests = data;
+            fetchPickupTrashCount();
             // 새로 불러온 값과 같아진 변경은 정리
             Object.keys(pickupDrafts).forEach(id => {
                 const r = pickupRequests.find(x => x.id === id);
@@ -6435,6 +6465,110 @@
                     </td>
                 </tr>`;
             }).join('') : `<tr><td colspan="8" class="p-6 text-center text-slate-400">해당하는 픽업요청이 없습니다.</td></tr>`;
+        }
+
+        // ---------------------------------------------------------------
+        // 관리자: 픽업요청 삭제(휴지통) + 복원 (supabase/pickup_trash.sql)
+        // ---------------------------------------------------------------
+        let pickupTrashRows = [];
+        const PICKUP_TRASH_SQL_MSG = '삭제·휴지통 기능 DB 설정이 아직 적용되지 않았습니다.\n(Supabase SQL Editor 에서 supabase/pickup_trash.sql 을 실행해주세요)';
+        function pickupTrashNotReady(error) {
+            const t = `${error?.code || ''} ${error?.message || ''}`;
+            return /PGRST202|PGRST205|42883|42P01|admin_trash_pickups|admin_restore_pickups|admin_deleted_pickups/.test(t) && !/관리자만/.test(t);
+        }
+        async function fetchPickupTrashCount() {
+            if (!supabaseClient || currentRole !== 'admin') return;
+            const { count, error } = await supabaseClient.from('admin_deleted_pickups').select('pickup_id', { count: 'exact', head: true });
+            const el = document.getElementById('pickup-trash-count');
+            if (el) el.innerText = !error && count ? `(${count}건)` : '';
+        }
+        async function trashSelectedPickups() {
+            const ids = Array.from(document.querySelectorAll('.pickup-chk-item:checked')).map(c => c.value);
+            if (ids.length === 0) {
+                alert('삭제할 픽업요청을 체크박스로 선택해주세요.');
+                return;
+            }
+            const msg = `선택한 픽업요청 ${ids.length}건을 삭제할까요?\n\n`
+                + '· 관리자 목록과 셀러 \'내 픽업요청 내역\'에서 모두 사라집니다.\n'
+                + '· [🗑 휴지통]에 90일 동안 보관되어, 언제든 [선택 복원]으로 그대로 되돌릴 수 있습니다.\n'
+                + '· 셀러에게 "취소됐다"고 보여주려면 삭제 대신 상태를 [접수취소]로 바꾸세요.';
+            if (!confirm(msg)) return;
+            let done = 0;
+            for (let i = 0; i < ids.length; i += 200) {
+                const part = ids.slice(i, i + 200);
+                const { data, error } = await supabaseClient.rpc('admin_trash_pickups', { p_ids: part });
+                if (error) {
+                    alert(pickupTrashNotReady(error) ? PICKUP_TRASH_SQL_MSG : '삭제 중 오류가 발생했습니다.\n\n' + dbErrorMessage(error));
+                    break;
+                }
+                done += data || 0;
+                pickupRequests = pickupRequests.filter(r => !part.includes(r.id));
+                part.forEach(id => delete pickupDrafts[id]);
+            }
+            renderAdminPickupTable();
+            fetchPickupTrashCount();
+            if (done) alert(`픽업요청 ${done}건을 삭제했습니다. [🗑 휴지통]에서 복원할 수 있습니다.`);
+        }
+        async function openPickupTrash() {
+            const { data, error } = await fetchAllRows(() => supabaseClient.from('admin_deleted_pickups')
+                .select('pickup_id,data,deleted_at,deleted_by_name').order('deleted_at', { ascending: false }));
+            if (error) {
+                alert(pickupTrashNotReady(error) ? PICKUP_TRASH_SQL_MSG : '휴지통을 불러오지 못했습니다.\n\n' + dbErrorMessage(error));
+                return;
+            }
+            pickupTrashRows = data || [];
+            renderPickupTrash();
+            const m = document.getElementById('pickup-trash-modal');
+            m.classList.remove('hidden'); m.classList.add('flex');
+        }
+        function renderPickupTrash() {
+            const tbody = document.getElementById('pickup-trash-list');
+            document.getElementById('pickup-trash-chk-all').checked = false;
+            tbody.innerHTML = !pickupTrashRows.length
+                ? '<tr><td colspan="8" class="p-6 text-center text-slate-400 font-bold">휴지통이 비어 있습니다.</td></tr>'
+                : pickupTrashRows.map(t => {
+                    const r = t.data || {};
+                    return `<tr class="hover:bg-slate-50">
+                        <td class="p-2"><input type="checkbox" class="pickup-trash-chk rounded border-slate-300" value="${escapeHtml(t.pickup_id)}"></td>
+                        <td class="p-2 whitespace-nowrap">${escapeHtml(formatKstDateTime(t.deleted_at))}</td>
+                        <td class="p-2 whitespace-nowrap">${escapeHtml(t.deleted_by_name || '-')}</td>
+                        <td class="p-2 whitespace-nowrap">${escapeHtml(formatKstDateTime(r.created_at))}</td>
+                        <td class="p-2 whitespace-nowrap"><div class="font-bold">${escapeHtml(r.orderer_name || r.seller_company || '')}</div><div class="text-slate-500">${escapeHtml(r.orderer_phone || '')}</div></td>
+                        <td class="p-2"><div class="font-bold">${escapeHtml(r.store_name || '')}</div><div>${escapeHtml(r.store_location || '')}</div></td>
+                        <td class="p-2">${escapeHtml(r.memo || '')}</td>
+                        <td class="p-2 whitespace-nowrap">${escapeHtml(PICKUP_STATUS_LABEL[r.status] || r.status || '')}</td>
+                    </tr>`;
+                }).join('');
+            const el = document.getElementById('pickup-trash-count');
+            if (el) el.innerText = pickupTrashRows.length ? `(${pickupTrashRows.length}건)` : '';
+        }
+        async function restoreSelectedPickupTrash() {
+            const ids = Array.from(document.querySelectorAll('.pickup-trash-chk:checked')).map(c => c.value);
+            if (ids.length === 0) {
+                alert('복원할 픽업요청을 체크박스로 선택해주세요.');
+                return;
+            }
+            if (!confirm(`선택한 픽업요청 ${ids.length}건을 복원할까요?\n\n지우기 전 모습 그대로 목록과 셀러 화면에 다시 나타납니다. (사입팀에게 카톡이 다시 가지는 않습니다)`)) return;
+            let done = 0;
+            for (let i = 0; i < ids.length; i += 200) {
+                const part = ids.slice(i, i + 200);
+                const { data, error } = await supabaseClient.rpc('admin_restore_pickups', { p_ids: part });
+                if (error) {
+                    alert(pickupTrashNotReady(error) ? PICKUP_TRASH_SQL_MSG : '복원 중 오류가 발생했습니다.\n\n' + dbErrorMessage(error));
+                    break;
+                }
+                done += data || 0;
+                pickupTrashRows = pickupTrashRows.filter(r => !part.includes(r.pickup_id));
+            }
+            renderPickupTrash();
+            if (done) {
+                await fetchAdminPickupRequests();
+                alert(`픽업요청 ${done}건을 복원했습니다.`);
+            }
+        }
+        function closePickupTrash() {
+            const m = document.getElementById('pickup-trash-modal');
+            m.classList.add('hidden'); m.classList.remove('flex');
         }
 
         // 상태를 바꾸면 바로 저장하지 않고 '변경됨'으로 표시만 합니다.
