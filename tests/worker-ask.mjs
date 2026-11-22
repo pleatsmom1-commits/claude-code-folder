@@ -67,3 +67,30 @@ ok(logs[0].p_model === 'claude-opus-5-5' && logs[0].p_input_tokens === 11000 && 
 globalThis.fetch = async (url, init) => { if (String(url).includes('/rpc/log_ai_chat')) throw new Error('down'); if (String(url).includes('/ai_faq')) return new Response('[]'); return new Response(JSON.stringify(reply)); };
 r = await handleAsk(req({ messages: [{ role: 'user', content: 'q' }] }, undefined, '10.0.0.2'), env);
 ok(r.status === 200, 'log failure does not break answer');
+
+// 답하지 못한 부분만 (2026-11-22): [모르는질문: …] 은 화면에서 빼고 기록에 따로 남김. 새 함수가 없으면 예전 함수로 다시
+{ const calls = [];
+  globalThis.fetch = async (url, init) => {
+    if (String(url).includes('/ai_faq')) return new Response('[]');
+    if (/bamnatdelivery\.com|dothome/.test(String(url))) return new Response('<p>x</p>');
+    if (String(url).includes('/rpc/log_ai_chat')) { const b = JSON.parse(init.body); calls.push(b); return new Response('{}', { status: 'p_unknown_question' in b ? 404 : 200 }); }
+    return new Response(JSON.stringify({ stop_reason: 'end_turn', content: [{ type: 'text', text: '픽업비는 1,800원이에요. 제주도는 관리자가 확인해 드려야 해요. [담당자확인] [모르는질문: 제주도도 당일택배가 되나요?]' }] }));
+  };
+  const d2 = await (await handleAsk(req({ messages: [{ role: 'user', content: '픽업비랑 제주도 당일 돼요?' }] }, undefined, '11.0.0.1'), env)).json();
+  ok(d2.needsHuman && !d2.answer.includes('모르는질문') && !d2.answer.includes('['), 'unknown marker stripped from answer');
+  ok(calls[0].p_unknown_question === '제주도도 당일택배가 되나요?' && calls.length === 2 && !('p_unknown_question' in calls[1]), 'unknown part logged, falls back to old function');
+{ const { handleUnknownExtract } = await import(W + '/worker/ask.js');
+  const patches = [];
+  globalThis.fetch = async (url, init = {}) => {
+    const u = String(url);
+    if (u.includes('/rpc/is_admin')) return new Response('true');
+    if (u.includes('/ai_chat_logs') && (init.method || 'GET') === 'GET' && u.includes('limit=40')) return new Response(JSON.stringify([{ id: 4, question: '픽업비랑 제주도?', answer: '제주도는 관리자 확인' }, { id: 5, question: '요금표 보여줘', answer: '관리자와 상담하기를 눌러 주세요 ... 실은 4,600원입니다' }]));
+    if (u.includes('/ai_chat_logs') && init.method === 'PATCH') { patches.push([u, JSON.parse(init.body)]); return new Response('', { status: 200 }); }
+    if (u.includes('/ai_chat_logs')) return new Response('[]', { headers: { 'content-range': '0-0/0' } });
+    return new Response(JSON.stringify({ content: [{ type: 'text', text: '[{"id":4,"q":"제주도도 당일택배가 되나요?"},{"id":5,"q":""}]' }] }));
+  };
+  const mk = tok => new Request('https://x/api/ask/unknown', { method: 'POST', headers: tok ? { Authorization: 'Bearer t' } : {} });
+  ok((await handleUnknownExtract(mk(false), env)).status === 401, 'extract needs login');
+  const d3 = await (await handleUnknownExtract(mk(true), env)).json();
+  ok(d3.done === 2 && d3.aiAnswered === 1 && d3.left === 0, 'extract result', JSON.stringify(d3));
+  ok(patches.find(p => p[0].includes('id=eq.4'))[1].unknown_question === '제주도도 당일택배가 되나요?' && patches.find(p => p[0].includes('id=eq.5'))[1].resolved_how === 'ai_ok', 'extract patches rows'); }

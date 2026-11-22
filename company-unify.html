@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>밤낮딜리버리 상호통일</title>
+<link rel="stylesheet" href="tailwind.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="company-unify.js"></script>
+<style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+<div id="page-header" class="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex justify-between items-center gap-2">
+    <div class="flex items-center gap-3">
+        <div class="bg-indigo-600 text-white p-2 rounded-lg font-black tracking-wider text-sm">밤낮</div>
+        <div>
+            <h1 class="font-bold text-lg leading-tight text-slate-900">상호통일</h1>
+            <p class="text-xs text-slate-500">관리자 · 재고/상품</p>
+        </div>
+    </div>
+    <a href="/" class="shrink-0 whitespace-nowrap inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-black rounded-lg shadow">← 관리자 화면으로</a>
+</div>
+
+<main class="max-w-5xl mx-auto p-3 sm:p-6 space-y-4">
+    <div id="state" class="bg-white rounded-xl border border-slate-200 p-10 text-center text-slate-500">불러오는 중입니다...</div>
+
+    <div id="app" class="hidden space-y-4">
+        <!-- 설명 + 적용되는 곳 -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-5 space-y-3">
+            <div>
+                <h2 class="font-bold text-slate-900">상호통일 · 한 업체가 쓰는 여러 상호를 메인 상호 하나로</h2>
+                <p class="text-xs text-slate-500 mt-1">예) 상품은 <b>에스비컴퍼니</b>로 등록했는데 사이트 가입 상호는 <b>미닛걸</b>이면 → 다른 상호 <b>에스비컴퍼니</b>, 메인 상호 <b>미닛걸</b>로 한 줄 추가합니다.<br>
+                    추가하면 지금 있는 상품·재고·기록이 메인 상호로 바로 옮겨지고(같은 상품이 양쪽에 있으면 수량을 합칠지 먼저 물어봄), 앞으로 다른 상호로 등록해도 자동으로 메인 상호로 저장됩니다.</p>
+            </div>
+            <div class="grid sm:grid-cols-2 gap-2 text-xs">
+                <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                    <p class="font-bold text-emerald-800 mb-1.5">✅ 상호통일이 적용되는 곳</p>
+                    <div id="applied" class="flex flex-wrap gap-1.5"></div>
+                    <p class="text-[11px] text-emerald-700 mt-1.5">관리자 메뉴에서 🔗 표시가 붙은 탭에 적용됩니다.</p>
+                </div>
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                    <p class="font-bold text-slate-600 mb-1.5">➖ 아직 적용 안 되는 곳 (상호 그대로)</p>
+                    <div id="not-applied" class="flex flex-wrap gap-1.5"></div>
+                    <p class="text-[11px] text-slate-500 mt-1.5">정산서는 지금처럼 정산청구서 엑셀의 '상호통일' 시트로 맞춥니다.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 추가 -->
+        <form id="add-form" class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-5 space-y-3" onsubmit="addAlias(event)">
+            <h3 class="font-bold text-slate-900 text-sm">상호 묶기</h3>
+            <datalist id="company-options"></datalist>
+            <div class="grid sm:grid-cols-[1fr_auto_1fr] gap-2 items-end text-xs">
+                <label class="space-y-1"><span class="font-bold text-slate-600">다른 상호 (바꿀 이름)</span>
+                    <input id="a-alias" list="company-options" oninput="preview()" placeholder="예) 에스비컴퍼니" class="w-full px-3 py-2 border rounded-lg"></label>
+                <div class="hidden sm:block pb-2 text-lg text-slate-400 font-bold">→</div>
+                <label class="space-y-1"><span class="font-bold text-slate-600">메인 상호 (통일할 이름)</span>
+                    <input id="a-main" list="company-options" oninput="preview()" placeholder="예) 미닛걸" class="w-full px-3 py-2 border rounded-lg"></label>
+            </div>
+            <label class="block space-y-1 text-xs"><span class="font-bold text-slate-600">메모 (선택)</span>
+                <input id="a-memo" placeholder="예) 같은 대표님, 도매 등록명이 에스비컴퍼니" class="w-full px-3 py-2 border rounded-lg"></label>
+            <div id="a-preview" class="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 hidden"></div>
+            <div class="flex justify-end">
+                <button id="a-save" type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow">상호통일 추가</button>
+            </div>
+        </form>
+
+        <!-- 목록 -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-5 space-y-2">
+            <div class="flex items-center justify-between gap-2">
+                <h3 class="font-bold text-slate-900 text-sm">통일된 상호 목록 <span id="count" class="text-slate-400 font-normal"></span></h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-xs">
+                    <thead class="bg-slate-50 text-slate-500">
+                        <tr><th class="p-2 text-left">메인 상호</th><th class="p-2 text-left">다른 상호</th><th class="p-2 text-left">가입 회원</th><th class="p-2 text-right">상품 · 재고</th><th class="p-2 text-left">메모</th><th class="p-2 text-left">등록일</th><th class="p-2"></th></tr>
+                    </thead>
+                    <tbody id="tbody"></tbody>
+                </table>
+            </div>
+            <p id="empty" class="hidden text-center text-xs text-slate-400 py-6">아직 통일한 상호가 없습니다.</p>
+        </div>
+    </div>
+</main>
+
+<script>
+    // 관리자 전용. supabase/company_unify.sql (company_aliases 표, company_unify_apply / company_unify_counts 함수)
+    let client = null;
+    let rows = [];          // company_aliases
+    let counts = new Map(); // norm(상호) → { company, products, stock }
+    let members = new Map(); // norm(가입 상호) → 가입 상호
+    const params = new URLSearchParams(location.search);
+    const norm = COMPANY_UNIFY.norm;
+    function esc(v) { return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+    function fmt(n) { return Number(n || 0).toLocaleString('ko-KR'); }
+    function showState(html) {
+        document.getElementById('state').innerHTML = html;
+        document.getElementById('state').classList.remove('hidden');
+        document.getElementById('app').classList.add('hidden');
+    }
+    function errorMessage(error) {
+        if (!error) return '';
+        if (error.code === '42501') return '권한이 없습니다.';
+        if (['PGRST205', 'PGRST202', '42P01', '42883'].includes(error.code)) return 'DB 설정이 아직 안 되어 있습니다. (Supabase 에서 supabase/company_unify.sql 실행 필요)';
+        return error.message || String(error);
+    }
+
+    async function init() {
+        if (params.has('embed')) {
+            document.getElementById('page-header').classList.add('hidden');
+            document.querySelectorAll('.max-w-5xl').forEach(el => el.classList.remove('max-w-5xl'));
+        }
+        document.getElementById('applied').innerHTML = COMPANY_UNIFY.APPLIED.map(t => `<span class="px-2 py-1 rounded-full bg-white border border-emerald-300 text-emerald-800 font-bold">${esc(t)}</span>`).join('');
+        document.getElementById('not-applied').innerHTML = COMPANY_UNIFY.NOT_APPLIED.map(t => `<span class="px-2 py-1 rounded-full bg-white border border-slate-300 text-slate-500">${esc(t)}</span>`).join('');
+        if (!window.supabase) { showState('화면을 불러오지 못했습니다. 새로고침해주세요.'); return; }
+        client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const { data: { session } } = await client.auth.getSession();
+        if (!session) { showState('로그인 후 이용할 수 있습니다.<br><br><a class="text-indigo-600 font-bold" href="/">로그인하러 가기</a>'); return; }
+        const { data: profile } = await client.from('profiles').select('id,role').eq('id', session.user.id).single();
+        if (!profile || profile.role !== 'admin') { showState('관리자만 볼 수 있는 화면입니다.'); return; }
+        await load();
+    }
+
+    async function load() {
+        const [a, c, m] = await Promise.all([
+            client.from('company_aliases').select('*').order('main').order('alias'),
+            client.rpc('company_unify_counts'),
+            client.from('profiles').select('company,role').neq('role', 'admin'),
+        ]);
+        const error = a.error || c.error;
+        if (error) { showState('불러오지 못했습니다.<br><span class="text-xs">' + esc(errorMessage(error)) + '</span>'); return; }
+        rows = a.data || [];
+        counts = new Map((c.data || []).map(r => [norm(r.company), r]));
+        members = new Map((m.data || []).filter(p => p.company).map(p => [norm(p.company), p.company]));
+        await COMPANY_UNIFY.load(client);
+        const names = new Map();
+        [...counts.values()].forEach(r => names.set(norm(r.company), r.company));
+        members.forEach((v, k) => { if (!names.has(k)) names.set(k, v); });
+        document.getElementById('company-options').innerHTML = [...names.values()].sort((x, y) => x.localeCompare(y, 'ko')).map(v => `<option value="${esc(v)}">`).join('');
+        document.getElementById('state').classList.add('hidden');
+        document.getElementById('app').classList.remove('hidden');
+        render();
+        preview();
+    }
+
+    function countText(name) {
+        const c = counts.get(norm(name));
+        return c ? `상품 ${fmt(c.products)}개 · 재고 ${fmt(c.stock)}개` : '상품 없음';
+    }
+
+    function render() {
+        const groups = new Map();   // norm(main) → { main, list }
+        rows.forEach(r => {
+            const k = norm(r.main);
+            if (!groups.has(k)) groups.set(k, { main: r.main, list: [] });
+            groups.get(k).list.push(r);
+        });
+        document.getElementById('count').textContent = rows.length ? `(메인 ${groups.size}곳 · 다른 상호 ${rows.length}개)` : '';
+        document.getElementById('empty').classList.toggle('hidden', rows.length > 0);
+        document.getElementById('tbody').innerHTML = [...groups.values()].map(g => g.list.map((r, i) => {
+            const left = counts.get(norm(r.alias));
+            const member = members.get(norm(g.main));
+            const aliasMember = members.get(norm(r.alias));
+            return `<tr class="border-t border-slate-100 align-top">
+                ${i === 0 ? `<td class="p-2 font-bold text-indigo-700 whitespace-nowrap" rowspan="${g.list.length}">${esc(g.main)}</td>` : ''}
+                <td class="p-2 whitespace-nowrap">${esc(r.alias)}${left && left.products ? `<div class="text-[11px] text-rose-600 font-bold">아직 이 상호로 남은 상품 ${fmt(left.products)}개</div>` : ''}</td>
+                ${i === 0 ? `<td class="p-2 whitespace-nowrap" rowspan="${g.list.length}">${member ? `<span class="text-emerald-700 font-bold">✅ ${esc(member)} 회원</span>` : `<span class="text-amber-600 font-bold">⚠ 이 상호로 가입한 회원 없음</span>`}</td>` : ''}
+                ${i === 0 ? `<td class="p-2 text-right whitespace-nowrap" rowspan="${g.list.length}">${countText(g.main)}</td>` : ''}
+                <td class="p-2">${esc(r.memo)}${aliasMember ? `<div class="text-[11px] text-slate-500">'${esc(aliasMember)}' 가입 회원도 메인 상호 재고를 봅니다</div>` : ''}</td>
+                <td class="p-2 whitespace-nowrap text-slate-500">${esc(String(r.created_at || '').slice(0, 10))}</td>
+                <td class="p-2 whitespace-nowrap text-right">
+                    ${left && left.products ? `<button onclick="applyAgain(${r.id})" class="px-2 py-1 border border-indigo-300 text-indigo-700 rounded font-bold hover:bg-indigo-50">다시 옮기기 · 수량 합치기</button>` : ''}
+                    <button onclick="removeAlias(${r.id})" class="px-2 py-1 border border-slate-300 text-slate-600 rounded hover:bg-slate-50">지우기</button>
+                </td></tr>`;
+        }).join('')).join('');
+    }
+
+    // 입력하는 동안: 몇 개가 옮겨지는지, 메인 상호가 가입 회원인지 미리 보여줌
+    function preview() {
+        const alias = document.getElementById('a-alias').value.trim();
+        const main = document.getElementById('a-main').value.trim();
+        const box = document.getElementById('a-preview');
+        if (!alias && !main) { box.classList.add('hidden'); return; }
+        const lines = [];
+        if (alias) lines.push(`<b>${esc(alias)}</b>: ${countText(alias)}`);
+        if (main) {
+            const member = members.get(norm(main));
+            lines.push(`<b>${esc(main)}</b>: ${countText(main)} · ${member ? `<span class="text-emerald-700 font-bold">✅ 가입 회원 상호</span>` : `<span class="text-amber-600 font-bold">⚠ 이 상호로 가입한 회원이 없어요 (셀러 화면에 안 보일 수 있음)</span>`}`);
+        }
+        if (alias && main && norm(alias) !== norm(main)) lines.push(`→ 추가하면 <b>${esc(alias)}</b> 상품·재고가 모두 <b>${esc(main)}</b>(으)로 옮겨집니다.`);
+        box.innerHTML = lines.join('<br>');
+        box.classList.remove('hidden');
+    }
+
+    function checkRule(alias, main) {
+        if (!alias || !main) return '다른 상호와 메인 상호를 모두 적어주세요.';
+        if (norm(alias) === norm(main)) return '두 상호가 같습니다.';
+        if (rows.some(r => norm(r.alias) === norm(alias))) return `'${alias}'는 이미 통일되어 있습니다. 바꾸려면 목록에서 지운 뒤 다시 추가해주세요.`;
+        const mainAsAlias = rows.find(r => norm(r.alias) === norm(main));
+        if (mainAsAlias) return `'${main}'는 이미 '${mainAsAlias.main}'의 다른 상호입니다. 메인 상호를 '${mainAsAlias.main}'로 적어주세요.`;
+        if (rows.some(r => norm(r.main) === norm(alias))) return `'${alias}'는 다른 상호들의 메인 상호입니다. 먼저 그 줄들을 정리해주세요.`;
+        return '';
+    }
+
+    function resultText(r) {
+        if (!r) return '';
+        const wait = (r.waiting || []).length;
+        const lines = [`옮긴 것: 상품 ${fmt(r.products)}개 · 재고 ${fmt(r.inventory)}줄 · 증감 기록 ${fmt(r.moves)}줄${r.other ? ` · 그 밖에 ${fmt(r.other)}줄` : ''}`];
+        if (r.dups && r.dups.length) lines.push(`\n같은 상품(도매처·도매상품·컬러·사이즈)이 두 상호에 모두 있어 수량을 메인 상호 상품에 합친 것 ${r.dups.length}개:\n${r.dups.map(d => `${d.code} → ${d.into} (수량 ${fmt(d.qty)}개 더함)`).join('\n')}\n(다른 상호 쪽 상품은 삭제 처리, 재고 증감 내역에 '상호통일'로 남음)`);
+        if (wait) lines.push(`\n같은 상품이 두 상호에 모두 있어 아직 옮기지 않은 상품 ${wait}개 (다음 창에서 합칠지 물어봅니다)`);
+        return lines.join('\n');
+    }
+
+    // 같은 상품이 두 상호에 모두 있으면, 수량을 합칠지 먼저 물어보고 승인할 때만 합침 (대표님 2026-11-20)
+    async function askMerge(alias, main, r) {
+        const wait = (r && r.waiting) || [];
+        if (!wait.length) return;
+        const list = wait.map(w => `· ${w.name || w.code}\n   ${alias} ${w.code} (재고 ${fmt(w.qty)}개) → ${main} ${w.into}`).join('\n');
+        if (!confirm(`같은 상품(도매처·도매상품·컬러·사이즈)이 두 상호에 모두 있는 것이 ${wait.length}개 있습니다.\n\n${list}\n\n${alias} 쪽 수량을 ${main} 상품에 더해서 합치겠습니까?\n(합치면 ${alias} 쪽 상품은 삭제 처리되고, 재고 증감 내역에 '상호통일'로 남습니다)\n\n[취소]를 누르면 합치지 않고 그대로 둡니다. 나중에 목록의 [수량 합치기]로 다시 할 수 있습니다.`)) return;
+        const { data, error } = await client.rpc('company_unify_apply', { p_alias: alias, p_merge: true });
+        if (error) { alert('합치지 못했습니다.\n\n' + errorMessage(error)); return; }
+        alert('수량을 합쳤습니다.\n\n' + resultText(data));
+    }
+
+    async function addAlias(e) {
+        e.preventDefault();
+        const alias = document.getElementById('a-alias').value.trim();
+        const main = document.getElementById('a-main').value.trim();
+        const memo = document.getElementById('a-memo').value.trim();
+        const bad = checkRule(alias, main);
+        if (bad) { alert(bad); return; }
+        if (!confirm(`'${alias}' → '${main}' 로 통일합니다.\n${alias} 의 상품·재고·기록이 ${main} 으로 옮겨집니다.\n(${COMPANY_UNIFY.APPLIED.join(', ')}에 적용)`)) return;
+        const btn = document.getElementById('a-save');
+        btn.disabled = true;
+        try {
+            const { error } = await client.from('company_aliases').insert({ alias, main, memo });
+            if (error) { alert('저장하지 못했습니다.\n\n' + errorMessage(error)); return; }
+            const { data, error: e2 } = await client.rpc('company_unify_apply', { p_alias: alias, p_merge: false });
+            if (e2) alert('상호는 저장했지만 자료를 옮기지 못했습니다.\n\n' + errorMessage(e2) + '\n\n목록의 [다시 옮기기]를 눌러주세요.');
+            else { alert('상호통일을 추가했습니다.\n\n' + resultText(data)); await askMerge(alias, main, data); }
+            ['a-alias', 'a-main', 'a-memo'].forEach(id => { document.getElementById(id).value = ''; });
+            await load();
+        } finally { btn.disabled = false; }
+    }
+
+    async function applyAgain(id) {
+        const r = rows.find(x => x.id === id);
+        if (!r) return;
+        const { data, error } = await client.rpc('company_unify_apply', { p_alias: r.alias, p_merge: false });
+        if (error) { alert('옮기지 못했습니다.\n\n' + errorMessage(error)); return; }
+        if (data.products || data.inventory || data.moves || data.other || !(data.waiting || []).length) alert(resultText(data));
+        await askMerge(r.alias, r.main, data);
+        await load();
+    }
+
+    async function removeAlias(id) {
+        const r = rows.find(x => x.id === id);
+        if (!r) return;
+        if (!confirm(`'${r.alias}' → '${r.main}' 통일을 지웁니다.\n이미 옮긴 상품·재고는 '${r.main}'에 그대로 남고, 앞으로 '${r.alias}'로 등록하는 것만 자동으로 바뀌지 않습니다.`)) return;
+        const { error } = await client.from('company_aliases').delete().eq('id', id);
+        if (error) { alert('지우지 못했습니다.\n\n' + errorMessage(error)); return; }
+        await load();
+    }
+
+    init();
+</script>
+</body>
+</html>

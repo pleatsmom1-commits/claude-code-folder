@@ -10,6 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="view-as.js"></script>
+<script src="company-unify.js"></script>
 <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
     .modal { position: fixed; inset: 0; background: rgba(15, 23, 42, .6); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
@@ -36,7 +37,7 @@
             <p id="header-company" class="text-xs text-slate-500"></p>
         </div>
     </div>
-    <a href="/" class="text-xs text-slate-500 hover:text-slate-800">← 주문접수 화면</a>
+    <a href="/" class="shrink-0 whitespace-nowrap inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-black rounded-lg shadow">← 택배접수 화면으로</a>
 </div>
 
 <main class="max-w-7xl mx-auto p-4 sm:p-6 space-y-4">
@@ -77,6 +78,7 @@
                         <tr>
                             <th class="p-2">사진</th><th class="p-2">상품코드</th><th class="p-2 admin-only hidden">거래처명</th>
                             <th class="p-2">도매업체명</th><th class="p-2">도매상품명</th><th class="p-2">컬러</th><th class="p-2">사이즈</th>
+                            <th class="p-2 text-right">판매가</th><th class="p-2 text-right">도매가</th>
                             <th class="p-2">플랫폼별 쇼핑몰상품명</th><th class="p-2">상태</th><th class="p-2 text-center">관리</th>
                         </tr>
                     </thead>
@@ -107,6 +109,9 @@
             <label class="space-y-1"><span class="font-bold text-slate-600">도매상품명 *</span><input id="e-wholesale_product" class="w-full px-3 py-2 border rounded-lg"></label>
             <label class="space-y-1"><span class="font-bold text-slate-600">컬러</span><input id="e-color" class="w-full px-3 py-2 border rounded-lg"></label>
             <label class="space-y-1"><span class="font-bold text-slate-600">사이즈</span><input id="e-size" class="w-full px-3 py-2 border rounded-lg"></label>
+            <label class="space-y-1"><span class="font-bold text-slate-600">판매가 <span class="font-normal text-slate-400">(쇼핑몰에서 파는 값, 원)</span></span><input id="e-sale_price" inputmode="numeric" placeholder="예: 29000" oninput="priceInput(this)" class="w-full px-3 py-2 border rounded-lg text-right"></label>
+            <label class="space-y-1"><span class="font-bold text-slate-600">도매가 <span class="font-normal text-slate-400">(사입하는 값, 원)</span></span><input id="e-wholesale_price" inputmode="numeric" placeholder="예: 12000" oninput="priceInput(this)" class="w-full px-3 py-2 border rounded-lg text-right"></label>
+            <p class="sm:col-span-2 -mt-1 text-[11px] text-slate-400">판매가·도매가는 비워도 됩니다. 적어두시면 [출고 리포트]에서 매출과 도매 원가를 함께 볼 수 있어요.</p>
         </div>
         <div class="space-y-2 text-xs">
             <div class="flex justify-between items-center">
@@ -190,7 +195,7 @@
     const PHOTO_MAX = 800;          // 사진 긴 변 최대 px (줄여서 저장)
     const FIELD_LABELS = {
         company: '거래처명', wholesale_company: '도매업체명', wholesale_product: '도매상품명', color: '컬러', size: '사이즈',
-        mall_names: '쇼핑몰상품명', photo_url: '사진', memo: '메모', delete_request_reason: '삭제 요청 사유',
+        mall_names: '쇼핑몰상품명', photo_url: '사진', memo: '메모', sale_price: '판매가', wholesale_price: '도매가', delete_request_reason: '삭제 요청 사유',
     };
     let client = null;
     let me = null;                  // { id, company, role, status }
@@ -220,6 +225,20 @@
         const d = new Date(iso);
         return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     }
+    // 가격: "29,000원" → 29000, 빈칸 → null
+    function parsePrice(v) {
+        const t = String(v ?? '').replace(/[,\s원₩]/g, '');
+        if (!t) return null;
+        const n = Math.round(Number(t));
+        return isFinite(n) && n >= 0 ? n : NaN;
+    }
+    function priceText(n) { return n == null || n === '' ? '' : Number(n).toLocaleString('ko-KR'); }
+    function priceInput(el) {
+        const n = parsePrice(el.value);
+        if (n != null && !isNaN(n)) el.value = n.toLocaleString('ko-KR');
+    }
+    // DB 에 판매가·도매가 칸이 생겼는지 (product_price.sql 실행 전이면 가격 없이 저장)
+    function hasPriceCols() { return products.length ? 'sale_price' in products[0] : true; }
     function namesText(list) {
         return (list || []).map(n => (n.platform ? `${n.platform}: ` : '') + n.name).join(' / ');
     }
@@ -235,6 +254,7 @@
         if (error.code === 'VIEW_ONLY') return VIEW_AS.message;
         if (error.code === '23505') return '이미 같은 상품(거래처·도매업체명·도매상품명·컬러·사이즈)이 등록되어 있습니다.';
         if (error.code === '42501') return '권한이 없는 작업입니다.';
+        if (/sale_price|wholesale_price/.test(error.message || '')) return '판매가·도매가 칸이 아직 준비되지 않았습니다.\n(관리자: Supabase SQL Editor에서 supabase/product_price.sql 을 실행해주세요)';
         if (['PGRST205', '42P01'].includes(error.code)) return 'DB 설정이 최신이 아닙니다.\n(관리자: Supabase SQL Editor에서 supabase/products.sql 을 실행해주세요)';
         return error.message || String(error);
     }
@@ -275,6 +295,7 @@
         }
         if (!isAdmin && profile.status !== 'approved') { showState('관리자 승인 후 상품관리를 이용할 수 있습니다.'); return; }
         document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !isAdmin));
+        if (isAdmin) await COMPANY_UNIFY.load(client);   // 상호통일 (company-unify.js)
         document.querySelectorAll('.seller-only').forEach(el => el.classList.toggle('hidden', isAdmin));
         if (!isAdmin) document.querySelector('#f-status option[value="deleted"]').remove();
         document.getElementById('header-company').textContent = isAdmin ? '관리자 · 전체 거래처' : `${profile.company}`;
@@ -298,12 +319,15 @@
         return [...map.values()].sort((a, b) => a.localeCompare(b, 'ko'));
     }
 
+    // 상호통일된 상호는 '미닛걸 (+에스비컴퍼니)'처럼 다른 상호를 같이 보여줌
+    function unifyLabel(c) { const al = COMPANY_UNIFY.aliasesOf(c); return al.length ? `${c} (+${al.join(', ')})` : c; }
+
     function renderCompanies() {
         if (!isAdmin) return;
         const sel = document.getElementById('f-company');
         const cur = sel.value;
         const list = companies();
-        sel.innerHTML = `<option value="">거래처 전체 (${list.length}곳)</option>` + list.map(c => `<option value="${esc(norm(c))}">${esc(c)}</option>`).join('');
+        sel.innerHTML = `<option value="">거래처 전체 (${list.length}곳)</option>` + list.map(c => `<option value="${esc(norm(c))}">${esc(unifyLabel(c))}</option>`).join('');
         // 관리자 [업체 화면 보기]에서 /products?company=상호 로 열면 그 업체를 미리 골라 둡니다 (처음 한 번)
         const want = presetCompany ? norm(presetCompany) : cur;
         presetCompany = '';
@@ -328,7 +352,7 @@
             if (status === 'deleted' && st !== 'deleted') return false;
             if (company && norm(p.company) !== company) return false;
             if (kw) {
-                const text = norm([p.code, p.company, p.wholesale_company, p.wholesale_product, p.color, p.size, namesText(p.mall_names), p.memo].join('|'));
+                const text = norm([p.code, p.company, ...COMPANY_UNIFY.aliasesOf(p.company), p.wholesale_company, p.wholesale_product, p.color, p.size, namesText(p.mall_names), p.memo].join('|'));
                 if (!text.includes(kw)) return false;
             }
             return true;
@@ -343,7 +367,7 @@
         badge.textContent = isAdmin ? `삭제 요청 ${requested}건` : `삭제 요청 중 ${requested}건`;
         document.getElementById('summary').textContent = `${list.length.toLocaleString('ko-KR')}개 표시 · 전체 ${products.filter(p => !p.deleted_at).length.toLocaleString('ko-KR')}개`;
         const tbody = document.getElementById('list');
-        const cols = isAdmin ? 10 : 9;
+        const cols = isAdmin ? 12 : 11;
         if (!list.length) {
             tbody.innerHTML = `<tr><td colspan="${cols}" class="p-8 text-center text-slate-400">${products.length ? '조건에 맞는 상품이 없습니다.' : '등록된 상품이 없습니다. [단건 상품 등록] 또는 [일괄 엑셀 등록]으로 등록하세요.'}</td></tr>`;
             return;
@@ -366,6 +390,8 @@
                 <td class="p-2" data-label="도매상품">${esc(p.wholesale_product)}</td>
                 <td class="p-2 whitespace-nowrap" data-label="컬러">${esc(p.color)}</td>
                 <td class="p-2 whitespace-nowrap" data-label="사이즈">${esc(p.size)}</td>
+                <td class="p-2 whitespace-nowrap text-right font-bold" data-label="판매가">${priceText(p.sale_price)}</td>
+                <td class="p-2 whitespace-nowrap text-right text-slate-500" data-label="도매가">${priceText(p.wholesale_price)}</td>
                 <td class="p-2 max-w-[320px]">${(p.mall_names || []).map(n => `<div>${n.platform ? `<span class="text-slate-400">${esc(n.platform)}</span> ` : ''}${esc(n.name)}</div>`).join('')}</td>
                 <td class="p-2 whitespace-nowrap">${stHtml}</td>
                 <td class="p-2 text-center whitespace-nowrap c-actions">
@@ -415,6 +441,7 @@
         for (const f of ['wholesale_company', 'wholesale_product', 'color', 'size', 'memo']) {
             document.getElementById('e-' + f).value = p ? p[f] : '';
         }
+        for (const f of ['sale_price', 'wholesale_price']) document.getElementById('e-' + f).value = p ? priceText(p[f]) : '';
         document.getElementById('e-names').innerHTML = '';
         (p && p.mall_names.length ? p.mall_names : [{ platform: '', name: '' }]).forEach(n => addNameRow(n.platform, n.name));
         setPhotoPreview(p ? p.photo_url : '');
@@ -474,12 +501,18 @@
         row.mall_names = [...document.querySelectorAll('#e-names .name-row')]
             .map(r => ({ platform: r.querySelector('.n-platform').value.trim(), name: r.querySelector('.n-name').value.trim() }))
             .filter(n => n.name);
-        const company = isAdmin ? document.getElementById('e-company').value.trim() : me.company;
+        const company = isAdmin ? COMPANY_UNIFY.main(document.getElementById('e-company').value.trim()) : me.company;
         if (isAdmin) {
             if (!company) { alert('거래처명을 입력해주세요.'); return; }
             row.company = company;
         }
         if (!row.wholesale_company || !row.wholesale_product) { alert('도매업체명과 도매상품명을 입력해주세요.'); return; }
+        for (const f of ['sale_price', 'wholesale_price']) {
+            const v = parsePrice(document.getElementById('e-' + f).value);
+            if (Number.isNaN(v)) { alert(`${FIELD_LABELS[f]}는 숫자로 적어주세요. (예: 29000)`); return; }
+            if (hasPriceCols()) row[f] = v;
+            else if (v != null) { alert('판매가·도매가 칸이 아직 준비되지 않았습니다.\n관리자에게 product_price.sql 실행을 요청해주세요.'); return; }
+        }
         const btn = document.getElementById('e-save');
         btn.disabled = true;
         try {
@@ -578,6 +611,8 @@
         { key: 'wholesale_product', label: '도매상품명' },
         { key: 'color', label: '컬러' },
         { key: 'size', label: '사이즈' },
+        { key: 'sale_price', label: '판매가', price: true },
+        { key: 'wholesale_price', label: '도매가', price: true },
         { key: 'platform', label: '플랫폼' },
         { key: 'name', label: '쇼핑몰상품명' },
         { key: 'memo', label: '메모' },
@@ -591,9 +626,9 @@
     function downloadForm() {
         const cols = formCols();
         const sample = [
-            { company: '예시상회', wholesale_company: '홍은동', wholesale_product: '114', color: '검정', size: 'F', platform: '스마트스토어', name: '코지플라워 가디건', memo: '' },
-            { company: '예시상회', wholesale_company: '홍은동', wholesale_product: '114', color: '검정', size: 'F', platform: '지그재그', name: '[당일출고] 코지 가디건', memo: '' },
-            { company: '예시상회', wholesale_company: '파티파티', wholesale_product: '087벨루니버튼조끼', color: '그레이', size: '', platform: '', name: '벨루니 버튼 조끼', memo: '' },
+            { company: '예시상회', wholesale_company: '홍은동', wholesale_product: '114', color: '검정', size: 'F', sale_price: 32000, wholesale_price: 14000, platform: '스마트스토어', name: '코지플라워 가디건', memo: '' },
+            { company: '예시상회', wholesale_company: '홍은동', wholesale_product: '114', color: '검정', size: 'F', sale_price: 32000, wholesale_price: 14000, platform: '지그재그', name: '[당일출고] 코지 가디건', memo: '' },
+            { company: '예시상회', wholesale_company: '파티파티', wholesale_product: '087벨루니버튼조끼', color: '그레이', size: '', sale_price: '', wholesale_price: '', platform: '', name: '벨루니 버튼 조끼', memo: '' },
         ];
         const ws = XLSX.utils.aoa_to_sheet([cols.map(c => c.label), ...sample.map(s => cols.map(c => s[c.key]))]);
         ws['!cols'] = cols.map(c => ({ wch: c.key === 'name' ? 30 : c.key === 'wholesale_product' ? 20 : 12 }));
@@ -608,6 +643,8 @@
             [''],
             ['· 파란 칸(도매업체명, 도매상품명' + (isAdmin ? ', 거래처명' : '') + ')은 꼭 적어주세요. 나머지는 비워도 됩니다.'],
             ['· 컬러·사이즈가 다르면 다른 상품입니다. 한 줄에 하나씩 적어주세요.'],
+            ['· 판매가(쇼핑몰에서 파는 값)·도매가(사입하는 값)는 숫자만 적어주세요. 비워도 됩니다. 적어두시면 [출고 리포트]에서 매출을 볼 수 있어요.'],
+            ['· 이미 등록된 상품의 판매가·도매가를 바꾸려면, 같은 도매업체명·도매상품명·컬러·사이즈 줄에 새 가격을 적어 올려주세요. (빈칸이면 그대로 둡니다)'],
             ['· 플랫폼마다 쇼핑몰상품명이 다르면, 같은 도매업체명·도매상품명·컬러·사이즈를 한 줄 더 적고 플랫폼과 상품명만 바꿔주세요. (예시 1·2번 줄)'],
             ['· 상품코드는 적지 않습니다. 등록하면 시스템이 순서대로 자동으로 붙입니다.'],
             ['· 이미 등록된 상품에 플랫폼 상품명을 더하려면, 그 상품과 같은 도매업체명·도매상품명·컬러·사이즈를 적고 플랫폼과 상품명을 적어주세요.'],
@@ -646,10 +683,15 @@
             rows.slice(1).forEach((r, i) => {
                 if (!r.some(v => String(v).trim())) return;
                 const item = {
-                    company: isAdmin ? cell(r, 'company') : me.company,
+                    company: isAdmin ? COMPANY_UNIFY.main(cell(r, 'company')) : me.company,
                     wholesale_company: cell(r, 'wholesale_company'), wholesale_product: cell(r, 'wholesale_product'),
                     color: cell(r, 'color'), size: cell(r, 'size'), memo: cell(r, 'memo'),
                 };
+                const prices = {};
+                for (const f of ['sale_price', 'wholesale_price']) {
+                    const v = parsePrice(cell(r, f));
+                    if (v != null && !Number.isNaN(v)) prices[f] = v;
+                }
                 const name = { platform: cell(r, 'platform'), name: cell(r, 'name') };
                 const line = i + 2;
                 const existing = byKey.get(itemKey(item));
@@ -659,30 +701,40 @@
                 }
                 const target = existing ? merges : creates;
                 const key = existing ? existing.code : itemKey(item);
-                if (!target.has(key)) target.set(key, existing ? { product: existing, names: [] } : { ...item, mall_names: [] });
+                if (!target.has(key)) target.set(key, existing ? { product: existing, names: [], prices: {} } : { ...item, mall_names: [] });
                 const entry = target.get(key);
+                if (hasPriceCols()) for (const [f, v] of Object.entries(prices)) {
+                    if (existing) { if (existing[f] !== v) entry.prices[f] = v; }
+                    else if (entry[f] == null) entry[f] = v;
+                }
                 const names = existing ? entry.names : entry.mall_names;
                 const already = (existing ? existing.mall_names : []).concat(names)
                     .some(n => norm(n.platform) === norm(name.platform) && norm(n.name) === norm(name.name));
                 if (name.name && !already) names.push(name);
             });
-            const mergeList = [...merges.values()].filter(m => m.names.length);
+            const mergeList = [...merges.values()].filter(m => m.names.length || Object.keys(m.prices).length);
             upload = { creates: [...creates.values()], merges: mergeList, skipped, sameCount: merges.size - mergeList.length };
             renderUpload(file.name);
         };
         reader.readAsArrayBuffer(file);
     }
 
+    function priceChange(m) {
+        return ['sale_price', 'wholesale_price'].filter(f => f in m.prices)
+            .map(f => `${FIELD_LABELS[f]} ${priceText(m.product[f]) || '없음'} → ${priceText(m.prices[f])}`).join(', ');
+    }
+
     function renderUpload(fileName) {
         const u = upload;
         document.getElementById('upload-info').textContent =
-            `${fileName} · 새 상품 ${u.creates.length}개 · 쇼핑몰상품명 추가 ${u.merges.length}개`
+            `${fileName} · 새 상품 ${u.creates.length}개 · 쇼핑몰상품명 추가 ${u.merges.filter(m => m.names.length).length}개`
+            + (u.merges.some(m => Object.keys(m.prices).length) ? ` · 가격 변경 ${u.merges.filter(m => Object.keys(m.prices).length).length}개` : '')
             + (u.sameCount ? ` · 이미 같은 내용 ${u.sameCount}개` : '') + (u.skipped.length ? ` · 건너뜀 ${u.skipped.length}줄` : '');
         const td = v => `<td class="p-2">${esc(v)}</td>`;
         const adminTd = v => (isAdmin ? td(v) : '');
         document.getElementById('upload-list').innerHTML =
             u.creates.map(c => `<tr><td class="p-2 text-emerald-600 font-bold whitespace-nowrap">새 상품</td>${adminTd(c.company)}${td(c.wholesale_company)}${td(c.wholesale_product)}${td(c.color)}${td(c.size)}${td(namesText(c.mall_names))}</tr>`).join('')
-            + u.merges.map(m => `<tr><td class="p-2 text-indigo-600 font-bold whitespace-nowrap">${esc(m.product.code)}에 추가</td>${adminTd(m.product.company)}${td(m.product.wholesale_company)}${td(m.product.wholesale_product)}${td(m.product.color)}${td(m.product.size)}${td(namesText(m.names))}</tr>`).join('')
+            + u.merges.map(m => `<tr><td class="p-2 text-indigo-600 font-bold whitespace-nowrap">${esc(m.product.code)}에 ${m.names.length ? '추가' : '가격 변경'}</td>${adminTd(m.product.company)}${td(m.product.wholesale_company)}${td(m.product.wholesale_product)}${td(m.product.color)}${td(m.product.size)}${td([namesText(m.names), priceChange(m)].filter(Boolean).join(' · '))}</tr>`).join('')
             + u.skipped.map(s => `<tr class="text-slate-400"><td class="p-2 whitespace-nowrap">건너뜀</td><td class="p-2" colspan="${isAdmin ? 6 : 5}">${s.line}번째 줄: ${esc(s.reason)}</td></tr>`).join('')
             || `<tr><td colspan="7" class="p-6 text-center text-slate-400">등록할 내용이 없습니다.</td></tr>`;
         document.getElementById('upload-confirm').disabled = !(u.creates.length || u.merges.length);
@@ -703,11 +755,12 @@
             for (let i = 0; i < u.merges.length; i++) {
                 status.textContent = `쇼핑몰상품명 추가 중... ${i}/${u.merges.length}`;
                 const m = u.merges[i];
-                const { error } = await client.from('products').update({ mall_names: m.product.mall_names.concat(m.names) }).eq('id', m.product.id);
+                const { error } = await client.from('products').update({ mall_names: m.product.mall_names.concat(m.names), ...m.prices }).eq('id', m.product.id);
                 if (error) throw error;
             }
             status.textContent = '';
-            alert(`등록했습니다. 새 상품 ${u.creates.length}개, 쇼핑몰상품명 추가 ${u.merges.length}개`);
+            const priceN = u.merges.filter(m => Object.keys(m.prices).length).length;
+            alert(`등록했습니다. 새 상품 ${u.creates.length}개, 쇼핑몰상품명 추가 ${u.merges.filter(m => m.names.length).length}개${priceN ? `, 가격 변경 ${priceN}개` : ''}`);
             closeModal('upload-modal');
         } catch (error) {
             status.textContent = '';

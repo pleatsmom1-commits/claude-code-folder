@@ -58,7 +58,7 @@ const moves = [
   M(1, '출고', -1, 0, 0, [4, 1, 0], '주문 예시샵 #12', at(0, '08:40')),
   M(2, '출고', -2, 0, 0, [3, 0, 0], '주문 예시샵 #13', at(0, '08:41')),
   M(4, '출고', -2, 0, 0, [8, 0, 0], '주문 하루상회 #7', at(0, '08:45')),
-  M(3, '조정', -1, 0, 1, [5, 0, 1], '불량 발견', at(0, '10:20')),
+  { ...M(3, '조정', -1, 0, 1, [5, 0, 1], '포장 찢어짐 확인 (김직원)', at(0, '10:20')), seller_reason: '불량 발견' },
   M(5, '입고', 2, 0, 0, [2, 0, 0], '입고', at(0, '13:05')),
   M(2, '입고', 2, 0, 0, [5, 0, 0], '추가 입고', at(0, '15:30')),
 ];
@@ -249,7 +249,7 @@ function applyFilters(rows, url) {
   check('seller sees only own company moves', !(await page.isVisible('#f-company')) && (await page.textContent('#stats')).includes('+'));
   await page.click('#view-tabs button[data-view="detail"]'); await page.waitForTimeout(300);
   const sd = await page.textContent('#tbody');
-  check('seller: 조정·최종재고 shown as 재고 정리, reason hidden', sd.includes('재고 정리') && !sd.includes('수량 조정') && !sd.includes('불량 발견') && sd.includes('주문 예시샵 #12'));
+  check('seller: 조정·최종재고 shown as 재고 정리 with picked reason, internal memo hidden', sd.includes('재고 정리') && !sd.includes('수량 조정') && sd.includes('불량 발견') && !sd.includes('김직원') && sd.includes('주문 예시샵 #12'));
   await page.selectOption('#f-kind', '정리'); await page.waitForTimeout(800);
   check('seller kind filter 재고 정리 → only grouped rows', (await page.locator('#tbody tr').count()) === 1 && (await page.textContent('#tbody')).includes('재고 정리'));
   await page.selectOption('#f-kind', ''); await page.waitForTimeout(800);

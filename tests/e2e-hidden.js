@@ -165,6 +165,8 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   check('unhidden order visible again', (await listText()).includes('테스트고객'));
 
   await page.check('#admin-show-hidden'); await page.evaluate(() => resetAdminSearch()); await page.waitForTimeout(300);
+  check('초기화하면 상태는 기본 접수대기', await page.inputValue('#admin-status-filter') === '접수대기');
+  await page.selectOption('#admin-status-filter', 'ALL'); await page.evaluate(() => runAdminSearch()); await page.waitForTimeout(300);
   // 따로 처리됨
   await page.check('.admin-chk-item[value="ORD-2"]');
   await page.click('button:has-text("따로 처리됨")'); await page.waitForTimeout(800);

@@ -167,6 +167,8 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
     check('2일 전 0시부터 → 접수완료 2곳', t4.includes('접수완료 업체 2곳 · 주문 3건'), t4);
     await page.reload(); await page.waitForTimeout(1500);
     check('새로고침해도 기준 시간 기억', await page.inputValue('#admin-basis-from') === d2 + 'T00:00');
+    check('새로고침하면 상태는 기본 접수대기', await page.inputValue('#admin-status-filter') === '접수대기');
+    await page.selectOption('#admin-status-filter', 'ALL'); await page.evaluate(() => runAdminSearch()); await page.waitForTimeout(300);
     await page.click('button:has-text("기준 지우기")'); await page.waitForTimeout(300);
     check('기준 지우면 9건', await page.locator('#admin-order-list .admin-chk-item').count() === 9);
     // 제일 빠른 접수시간: 전체 9건 중 가장 오래된 건 = 온온 (3일 전, NO.9)

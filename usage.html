@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex, nofollow">
-<title>밤낮딜리버리 내 이용 현황</title>
+<title>밤낮딜리버리 내 정산서·이용 현황</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <style>
@@ -17,7 +17,8 @@
     .wrap { max-width: 960px; margin: 0 auto; padding: 16px 16px 40px; }
     .brand { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0 14px; }
     .brand b { font-size: 16px; }
-    .brand a { font-size: 13px; color: var(--sub); text-decoration: none; }
+    .brand a { flex-shrink: 0; white-space: nowrap; display: inline-flex; align-items: center; padding: 8px 16px; border-radius: 8px; background: #4f46e5; color: #fff; font-size: 14px; font-weight: 800; text-decoration: none; box-shadow: 0 1px 3px rgba(15,23,42,.18); }
+    .brand a:hover { background: #4338ca; }
     .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
     .hero { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
     .hero .company { font-size: 20px; font-weight: 800; }
@@ -71,12 +72,22 @@
     .grid div.strong { color: var(--accent); }
     td a { color: var(--accent); font-weight: 700; text-decoration: none; }
     .red { color: #e11d48; } .green { color: #059669; }
+    /* 지난 정산서 목록 (날짜마다 한 줄, [정산서 보기]) */
+    .slist { list-style: none; margin: 0; padding: 0; max-height: 420px; overflow: auto; }
+    .slist li { display: flex; align-items: center; gap: 10px; padding: 10px 2px; border-bottom: 1px solid var(--line); }
+    .slist li:last-child { border-bottom: 0; }
+    .slist .d { font-weight: 800; min-width: 112px; }
+    .slist .amt { margin-left: auto; text-align: right; font-weight: 800; white-space: nowrap; }
+    .slist .amt small { display: block; font-size: 11px; font-weight: 700; }
+    .slist .btn { padding: 7px 12px; }
+    .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+    .pill.red { background: #ffe4e6; } .pill.green { background: #d1fae5; }
 </style>
 </head>
 <body>
 <div id="preview-bar" class="preview-bar" hidden>관리자 미리보기 화면입니다 (업체에게 보이는 모양)</div>
 <div class="wrap">
-    <div class="brand"><b>밤낮딜리버리 내 이용 현황</b><a href="/">← 주문접수 화면</a></div>
+    <div class="brand"><b>밤낮딜리버리 내 정산서·이용 현황</b><a href="/">← 택배접수 화면으로</a></div>
     <div id="app"><div class="state">불러오는 중입니다...</div></div>
     <div class="foot">문의: 밤낮딜리버리 카카오톡 채널</div>
 </div>
@@ -115,6 +126,7 @@
         let from, to;
         if (which === 'prev') { from = new Date(now.getFullYear(), now.getMonth() - 1, 1); to = new Date(now.getFullYear(), now.getMonth(), 0); }
         else if (which === '3m') { from = new Date(now.getFullYear(), now.getMonth() - 2, 1); to = now; }
+        else if (which === '1y') { from = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate() + 1); to = now; }
         else { from = new Date(now.getFullYear(), now.getMonth(), 1); to = now; }
         document.getElementById('from').value = dateKey(from);
         document.getElementById('to').value = dateKey(to);
@@ -138,7 +150,7 @@
             if (profile.status !== 'approved') { showState('관리자 승인 후 이용 현황을 확인할 수 있습니다.'); return; }
             company = profile.company;
         }
-        document.title = `${company} 이용 현황`;
+        document.title = `${company} 정산서·이용 현황`;
         document.getElementById('app').innerHTML = `
         <div class="card hero">
             <div><div class="company">${esc(company)}</div><div class="date" id="period-label"></div></div>
@@ -146,12 +158,13 @@
                 <button class="btn" onclick="preset('month')">이번 달</button>
                 <button class="btn" onclick="preset('prev')">지난 달</button>
                 <button class="btn" onclick="preset('3m')">최근 3개월</button>
+                <button class="btn" onclick="preset('1y')">최근 1년</button>
                 <input type="date" id="from"> ~ <input type="date" id="to">
                 <button class="btn primary" onclick="load()">조회</button>
             </div>
         </div>
         <div id="result"></div>`;
-        preset('month');
+        preset('3m');   // 지난 정산서를 넉넉히 보이도록 최근 3개월부터
     }
 
     async function load() {
@@ -184,7 +197,18 @@
         }
         const sum = {}; ITEMS.forEach(it => { sum[it.key] = rows.reduce((n, r) => n + r[it.key], 0); });
         const last = rows[0]; // 최신 정산일이 먼저 옴
+        const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
+        const dayName = d => { const t = new Date(d + 'T00:00:00'); return isNaN(t) ? '' : `(${WEEK[t.getDay()]})`; };
         box.innerHTML = `
+        <div class="card">
+            <h2>지난 정산서 <span class="sub" style="font-weight:400">${rows.length}장 · [정산서 보기]를 누르면 그날 정산서가 열립니다</span></h2>
+            <ul class="slist">${rows.map(r => `<li>
+                <span class="d">${esc(r.date)} <span class="sub">${dayName(r.date)}</span></span>
+                <span class="amt ${r.result === '청구' ? 'red' : 'green'}">${won(r.total)}원<small><span class="pill ${r.result === '청구' ? 'red' : 'green'}">${esc(r.result || '-')}</span></small></span>
+                ${r.token ? `<a class="btn primary" href="/settle?t=${encodeURIComponent(r.token)}" target="_blank" rel="noopener">정산서 보기</a>` : '<span class="btn" style="visibility:hidden">정산서 보기</span>'}
+            </li>`).join('')}</ul>
+            <p class="note">* 같은 날 정산서가 다시 만들어진 경우 마지막(최신) 정산서가 열립니다.</p>
+        </div>
         <div class="card">
             <div class="stats">
                 <div class="stat big"><b>${won(sum.taxInvoice)}</b><span>세금계산서 금액 (원)</span></div>

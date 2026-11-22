@@ -107,21 +107,40 @@
             <a id="nav-history-btn" href="/stock-history" class="hidden shrink-0 whitespace-nowrap sm:ml-2 justify-center px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
                 <i data-lucide="history" class="w-4 h-4"></i> 재고 증감
             </a>
-            <!-- 셀러 로그인 시에만 표시: 내 이용 현황 페이지 (usage.html) -->
+            <!-- 셀러 로그인 시에만 표시: 내 정산서·이용 현황 페이지 (usage.html) -->
             <a id="nav-usage-btn" href="/usage" class="hidden shrink-0 whitespace-nowrap sm:ml-2 justify-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
-                <i data-lucide="bar-chart-3" class="w-4 h-4"></i> 이용 현황
+                <i data-lucide="bar-chart-3" class="w-4 h-4"></i> 정산서·이용현황
             </a>
             <!-- 셀러 로그인 시에만 표시: 내 상품관리 페이지 (products.html) -->
             <a id="nav-products-btn" href="/products" class="hidden shrink-0 whitespace-nowrap sm:ml-2 justify-center px-3 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
                 <i data-lucide="tags" class="w-4 h-4"></i> 상품관리
             </a>
+            <!-- 셀러 로그인 시에만 표시: 출고 리포트 (report.html) — 일별·월별·분기별·연도별·기간 출고 건수·비용·많이 나간 상품 -->
+            <a id="nav-report-btn" href="/report" class="hidden shrink-0 whitespace-nowrap sm:ml-2 justify-center px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
+                <i data-lucide="calendar-days" class="w-4 h-4"></i> 출고 리포트
+            </a>
             </div>
         </div>
         <div class="flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-2 w-full sm:w-auto">
+            <div class="flex flex-col sm:flex-row items-stretch gap-2 w-full sm:w-auto">
             <!-- 누구나 볼 수 있는 이용 설명서 (guide/index.html, 새 창) -->
-            <a id="nav-guide-btn" href="/guide/" target="_blank" rel="noopener" class="w-full sm:w-auto shrink-0 whitespace-nowrap flex justify-center items-center gap-2 px-4 sm:px-5 py-2.5 bg-yellow-300 hover:bg-yellow-400 text-slate-900 text-sm sm:text-base font-black rounded-xl shadow-md ring-2 ring-yellow-500/60">
-                <i data-lucide="book-open" class="w-5 h-5"></i> 밤낮딜리버리 이용설명서
+            <a id="nav-guide-btn" href="/guide/" target="_blank" rel="noopener" class="shrink-0 whitespace-nowrap flex justify-center items-center gap-2 px-4 sm:px-5 py-2.5 bg-yellow-300 hover:bg-yellow-400 text-slate-900 text-sm sm:text-base font-black rounded-xl shadow-md ring-2 ring-yellow-500/60">
+                <i data-lucide="book-open" class="w-5 h-5 shrink-0"></i> 밤낮딜리버리 이용설명서
             </a>
+            <!-- 공지사항 (notice/index.html, 로그인 전·후 모두). 새 공지가 있으면 NEW 표시 -->
+            <a id="nav-notice-btn" href="/notice/" class="shrink-0 whitespace-nowrap flex justify-center items-center gap-2 px-4 sm:px-5 py-2.5 bg-white hover:bg-rose-50 text-slate-900 text-sm sm:text-base font-black rounded-xl shadow-md ring-2 ring-rose-400/70">
+                <i data-lucide="megaphone" class="w-5 h-5 shrink-0 text-rose-500"></i> 공지사항
+                <span id="nav-notice-new" class="hidden px-1.5 py-0.5 bg-rose-500 text-white text-[10px] font-black rounded-full">NEW</span>
+            </a>
+            <!-- 밤낮딜리버리 홈페이지 (서비스 이용·비용 안내, 새 창) -->
+            <a id="nav-home-btn" href="https://www.bamnatdelivery.com" target="_blank" rel="noopener" class="shrink-0 whitespace-nowrap flex justify-center items-center gap-2 px-4 py-1.5 bg-white hover:bg-yellow-50 text-slate-900 rounded-xl shadow-md ring-2 ring-yellow-500/60">
+                <i data-lucide="home" class="w-5 h-5 shrink-0 text-yellow-600"></i>
+                <span class="flex flex-col items-start leading-tight">
+                    <span class="text-sm sm:text-base font-black">밤낮딜리버리 홈페이지</span>
+                    <span class="text-[10px] sm:text-[11px] font-bold text-slate-500">서비스 이용 및 비용 안내</span>
+                </span>
+            </a>
+            </div>
             <div id="db-status-badge" style="display:none" class="px-2.5 py-1 bg-slate-100 text-slate-500 text-xs font-bold rounded-full flex items-center gap-1.5 shrink-0 whitespace-nowrap">
                 <span class="w-2 h-2 rounded-full bg-slate-400"></span> DB 연결 확인 중...
             </div>
@@ -234,13 +253,8 @@
                         <label class="flex items-center gap-1.5 text-xs font-bold text-slate-800 cursor-pointer">
                             <input type="radio" name="keep-request" value="없음" autocomplete="off" onchange="onKeepRequestChange()" class="w-4 h-4 text-amber-600"> 2. 보관건 없습니다
                         </label>
-                        <div>
-                            <label class="flex items-center gap-1.5 text-xs font-bold text-slate-800 cursor-pointer">
-                                <input type="radio" name="keep-request" value="이미접수" autocomplete="off" onchange="onKeepRequestChange()" class="w-4 h-4 text-amber-600"> 3. 이미 접수했습니다
-                            </label>
-                            <p class="pl-5 text-[10px] font-bold text-rose-600">이미 보관건 내용을 접수한 경우 체크해주세요</p>
-                        </div>
                     </div>
+                    <p class="text-[10px] font-bold text-rose-600">보관요청을 접수한 뒤 아래 [내 접수 주문목록]에서 접수된 내용을 한 번 확인해 주세요.</p>
                     <div class="flex items-center gap-2">
                         <input type="text" id="keep-memo" autocomplete="off" disabled
                             onkeydown="if (event.key === 'Enter') submitKeepRequest()"
@@ -268,6 +282,52 @@
                             <i data-lucide="map-pin" class="w-4 h-4"></i> 당일택배<br>가능지역 조회
                         </a>
                     </div>
+                </div>
+
+                <!-- 사입 목록 만들기: 풀필먼트를 안 쓰는 택배 업체용, 주문 접수 없이 도매 매장별 사입 목록만 정리 (order-ai.js aiRenderBuy) -->
+                <div id="buy-ai-card" class="bg-white rounded-xl shadow-sm border-2 border-amber-200 p-5 space-y-3">
+                    <div class="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                        <h3 class="text-base font-black text-slate-900">🛒 사입 목록 만들기 <span class="ml-1 px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] align-middle">AI</span></h3>
+                        <p class="text-xs text-slate-500 mt-0.5">쇼핑몰 주문서 엑셀을 올리면 <b class="text-amber-800">도매 매장별로 사입할 상품</b>(도매상품명·컬러·사이즈·수량)을 한 번에 정리해 드려요. 엑셀 받기·카톡 복사도 돼요. <span class="text-slate-400">※ 주문 접수는 되지 않아요.</span></p>
+                    </div>
+                    <div class="flex gap-1.5 shrink-0">
+                        <a href="/products" class="px-3 py-1.5 bg-white border border-sky-300 hover:bg-sky-50 text-sky-800 text-xs font-bold rounded-lg">🗂️ 상품관리</a>
+                        <a href="/my-stock" class="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg">📦 내 재고표</a>
+                        <a href="/my-ship" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg">📮 내 택배 주문</a>
+                    </div>
+                    </div>
+                    <!-- 내 택배 주문 설명 (대표님 요청 2026-11-22: 버튼만 보고는 무슨 기능인지 몰라서 밖에 크게 안내) -->
+                    <a href="/my-ship" class="block rounded-xl border-2 border-blue-300 bg-blue-50 hover:bg-blue-100 px-4 py-3 transition">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <p class="text-sm font-black text-blue-900">📮 내 택배 주문이란? <span class="ml-1 px-1.5 py-0.5 rounded bg-blue-600 text-white text-[10px] align-middle">NEW</span></p>
+                            <span class="text-xs font-bold text-blue-700">눌러서 시작하기 →</span>
+                        </div>
+                        <p class="text-xs text-blue-900 mt-1 leading-relaxed">쇼핑몰 주문서를 올리면 주문이 <b>내 택배 주문 목록</b>에 모이고, 우체국·CJ대한통운 등 <b>대표님이 쓰시는 운송장 프로그램 엑셀 양식 그대로</b> 받을 수 있어요. 운송장 프로그램에 그대로 올려 송장을 출력하세요.</p>
+                        <div class="flex flex-wrap items-center gap-1.5 mt-2 text-[11px] font-bold text-blue-800">
+                            <span class="px-2 py-1 rounded-md bg-white border border-blue-200">① 운송장 양식 한 번 등록</span><span class="text-blue-400">→</span>
+                            <span class="px-2 py-1 rounded-md bg-white border border-blue-200">② 아래에 주문서 올리기</span><span class="text-blue-400">→</span>
+                            <span class="px-2 py-1 rounded-md bg-white border border-blue-200">③ [내 택배 주문 목록에 넣기]</span><span class="text-blue-400">→</span>
+                            <span class="px-2 py-1 rounded-md bg-white border border-blue-200">④ [운송장 엑셀 받기]</span>
+                        </div>
+                        <p class="text-[11px] text-blue-700/80 mt-1.5">🔒 대표님 본인만 보여요 (밤낮딜리버리 관리자도 못 봐요). 손님 정보는 90일 뒤 저절로 지워져요.</p>
+                    </a>
+                    <div class="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 leading-relaxed">
+                        <b>📢 대표님 매장·사무실에서 직접 관리하는 상품관리 및 재고표와 함께 쓰는 기능입니다.</b> (밤낮딜리버리 사무실에서 관리되지 않는 재고)<br>
+                        주로 <b>풀필먼트를 이용하지 않고, 픽업/택배수령을 이용하시는 대표님들</b>을 위한 기능이에요. 🔒 내 재고표는 밤낮딜리버리 관리자가 수정할 수 없어 대표님이 직접 관리해 주셔야 해요. 풀필먼트 주문은 위쪽 [고객풀필먼트 택배접수]를 이용해 주세요.
+                    </div>
+                    <div id="buy-ai-drop-zone" class="border-2 border-dashed border-amber-200 rounded-xl p-5 text-center bg-amber-50/50 transition"
+                        ondragover="event.preventDefault(); this.classList.add('border-amber-500', 'bg-amber-100')"
+                        ondragleave="this.classList.remove('border-amber-500', 'bg-amber-100')"
+                        ondrop="aiDrop(event, 'buy')">
+                        <p class="text-xs text-slate-600 mb-3">스마트스토어·쿠팡·지그재그·에이블리 등 어떤 양식이든 그대로 올려 주세요. (파일을 여기로 끌어와도 돼요)</p>
+                        <input type="file" id="buy-ai-file-input" accept=".xlsx, .xls, .csv" class="hidden" onchange="aiFileChosen(event, 'buy')">
+                        <button id="btn-buy-ai-upload" onclick="document.getElementById('buy-ai-file-input').click()" class="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-lg text-sm shadow">
+                            주문서 올려서 사입 목록 만들기
+                        </button>
+                        <p id="buy-ai-status" class="hidden mt-3 text-xs font-bold"></p>
+                    </div>
+                    <div id="buy-ai-result" class="hidden space-y-3"></div>
                 </div>
 
                 <div id="store-form-card" class="hidden bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
@@ -352,7 +412,7 @@
             <div class="flex justify-between items-center flex-wrap gap-3">
                 <div>
                     <h2 class="text-xl font-bold text-slate-900">고객 배송 주문 접수</h2>
-                    <p class="hidden sm:block text-xs text-slate-500">송화인명 `밤낮딜리버리(상호)` 기재 및 상품명 `(합)`/`(킵)` 확인 후 업로드해 주세요.</p>
+                    <p class="hidden sm:block text-xs text-slate-500">송화인명 `밤낮딜리버리(상호)` 기재 후 업로드해 주세요. 올리면 (합)·(킵) 확인표가 나와요.</p>
                 </div>
                 <div class="flex gap-2">
                     <button onclick="downloadSampleExcel()" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 shadow transition">
@@ -366,7 +426,8 @@
                 <b>📢 재고 출고 안내</b><br>
                 모든 출고건은 현재 <b>밤낮딜리버리 사무실에 있는 재고부터 우선 출고</b>됩니다.
                 출고가 끝난 후, 사무실 재고는 자동 차감되어 기록됩니다.
-                단, 합배송 요청으로 출고되지 않은 재고는 차감되지 않습니다.
+                단, 합배송 요청으로 출고되지 않은 재고는 차감되지 않습니다.<br>
+                맡긴 재고가 있는 상품은 접수할 때 <b>상품명 앞에 (킵)이 저절로</b> 붙어요. 상품명에 (합)·(킵)을 이미 적었으면 두 번 붙지 않아요.
             </div>
 
             <!-- Single & Batch Registration Tabs -->
@@ -425,10 +486,24 @@
                             <div>
                                 <label class="block text-xs font-bold text-slate-700 mb-1">
                                     쇼핑몰 상품명 (상품명 / 컬러 / 사이즈 / 수량"개") *
-                                    <span class="text-[10px] text-indigo-600 font-normal">※ 합배송은 (합), 킵건은 (킵) 기재</span>
                                 </label>
-                                <input type="text" id="so-product" required class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500" placeholder="예: (합)고랭 울 팬츠 / 화이트 / 1개">
+                                <input type="text" id="so-product" required class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500" placeholder="예: 고랭 울 팬츠 / 화이트 / 1개">
                             </div>
+                        </div>
+
+                        <!-- (합)·(킵) 체크칸 (hap-keep.js): 상품명에 직접 안 적어도 체크하면 상품명 앞에 붙어서 접수 -->
+                        <div id="so-hk-box" class="space-y-2">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <label class="flex items-start gap-2 border-2 border-indigo-200 bg-indigo-50 rounded-lg p-3 cursor-pointer">
+                                    <input type="checkbox" id="so-hk-hap" onchange="hkSingleUpdate()" class="w-4 h-4 mt-0.5">
+                                    <span><span class="block text-sm font-black text-indigo-800">(합) 합배송</span><span id="so-hk-hap-info" class="block text-[11px] text-slate-600"></span></span>
+                                </label>
+                                <label class="flex items-start gap-2 border-2 border-amber-300 bg-amber-50 rounded-lg p-3 cursor-pointer">
+                                    <input type="checkbox" id="so-hk-keep" onchange="hkSingleKeepClick()" class="w-4 h-4 mt-0.5">
+                                    <span><span class="block text-sm font-black text-amber-900">(킵) 재고에서 출고</span><span id="so-hk-keep-info" class="block text-[11px] text-slate-600"></span></span>
+                                </label>
+                            </div>
+                            <p id="so-hk-preview" class="text-xs text-slate-600"></p>
                         </div>
 
                         <!-- Wholesale Details -->
@@ -544,6 +619,12 @@
                         </button>
                     </div>
                 </div>
+                <!-- 대표님 요청 (2026-11-19): 사이트 밖(카톡 등)으로 따로 보낸 단건 주문은 이 목록·송장번호 엑셀·출고 리포트에 없을 수 있음 -->
+                <div id="offsite-order-note" class="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-900 rounded-lg px-3 py-2 text-xs leading-relaxed">
+                    <span class="shrink-0">📌</span>
+                    <span>카톡 등으로 <b>따로 보내주신 풀필먼트 주문(오전 단건 추가 등)</b>은 이 사이트에 등록되지 않을 수 있어요.
+                        이런 주문은 아래 목록, 송장번호 엑셀, 출고 리포트에 빠질 수 있으니 참고해 주세요. 송장번호는 지금처럼 단톡방으로 보내드립니다.</span>
+                </div>
 
                 <!-- 지난 주문 조회: 기간 버튼 / 날짜 지정 / 검색 -->
                 <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
@@ -592,15 +673,25 @@
                             <option value="부분출고">부분출고</option>
                             <option value="출고완료">출고완료</option>
                         </select>
+                        <select id="history-tracking" class="px-2 py-1.5 border rounded-lg text-xs bg-white" title="송장번호가 들어온 주문 / 아직 안 들어온 주문만 골라 봅니다">
+                            <option value="all">송장 전체</option>
+                            <option value="has">송장 있는 주문</option>
+                            <option value="none">송장 없는 주문만</option>
+                        </select>
                         <select id="history-sort" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
                             <option value="desc">최신순</option>
                             <option value="asc">오래된순 (1번부터)</option>
                         </select>
                         <button type="button" id="btn-history-search" onclick="runHistorySearch()" class="px-5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-black flex items-center gap-1"><i data-lucide="search" class="w-3.5 h-3.5"></i> 조회</button>
                         <button type="button" onclick="resetHistorySearch()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-bold">초기화</button>
-                        <button type="button" onclick="downloadSellerHistoryExcel()" class="ml-auto px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1">
+                        <div class="ml-auto flex flex-wrap gap-2">
+                        <button type="button" id="btn-tracking-excel" onclick="downloadSellerTrackingExcel()" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold flex items-center gap-1" title="조회한 주문 중 송장번호가 있는 주문만 엑셀로 받습니다 (쇼핑몰 송장 일괄 등록용)">
+                            <i data-lucide="truck" class="w-3.5 h-3.5"></i> 송장번호 엑셀
+                        </button>
+                        <button type="button" onclick="downloadSellerHistoryExcel()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1">
                             <i data-lucide="file-down" class="w-3.5 h-3.5"></i> 조회결과 엑셀
                         </button>
+                        </div>
                     </div>
                 </div>
 
@@ -614,6 +705,7 @@
                                 <th class="p-3 whitespace-nowrap">NO.</th>
                                 <th class="p-3 whitespace-nowrap">접수번호</th>
                                 <th class="ship-ui p-3 whitespace-nowrap">운송장정보<span class="block text-[10px] font-normal text-slate-400">택배사 / 송장번호</span></th>
+                                <th class="p-3 whitespace-nowrap">송장번호<span class="block text-[10px] font-normal text-slate-400">우체국택배 / 배송조회</span></th>
                                 <th class="p-3 whitespace-nowrap">수화인(받는사람)</th>
                                 <th class="p-3 whitespace-nowrap">연락처</th>
                                 <th class="p-3 whitespace-nowrap">주소</th>
@@ -636,7 +728,7 @@
         <div id="pickup-screen" class="hidden max-w-2xl mx-auto space-y-5">
             <div class="flex items-center justify-between gap-2 flex-wrap">
                 <h2 class="text-xl font-black text-slate-900">🛍️ 사입팀 픽업요청</h2>
-                <button type="button" onclick="closePickupPage()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-lg shadow-sm">
+                <button type="button" onclick="closePickupPage()" class="shrink-0 whitespace-nowrap inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-black rounded-lg shadow">
                     ← 택배접수 화면으로
                 </button>
             </div>
@@ -644,8 +736,18 @@
             <!-- 공지 -->
             <div class="bg-amber-50 border-2 border-amber-300 rounded-xl px-5 py-4 space-y-1.5 text-amber-900">
                 <div class="font-black text-sm">📢 공지</div>
-                <p class="text-sm font-bold">사입 픽업요청은 매일 <span class="text-rose-600">23시 전까지</span> 접수해주세요.</p>
-                <p class="text-sm">SO솔루션 사용자는 최대 <b>1시까지</b> 접수는 가능하나, <b>24시 이후 픽업요청건</b>은 사입팀 사정으로 인해 픽업이 불발될 수도 있습니다.</p>
+                <p class="text-sm font-bold">SO솔루션 픽업요청은 가능한 <span class="text-rose-600">23시 전까지</span> 접수해주시고, 최대 <span class="text-rose-600">새벽 1시까지</span> 접수가 가능합니다.</p>
+                <p class="text-sm">아래 업체는 <b>이 화면에서 접수</b>하시면 밤낮 사입팀에게 바로 전송이 됩니다.</p>
+                <ul class="text-sm list-disc pl-5 space-y-0.5">
+                    <li>아직 SO솔루션을 사용하지 못하는 <b>신규 업체</b></li>
+                    <li>SO솔루션 접수 불가(새벽 1시 이후 등)로 <b>급하게 픽업접수</b>를 해야 하는 업체</li>
+                </ul>
+                <p class="text-sm">이 화면에서는 <span class="text-rose-600 font-bold">새벽 4시까지</span> 접수가 가능합니다.</p>
+                <p class="text-sm">(단, <b>23시 이후 접수 건</b>들에 대해선 사입팀 동선·상황에 따라 픽업이 간혹 불발 될 수도 있는 점 양해 부탁드립니다.)</p>
+                <div class="mt-2 pt-2 border-t border-amber-300">
+                    <p class="text-sm font-bold">📞 신상마켓 주문 시 매장에 알려줄 사입팀 연락처: <a href="tel:01050915784" class="text-rose-600 underline">010-5091-5784</a></p>
+                    <p class="text-xs">(주문 시 <b>매장에만</b> 전달해주세요. 부탁드립니다. 급한 건이 아니라면 다른 문의 연락은 삼가주세요.)</p>
+                </div>
             </div>
 
             <div id="pickup-status-notice" class="hidden px-4 py-3 rounded-xl border text-sm font-medium bg-amber-50 border-amber-200 text-amber-800"></div>
@@ -786,17 +888,21 @@
                     <button id="admin-tab-stock" onclick="switchAdminTab('stock')" class="">
                         재고관리
                     </button>
-                    <button id="admin-tab-products" onclick="switchAdminTab('products')" class="">
-                        상품관리
+                    <button id="admin-tab-products" onclick="switchAdminTab('products')" class="" title="상호통일 적용">
+                        상품관리 <i data-lucide="link" class="w-3 h-3 text-indigo-400" title="상호통일 적용"></i>
                     </button>
-                    <button id="admin-tab-inventory" onclick="switchAdminTab('inventory')" class="">
-                        재고표
+                    <button id="admin-tab-inventory" onclick="switchAdminTab('inventory')" class="" title="상호통일 적용">
+                        재고표 <i data-lucide="link" class="w-3 h-3 text-indigo-400" title="상호통일 적용"></i>
                     </button>
-                    <button id="admin-tab-picking" onclick="switchAdminTab('picking')" class="">
-                        재고출고
+                    <button id="admin-tab-picking" onclick="switchAdminTab('picking')" class="" title="상호통일 적용">
+                        재고출고 <i data-lucide="link" class="w-3 h-3 text-indigo-400" title="상호통일 적용"></i>
                     </button>
-                    <button id="admin-tab-history" onclick="switchAdminTab('history')" class="">
-                        재고 증감 내역
+                    <button id="admin-tab-history" onclick="switchAdminTab('history')" class="" title="상호통일 적용">
+                        재고 증감 내역 <i data-lucide="link" class="w-3 h-3 text-indigo-400" title="상호통일 적용"></i>
+                    </button>
+                    <!-- 상호통일 (company-unify.html, supabase/company_unify.sql). 🔗 표시 탭에 적용됨 -->
+                    <button id="admin-tab-unify" onclick="switchAdminTab('unify')" class="">
+                        <i data-lucide="link" class="w-4 h-4"></i> 상호통일
                     </button>
                     <button id="admin-tab-settle" onclick="switchAdminTab('settle')" class="">
                         정산서 발송
@@ -806,6 +912,10 @@
                     </button>
                     <button id="admin-tab-chatlog" onclick="switchAdminTab('chatlog')" class="">
                         상담 기록
+                    </button>
+                    <button id="admin-tab-unanswered" onclick="switchAdminTab('unanswered')" class="">
+                        답변하지 못한 질문
+                        <span id="admin-unanswered-badge" class="hidden px-1.5 py-0.5 bg-orange-500 text-white text-[10px] rounded-full"></span>
                     </button>
                     <button id="admin-tab-sellers" onclick="switchAdminTab('sellers')" class="">
                         셀러 관리
@@ -879,7 +989,7 @@
                             <span class="text-xs font-bold text-slate-600 ml-2">상태:</span>
                             <select id="admin-status-filter" class="px-3 py-1.5 border rounded-lg text-xs font-medium focus:outline-none">
                                 <option value="ALL">전체</option>
-                                <option value="접수대기">접수대기</option>
+                                <option value="접수대기" selected>접수대기</option>
                                 <option value="접수완료">접수완료</option>
                             </select>
                             <span id="admin-order-count" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full">총 0건</span>
@@ -894,6 +1004,7 @@
                             <button onclick="editSelectedAdminOrder()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-sm">선택수정</button>
                             <button onclick="markSeparateSelectedOrders()" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs rounded-lg shadow-sm" title="이 사이트 밖에서 이미 따로 처리·배송한 접수건에 표시합니다 (접수완료로 바뀜)">따로 처리됨</button>
                             <button onclick="setHiddenSelectedOrders(true)" class="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg shadow-sm" title="테스트 접수건 등을 목록에서 안 보이게 합니다 (지우지 않음)">선택 숨기기</button>
+                            <button onclick="trashSelectedOrders()" class="px-3 py-1.5 bg-white border border-rose-300 hover:bg-rose-50 text-rose-600 font-bold text-xs rounded-lg shadow-sm" title="접수건을 아예 지웁니다. 셀러 화면·엑셀·정산에서도 사라지고, [휴지통]에서 90일 안에 복원할 수 있습니다">선택 삭제</button>
                         </div>
                     </div>
 
@@ -958,6 +1069,7 @@
                                 <input type="checkbox" id="admin-show-hidden" onchange="runAdminSearch()" class="rounded border-slate-300"> 숨긴 접수건도 보기 <span id="admin-hidden-count" class="text-slate-400 font-normal"></span>
                             </label>
                             <button type="button" id="btn-admin-unhide" onclick="setHiddenSelectedOrders(false)" class="hidden px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-bold">선택 숨김해제</button>
+                            <button type="button" id="btn-admin-trash" onclick="openOrderTrash()" class="px-3 py-1.5 bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 rounded-lg text-xs font-bold" title="삭제한 접수건을 보고 복원합니다">🗑 휴지통 <span id="admin-trash-count" class="font-normal"></span></button>
                         </div>
                     </div>
 
@@ -1059,6 +1171,63 @@
                         </div>
                     </div>
                     <div id="quick-order-list" class="space-y-3"></div>
+                </div>
+                <!-- 밤늦은 픽업요청 → 사입팀 카톡 자동 전송 설정 + 전송 내역 (worker/pickup_notify.js, supabase/pickup_notify.sql) -->
+                <div class="bg-white rounded-xl shadow-sm border-2 border-amber-200 px-6 py-4 space-y-2">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-sm font-black text-slate-800">💬 사입팀 카톡 자동 전송</span>
+                        <span class="text-[11px] text-slate-500">정해진 시간에 들어온 픽업요청을 사입팀 휴대폰으로 바로 보냅니다.</span>
+                        <button type="button" id="btn-pickup-notify-log" onclick="openPickupNotifyLog()" class="ml-auto px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-black">📋 카톡 전송 내역</button>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-[11px] font-bold text-slate-600">받을 번호</span>
+                        <input type="text" id="pickup-notify-phones" oninput="showPickupNotifyCount()" placeholder="예) 010-1234-5678, 010-2345-6789" class="px-3 py-1.5 border rounded-lg text-xs bg-white w-64">
+                        <span class="text-[11px] font-bold text-slate-600 ml-2">보내는 시간</span>
+                        <input type="time" id="pickup-notify-start" value="22:30" onchange="showPickupNotifyCount()" class="px-2 py-1 border rounded-lg text-xs bg-white">
+                        <span class="text-[11px] text-slate-500">부터 다음날</span>
+                        <input type="time" id="pickup-notify-end" value="04:00" onchange="showPickupNotifyCount()" class="px-2 py-1 border rounded-lg text-xs bg-white">
+                        <span class="text-[11px] text-slate-500">까지</span>
+                        <button type="button" onclick="savePickupNotifyPhones()" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-black">저장</button>
+                    </div>
+                    <p id="pickup-notify-status" class="text-[11px] font-bold text-slate-400"></p>
+                    <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-dashed border-amber-200">
+                        <span class="text-[11px] font-bold text-slate-600">테스트 받을 번호</span>
+                        <input type="text" id="pickup-notify-test-phone" placeholder="예) 010-1234-5678" class="px-3 py-1.5 border rounded-lg text-xs bg-white w-44">
+                        <button type="button" id="btn-pickup-notify-test" onclick="sendPickupNotifyTest()" class="px-4 py-1.5 bg-white border-2 border-amber-400 hover:bg-amber-50 text-amber-700 rounded-lg text-xs font-black">📨 테스트 보내기</button>
+                        <span id="pickup-notify-test-result" class="text-[11px] font-bold text-slate-400">시간과 상관없이 예시 픽업요청 1건을 이 번호로 지금 바로 보내 봅니다. (사입팀에게는 가지 않아요)</span>
+                    </div>
+                </div>
+                <!-- 카톡 전송 내역 창 -->
+                <div id="pickup-notify-log-modal" class="hidden fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onclick="if (event.target === this) closePickupNotifyLog()">
+                    <div class="bg-white rounded-2xl shadow-xl w-full max-w-5xl max-h-[85vh] flex flex-col">
+                        <div class="flex flex-wrap items-center gap-2 px-5 py-4 border-b border-slate-200">
+                            <h3 class="font-black text-slate-900">📋 사입팀 카톡 전송 내역</h3>
+                            <span id="pickup-notify-log-count" class="text-xs font-bold text-amber-700 bg-amber-50 px-3 py-1 rounded-full">0건</span>
+                            <div class="flex gap-1 ml-auto">
+                                <button type="button" data-days="1" onclick="loadPickupNotifyLog(1)" class="pnl-preset px-3 py-1.5 rounded-lg text-xs font-bold border">최근 24시간</button>
+                                <button type="button" data-days="7" onclick="loadPickupNotifyLog(7)" class="pnl-preset px-3 py-1.5 rounded-lg text-xs font-bold border">1주일</button>
+                                <button type="button" data-days="30" onclick="loadPickupNotifyLog(30)" class="pnl-preset px-3 py-1.5 rounded-lg text-xs font-bold border">1개월</button>
+                                <button type="button" data-days="0" onclick="loadPickupNotifyLog(0)" class="pnl-preset px-3 py-1.5 rounded-lg text-xs font-bold border">전체</button>
+                            </div>
+                            <button type="button" onclick="closePickupNotifyLog()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-bold">닫기</button>
+                        </div>
+                        <div class="overflow-auto">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-slate-800 text-slate-200 font-bold sticky top-0">
+                                    <tr>
+                                        <th class="p-3 whitespace-nowrap">접수시각</th>
+                                        <th class="p-3 whitespace-nowrap">카톡 보낸 시각</th>
+                                        <th class="p-3">주문자</th>
+                                        <th class="p-3">픽업할 매장</th>
+                                        <th class="p-3">대납 / 대납미송</th>
+                                        <th class="p-3 whitespace-nowrap">전송 결과</th>
+                                        <th class="p-3">받은 번호</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="pickup-notify-log-list" class="divide-y divide-slate-100 text-slate-700"></tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
                 <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
                     <!-- 조회: 기간 / 상태 / 검색 → [조회] -->
@@ -1221,6 +1390,31 @@
                     </div>
                     <div id="chatlog-list" class="space-y-2 max-h-[750px] overflow-y-auto"></div>
                 </div>
+            </div>
+
+            <!-- AI 상담 > 답변하지 못한 질문 (스크립트: inquiry-admin.js, supabase/ai_unanswered.sql) -->
+            <div id="admin-unanswered-panel" class="hidden bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+                <div class="flex justify-between items-start flex-wrap gap-2">
+                    <div>
+                        <h3 class="font-bold text-slate-900">답변하지 못한 질문 <span id="unanswered-count" class="text-xs font-normal text-slate-400"></span></h3>
+                        <p class="text-xs text-slate-500 mt-0.5">AI 가 답을 몰랐던 질문을 손님이 연락처를 남기지 않았어도 모두 모았습니다. 같은 질문은 한 번만 보입니다.<br>
+                            답을 적고 <b>[답변 등록]</b>을 누르면 <b>AI 답변 모음집</b>에 바로 들어가, 다음에 같은 질문이 오면 AI 가 이 답으로 안내합니다. (손님에게 문자는 가지 않습니다)</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <select id="unanswered-filter" onchange="renderUnanswered()" class="border border-slate-200 rounded-lg px-2 py-1 text-xs">
+                            <option value="open">답변 기다리는 질문</option>
+                            <option value="faq">답변 등록한 질문</option>
+                            <option value="skip">답 필요 없음으로 숨긴 질문</option>
+                            <option value="ai_ok">AI 가 사실 답했던 질문</option>
+                        </select>
+                        <button onclick="fetchUnanswered()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg">새로고침</button>
+                    </div>
+                </div>
+                <div id="unanswered-extract" class="hidden flex flex-wrap items-center justify-between gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
+                    <span>예전 질문 <b id="unanswered-extract-count"></b>개는 손님 질문 전체가 보입니다. AI 가 다시 읽고 <b>답하지 못한 부분만</b> 질문으로 정리할 수 있어요. (앞으로 들어오는 질문은 자동으로 정리됩니다)</span>
+                    <button onclick="extractUnknownParts(this)" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg">AI 로 모르는 부분만 뽑기</button>
+                </div>
+                <div id="unanswered-list" class="space-y-3"></div>
             </div>
 
             <!-- 3-3. 정산서 발송 (스크립트: settle-admin.js) -->
@@ -1555,6 +1749,18 @@
                             <tbody id="ship-list" class="divide-y divide-slate-100"></tbody>
                         </table>
                     </div>
+                    <!-- 주문에 송장번호 넣기 + 송장 빠진 주문 확인 (ship-admin.js, 2026-11-19) -->
+                    <div id="ship-missing-box" class="border border-rose-200 bg-rose-50/30 rounded-xl p-4 space-y-2">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <h4 class="font-bold text-slate-900 flex items-center gap-1"><i data-lucide="search-check" class="w-4 h-4 text-rose-600"></i> 송장 빠진 주문</h4>
+                            <span id="ship-missing-summary" class="text-xs"></span>
+                            <button type="button" onclick="shipBackfillOrderTracking()" class="ml-auto px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg" title="최근 30일 동안 올렸던 송장 엑셀로, 아직 송장번호가 없는 주문을 다시 맞춰 봅니다">지난 송장도 주문에 넣기 (최근 30일)</button>
+                        </div>
+                        <p class="text-[11px] text-slate-500">송장 엑셀을 올리면 <b>업체 + 받는분</b>이 같은 주문에 송장번호(우체국택배)가 자동으로 들어가고, 셀러 화면 주문 옆에 송장번호와 [배송조회]가 보입니다.
+                            아래는 <b>고른 출고일 당일에 접수</b>된 풀필먼트 주문(접수완료) 중 송장번호가 아직 없는 주문입니다. (숨긴 접수건 · 따로 처리됨 · 보관요청 · 매장 접수는 빠짐)</p>
+                        <div id="ship-link-status" class="text-xs text-emerald-700"></div>
+                        <div id="ship-missing"></div>
+                    </div>
                     <p class="ship-full text-[11px] text-slate-500">* 연락처는 [정산서 발송] 탭의 거래처 연락처를 같이 씁니다 (없으면 회원가입 연락처). 연락처가 없거나 단톡방으로 보낼 업체는 [단톡방용 문구 복사]를 눌러 붙여넣으세요.</p>
                 </div>
             </div>
@@ -1589,6 +1795,11 @@
                     <a href="/stock-history" target="_blank" class="text-xs font-bold text-indigo-600 hover:underline">새 창에서 크게 열기</a>
                 </div>
                 <iframe id="admin-history-frame" title="재고 증감 내역" class="w-full bg-white rounded-xl border border-slate-200" style="height: calc(100vh - 220px); min-height: 600px;"></iframe>
+            </div>
+
+            <!-- 3-9c. 상호통일 (company-unify.html 을 그대로 불러와 보여줌) -->
+            <div id="admin-unify-panel" class="hidden space-y-2">
+                <iframe id="admin-unify-frame" title="상호통일" class="w-full bg-white rounded-xl border border-slate-200" style="height: calc(100vh - 220px); min-height: 600px;"></iframe>
             </div>
 
             <!-- 3-10. AI 사용료 (ai-cost.html 을 그대로 불러와 보여줌) -->
@@ -1856,6 +2067,33 @@
             </div>
             <div class="flex justify-end">
                 <button type="button" onclick="closeCombineModal()" class="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 관리자: 삭제한 접수건(휴지통) 보기·복원 (supabase/order_trash.sql) -->
+    <div id="trash-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50" onclick="if (event.target === this) closeOrderTrash()">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-6 space-y-4 border border-slate-100 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div>
+                    <h3 class="font-bold text-slate-900 text-base">🗑 휴지통 · 삭제한 접수건</h3>
+                    <p class="text-xs text-slate-500">복원하면 주문 번호·접수시간·상태·송장번호까지 지우기 전 그대로 돌아옵니다. 삭제하고 90일이 지나면 손님 개인정보 보호를 위해 자동으로 완전히 지워집니다.</p>
+                </div>
+                <button onclick="closeOrderTrash()" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="overflow-x-auto border border-slate-200 rounded-lg">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-slate-100 text-slate-600 font-bold">
+                        <tr><th class="p-2 w-8"><input type="checkbox" id="trash-chk-all" onchange="document.querySelectorAll('.trash-chk').forEach(c => c.checked = this.checked)" class="rounded border-slate-300"></th><th class="p-2">삭제한 때</th><th class="p-2">삭제한 사람</th><th class="p-2">NO.</th><th class="p-2">셀러</th><th class="p-2">수취인</th><th class="p-2">쇼핑몰 상품명</th><th class="p-2">상태</th></tr>
+                    </thead>
+                    <tbody id="trash-modal-list" class="divide-y divide-slate-100"></tbody>
+                </table>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button type="button" id="btn-trash-restore" onclick="restoreSelectedTrash()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm">선택 복원</button>
+                <button type="button" onclick="closeOrderTrash()" class="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg">닫기</button>
             </div>
         </div>
     </div>
@@ -2692,7 +2930,10 @@
             } else {
                 setupSellerUI();
                 resetKeepRequest(); // 오늘 이미 골랐는지는 주문을 불러온 뒤 restoreKeepForToday 가 확인
-                switchSellerMode(loadSellerMode());
+                // /?open=buy : '내 택배 주문' 화면의 [쇼핑몰 주문서 올리기] → 매장/사무실 접수의 [사입 목록 만들기] 칸으로
+                const OPEN_BUY = new URLSearchParams(location.search).get('open') === 'buy';
+                switchSellerMode(OPEN_BUY ? 'store' : loadSellerMode());
+                if (OPEN_BUY) setTimeout(() => document.getElementById('buy-ai-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
                 resetHistorySearch(false); // 기본: 오늘 접수한 모든 내역
                 loadAddressBook();
             }
@@ -2741,6 +2982,7 @@
             if (currentRole === 'seller') { renderSellerTable(); restoreKeepForToday(); }
             if (currentRole === 'admin') {
                 await fetchHiddenOrderIds();
+                fetchTrashCount();
                 populateAdminFilter();
                 renderAdminTable();
                 renderSellerAdminTable();
@@ -2776,7 +3018,7 @@
                 subtext.innerText = "접수누락 방지를 위해 당일 출고건은 단톡방 안내 메세지가 필수입니다.";
             } else {
                 banner.className = "bg-emerald-500 text-white px-4 sm:px-6 py-2.5 text-sm font-medium flex flex-col sm:flex-row gap-1.5 sm:gap-4 sm:justify-between sm:items-center shadow-inner";
-                text.innerText = "배송접수는 24시간 가능 · 사입 픽업요청은 23시 전까지 접수해주세요";
+                text.innerText = "배송접수는 24시간 가능 · 사입 픽업요청은 가능한 23시 전까지 접수해주세요 (최대 새벽 1시)";
                 subtext.innerText = "관리자 마감(접수완료) 전·출고 전 주문은 수정/삭제할 수 있습니다.";
             }
 
@@ -3374,7 +3616,7 @@
         // ---------------- 픽업건 중 사무실 보관요청 (모든 택배접수 전에 [접수] 필수) ----------------
         // 옵션을 고르고 [접수] 버튼까지 눌러야 접수됩니다.
         //  1. 보관건 있습니다 → 메모와 함께 '보관요청' 건(order_type = keep)으로 접수 목록에 올라갑니다.
-        //  2. 없습니다 / 3. 이미 접수했습니다 → 확인만 하고 목록에는 올라가지 않습니다.
+        //  2. 없습니다 → 확인만 하고 목록에는 올라가지 않습니다. (예전 '3. 이미 접수했습니다'는 2026-11-19 대표님 요청으로 뺌)
         // 로그인할 때마다 다시 [접수]해야 택배 접수를 할 수 있습니다.
         let keepConfirmed = null;   // 오늘 [접수]한 선택값 ('있음' / '없음' / '이미접수')
         let keepConfirmedDate = null; // keepConfirmed 를 고른 날 (한국 날짜). 날이 바뀌면 다시 물어봅니다.
@@ -3466,7 +3708,7 @@
                 applyKeepConfirmed(choice);
                 saveKeepCheck(choice);
                 setKeepStatus('', true);
-                alert((choice === '없음' ? '보관건 없음으로 확인되었습니다.' : '이미 접수하신 것으로 확인되었습니다.') + '\n오늘은 다시 묻지 않아요.');
+                alert('보관건 없음으로 확인되었습니다.\n오늘은 다시 묻지 않아요.');
                 return;
             }
             const memo = document.getElementById('keep-memo').value.trim();
@@ -3506,7 +3748,7 @@
             saveKeepCheck('있음');
             document.getElementById('keep-memo').value = '';
             setKeepStatus(`✅ ${p.hh}:${p.mm} 보관요청 접수 완료 (NO. ${sellerNoLabel(saved)})`, true);
-            alert(`사무실 보관요청이 접수되었습니다. (NO. ${sellerNoLabel(saved)})`);
+            alert(`사무실 보관요청이 접수되었습니다. (NO. ${sellerNoLabel(saved)})\n아래 [내 접수 주문목록]에서 접수된 내용을 한 번 확인해 주세요.`);
             renderSellerTable();
         }
 
@@ -3545,6 +3787,7 @@
             set('so-address', recent.address);
             set('so-detail-address', recent.detail_address);
             set('so-memo', recent.memo);
+            if (typeof hkSingleReset === 'function') hkSingleReset();
             set('so-bamnat-memo', recent.bamnat_memo);
             document.getElementById('btn-submit-order').focus();
         }
@@ -3588,7 +3831,7 @@
         // 업체 화면 보기 중에는 재고 확인·재고 증감·이용 현황·상품관리도 그 업체 화면(보기 전용, view-as.js)으로 새 창에 엽니다.
         function setViewAsNavLinks() {
             const company = encodeURIComponent(currentSellerAccount.company || '');
-            [['nav-stock-btn', '/inventory'], ['nav-history-btn', '/stock-history'], ['nav-usage-btn', '/usage'], ['nav-products-btn', '/products']].forEach(([id, path]) => {
+            [['nav-stock-btn', '/inventory'], ['nav-history-btn', '/stock-history'], ['nav-usage-btn', '/usage'], ['nav-products-btn', '/products'], ['nav-report-btn', '/report']].forEach(([id, path]) => {
                 const a = document.getElementById(id);
                 a.href = `${path}?company=${company}&view=1&uid=${encodeURIComponent(currentUserId)}`;
                 a.target = '_blank';
@@ -3597,7 +3840,7 @@
         }
 
         // 셀러 [재고 증감] 버튼 (stock-history.html 의 SELLER_OPEN 과 같이 바꿉니다)
-        const SELLER_HISTORY_OPEN = true;
+        const SELLER_HISTORY_OPEN = false;   // 2026-11-19 대표님: 셀러는 재고표 [기록]으로만
 
         async function refreshNavStockBtn() {
             if (!supabaseClient) return;
@@ -3632,6 +3875,9 @@
             const productsBtn = document.getElementById('nav-products-btn');
             productsBtn.classList.toggle('hidden', currentRole !== 'seller');
             productsBtn.classList.toggle('flex', currentRole === 'seller');
+            const reportBtn = document.getElementById('nav-report-btn');
+            reportBtn.classList.toggle('hidden', currentRole !== 'seller');
+            reportBtn.classList.toggle('flex', currentRole === 'seller');
             // 휴대폰에서 셀러 버튼 묶음(2개씩)과 회원정보 줄은 로그인했을 때만 자리 차지
             const sellerBtns = document.getElementById('nav-seller-btns');
             sellerBtns.classList.toggle('hidden', currentRole !== 'seller');
@@ -3726,7 +3972,7 @@
                 zipcode: document.getElementById('so-zipcode').value,
                 address: document.getElementById('so-address').value,
                 detail_address: document.getElementById('so-detail-address').value,
-                product: document.getElementById('so-product').value,
+                product: hkSingleProduct(),
                 wholesale_company: document.getElementById('so-wholesale-company').value,
                 wholesale_product: document.getElementById('so-wholesale-product').value,
                 memo: document.getElementById('so-memo').value,
@@ -3753,6 +3999,7 @@
             showLeftoverModal(`풀필먼트 주문이 등록되었어요 (NO. ${sellerNoLabel(savedOrder)})`);
             e.target.reset();
             setupSellerUI(); // 송화인명/C/S 연락처 기본값 복원
+            hkSingleReset();
             renderSellerTable();
         }
 
@@ -3837,6 +4084,7 @@
                     const colName = i => String.fromCharCode(65 + i + off);
 
                     const batchOrders = [];
+                    const batchRows = [];   // 엑셀 몇 번째 줄인지 (확인표에 보여줌)
                     const invalidSenderRows = [];
                     const missingFieldRows = [];
                     const senderRegex = /^밤낮딜리버리\([^\(\)]+\)$/;
@@ -3865,6 +4113,7 @@
                         if (!normalizePhone(r[7])) missing.push(`받는사람 연락처(${colName(7)}열)`);
                         if (missing.length > 0) missingFieldRows.push({ row: excelRowNo, fields: missing.join(', ') });
 
+                        batchRows.push(excelRowNo);
                         batchOrders.push({
                             id: generateOrderId('ORD-EXCEL'),
                             seller_company: currentSellerAccount.company,
@@ -3921,9 +4170,8 @@
                         }
                     }
 
-                    const confirmMsg = `📌 [업로드 전 최종 확인]\n\n상품명에 합배송건 '(합)', 재고출고건 '(킵)' 표기를 모두 정확히 기재하셨습니까?\n\n- (합): 2개 이상 묶음배송이 필요한 주문건\n- (킵): 사무실/창고 반품재고 재출고건\n\n[확인] 버튼을 누르시면 총 ${batchOrders.length}건의 주문이 접수됩니다.`;
-
-                    if (!confirm(confirmMsg)) {
+                    // 접수 전 확인표: 재고 있는 상품은 (킵) 자동, 같은 받는분인데 (합)이 없으면 물어봄 (hap-keep.js)
+                    if (!(await hkExcelConfirm(batchOrders, batchRows))) {
                         alert('주문 업로드가 취소되었습니다.');
                         e.target.value = '';
                         return;
@@ -4219,6 +4467,26 @@
             return item + tracking + (partial ? `<span class="block mt-1 text-[10px] font-bold text-orange-600">부분출고 ${g.shipped}/${g.total}</span>` : '');
         }
 
+        // 셀러 화면: 송장번호 + [배송조회] (우체국택배 배송조회 화면을 새 창으로 엽니다. 무료, 로그인 없음)
+        //  송장번호는 관리자가 [운송장 전송] 탭에 송장 엑셀을 올리면 업체·받는분이 같은 주문에 자동으로 들어갑니다 (ship-admin.js).
+        const EPOST_TRACE_URL = 'https://service.epost.go.kr/trace.RetrieveDomRigiTraceList.comm?sid1=';
+        function trackingUrl(o) {
+            const no = String(o.tracking_no || '').replace(/\D/g, '');
+            if (!no) return '';
+            // 우체국택배가 아닌 택배사(당일택배 등)는 배송조회 버튼 없이 번호만 보여줍니다.
+            if (o.courier && !/우체국/.test(o.courier)) return '';
+            return EPOST_TRACE_URL + no;
+        }
+        function trackingCellHtml(o) {
+            // 보관요청·매장 접수(송장 엑셀에 업체별로 안 나뉨)는 송장번호가 들어오지 않으면 '-'
+            if (isKeepOrder(o) || (isStoreOrder(o) && !o.tracking_no)) return '<span class="text-slate-300">-</span>';
+            if (!o.tracking_no) return '<span class="text-[11px] text-slate-400">아직 없음</span>';
+            const url = trackingUrl(o);
+            return `<b class="block font-mono text-sky-700 select-all">${escapeHtml(o.tracking_no)}</b>`
+                + (url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="track-link inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded bg-sky-50 border border-sky-200 hover:bg-sky-100 text-sky-700 text-[11px] font-bold">🚚 배송조회</a>`
+                    : `<span class="block text-[10px] text-slate-500">${escapeHtml(o.courier || '')}</span>`);
+        }
+
         function renderSellerTable() {
             const tbody = document.getElementById('seller-order-list');
             const allMine = ordersMaster.filter(o => o.seller_id === currentUserId);
@@ -4227,7 +4495,7 @@
             document.getElementById('chk-all-seller').checked = false;
 
             if (myOrders.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="14" class="text-center py-6 text-slate-400">${allMine.length ? '조회 조건에 맞는 주문이 없습니다.' : '접수된 주문이 없습니다.'}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="15" class="text-center py-6 text-slate-400">${allMine.length ? '조회 조건에 맞는 주문이 없습니다.' : '접수된 주문이 없습니다.'}</td></tr>`;
                 return;
             }
 
@@ -4252,6 +4520,7 @@
                         <td class="ship-ui p-3 whitespace-nowrap">${keepRow ? '<span class="text-slate-300">-</span>' : o.tracking_no
                             ? `<span class="block text-[11px] text-slate-600">${escapeHtml(o.courier || '-')}</span><b class="font-mono text-sky-700">${escapeHtml(o.tracking_no)}</b>`
                             : '<span class="text-[10px] text-slate-400">미등록</span>'}</td>
+                        <td class="p-3 whitespace-nowrap">${trackingCellHtml(o)}</td>
                         <td class="p-3 font-semibold text-slate-900 whitespace-nowrap">${escapeHtml(o.recipient)}</td>
                         <td class="p-3 whitespace-nowrap">${escapeHtml(o.phone)}</td>
                         <td class="p-3 max-w-xs truncate" title="${fullAddress}">${fullAddress}</td>
@@ -4357,6 +4626,7 @@
                 type: document.getElementById('history-type').value,
                 status: document.getElementById('history-status').value,
                 ship: document.getElementById('history-ship').value,
+                tracking: document.getElementById('history-tracking').value,
                 sort: document.getElementById('history-sort').value
             };
             renderSellerTable();
@@ -4368,8 +4638,9 @@
             document.getElementById('history-type').value = 'all';
             document.getElementById('history-status').value = 'all';
             document.getElementById('history-ship').value = 'all';
+            document.getElementById('history-tracking').value = 'all';
             document.getElementById('history-sort').value = 'desc';
-            historyQuery = { field: 'all', keyword: '', type: 'all', status: 'all', ship: 'all', sort: 'desc' };
+            historyQuery = { field: 'all', keyword: '', type: 'all', status: 'all', ship: 'all', tracking: 'all', sort: 'desc' };
             setHistoryPreset('today', run);
         }
 
@@ -4404,7 +4675,7 @@
 
         // 셀러 주문 목록에 기간 + 검색어 적용
         function getSellerHistoryOrders() {
-            const { keyword, field, type: typeFilter, status = 'all', ship = 'all' } = historyQuery;
+            const { keyword, field, type: typeFilter, status = 'all', ship = 'all', tracking = 'all' } = historyQuery;
             const groups = ship === 'all' ? null : getOrderGroups();
             const oldestFirst = historyQuery.sort === 'asc';
             const bySellerNo = (a, b) =>
@@ -4419,13 +4690,15 @@
                 && (status === 'all' || o.status === status)
                 // 출고상태(주문 단위)로 고르면 출고 대상이 아닌 보관요청 건은 빠집니다.
                 && (ship === 'all' || (!isKeepOrder(o) && orderShipState(o, groups) === ship))
+                // 송장 없는 주문만: 풀필먼트 주문만 봅니다 (보관요청·매장 접수는 송장이 주문별로 붙지 않음)
+                && (tracking === 'all' || (tracking === 'has' ? (!isKeepOrder(o) && !!o.tracking_no) : (orderTypeOf(o) === 'fulfillment' && !o.tracking_no)))
             ).sort(bySellerNo);
         }
 
         // 관리자: 주문 조회 (기간 / 검색) — [조회] 버튼(또는 기간 버튼)을 눌렀을 때만 바뀝니다.
         let adminFrom = null;
         let adminTo = null;
-        const ADMIN_QUERY_DEFAULT = { seller: 'ALL', type: 'all', ship: 'ALL', status: 'ALL', field: 'all', keyword: '', sort: 'desc', showHidden: false };
+        const ADMIN_QUERY_DEFAULT = { seller: 'ALL', type: 'all', ship: 'ALL', status: '접수대기', field: 'all', keyword: '', sort: 'desc', showHidden: false };
         let adminQuery = { ...ADMIN_QUERY_DEFAULT };
         function setAdminPreset(preset, run = true) {
             const [from, to] = presetRange(preset);
@@ -4464,7 +4737,7 @@
             document.getElementById('admin-seller-filter').value = 'ALL';
             document.getElementById('admin-type-filter').value = 'all';
             document.getElementById('admin-ship-filter').value = 'ALL';
-            document.getElementById('admin-status-filter').value = 'ALL';
+            document.getElementById('admin-status-filter').value = ADMIN_QUERY_DEFAULT.status;   // 처음 열 때·초기화 때는 '접수대기'부터 보이기
             document.getElementById('admin-keyword').value = '';
             document.getElementById('admin-field').value = 'all';
             document.getElementById('admin-sort').value = 'desc';
@@ -5236,6 +5509,118 @@
             renderAdminTable();
         }
 
+        // ---------------------------------------------------------------
+        // 관리자: 접수건 삭제(휴지통) + 복원 (supabase/order_trash.sql)
+        //  - 삭제하면 주문이 휴지통으로 옮겨져 셀러 화면·엑셀·정산 등 모든 곳에서 사라집니다.
+        //  - 휴지통에서 [선택 복원]하면 주문 번호·접수시간·상태까지 그대로 돌아옵니다. (90일 보관)
+        // ---------------------------------------------------------------
+        let trashRows = [];
+        const TRASH_SQL_MSG = '삭제·휴지통 기능 DB 설정이 아직 적용되지 않았습니다.\n(Supabase SQL Editor 에서 supabase/order_trash.sql 을 실행해주세요)';
+        function trashNotReady(error) {
+            const t = `${error?.code || ''} ${error?.message || ''}`;
+            return /PGRST202|PGRST205|42883|42P01|admin_trash_orders|admin_restore_orders|admin_deleted_orders/.test(t) && !/관리자만/.test(t);
+        }
+        async function fetchTrashCount() {
+            if (!supabaseClient || currentRole !== 'admin') return;
+            const { count, error } = await supabaseClient.from('admin_deleted_orders').select('order_id', { count: 'exact', head: true });
+            const el = document.getElementById('admin-trash-count');
+            if (el) el.innerText = !error && count ? `(${count}건)` : '';
+        }
+        async function trashSelectedOrders() {
+            const ids = Array.from(document.querySelectorAll('.admin-chk-item:checked')).map(c => c.value);
+            if (ids.length === 0) {
+                alert('삭제할 접수건을 체크박스로 선택해주세요.');
+                return;
+            }
+            const rows = ids.map(id => ordersMaster.find(o => o.id === id)).filter(Boolean);
+            const shipped = rows.filter(o => o.ship_status === '출고완료').length;
+            const msg = `선택한 상품 ${ids.length}개를 삭제할까요?\n\n`
+                + '· 셀러 화면, 엑셀, 출고, 정산 등 모든 곳에서 사라집니다.\n'
+                + '· [🗑 휴지통]에 90일 동안 보관되어, 언제든 [선택 복원]으로 그대로 되돌릴 수 있습니다.\n'
+                + '· 접수완료를 접수대기로만 되돌리려면 [선택 접수취소], 목록에서만 안 보이게 하려면 [선택 숨기기]를 쓰세요.'
+                + (shipped ? `\n\n⚠️ 이 중 ${shipped}개는 이미 출고완료된 상품입니다. 재고에서 뺀 수량은 자동으로 돌아오지 않습니다.` : '');
+            if (!confirm(msg)) return;
+            let done = 0;
+            for (let i = 0; i < ids.length; i += 200) {
+                const part = ids.slice(i, i + 200);
+                const { data, error } = await supabaseClient.rpc('admin_trash_orders', { p_ids: part });
+                if (error) {
+                    alert(trashNotReady(error) ? TRASH_SQL_MSG : '삭제 중 오류가 발생했습니다.\n\n' + dbErrorMessage(error));
+                    break;
+                }
+                done += data || 0;
+                ordersMaster = ordersMaster.filter(o => !part.includes(o.id));
+                part.forEach(id => { hiddenOrderIds.delete(id); separateOrderIds.delete(id); });
+            }
+            renderAdminTable();
+            fetchTrashCount();
+            if (done) alert(`${done}개 상품을 삭제했습니다. [🗑 휴지통]에서 복원할 수 있습니다.`);
+        }
+        async function openOrderTrash() {
+            const { data, error } = await fetchAllRows(() => supabaseClient.from('admin_deleted_orders')
+                .select('order_id,data,deleted_at,deleted_by_name').order('deleted_at', { ascending: false }));
+            if (error) {
+                alert(trashNotReady(error) ? TRASH_SQL_MSG : '휴지통을 불러오지 못했습니다.\n\n' + dbErrorMessage(error));
+                return;
+            }
+            trashRows = data || [];
+            renderOrderTrash();
+            const m = document.getElementById('trash-modal');
+            m.classList.remove('hidden'); m.classList.add('flex');
+        }
+        function renderOrderTrash() {
+            const tbody = document.getElementById('trash-modal-list');
+            document.getElementById('trash-chk-all').checked = false;
+            if (!trashRows.length) {
+                tbody.innerHTML = '<tr><td colspan="8" class="p-6 text-center text-slate-400 font-bold">휴지통이 비어 있습니다.</td></tr>';
+            } else {
+                tbody.innerHTML = trashRows.map(r => {
+                    const o = r.data || {};
+                    const no = o.order_no ? `${o.order_no}${o.item_no > 1 || String(o.product || '').includes('(합)') ? '-' + o.item_no : ''}` : '-';
+                    return `<tr class="hover:bg-slate-50">
+                        <td class="p-2"><input type="checkbox" class="trash-chk rounded border-slate-300" value="${escapeHtml(r.order_id)}"></td>
+                        <td class="p-2 whitespace-nowrap">${escapeHtml(formatKstDateTime(r.deleted_at))}</td>
+                        <td class="p-2 whitespace-nowrap">${escapeHtml(r.deleted_by_name || '-')}</td>
+                        <td class="p-2 font-bold text-indigo-700">${escapeHtml(no)}</td>
+                        <td class="p-2 whitespace-nowrap">${escapeHtml(o.seller_company || '')}</td>
+                        <td class="p-2 whitespace-nowrap">${escapeHtml(o.recipient || '')}</td>
+                        <td class="p-2">${escapeHtml(o.product || '')}</td>
+                        <td class="p-2 whitespace-nowrap">${escapeHtml(o.status || '')}${o.ship_status === '출고완료' ? ' · 출고완료' : ''}</td>
+                    </tr>`;
+                }).join('');
+            }
+            const el = document.getElementById('admin-trash-count');
+            if (el) el.innerText = trashRows.length ? `(${trashRows.length}건)` : '';
+        }
+        async function restoreSelectedTrash() {
+            const ids = Array.from(document.querySelectorAll('.trash-chk:checked')).map(c => c.value);
+            if (ids.length === 0) {
+                alert('복원할 접수건을 체크박스로 선택해주세요.');
+                return;
+            }
+            if (!confirm(`선택한 상품 ${ids.length}개를 복원할까요?\n\n지우기 전 모습 그대로 주문관리 목록과 셀러 화면에 다시 나타납니다.`)) return;
+            let done = 0;
+            for (let i = 0; i < ids.length; i += 200) {
+                const part = ids.slice(i, i + 200);
+                const { data, error } = await supabaseClient.rpc('admin_restore_orders', { p_ids: part });
+                if (error) {
+                    alert(trashNotReady(error) ? TRASH_SQL_MSG : '복원 중 오류가 발생했습니다.\n\n' + dbErrorMessage(error));
+                    break;
+                }
+                done += data || 0;
+                trashRows = trashRows.filter(r => !part.includes(r.order_id));
+            }
+            renderOrderTrash();
+            if (done) {
+                await fetchOrdersFromDB();
+                alert(`${done}개 상품을 복원했습니다.`);
+            }
+        }
+        function closeOrderTrash() {
+            const m = document.getElementById('trash-modal');
+            m.classList.add('hidden'); m.classList.remove('flex');
+        }
+
         async function revertAcceptSelectedOrders() {
             const ids = Array.from(document.querySelectorAll('.admin-chk-item:checked')).map(c => c.value);
             if (ids.length === 0) {
@@ -5651,7 +6036,7 @@
 
             const btn = document.getElementById('btn-pickup-submit');
             btn.disabled = true;
-            const { error } = await supabaseClient.from('pickup_requests').insert([{
+            const { data: inserted, error } = await supabaseClient.from('pickup_requests').insert([{
                 seller_company: currentSellerAccount.company || '',
                 orderer_name: ordererName,
                 orderer_phone: ordererPhone,
@@ -5662,7 +6047,7 @@
                 prepay_misong: misong,
                 agreed: (prepay || misong) ? agreed : false,
                 memo: document.getElementById('pk-memo').value.trim() || null,
-            }]);
+            }]).select('id');
             btn.disabled = false;
             if (error) {
                 console.error('픽업요청 오류:', error);
@@ -5670,12 +6055,175 @@
                 if (['PGRST205', '42P01'].includes(error.code)) msg = 'DB 설정이 아직 적용되지 않았습니다.\n(관리자: Supabase SQL Editor에서 supabase/pickup.sql 을 실행해주세요)';
                 return alert('픽업요청을 접수하지 못했습니다.\n\n' + msg);
             }
+            if (inserted && inserted[0]) notifyPickupTeam(inserted[0].id);
             alert('픽업요청이 접수되었습니다. 감사합니다.');
             document.getElementById('pickup-status-notice').classList.add('hidden');
             ['pk-store-name', 'pk-store-location', 'pk-store-phone', 'pk-memo'].forEach(id => { document.getElementById(id).value = ''; });
             document.querySelectorAll('input[name="pk-prepay"], input[name="pk-misong"]').forEach(r => { r.checked = false; });
             updatePickupAgree();
             loadMyPickupRequests();
+        }
+
+        // 새 픽업요청을 사입팀 휴대폰으로 알림 (worker/pickup_notify.js). 실패해도 접수에는 영향 없음
+        function notifyPickupTeam(id) {
+            fetch('/api/pickup/notify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id })
+            }).catch(() => {});
+        }
+
+        // ---- 관리자: 사입팀 카톡 자동 전송 설정 (DB: app_settings, supabase/pickup_notify.sql) ----
+        const PICKUP_NOTIFY_KEYS = ['pickup_notify_phones', 'pickup_notify_start', 'pickup_notify_end', 'pickup_notify_test_phone'];
+        let pickupNotifyReady = false;
+        async function loadPickupNotifyPhones() {
+            if (!supabaseClient || currentRole !== 'admin') return;
+            const status = document.getElementById('pickup-notify-status');
+            const { data, error } = await supabaseClient.from('app_settings').select('key, value').in('key', PICKUP_NOTIFY_KEYS);
+            if (error) {
+                pickupNotifyReady = false;
+                status.innerText = '아직 설정 전입니다. (Supabase SQL Editor에서 supabase/pickup_notify.sql 을 실행해주세요)';
+                status.className = 'text-[11px] font-bold text-rose-600';
+                return;
+            }
+            pickupNotifyReady = true;
+            const map = Object.fromEntries((data || []).map(r => [r.key, r.value]));
+            document.getElementById('pickup-notify-phones').value = map.pickup_notify_phones || '';
+            document.getElementById('pickup-notify-start').value = map.pickup_notify_start || '22:30';
+            document.getElementById('pickup-notify-end').value = map.pickup_notify_end || '04:00';
+            let savedTest = map.pickup_notify_test_phone || '';
+            try { savedTest = savedTest || localStorage.getItem('pickupNotifyTestPhone') || ''; } catch (e) {}
+            if (savedTest && !document.getElementById('pickup-notify-test-phone').value) document.getElementById('pickup-notify-test-phone').value = savedTest;
+            showPickupNotifyCount();
+        }
+
+        function showPickupNotifyCount() {
+            const status = document.getElementById('pickup-notify-status');
+            const n = document.getElementById('pickup-notify-phones').value.split(/[,\n/;]+/)
+                .map(v => v.replace(/\D/g, '')).filter(v => /^0\d{8,10}$/.test(v)).length;
+            const st = document.getElementById('pickup-notify-start').value || '22:30';
+            const en = document.getElementById('pickup-notify-end').value || '04:00';
+            const range = st <= en ? `${st} ~ ${en}` : `${st} ~ 다음날 ${en}`;
+            status.innerText = n ? `한국시간 ${range} 에 접수된 픽업요청은 ${n}명에게 카톡으로 바로 보냅니다. (그 밖의 시간에 들어온 요청은 보내지 않습니다)` : '번호가 없으면 카톡이 가지 않습니다.';
+            status.className = 'text-[11px] font-bold ' + (n ? 'text-emerald-700' : 'text-slate-400');
+        }
+
+        async function savePickupNotifyPhones() {
+            const raw = document.getElementById('pickup-notify-phones').value;
+            const parts = raw.split(/[,\n/;]+/).map(v => v.trim()).filter(Boolean);
+            const bad = parts.filter(v => !/^0\d{8,10}$/.test(v.replace(/\D/g, '')));
+            if (bad.length) return alert('휴대폰 번호가 올바르지 않습니다:\n' + bad.join('\n') + '\n\n여러 명은 쉼표(,)로 나눠 적어주세요.');
+            const st = document.getElementById('pickup-notify-start').value;
+            const en = document.getElementById('pickup-notify-end').value;
+            if (!/^\d\d:\d\d$/.test(st) || !/^\d\d:\d\d$/.test(en)) return alert('보내는 시간을 모두 넣어주세요.');
+            if (st === en) return alert('시작 시간과 끝 시간이 같으면 보낼 수 없습니다.');
+            const value = parts.join(', ');
+            const at = new Date().toISOString();
+            const { error } = await supabaseClient.from('app_settings').upsert([
+                { key: 'pickup_notify_phones', value, updated_at: at },
+                { key: 'pickup_notify_start', value: st, updated_at: at },
+                { key: 'pickup_notify_end', value: en, updated_at: at },
+            ]);
+            if (error) {
+                console.error('사입팀 카톡 설정 저장 오류:', error);
+                let msg = dbErrorMessage(error);
+                if (['PGRST205', '42P01'].includes(error.code)) msg = 'DB 설정이 아직 적용되지 않았습니다.\n(Supabase SQL Editor에서 supabase/pickup_notify.sql 을 실행해주세요)';
+                return alert('저장하지 못했습니다.\n\n' + msg);
+            }
+            document.getElementById('pickup-notify-phones').value = value;
+            showPickupNotifyCount();
+            alert('사입팀 카톡 설정을 저장했습니다.');
+        }
+
+        // ---- 관리자: [테스트 보내기] (worker/pickup_notify.js handlePickupNotifyTest) ----
+        async function sendPickupNotifyTest() {
+            const input = document.getElementById('pickup-notify-test-phone');
+            const out = document.getElementById('pickup-notify-test-result');
+            const digits = input.value.replace(/\D/g, '');
+            if (!/^01\d{8,9}$/.test(digits)) return alert('테스트 받을 휴대폰 번호를 정확히 적어주세요. 예) 010-1234-5678');
+            try { localStorage.setItem('pickupNotifyTestPhone', input.value.trim()); } catch (e) {}
+            if (pickupNotifyReady) supabaseClient.from('app_settings').upsert({ key: 'pickup_notify_test_phone', value: input.value.trim(), updated_at: new Date().toISOString() }).then(() => {});
+            const btn = document.getElementById('btn-pickup-notify-test');
+            btn.disabled = true; btn.innerText = '보내는 중...';
+            out.className = 'text-[11px] font-bold text-slate-500'; out.innerText = '보내는 중입니다...';
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                const res = await fetch('/api/pickup/notify-test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
+                    body: JSON.stringify({ phone: digits })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok && data.status === 'sent') {
+                    out.className = 'text-[11px] font-bold text-emerald-700';
+                    out.innerText = `✓ ${data.to} 로 ${data.channel === 'alimtalk' ? '카톡' : '문자'}을 보냈습니다. 휴대폰을 확인해 주세요.` + (data.note ? ' ' + data.note : '');
+                } else {
+                    out.className = 'text-[11px] font-bold text-rose-600';
+                    out.innerText = '보내지 못했습니다. ' + (data.error || `(오류 ${res.status})`);
+                }
+            } catch (e) {
+                out.className = 'text-[11px] font-bold text-rose-600';
+                out.innerText = '보내지 못했습니다. 인터넷 연결을 확인해 주세요.';
+            }
+            btn.disabled = false; btn.innerText = '📨 테스트 보내기';
+        }
+
+        // ---- 관리자: 카톡 전송 내역 (pickup_requests 의 notify_* 칸) ----
+        function openPickupNotifyLog() {
+            document.getElementById('pickup-notify-log-modal').classList.remove('hidden');
+            loadPickupNotifyLog(7);
+        }
+        function closePickupNotifyLog() {
+            document.getElementById('pickup-notify-log-modal').classList.add('hidden');
+        }
+        async function loadPickupNotifyLog(days) {
+            document.querySelectorAll('.pnl-preset').forEach(b => {
+                const on = Number(b.dataset.days) === days;
+                b.className = 'pnl-preset px-3 py-1.5 rounded-lg text-xs font-bold border ' + (on ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-600 border-slate-200');
+            });
+            const list = document.getElementById('pickup-notify-log-list');
+            const count = document.getElementById('pickup-notify-log-count');
+            list.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-slate-400">불러오는 중...</td></tr>';
+            const { data, error } = await fetchAllRows(() => {
+                let q = supabaseClient.from('pickup_requests')
+                    .select('id, created_at, notified_at, seller_company, orderer_name, orderer_phone, store_name, store_location, store_phone, prepay, prepay_misong, notify_result, notify_channel, notify_to, notify_detail')
+                    .not('notify_result', 'is', null);
+                if (days) q = q.gte('created_at', new Date(Date.now() - days * 86400000).toISOString());
+                return q.order('created_at', { ascending: false });
+            });
+            if (error) {
+                console.error('카톡 전송 내역 오류:', error);
+                count.innerText = '0건';
+                const need = ['42703', 'PGRST204'].includes(error.code) || /notify_/.test(error.message || '');
+                list.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-rose-600 font-bold">${need ? '아직 설정 전입니다. (Supabase SQL Editor에서 supabase/pickup_notify.sql 을 실행해주세요)' : '내역을 불러오지 못했습니다. ' + escapeHtml(dbErrorMessage(error))}</td></tr>`;
+                return;
+            }
+            const rows = data || [];
+            count.innerText = `${rows.length}건`;
+            if (!rows.length) {
+                list.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-slate-400">이 기간에 카톡으로 보낸 픽업요청이 없습니다.</td></tr>';
+                return;
+            }
+            const t = v => {
+                if (!v) return '-';
+                const k = new Date(new Date(v).getTime() + 9 * 3600000), p2 = n => String(n).padStart(2, '0');
+                return `${k.getUTCMonth() + 1}/${k.getUTCDate()} ${p2(k.getUTCHours())}:${p2(k.getUTCMinutes())}`;
+            };
+            const badge = r => {
+                if (r.notify_result === 'sent') return `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700">${r.notify_channel === 'alimtalk' ? '카톡 보냄' : '문자 보냄'}</span>`;
+                if (r.notify_result === 'test') return '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-700">테스트</span>';
+                return '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700">실패</span>';
+            };
+            list.innerHTML = rows.map(r => `
+                <tr class="${r.notify_result === 'failed' ? 'bg-rose-50/50' : ''}">
+                    <td class="p-3 whitespace-nowrap font-bold">${t(r.created_at)}</td>
+                    <td class="p-3 whitespace-nowrap">${t(r.notified_at)}</td>
+                    <td class="p-3">${escapeHtml(r.orderer_name || r.seller_company || '-')}<span class="block text-[10px] text-slate-400">${escapeHtml(r.orderer_phone || '')}</span></td>
+                    <td class="p-3">${escapeHtml(r.store_name || '-')}<span class="block text-[10px] text-slate-400">${escapeHtml([r.store_location, r.store_phone].filter(Boolean).join(' · '))}</span></td>
+                    <td class="p-3 whitespace-nowrap">${r.prepay ? '대납' : '대납없음'} / ${r.prepay_misong ? '미송잡음' : '미송안잡음'}</td>
+                    <td class="p-3 whitespace-nowrap">${badge(r)}${r.notify_detail ? `<span class="block text-[10px] text-slate-500 mt-1 whitespace-normal max-w-[220px]">${escapeHtml(r.notify_detail)}</span>` : ''}</td>
+                    <td class="p-3 whitespace-nowrap text-slate-500">${escapeHtml(r.notify_to || '-')}</td>
+                </tr>`).join('');
         }
 
         function pickupStatusBadge(status) {
@@ -5753,6 +6301,7 @@
         // ---- 관리자: 사입 픽업요청 목록 ----
         async function fetchAdminPickupRequests() {
             if (!supabaseClient || currentRole !== 'admin') return;
+            loadPickupNotifyPhones();
             const { data, error } = await fetchAllRows(() => supabaseClient.from('pickup_requests').select('*')
                 .order('created_at', { ascending: false }));
             if (error) {
@@ -5955,10 +6504,10 @@
         // 관리자 메뉴 묶음: 큰 묶음 → 그 안의 탭
         const ADMIN_GROUPS = {
             order: ['orders', 'pickup', 'ship'],
-            stock: ['stock', 'products', 'inventory', 'picking', 'history'],
+            stock: ['stock', 'products', 'inventory', 'picking', 'history', 'unify'],
             settle: ['settle'],
             sellers: ['sellers'],
-            inquiry: ['inquiry', 'chatlog'],
+            inquiry: ['inquiry', 'chatlog', 'unanswered'],
             aicost: ['aicost'],
             staff: ['activity', 'staff'],   // 대표 아이디만 보임 (staff-admin.js)
         };
@@ -6002,6 +6551,8 @@
             document.getElementById('admin-picking-panel').classList.toggle('hidden', tab !== 'picking');
             document.getElementById('admin-tab-history').className = tab === 'history' ? on : off;
             document.getElementById('admin-history-panel').classList.toggle('hidden', tab !== 'history');
+            document.getElementById('admin-tab-unify').className = tab === 'unify' ? on : off;
+            document.getElementById('admin-unify-panel').classList.toggle('hidden', tab !== 'unify');
             document.getElementById('admin-tab-aicost').className = tab === 'aicost' ? on : off;
             document.getElementById('admin-aicost-panel').classList.toggle('hidden', tab !== 'aicost');
             document.getElementById('admin-ship-panel').classList.toggle('hidden', tab !== 'ship');
@@ -6014,6 +6565,8 @@
             document.getElementById('admin-inquiry-panel').classList.toggle('hidden', tab !== 'inquiry');
             document.getElementById('admin-tab-chatlog').className = tab === 'chatlog' ? on : off;
             document.getElementById('admin-chatlog-panel').classList.toggle('hidden', tab !== 'chatlog');
+            document.getElementById('admin-tab-unanswered').className = tab === 'unanswered' ? on : off;
+            document.getElementById('admin-unanswered-panel').classList.toggle('hidden', tab !== 'unanswered');
             document.getElementById('admin-tab-activity').className = tab === 'activity' ? on : off;
             document.getElementById('admin-activity-panel').classList.toggle('hidden', tab !== 'activity');
             document.getElementById('admin-tab-staff').className = tab === 'staff' ? on : off;
@@ -6025,11 +6578,12 @@
             if (tab === 'ship') onShipTabOpened();
             if (tab === 'inquiry') onInquiryTabOpened();
             if (tab === 'chatlog') onChatLogTabOpened();
+            if (tab === 'unanswered') fetchUnanswered();
             if (tab === 'staff') onStaffTabOpened();
             if (tab === 'activity') onActivityTabOpened();
-            if (tab === 'products' || tab === 'inventory' || tab === 'picking' || tab === 'aicost' || tab === 'history') {
+            if (tab === 'products' || tab === 'inventory' || tab === 'picking' || tab === 'aicost' || tab === 'history' || tab === 'unify') {
                 const frame = document.getElementById(`admin-${tab}-frame`);
-                const page = tab === 'aicost' ? 'ai-cost' : tab === 'history' ? 'stock-history' : tab;
+                const page = tab === 'aicost' ? 'ai-cost' : tab === 'history' ? 'stock-history' : tab === 'unify' ? 'company-unify' : tab;
                 if (!frame.getAttribute('src')) frame.setAttribute('src', `${page}.html?embed=1`);
             }
         }
@@ -6476,6 +7030,35 @@
             }
         }
 
+        // 셀러: 송장번호 엑셀 (조회한 주문 중 송장번호가 있는 주문만) → 쇼핑몰 송장 일괄 등록에 씁니다.
+        function downloadSellerTrackingExcel() {
+            const list = getSellerHistoryOrders().filter(o => !isKeepOrder(o));
+            const withNo = list.filter(o => o.tracking_no);
+            const missing = list.length - withNo.length;
+            if (!withNo.length) {
+                alert(list.length
+                    ? `조회한 주문 ${list.length}건에 아직 송장번호가 없습니다.\n송장번호는 출고 후 밤낮딜리버리에서 등록하면 보입니다.`
+                    : '다운로드할 주문이 없습니다. 조회 기간/검색어를 확인해주세요.');
+                return;
+            }
+            const groups = getOrderGroups();
+            const rows = [['접수일시', 'NO.', '받는분', '연락처', '주소', '쇼핑몰 상품명', '택배사', '송장번호'],
+                ...withNo.map(o => [formatKstDateTime(o.created_at), sellerNoLabel(o, groups), o.recipient || '', o.phone || '',
+                    `${o.address || ''} ${o.detail_address || ''}`.trim(), o.product || '', o.courier || '우체국택배', String(o.tracking_no)])];
+            const ws = XLSX.utils.aoa_to_sheet(rows);
+            // 송장번호·연락처는 글자로 (엑셀이 숫자로 바꿔 앞자리 0 이나 끝자리가 사라지지 않게)
+            for (let r = 1; r < rows.length; r++) for (const c of [3, 7]) {
+                const ref = XLSX.utils.encode_cell({ r, c });
+                if (ws[ref]) { ws[ref].t = 's'; ws[ref].z = '@'; }
+            }
+            ws['!cols'] = [18, 8, 12, 15, 40, 36, 12, 18].map(wch => ({ wch }));
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '송장번호');
+            const p = getKstParts();
+            XLSX.writeFile(wb, `밤낮딜리버리_송장번호_${historyFrom || '전체'}~${historyTo || `${p.y}-${p.m}-${p.d}`}.xlsx`);
+            if (missing) alert(`송장번호가 있는 ${withNo.length}건을 받았습니다.\n조회한 주문 중 송장번호가 아직 없는 ${missing}건은 빠졌습니다. ([송장 없는 주문만]으로 확인할 수 있습니다)`);
+        }
+
         // 관리자: 현재 필터 기준 접수건 엑셀 (8개 시트)
         //  1 풀필먼트 접수건(풀필) / 2 일반택배 접수건(일반) / 3 당일택배 접수건(당택)  ← 원본 양식 그대로
         //  4 사무실 보관요청건(킵) / 5 셀러별 접수유형 / 6 풀필도소매명 / 7 킵출고리스트 / 8 밤낮전달메세지리스트
@@ -6486,13 +7069,28 @@
             const sameday = list.filter(o => orderTypeOf(o) === 'store_sameday');
 
             const shipHeaders = SHOW_SHIPPING_UI ? ['상품 출고상태', '주문 출고상태', '택배사', '송장번호'] : [];
-            const extraHeaders = [...shipHeaders, '셀러 가입상호', '접수일시', '처리상태', '관리자 접수시간', '사무실 보관요청', '보관요청 메모'];
-            const extraWidths = [...(SHOW_SHIPPING_UI ? [14, 18, 16, 18] : []), 16, 18, 12, 18, 14, 36];
-            const formRows = arr => arr.map(o => {
+            const extraHeaders = [...shipHeaders, '셀러 가입상호', '접수일시', '처리상태', '관리자 접수시간', '사무실 보관요청', '보관요청 메모', '화면 주문번호'];
+            const extraWidths = [...(SHOW_SHIPPING_UI ? [14, 18, 16, 18] : []), 16, 18, 12, 18, 14, 36, 14];
+            // 엑셀 NO 는 합배송 15-1, 15-2 대신 1, 2, 3 숫자로 (시트마다 작은 주문번호부터 1번).
+            //   화면에 보이는 주문번호(15-1 등)는 맨 끝 '화면 주문번호' 칸에 남깁니다.
+            const plainNoMap = arr => {
+                const sorted = [...arr].sort((a, b) => {
+                    const na = a.order_no == null ? Infinity : Number(a.order_no);
+                    const nb = b.order_no == null ? Infinity : Number(b.order_no);
+                    return (na - nb) || ((Number(a.item_no) || 0) - (Number(b.item_no) || 0))
+                        || String(a.created_at || '').localeCompare(String(b.created_at || ''));
+                });
+                return new Map(sorted.map((o, i) => [o, i + 1]));
+            };
+            const formRows = arr => {
+              const plainNo = plainNoMap(arr);
+              return arr.map(o => {
                 const state = orderShipState(o, groups);
                 const g = groups[o.order_no];
+                const base = orderToTemplateRow(o, groups);
+                base[0] = plainNo.get(o);
                 return [
-                    ...orderToTemplateRow(o, groups),
+                    ...base,
                     ...(SHOW_SHIPPING_UI ? [
                         o.ship_status || '미출고',
                         state === '부분출고' ? `부분출고 (${g.shipped}/${g.total})` : state,
@@ -6505,9 +7103,11 @@
                     // 관리자가 [접수]를 눌러 접수완료가 된 시각 (예전 주문·접수대기는 빈칸)
                     o.status === '접수완료' && o.accepted_at ? formatKstDateTime(o.accepted_at) : '',
                     o.keep_request || '',
-                    o.keep_memo || ''
+                    o.keep_memo || '',
+                    orderNoLabel(o, groups)
                 ];
-            });
+              });
+            };
 
             // 4. 사무실 보관요청건: 같은 셀러 · 같은 날 · 같은 메모는 한 줄로
             const keepMap = new Map();
@@ -6624,6 +7224,8 @@
     <script src="ship-admin.js"></script>
     <script src="stock-admin.js"></script>
     <script src="order-ai.js"></script>
+    <script src="hap-keep.js"></script>
+    <script>hkSingleInit();</script>
     <!-- 관리자 > AI 상담 (답변 대기 문의, 답변 모음집) -->
     <script src="inquiry-admin.js"></script>
     <script src="quick-admin.js"></script>
@@ -6634,5 +7236,12 @@
     <script>
         const FULFILLMENT_TEMPLATE_B64 = "UEsDBBQABgAIAAAAIQASGN7dZAEAABgFAAATAAgCW0NvbnRlbnRfVHlwZXNdLnhtbCCiBAIooAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADElM9uwjAMxu+T9g5VrlMb4DBNE4XD/hw3pLEHyBpDI9Ikig2Dt58bYJqmDoRA2qVRG/v7fnFjD8frxmYriGi8K0W/6IkMXOW1cfNSvE+f8zuRISmnlfUOSrEBFOPR9dVwugmAGWc7LEVNFO6lxKqGRmHhAzjemfnYKOLXOJdBVQs1Bzno9W5l5R2Bo5xaDTEaPsJMLS1lT2v+vCWJYFFkD9vA1qsUKgRrKkVMKldO/3LJdw4FZ6YYrE3AG8YQstOh3fnbYJf3yqWJRkM2UZFeVMMYcm3lp4+LD+8XxWGRDko/m5kKtK+WDVegwBBBaawBqLFFWotGGbfnPuCfglGmpX9hkPZ8SfhEjsE/cRDfO5DpeX4pksyRgyNtLOClf38SPeZcqwj6jSJ36MUBfmof4uD7O4k+IHdyhNOrsG/VNjsPLASRDHw3a9el/3bkKXB22aGdMxp0h7dMc230BQAA//8DAFBLAwQUAAYACAAAACEAtVUwI/QAAABMAgAACwAIAl9yZWxzLy5yZWxzIKIEAiigAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKySTU/DMAyG70j8h8j31d2QEEJLd0FIuyFUfoBJ3A+1jaMkG92/JxwQVBqDA0d/vX78ytvdPI3qyCH24jSsixIUOyO2d62Gl/pxdQcqJnKWRnGs4cQRdtX11faZR0p5KHa9jyqruKihS8nfI0bT8USxEM8uVxoJE6UchhY9mYFaxk1Z3mL4rgHVQlPtrYawtzeg6pPPm3/XlqbpDT+IOUzs0pkVyHNiZ9mufMhsIfX5GlVTaDlpsGKecjoieV9kbMDzRJu/E/18LU6cyFIiNBL4Ms9HxyWg9X9atDTxy515xDcJw6vI8MmCix+o3gEAAP//AwBQSwMEFAAGAAgAAAAhAOvyZornAgAAgAYAAA8AAAB4bC93b3JrYm9vay54bWykVU1r2zAYvg/2H4Turj+Sup2pU9K4ZYFtlK0fl0BRbCUWsS1PkpOUUiijg7GdOuh22s67DnbYYf+o6X/YKztJm+aSdcaWLL3m0fO87yN5a3ucJmhIhWQ887G9ZmFEs5BHLOv7+PBgz9jESCqSRSThGfXxKZV4u/H0ydaIi0GX8wECgEz6OFYq90xThjFNiVzjOc0g0uMiJQqGom/KXFASyZhSlSamY1mumRKW4QrBE6tg8F6PhTTgYZHSTFUggiZEAX0Zs1zO0NJwFbiUiEGRGyFPc4DosoSp0xIUozT02v2MC9JNQPbYXkdjAbcLj21B48xWgtDSUikLBZe8p9YA2qxIL+m3LdO2F1IwXs7Bakh1U9Ah0zWcsxLuI1m5cyz3Dsy2/hvNBmuVXvEgeY9EW59zc3Bjq8cSelRZF5E8f0VSXakEo4RItRsxRSMfb8CQj+jChCjynYIlEK1ZNcfFZmNu532BwP20wjqImTye+lx/BJ5oJoqKjCja4pkCC04l/a/dSuxWzMHc6DV9WzBBYU+BtUAmtCT0SFfuExWjQiQ+bnmdQwnKO80oZRmTShDFRSegcqB43rlnTbK8D/7BnCTUsk3QXXGr3h/mACgKb2bAfSUQvLeDF1CEN2QIJYHCR9Md24ac27WTLBSefXK2UdsNLHfDNmpWa8+oO80do1kLbKMVNOstywnqu87GOYgRrhdyUqh4Wm0N7eM6lHYp9JKMZxHb8goW3dE4s6aXofsHzSx2rgXrc+2I0ZG884UeovExyyI+8rFhOyDqdHE4KoPHLFKxj51nVh0+qeaeU9aPgbG9vqknSajYkB6QLsxoCY7m6eMFfkHFbw8uQzcL/Mx7BMvzFIiWPcrKPXD7+eL2+vLmx5/bj7/R5OvV5P3F5MvV5NM3NPl+Nbn8Obn+cPPuFxzs+iwuS4KR8DQH0Y5snYGV0O4BwGk4B3BKz8x4hSQJ9aaCTq9klcHZz6PxFwAA//8DAFBLAwQUAAYACAAAACEASqmmYfoAAABHAwAAGgAIAXhsL19yZWxzL3dvcmtib29rLnhtbC5yZWxzIKIEASigAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAvJLNasQwDITvhb6D0b1xkv5Qyjp7KYW9ttsHMLESh01sY6k/efualO42sKSX0KMkNPMxzGb7OfTiHSN13ikoshwEutqbzrUKXvdPV/cgiLUzuvcOFYxIsK0uLzbP2GtOT2S7QCKpOFJgmcODlFRbHDRlPqBLl8bHQXMaYyuDrg+6RVnm+Z2MvzWgmmmKnVEQd+YaxH4Myflvbd80XY2Pvn4b0PEZC8mJC5Ogji2ygmn8XhZZAgV5nqFck+HDxwNZRD5xHFckp0u5BFP8M8xiMrdrwpDVEc0Lx1Q+OqUzWy8lc7MqDI996vqxKzTNP/ZyVv/qCwAA//8DAFBLAwQUAAYACAAAACEARwGXVfEGAADsHAAAGAAAAHhsL3dvcmtzaGVldHMvc2hlZXQxLnhtbJxZW4/iNhR+r9T/EOV9Cc4FBgRUXCZkdnakVbttn0MwEC2JaZK5rKr+9x47Nx87ZJgd7RI4n/0d+1wNnv32lpyNF5rlMUvnJhkMTYOmEdvH6XFu/vnN/3RnGnkRpvvwzFI6N3/Q3Pxt8esvs1eWfc9PlBYGMKT53DwVxWVqWXl0okmYD9iFpoAcWJaEBXzMjlZ+yWi4F5OSs2UPhyMrCePULBmm2S0c7HCII7ph0XNC06Ikyeg5LGD9+Sm+5DVbEt1Cl4TZ9+fLp4glF6DYxee4+CFITSOJpg/HlGXh7gz7fiNuGBlvGfyz4b9TqxFyTVMSRxnL2aEYALNVrlnf/sSaWGHUMOn7v4mGuFZGX2LuwJbK/rklEa/hslsy5yfJRg0ZN1c2fY73c/PfYfX3CZ6Evwzblxr7z1zMRJx8zRazItyt2ZllRnbczU0f/vgw01rMrGbMPoZw4CYwMnqYm0syfXI8PkSM+Cumr7n03ijY5Qs9FGt6PsPgsWnwaN4x9p2PfIBVDvkC6JlGPK6MEB4vtBztkxFkxD9CDX/fLINPrZckK/RFBnzNjD09hM/n4nf2GtD4eCog3UYDsciInWF58GokMc9CCL7wTTxf431xmpu2N3Btb3xHbM80oue8YMnfJUL4ApqZ4DQxE57VTOIOvPHQERN3NC/8mOvtJQFnCRJ41urJh0ncigSeFYkHm/3gSmCzYiXwrEnI4M7z3NHdGGQ37gf8JVjgWRvFGxB3OOLGvJEDQkRw8FCpDO98lAMqqeCAZ23XieTWG1cyqVjg2QbHmAwnzgdMQqDMlyEGbyoa1xnYdx7xPmIW0oQqvKl4wMw3boXU4crfVLPHo8GHN1MHLJEi1r45Tqwy+0Sh2IRFuJhl7NWAYgxbyi8hb21kCj4TCetBXYg4uOQoJCY8IKFyEL8shjPrBSpAVA1ZNUN4ivJJa02ykSUWKG60g0l6tHNUaK+pV5pkrUk2sgQpA8OpymBn9VY5CspsUWr4PlaaZK1JNrIEKYOS0LMzjoLFweCNXW3Frs2Qxq6lxBZNQVh6I0uQdsj5Hu2ANmoJVrvmM8EMkhJZgpTwFnE9dDgKW4Ra0uhylC02Q3h7kcMCJvUwy5RuQ4kI+Hnu+tJks3vdBFB4eggAbTY16ibgxacvsQDu8AHaBK87fRRlViELj9XkbMbUUeQLVuThrS4KkAivqj9neZXjfpdNdIdX5VdjpCDb6qIAifASOjKZSEUL4Ma2E1V3lbFtgG95RcUxHyAR1t2f2ATg1q9KrfQ5ijVtdVGARFh5f16DDa4mts9BVbcmCtAorBune9MhqiSW/T1us1LUqfI0qcRcOU+KgUCcOetRWLdcEMA3jXIuh2CTHT5uM7pSXg5C0aaJAp5GjXmwcrmYcFW4R/q8iquG1UQBGoX55Vqj8y95KqkZRZSy7VeD0CbLecjCsgg3YrlcdSwCWKTQUnqVz1HFBLooQCKsXa50XdrlA4i6dX46UZVrogCNwsrlgtalvKOikbaVYS65MnVxyZFKrjQvWy4xXSSoxlxpYPzY3zSPLpLuWoF3I6d8F0dHjydtPxTpt7LlLl8eEJEIa1QSXT2P2nLvJ223wyT9Cbu05f5P2uaESd7JSlsueG1IIg5HSarmqFmlCypbqt3EZHGAag6Aumiji+4rkZT3vi7a6qJAFz0gEd7bOynroJRVuvAKobbSJtcYVfJ9g1GlFN1jVDlx+hhV2tQWo0ofCTCquOsBo8o57DNGlfPQI0YVW31BqKPY6gmj1wLxnRLnAN6e0tVvIhhVTLrGqGLSDUYVk95jVDGpj1HFpFuMKiYNMKqY9AGhrmLSzxhVwu8RUP41WBF/wZMUEz5h9ErzcN5pHhzv8RJCNS8hVPMSQjUvyairnu3wqjQvIWbNSwjVvIT0al5CqOYlfkjs8BKapHkJode89E53duTu7Gi5hFDNSzLqKn7YIGZXyZZ7jCp+8PGqNC8hvZqXEKp5CZ1G8Letz0itp7jwEdBOJyF9mpMQes1J75x+4GfzvlRCqOYkGfW07oRQrTshVOtOCNW6E0K17oRQrTshVOtOPd8bH8FUnU6S57iakxCqOqm80Sh/hkxodhSXDrkRsedU/G6/mDXS5qYDftbjvxK1wxezywku64o4gluHA0sLfqPBf3UpflzgKitla5ZWV3585iU80qcwO8ZpbpzhVgRuPwZwmMzKOwrxHu5LhBTWvmMF3D7Un05woUfhF8HhAArEgbGi/gC8Mb89o/v7LGMZXG/IH+sLFPgGN32yJ8aSGPdwZWMbS3f6RDxjRcbwHMNzBM+RsXTEhY6xcoZwsQM7SZ+THc3+KLiCZf6NvgnrcDMoWq3mnnLxPwAAAP//AwBQSwMEFAAGAAgAAAAhALs1StGwCQAA4D0AABgAAAB4bC93b3Jrc2hlZXRzL3NoZWV0Mi54bWycm1tzozoWhd+nav4DxXvbBl+SuJKcisMdOnVqzpmZZ+KQhGrbeIAk3TU1/322AMlYRgvVSXUbm29rS2hJXJat299+7nfGZ1ZWeXG4M63JzDSyw7Z4yQ9vd+Y///S+XZtGVaeHl3RXHLI781dWmb/d//1vt19F+aN6z7LaoAyH6s58r+vjejqttu/ZPq0mxTE7EHktyn1a08fybVodyyx9aQrtd1N7NltN92l+MNsM61InR/H6mm8zp9h+7LND3SYps11aU/ur9/xY8Wz7rU66fVr++Dh+2xb7I6V4znd5/atJahr77Tp8OxRl+ryj4/5pLdKt8bOkfzb9n/Nqmv0XNe3zbVlUxWs9oczTts2Xh38zvZmmW5Hp8vi10liLaZl95kzAUyr7rzXJWopc9inZ/C8mW4lkrLvK9Uf+cmf+d9b9faOtxV5m32YWe+n9/c+8v23Gye/l/W2dPj8Wu6I0yrfnO9Ojv0cKNaf3t1MR85LTcGBdYJTZ6535YK2f5hYLaSL+lWdfVe+9QSn/yHbZts6oRZZpsMH8XBQ/WGBIu2as/iaApUy3df6ZPWa73Z3p2jRDqv80tbD3ohWsKG9Rvz6vmQC/l8ZL9pp+7Op/FF9Blr+911TxarJkCbbFjlpHr8Y+Z5OQxl76s21X/lK/35nXk+vlcrG6vlqaxvajqov9v1vQHKIoSJI1BWn71fIF1XA1m1s2LkjyNAVp2xW0FnpVLrqStO1K2ovJwl5eXTd1PmdV7eXsUGHDqXVN/bTtsiytiX29tJarkZavupK05SVnei2/6krSlh/zzeTKmt3MR3qZTohNY2nLD9nS6uWbriBteY0rvaO0aMy1Q4Le8Eo1j9MSw4mN83ZYzO2JtZiN9a3FxxN7w1ts99QFQ9HiQ4q94cos9ZSx+KBib3i917DeaTuFmsnupHV6f1sWXwadUOmYq2PKLk/WmqVj025Og6VtupiINN23LHzD4tnENA0KrGj35/3V/Hb6STN728U8djE0WE8x9nmMI2LY9GaZ3Ys9XruHhpFIs7o6T+O3ITRgTiGr85CAh/CKwnbHqjmxsJojeUfcNYXG0int9XnapIuhjYhZSjHfRQyv+6m/Z0oSCB1oBF3osFpOZjf9P9JHocsDK9+oeWrNzXmLN20IvZ4OaiYp12U5i5HSOJdpbOs8jTsQIunvDTRGyuIPZFlI2g6ELM9DwoEQaYREAyHSOIvbEJqqp76TjihpQ0iiU4g0Mb4PhEhH9DQQcjqisxFDjemPmG4aPbDdd+aymZlSj25axqb5aWJKMY9dTP9Qr6Rh4vShrD1gHmA+YAFgIWARYDFgSdsHV0N9+J2zUxcupJHwNBByGglnGpISF7PeYto1p8QHhrmW8gm0L6KsAWAeYD5gAWAhYBFgMWBJe+zDGnAGNBgIUWhAlymkAcNcA2k+O/0rnKwBYB5gPmABYCFgEWAxYEl77MMacAY0GAhRaEC3E0gDhrkG0glz078Tkc9lgDmAuYB5gPmABYCFgEWAxYAlbZ8Na8cZ0G4gRKEdPR8g7Rjm2knX5g0xcSGStQPMAcwFzAPMBywALAQsAiwGLGn7bFg7zoB2AyEK7Zh3Jd/9964/DHPtpJumTf+2XNYOMAcwFzAPMB+wALAQsAiwGLCk7bNh7TgD2g2EKLSjhx6kHcNcO+ludtN/XpK1A8wBzAXMA8wHLAAsBCwCLAYsaftsWDvOgHYDIQrtmF+BxGs4V096qtwwqDxtIugg6CLoIegjGCAYIhghGCOYdN03LKSAQMmhGJWUQw5K7xzK7CUxEeVHcgbVUgLooJIugh6CPoIBgiGCEYIxgknXfQop277tX0ovHsZEgp7cKinZwze4HDKb7/RsLT0UbxhVawmgg0q6CHoI+ggGCIYIRgjGCCZd/ym0bDsXazkQo9JSskcaY7M/Lc98EtkoYaasWksAHVTSRdBD0EcwQDBEMEIwRjBhkOaCQksNk0Qk0JiXIzYJM7RO81IySjZndpd8t4Ogg6CLoIegj2CAYIhghGCMYNL1n0JLDbNFJNDQcsRuoSna01IyXDaMquclgA4q6SLoIegjGCAYIhghGCOYdP2n0FLDtBEJNLQcsW3Yt0SneSkbN2ffIV3MS2TdoJIugh6CPoIBgiGCEYIxgknXfwotNUwckUBDS2YaoHuf1lTovleQjRwLuBmPCDoIugh6CPoIBgiGCEYIxggmDKqvlxqmjkigoeWIrWP1fR1LNnYYVZ9jkbWDSroIegj6CAYIhghGCMYIJl3/KealhskjEmhoOWLzWH2fx5KNHkbVWiKrB5V0EfQQ9BEMEAwRjBCMEUy6/lNoqWH6iATjWja/jALn2IaL725l24dRpZYIOgg2P9dSpfVQSR/BAMEQwQjBGMGk679hLQUEts9QjOL50h6xfRoutLz4KQbyfVhRlSIOgi6CHoI+ggGCIYIRgjGCSdd/Ci01fB+RQGNejvg+dt/3sWXfh1H1vES+DyrpIugh6CMYIBgiGCEYI5h0/afQUsP3EQk0tBzxfey+7yP/cGnDqFpL5Pugki6CHoI+ggGCIYIRgjGCSdd/Ci01fB+RQEPLEd/H5r6PUrMNC1ELCqCDSroIegj6CAYIhghGCMYIJl0nKgTVMH9EAg1BR8wf9lvmxjAAgiIHiJVXXzkBdFFJD0EfwQDBEMEIwRjBpOtEhaAaDpBIoCHoiANkcwcICAqcnkdWXi0ogC4q6SHoIxggGCIYIRgjmHSdqBBUwwYSCTQEHbGBbG4DAUGRF8TKqwUF0EUlPQR9BAMEQwQjBGMEk64TFYJqeEEigYagI16Qzb0gICgyhFh5taAAuqikh6CPYIBgiGCEYIxg0nWiQlANQ0gk0BB0xBCyuSEEBEWuECuvFhRAF5X0EPQRDBAMEYwQjBFMuk5UCKrhCokE44LOR34L1HDmJKgFZSHKu1wEHQRdBD0EfQQDBEMEIwRjBJOuE4cFFbAn1sVv+plK7PtuDUEV1pBYCdkuwNpn5VuzZrIytsXHgfSb0w//xd52naZvrWkBE5WU9ie0fnNo/6O1poVUrKZT+vvb4zstTa7zLS2yfC0ONVvA2fx+6teRFu4eisfi0C1wZiWP6Vv2PS3f8kNl7LJXatdsQoddtksym/d1cWz20ph8Lmpabck/vdPy5YyWVM0m9CT4WhQ1/0B5c7ZWOHtxy7IoaTVn/yNfL/owNx7sBa1MnRn0KL5+stnn9cY2HJs+GA8reqXN0nCW66el8bAwHIqmV4qlCg8f++es/KNm1TxUf2Y/qe1tZ0h1T8Xa7Pv/AwAA//8DAFBLAwQUAAYACAAAACEAMA+Ia+0GAADeHQAAEwAAAHhsL3RoZW1lL3RoZW1lMS54bWzsWUtvGzcQvhfofyD2nliyJcc2IgeWLCVt4sSwlRQ5UrvULmPuckFStnUrkmOBAkXTopcCvfVQtA2QAL2kv8ZtijYF8hc6JFerpUX5lQR9RQd7H98M580Z7tVrhylD+0RIyrNWUL9cCxDJQh7RLG4Fd/u9SysBkgpnEWY8I61gTGRwbf39967iNZWQlCCgz+QabgWJUvnawoIM4TGWl3lOMng35CLFCm5FvBAJfAB8U7awWKstL6SYZgHKcAps7wyHNCSor1kG6xPmXQa3mZL6QcjErmZNHAqDjfbqGiHHssME2sesFcA6ET/ok0MVIIalghetoGZ+wcL61QW8VhAxNYe2Qtczv4KuIIj2Fs2aIh6Ui9Z7jdUrmyV/A2BqFtftdjvdesnPAHAYgqZWlirPRm+l3p7wrIDs5SzvTq1Za7j4Cv+lGZlX2+12c7WQxTI1IHvZmMGv1JYbG4sO3oAsvjmDb7Q3Op1lB29AFr88g+9dWV1uuHgDShjN9mbQ2qG9XsG9hAw5u+GFrwB8pVbApyiIhjK69BJDnql5sZbiB1z0AKCBDCuaITXOyRCHEMUdnA4ExXoBvEZw5Y19FMqZR3otJENBc9UKPswxZMSU36vn3796/hS9ev7k6OGzo4c/HT16dPTwR8vLIbyBs7hK+PLbz/78+mP0x9NvXj7+wo+XVfyvP3zyy8+f+4GQQVOJXnz55LdnT1589env3z32wDcEHlThfZoSiW6TA7TDU9DNGMaVnAzE+Sj6CaYOBU6At4d1VyUO8PYYMx+uTVzj3RNQPHzA66MHjqy7iRgp6ln5ZpI6wC3OWZsLrwFu6rUqFu6Psti/uBhVcTsY7/vW7uDMcW13lEPVnASlY/tOQhwxtxnOFI5JRhTS7/geIR7t7lPq2HWLhoJLPlToPkVtTL0m6dOBE0hTohs0Bb+MfTqDqx3bbN1Dbc58Wm+SfRcJCYGZR/g+YY4Zr+ORwqmPZR+nrGrwW1glPiF3xyKs4rpSgadjwjjqRkRKH80dAfpWnH4TQ73yun2LjVMXKRTd8/G8hTmvIjf5XifBae6VmWZJFfuB3IMQxWibKx98i7sZou/BDzib6+57lDjuPr0Q3KWxI9I0QPSbkfD48jrhbj6O2RATU2WgpDuVOqXZSWWbUajb78r2ZB/bgE3Mlzw3jhXrebh/YYnexKNsm0BWzG5R7yr0uwod/Ocr9LxcfvN1eVqKoUpPe23TeadzG+8hZWxXjRm5JU3vLWEDinrw0AwFZjIsB7E8gcuizXdwscCGBgmuPqIq2U1wDn173YyRsSxYxxLlXMK8aB6bgZYc421GVAqtu5k2m3oOsZVDYrXFI/t4qTpvlmzM9BmbmXay0JJmcNbFlq683mJ1K9Vcs7mq1Y1opig6qpUqgw9nVYOHpTWhs0HQD4GVl2Hs17LDvIMZibTd7Sw+cYte+i25qNDaKpLgiFgXOY8rrqsb301CaBJdHtedz5rVQDldCBMWk3H1wkaeMJgaWafdsWxiWTW3WIYOWsFqc7EZoBDnrWAIky5cpjk4TepeELMYjotCJWzUnpqLJtqmGq/6o6oOhxc2kWaiyknjXEi1iWVifWheFa5imZnLjfyLzYYOtjejgA3UC0ixtAIh8rdJAXZ0XUuGQxKqqrMrT8yxhQEUlZCPFBG7SXSABmwkdjC4H2yq9YmohAMLk9D6Bk7XtLXNK7e2FnWteqZlcPY5ZnmCi2qpT2cmGWfhJt9KGcydldaIB7p5ZTfKnV8VnfFvSpVqGP/PVNHbAZwgLEXaAyEc7gqMdL62Ai5UwqEK5QkNewLOvUztgGiBE1p4DcaHI2bzX5B9/d/mnOVh0hoGQbVDYyQobCcqEYRsQ1ky0XcKs3qx9ViWrGBkIqoirsyt2AOyT1hf18BlXYMDlECom2pSlAGDOx5/7n2RQYNY9yj/1MbFJvN5d3e9udsOydKfsZVoVIp+ZStY9bczJzcYUxHOsgHL6XK2Ys1ovNicu/PoVq3az+RwDoT0H9j/qAiZ/V6hN9Q+34HaiuDzgxUeQVRf0lUNIkgXSHs1gL7HPrTBpFnZFYrm9C12QeW6kKUXaVTPaeyyiXKXc3Lx5L7mfMYuLOzYuhpHHlODZ4+nqG6PJnOIcYz50FX9FsUHD8DRm3DqP2L265TM4c7kQb4tTHQNeDQuLpm0G66NOj3D2CZlhwwRjQ4n88exQaP42FM2NoA2IxIEWkm45BsaXEIdmAWp3S1L4sXTiUsKszKU7JLYHKj5GMD3sUJkPdqZlXUzZ7XWVxNLsex1THYG4VnmM5l3zjqryeygeKKjLmAydXiyyQpLgfFmAw++cAoMw6n9XgWbji0qJmTX/wIAAP//AwBQSwMEFAAGAAgAAAAhAJ73CKIYBQAApyAAAA0AAAB4bC9zdHlsZXMueG1s7FrdauNGFL4v9B2E7h392PLawfISx1FZ2IVCUujtWBrZQ0caMxqn9pZC7veiLLRXbaEXhT5A36pJ36Fn9GONk9iWbTkkJQnEmrHmO9/M+ZlzZtJ7O4+odo15Qljs6taJqWs49llA4rGrf3PlNTq6lggUB4iyGLv6Aif62/6XX/QSsaD4coKx0AAiTlx9IsT01DASf4IjlJywKY7hm5DxCAlo8rGRTDlGQSIHRdSwTbNtRIjEeoZwGvlVQCLEv5tNGz6LpkiQEaFELFIsXYv803fjmHE0okB1brWQr82tNre1OS+EpL0P5ETE5yxhoTgBXIOFIfHxQ7pdo2sgv0QC5P2QLMcw7ZW5z/meSC2D42si1af3eyGLRaL5bBYLV7dbeU+/l3zUrhEF/Vq60e/FKMJZ+xxRMuJEdhpybIZQ6f0QRYQuMhj7AcAIEJdCzbVCX0EeKuKp12S9SWxmUqi3u6d2i/Gd1fG3P326+/VG9qnim7LDnyCeQLzJTNlOBVcy29u/Pt/9fqP98/cftz//chj0fbaHI29ylRqIr8Df03XN8PcsoW7y1cLIES0lDXN7G6ESa3e37IdG4jPKuMbHI1f34MeEn9rC7FbsulXbPjCG3N/XPiA6nsXaV0xMiF8pdGxykz01l4amBOIYoXS5KXflngwd/R5kLwLz2IOGlj9fLaaQt8SQaGUbavrelrfHHC0s26k+IGGUBJLF+HzVhKQRpTAKM5kXVGGxFvQ8t0ujPtCuPTSduple2Bfe8Kz26RdrOsoXm8QBnuPA1dutmmWVq3J8WZ5XqHUXWaklgT+MGA+g4CjS1DbYYtbV71EcCtjoORlP5KdgU/g7YkJAUt7vBQSNWYyozFaLEepIKFSgJnF1cHqZDK9EsYEnf9M1l0JyGRVHpHxSOhUHAPGCd8UR2SRf5yiV86rH/4etrvHkGjwid38IJj6m9FK6/bfhMqJY4PzzUItnkReJdxBs4VBDVrfFI2xo+WMWPbKGjCoqWoatwKb19O642jxcClg3ugUEH2NlwVlDPlpD0yldeDANKOP1rDVII2nZPqNkHEc4e6Xfg+I+a2oTxslHGCrPAHz4HsNxCBz6COKrPd9zNL3C81SAXI15uH4dnZKxrWvlOkJjE2OZ7TwL/u2Sf1PlD40Xwf9NyR+Mp1x/aLwI/nCs+KjFg6tu4r+LhW8zYQts9VEOYNt7ex0IXefk3VIcSFBDzw4qO8zFty4JmP+x1XJg4LHWUTxEa8eNlZYSLMG+K2v+CcP5not6zHC+1VaVEP4ityDYxXfztQ2xxdo5nm4CU1Z2xV6f1MW26X/P6P1sMhCZlOY5H6z3pqCQ50wbNKZgQWJwGFadlqTw2hL4ts/RVvwFOD7L/VPluEukXzXK4+7xthLrtxjeSrFRcCzqJKiMlPJrpfhallGavGp09X8//3b3542SVY1mhAoSP1J4AWYwL0u59JhPyPvctMhbSoHFDXCIZlRcLb909fL5Aw7ILIKMK3/ra3LNRArh6uVz9lZ6Egdlz/sEjoXgU5tx4uo/XAzedIcXnt3omINOo9XETqPrDIYNp3U+GA69rmmb5z8qt8oH3Cmnl+CQOFqt04TCzTPPJ5uTvyz7XF1pvJfHZOmVjgG0Ve5du22eOZbZ8Jqm1Wi1UafRaTedhudY9rDdGlw4nqNwd/a8ezYNy8pusSV551SQCFMSF7oqNKT2gpKguWESciqpJozyPwz6/wEAAP//AwBQSwMEFAAGAAgAAAAhAEwSzzNbCwAANj0AABQAAAB4bC9zaGFyZWRTdHJpbmdzLnhtbNxbXU8bVxq+R+I/nPiiNZLBHxAgKbhK0Wa10raNtFlppSoXDnECEhjWdqJmrxwwWQc7DSR2sKntmF0SQ2S2A5jUaJ0/s5dzzvyHfd4z4/HH2OACpY2jCM14zpzzfjzv5zkz8eX383PskT8Yml0ITNrcQy4b8wemF+7NBh5M2v56++bguI2Fwr7APd/cQsA/aXvsD9m+9Pb3TYRCYYZ3A6FJ20w4vHjd6QxNz/jnfaGhhUV/AE/uLwTnfWHcBh84Q4tBv+9eaMbvD8/POT0u16hz3jcbsLHphYeB8KRtZMxjYw8Ds39/6J/Sfxkbs3knQrPeibD3s7nwF4wr23zpPzyZ5e9K/CCKv0x7GdFSUb5T1VYrzOPyjPKVKBPxgvpzVrxeF/Ec++xB+IsJZ9g74aSZ5GzOxhuvKMf4Vk4sP2Miv0YzryYZf7/D19eYelgQhZSqvDQeifwKj8d4fLtlQq94uqVlkiJX4e9XmF1sr4vN5JUrAycNExtrciULT3aeiGjrWR5Pi+UnWrpimcV8zvQBmImJYkRs7IlcmfFX2+J1WVVi6sFHsamIjaTxEKSJHIRTyIpMRUulwRxunmCw+HdVxLN8Fy+vpUV8T+eR/eFvA2KzIpYUkSpoyQQbHCRZttGCXR9gZTdNs9eozFXrFIEFXqqQvLeyFiJUZU0slfgrqPmjQUrnpW98NWVdF3J7GTtZFe4hSZccZqoijUUhCSb+WdVS6/y9QgLWZ3Iy8d8Sf1NiuFgqQdDiXYyuY2n+5pldVbIDuM6KaFZylF8X0X3GP0S05SeNjLQCwg7mU1ompaWwqMSryEWYAKLjMYiOv4g2qWSI8fgOFKAQ3hLQ+BoWxPAEvXFY5bgAFmAQgJ+cspDih2VCBAHDwHRFEfkSKZpUk6dlRKqKl3YNWVvEaceKpmRqAnHo4nCYwnDoouCv9mkx9ajEP0SNVUADflMPEuw7ZuM/KrTkK0WtKDaRiTCb08b4W1CQyYrNXS1VljzpEsQdI3RGK+CI3WkV3zCUCKSUyiK+zbSlIzs4A6wH1H1akIkPWdyBCBiajr26Zuvah/zyJDabHTMM2Bje5MAqrANWCDTUaFhJNskJS6djA0y+JFaSvPhEiyu4EJVCGy2bVEKUQJROJ3GNK51MaKDADCprg2DX0X0ttSPtNpXghW0ShkFIJgV/I2WtRPjq284KJBd9PbTom4brhg8O+YOP/DbvyBBWzJKLU5WcyKWZByAm5oF5utWpgiQdEhsSc7RaHV0NDqZmL22lmtptkmodTM3yjWeBCEAtyfPPdSgOsRZJtueEEUTgTkArg+s1KNdNlyhuYqxiyJhsvpgAN2UePyaI7CoOiwgk2GuGA3y0cKLTT3M0qKVmR0Pd0m66mDoO267TYLJF8hGr0lXUOCcEU2Ag84Ffh2d9kYH/gREa8BLFqPb6GV8zzNyEL9YiI8nvMTh7piVKADAcmwxnZYqqTuYGMloxrcdiUYCnKvHdJFkoqOoY+tprThQiWq4E0sk36HORFfClMjyBtOB8jIIkjFxL7TWz2CYZ0GcwBh9X5HhjKvjR3SQ8oKErPdrpgcY0HAvcvLBwOAB4dvL4EdgtU5UM+YeltKpETMcEC8k8VysViNywJ92AyQ1lqzIgSE9kLC6dmaMxyDwDWOEZKwk4HrFZtkl3/SLKi9tIS/Rn73fEMR7UEpBWdDVlIHZy+ktlSI68Yz7ROQ8hiR3ELGlKLG1mM3au/HjCRHBHTxOnjLE6B3uXcRW4Q1SxJkBSNOq+wvNpcZBGoLegU46oeyMLh4UoOATryK8cWrZMlvNCOZkPPeyaWG9vEAaKO47Sg6Tl3WZ9EbCeJk4ZBHNVtB8qOg/tiWnMlI0cTSwfWcTpcrsGr454rg5ec426WmcykW1ZAvlHIaqW1ynvpJwpW0CwQtw3rijF28qOjQ+DQtgGGx6Hf3W5IXBLeCS/ehYfJKJVsWrNxTcrt263rkE8etwjI4Pj4+NjFjQUETRSeSOxqmdtCLebSYtAlnOw3RaHwHSLMz2CZYUocpuKtnrMD6MkLBJbMUrCUhWkaJS7k5vwsCnyIcOicsR4qcrfpsGiFlUoUqtHe/pP420ycAu7V10j413LmVcQczMdHL16jCQ2CzdtAcCHCGqDBgBsKKgtJE/7dCUOKBd2j4zWADCC7KLKizFeiDG3qy0U1IMdKjlQs6iHO/w54vmWAjt3MpPEP3ciU47Xh7dT/ujo8Mjg2NjYqNVU9IRs7To59p+oKDGc+Enu26Lgoyz/EBMpC1xIEIjRSOSR1qo/w82UpLWgRExlSOdutyEfj8fB3NC8VW1IS2XuQVn+VhbBh/9URSUQ06PzidrDK9pTxULtZkV/vZ2k3G5IasQzNtL6UK1W8V8mjQcyGJ5iKWZhTYmKzaylkWF3KqO/+faXxTWmV6T9fdZkoF5FM7GxIg4oraViurnglKG4vw+VbtuydnVbW44QaJdQjm9bw+jZI5sNoc020N/n/x4ry6CPMhEFBNCt/lyBhVAK4GRfG2gHhzKiIdSphygaagvLmh6l3QtkJaQZPSV3MBqv/5Sm1Mp8uZaOmGU/ChdZYxpZodU4LB2XlpTPAi2jIK51TqzBu12ss5vocMAbggu1EkM+ae2gtGQ2TUGwv6/rabTkR0IFtUPqlVlab8gg6cq/NQSF5AeDjKqspoTGxIO0UZcuzbec4/kjtFeoJmwUrY7sxRl00MKz07eC7P5CIPyne+i3od0WfryI4iywMLUQMPpwtpYmVWuVIOtOxnWapXewVGaEArNwR22FUrMxA5WaOys97bJvPceVbYmGZB5EmDl4vd1kGF4twf68nkCjCP/8VM97NrKD3ongLfy5C9mG/sEe+eak9HEXvAll6D/w4jr5K8pHkinSwn3f/OzcY/3hMP0wPeMLhvzGcLfnmlSVnDjsNXtzul3Qit0sOuWbm70bnG1dztMwdfsKasr5F/RhZXuz27XOxyDqHtlsyIoNhec+Iv2+JE77+yiHc+Gf/GOuelYEW2c7H6hMQLlJaRcHKEt/2CLvjit3gSqvvfvpTgSOhOpJlqH3iFF/XCz9RnwB+H/PPoEv7VJEo95utID0BzeN3WF0UBTHJdmR0VO7HG+hs6qi6PlXAl2ELlicXphbCLLgg7uTtpv4R/beYk9n9pXoPl8IAedzoNicQqJG7aTXz35jebjdLjZ89RpzXxsew+XvQTi5spaOIlH5jSVz57KtpHFb8Ty+LOz97lKzAbl70Iueq3FjuSc982ZSHOyhJ3FJzN1BNXKZyOQrFZ6PoH2ODSVtOdWTKkQ7KJ9mtKuDjeao0eX51UuOS3aNtJOOsrUnFVg7d9GLzJk7jSZzZ07Q5SEj6w62p7Zh1wnyF1uJiY11sRI5WVWtK549V/1l65wzJcVhi40V7Lz2InM4vYVeai9yxos/oIzoSZ3Jo2s9aWoyZvckZ/KsBG3Hv6n2JH+1Djw2BHqavwtnzuu81GAmj2l+6kzUjph+6nzI3cCeTSt60hFg75KOGGyd0hn4NFNdnPnEcWgclO5JF/5KQZOdzgvH6Hxib5YqMbF61NItbbvFegZ8eo3TJ+dqwHY4ozw59e03Uzdu22+4HV+5HVPu/0XeDeBwh0VHHTfzvvbNPXgYYH9cCM/MTp+2DY1jPzh11P3kDXWqU9/J7sDGr0UvDg/S2f+mYygNZX03W5wnE37FpPwC9wkvuMEgy3D9SMQl2e7AKc28C2YwdyRiGTqDgq+V5HH/nnRROBV7nMDxzt5Me4zjHz2pOcASX8wVezJy4uCt/hlVPchdVNzsNlY0nbu6YNeCj+XouLaif8jYk6ZX3etFtug70Fy65eR8tx39s/fXz5MPOPHds/f/AAAA//8DAFBLAwQUAAYACAAAACEAjevfb1kBAABoAgAAEQAIAWRvY1Byb3BzL2NvcmUueG1sIKIEASigAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAjJJLTsMwFEXnSOwh8jxxPi0fK0nFRx1RCYkiEDPLfm0tYieyDW3nLIIJrIAhyyp7wEnakAoGDO173/G9T05HK1l4z6CNKFWGoiBEHihWcqHmGbqdjv0T5BlLFadFqSBDazBolB8epKwirNRwrcsKtBVgPEdShrAqQwtrK4KxYQuQ1ATOoZw4K7Wk1h31HFeUPdI54DgMj7AESzm1FNdAv+qIaIvkrENWT7poAJxhKECCsgZHQYR/vBa0NH8ONErPKYVdV67TNm6fzVkrdu6VEZ1xuVwGy6SJ4fJH+H5yddNU9YWqd8UA5SlnhGmgttT5GZdCCWN1fUpxT6m3WFBjJ27hMwH8fJ1/vb5s3j+8zdtnin+rDtu0aNnAPZeLtC12yl1ycTkdozwO4yM/PPXjwTSKyGBI4uFD/fjefJ2zvZDbCP8nHpMk6RF3gLzJvf838m8AAAD//wMAUEsDBBQABgAIAAAAIQC1zXQxxAEAAE4DAAAQAAgBZG9jUHJvcHMvYXBwLnhtbCCiBAEooAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAJyTQWsUMRTH74LfYci9m+kqRZZMirRKD4oLu+09zbzZDWaTIXkddj1VqSDWywrVQ9WzBy+CBw9+o2a/g5kZup21iODt5b1//vzeewnbnc90UoHzypqMbPdSkoCRNldmkpHD8eOtByTxKEwutDWQkQV4ssvv3mFDZ0twqMAn0cL4jEwRywGlXk5hJnwvlk2sFNbNBMajm1BbFErCvpUnMzBI+2m6Q2GOYHLIt8q1IWkdBxX+r2luZc3nj8aLMgJz9rAstZICY5f8qZLOeltg8mguQTPaLbJINwJ54hQueMpo98hGUmjYi8a8ENoDozcJdgCiHtpQKOc5q3BQgUTrEq9exLH1SXIsPNQ4GamEU8JgxKpl7aGJdenR8XD5bvXyWzj/tHr7k9EoadNN2FV3Y3Wf9xtBDDaFtUGLEgubkGOFGvyzYigc/ou5YWiJW5zV+9PVxdnV11+RMgkfl+H1afiwDOefk/BlGc6+h4s3V69+dPnXnfz16q1umxFG7j9Inyjz3B+WY7svEK53sZlko6lwkMf1rXe1TrCDuAana5O9qTATyK81twv1yzlqvwff3uml99L4KDo5Rm8+Av8NAAD//wMAUEsBAi0AFAAGAAgAAAAhABIY3t1kAQAAGAUAABMAAAAAAAAAAAAAAAAAAAAAAFtDb250ZW50X1R5cGVzXS54bWxQSwECLQAUAAYACAAAACEAtVUwI/QAAABMAgAACwAAAAAAAAAAAAAAAACdAwAAX3JlbHMvLnJlbHNQSwECLQAUAAYACAAAACEA6/JmiucCAACABgAADwAAAAAAAAAAAAAAAADCBgAAeGwvd29ya2Jvb2sueG1sUEsBAi0AFAAGAAgAAAAhAEqppmH6AAAARwMAABoAAAAAAAAAAAAAAAAA1gkAAHhsL19yZWxzL3dvcmtib29rLnhtbC5yZWxzUEsBAi0AFAAGAAgAAAAhAEcBl1XxBgAA7BwAABgAAAAAAAAAAAAAAAAAEAwAAHhsL3dvcmtzaGVldHMvc2hlZXQxLnhtbFBLAQItABQABgAIAAAAIQC7NUrRsAkAAOA9AAAYAAAAAAAAAAAAAAAAADcTAAB4bC93b3Jrc2hlZXRzL3NoZWV0Mi54bWxQSwECLQAUAAYACAAAACEAMA+Ia+0GAADeHQAAEwAAAAAAAAAAAAAAAAAdHQAAeGwvdGhlbWUvdGhlbWUxLnhtbFBLAQItABQABgAIAAAAIQCe9wiiGAUAAKcgAAANAAAAAAAAAAAAAAAAADskAAB4bC9zdHlsZXMueG1sUEsBAi0AFAAGAAgAAAAhAEwSzzNbCwAANj0AABQAAAAAAAAAAAAAAAAAfikAAHhsL3NoYXJlZFN0cmluZ3MueG1sUEsBAi0AFAAGAAgAAAAhAI3r329ZAQAAaAIAABEAAAAAAAAAAAAAAAAACzUAAGRvY1Byb3BzL2NvcmUueG1sUEsBAi0AFAAGAAgAAAAhALXNdDHEAQAATgMAABAAAAAAAAAAAAAAAAAAmzcAAGRvY1Byb3BzL2FwcC54bWxQSwUGAAAAAAsACwDGAgAAlToAAAAA";
     </script>
+<script src="/notice/notices.js"></script>
+<script>
+// 공지사항 버튼 NEW 표시: 아직 공지사항 페이지에서 보지 않은 공지가 하나라도 있으면 보임 (같은 날 올린 공지도 구분)
+(function(){ var N=window.BAMNAT_NOTICES||[]; if(!N.length) return; var seen=[];
+  try{ seen=JSON.parse(localStorage.getItem('bamnat_notice_seen_ids')||'[]') }catch(e){}
+  if(N.some(function(n){ return seen.indexOf(n.id)<0 })){ var b=document.getElementById('nav-notice-new'); if(b) b.classList.remove('hidden'); } })();
+</script>
 </body>
 </html>
