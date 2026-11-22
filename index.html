@@ -5129,10 +5129,16 @@
                 if (!orderInDateRange(o, adminFrom, adminTo)) return;
                 if (!orderInAdminBasis(o)) return;
                 const c = o.seller_company || '-';
-                (byCompany[c] = byCompany[c] || new Set()).add(o.order_no ?? o.id);
+                const g = byCompany[c] = byCompany[c] || { set: new Set(), first: null };
+                g.set.add(o.order_no ?? o.id);
+                // 순서 기준: 접수대기 = 셀러가 처음 접수한 시간, 접수완료 = 관리자 접수시간
+                const t = status === '접수완료' ? (o.accepted_at || o.created_at) : (o.origin_created_at || o.created_at);
+                const ms = t ? new Date(t).getTime() : NaN;
+                if (!isNaN(ms) && (g.first === null || ms < g.first)) g.first = ms;
             });
-            return Object.entries(byCompany).map(([company, set]) => ({ company, count: set.size }))
-                .sort((a, b) => b.count - a.count || a.company.localeCompare(b.company, 'ko'));
+            // 먼저 접수한 업체가 왼쪽 (시간이 없는 업체는 맨 뒤)
+            return Object.entries(byCompany).map(([company, g]) => ({ company, count: g.set.size, first: g.first }))
+                .sort((a, b) => (a.first ?? Infinity) - (b.first ?? Infinity) || a.company.localeCompare(b.company, 'ko'));
         }
         function renderAdminCompanyTabs() {
             const box = document.getElementById('admin-company-tabs');
@@ -5155,7 +5161,7 @@
                 const chips = list.map(x => {
                     const active = adminQuery.status === status && adminQuery.seller === x.company;
                     const enc = escapeHtml(JSON.stringify(x.company));
-                    return chip(active, `pickAdminCompanyTab(${enc}, '${status}')`, `${escapeHtml(x.company)} <span class="font-black">${x.count}</span>`, `${escapeHtml(x.company)} ${label} 주문만 보기`);
+                    return chip(active, `pickAdminCompanyTab(${enc}, '${status}')`, `${escapeHtml(x.company)} <span class="font-black">${x.count}</span>${x.first !== null ? ` <span class="font-normal opacity-70">${formatPickupTime(x.first)}</span>` : ''}`, `${escapeHtml(x.company)} ${label} 주문만 보기${x.first !== null ? ` (제일 빠른 ${status === '접수완료' ? '관리자 접수' : '접수'} ${formatPickupTime(x.first)})` : ''}`);
                 }).join('');
                 return `<div class="flex flex-wrap items-center gap-1.5">
                     <span class="text-xs font-black ${color.title} whitespace-nowrap mr-1">${label} 업체 <span class="text-base">${list.length}</span>곳 · 주문 ${total}건</span>
@@ -5165,7 +5171,7 @@
             const filtered = adminQuery.status !== 'ALL' || adminQuery.seller !== 'ALL';
             box.innerHTML = `
                 <div class="flex items-center justify-between gap-2 flex-wrap">
-                    <span class="text-xs font-bold text-slate-600">업체별 접수 현황 <span class="font-normal text-slate-400">(${periodLabel} 기준 · 업체 이름을 누르면 그 업체 주문만 보입니다)</span></span>
+                    <span class="text-xs font-bold text-slate-600">업체별 접수 현황 <span class="font-normal text-slate-400">(${periodLabel} 기준 · 먼저 접수한 업체가 왼쪽 · 업체 이름을 누르면 그 업체 주문만 보입니다)</span></span>
                     ${filtered ? `<button type="button" onclick="pickAdminCompanyTab('ALL', 'ALL')" class="px-2.5 py-1 rounded-lg text-[11px] font-bold border border-slate-300 bg-white hover:bg-slate-50 text-slate-600">모든 업체·상태 보기</button>` : ''}
                 </div>
                 ${row('접수대기', '접수대기', { title: 'text-orange-700', on: 'bg-orange-500 border-orange-500 text-white', off: 'bg-orange-50 border-orange-200 text-orange-800 hover:bg-orange-100' })}
