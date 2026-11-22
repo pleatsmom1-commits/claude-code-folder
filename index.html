@@ -96,11 +96,12 @@
             </div>
             <div id="nav-seller-btns" class="hidden grid-cols-2 gap-2 w-full sm:w-auto sm:items-center">
             <!-- 셀러 로그인 시에만 표시: 사입팀 픽업요청 페이지로 이동 + 아래 안내문(SO솔루션과 헷갈려 둘 다/이것만 접수하는 일 방지, 2026-11-22) -->
-            <div class="col-span-2 sm:col-span-1 shrink-0 sm:ml-2 sm:w-[19rem] flex flex-col gap-1.5">
+            <div class="col-span-2 sm:col-span-1 shrink-0 sm:ml-2 flex flex-col gap-1.5">
             <button id="nav-pickup-btn" type="button" onclick="openPickupPage()" class="hidden shrink-0 whitespace-nowrap justify-center px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm font-bold rounded-lg shadow items-center gap-1.5">
                 <i data-lucide="shopping-bag" class="w-4 h-4"></i> 사입팀 픽업요청
             </button>
-            <div id="nav-pickup-note" class="px-2.5 py-1.5 bg-orange-50 border border-orange-300 rounded-lg text-[11px] sm:text-xs leading-snug text-slate-800 break-keep">
+            <!-- 휴대폰: 버튼 바로 아래 / 컴퓨터: 메뉴 밑 주황 띠(#nav-pickup-bar) -->
+            <div id="nav-pickup-note" class="sm:hidden px-2.5 py-1.5 bg-orange-50 border border-orange-300 rounded-lg text-[11px] sm:text-xs leading-snug text-slate-800 break-keep">
                 <p>⚠️ 이 버튼은 <b class="text-rose-600">신규 업체</b>를 위한 접수 버튼입니다.</p>
                 <p><b>SO솔루션</b>으로 픽업접수하시는 거래처는 "사입팀 픽업요청"을 넘겨주시고, 만약 <b class="text-rose-600">새벽 1시 이후 급한 픽업 건</b>이 있을 경우에만 이 버튼으로 요청해 주세요.</p>
             </div>
@@ -154,6 +155,10 @@
             <div id="nav-user-area" class="flex items-center gap-2 sm:w-auto min-w-0"></div>
         </div>
     </nav>
+    <!-- 컴퓨터 화면, 셀러 로그인 시: 메뉴 밑 주황 띠 — [사입팀 픽업요청] 안내 (휴대폰은 버튼 아래 #nav-pickup-note) -->
+    <div id="nav-pickup-bar" class="hidden bg-orange-50 border-b-2 border-orange-300 px-6 py-2 text-sm text-slate-800 leading-relaxed break-keep">
+        ⚠️ <b>[사입팀 픽업요청]</b> 버튼은 <b class="text-rose-600">신규 업체</b>를 위한 접수 버튼입니다. <b>SO솔루션</b>으로 픽업접수하시는 거래처는 "사입팀 픽업요청"을 넘겨주시고, 만약 <b class="text-rose-600">새벽 1시 이후 급한 픽업 건</b>이 있을 경우에만 이 버튼으로 요청해 주세요.
+    </div>
 
     <!-- MAIN CONTAINER -->
     <main class="flex-1 px-3 sm:px-6 py-6 max-w-[1920px] w-full mx-auto">
@@ -3866,6 +3871,8 @@
             const pickupBtn = document.getElementById('nav-pickup-btn');
             pickupBtn.classList.toggle('hidden', currentRole !== 'seller');
             pickupBtn.classList.toggle('flex', currentRole === 'seller');
+            const pickupBar = document.getElementById('nav-pickup-bar');
+            pickupBar.classList.toggle('sm:block', currentRole === 'seller'); // 'hidden'은 그대로 두어 휴대폰에서는 안 보임
             const stockBtn = document.getElementById('nav-stock-btn');
             stockBtn.classList.toggle('hidden', currentRole !== 'seller');
             stockBtn.classList.toggle('flex', currentRole === 'seller');
