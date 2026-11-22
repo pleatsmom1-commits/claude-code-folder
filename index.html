@@ -237,7 +237,7 @@
                 <!-- 픽업건 중 사무실 보관요청 (모든 택배접수 시 필수 선택) -->
                 <div id="keep-request-box" class="col-span-2 lg:col-span-1 bg-amber-50 border-2 border-amber-300 rounded-xl px-4 py-2.5 space-y-1.5">
                     <div class="flex items-center gap-2 flex-wrap">
-                        <span class="text-sm font-black text-amber-900">📥 픽업건 중 사무실 보관요청</span>
+                        <span class="text-sm font-black text-amber-900">📥 픽업건 중 밤낮딜리버리 창고로 보관요청</span>
                         <span id="keep-required-tag" class="text-[11px] font-bold text-rose-600">* 하루 한 번 필수 체크</span>
                     </div>
                     <!-- 오늘 이미 확인했으면 한 줄로 줄여서 보여줍니다 -->
@@ -3758,7 +3758,7 @@
             if (keepConfirmed) return { keep_request: keepConfirmed, keep_memo: null };
             const checked = document.querySelector('input[name="keep-request"]:checked');
             alert(checked
-                ? '[픽업건 중 사무실 보관요청]의 [접수] 버튼을 먼저 눌러주세요.'
+                ? '[픽업건 중 밤낮딜리버리 창고로 보관요청]의 [접수] 버튼을 먼저 눌러주세요.'
                 : '사무실 보관요청 버튼을 체크하고 [접수] 버튼을 눌러주세요.');
             document.getElementById('keep-request-box').scrollIntoView({ behavior: 'smooth', block: 'center' });
             return null;
