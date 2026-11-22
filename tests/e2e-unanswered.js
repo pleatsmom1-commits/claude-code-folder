@@ -17,6 +17,7 @@ const LIB = {
 const admin = { id: '00000000-0000-0000-0000-0000000000ad', pw: 'adminpass1', profile: { id: '00000000-0000-0000-0000-0000000000ad', email: 'admin@x.com', company: '밤낮', name: '대표', phone: '', role: 'admin', admin_level: 'owner', status: 'approved', created_at: '2026-08-01T00:00:00Z' } };
 const H = h => new Date(Date.now() - h * 3600000).toISOString();
 const MSG = '이 부분은 관리자가 직접 확인해 드려야 해요. 아래 노란 \'관리자와 상담하기\' 버튼을 누르면 카카오톡 채널로 바로 상담하실 수 있어요.';
+let extractCalls = 0;
 const tables = {
   ai_faq: [{ id: 1, question: '토요일에도 픽업하나요?', answer: '네, 토요일도 픽업합니다.', active: true }],
   ai_chat_logs: [
@@ -28,7 +29,9 @@ const tables = {
     { id: 6, created_at: H(3), chat_id: 'c5', question: '이 화면에서 뭘 눌러야 하나요?\n[사진 1장]', answer: '사진이 흐려서 잘 안 보여요. 관리자와 상담하기로 문의해 주세요.', needs_human: true, source: 'https://bamnat-delivery.bamnat.workers.dev/' },
     { id: 7, created_at: H(1), chat_id: 'c6', question: '토요일에도 픽업 하나요', answer: MSG, needs_human: true, source: 'https://bamnat-delivery.bamnat.workers.dev/' },
     { id: 8, created_at: H(1.9), chat_id: 'c3', question: '픽업비는 얼마예요?', answer: '매장당 1,800원입니다.', needs_human: false, source: 'https://bamnat1.dothome.co.kr/' },
-  ].map(r => ({ resolved_at: null, resolved_how: null, faq_id: null, ...r })),
+    // 새 방식: AI 가 답하지 못한 부분만 따로 남김
+    { id: 9, created_at: H(0.5), chat_id: 'c7', question: '픽업비는 얼마고 제주도도 당일택배 되나요?', unknown_question: '제주도도 당일택배 되나요?', answer: '픽업비는 매장당 1,800원이에요. 제주도는 관리자가 확인해 드려야 해요.', needs_human: true, source: 'https://www.bamnatdelivery.com/' },
+  ].map(r => ({ resolved_at: null, resolved_how: null, faq_id: null, unknown_question: null, ...r })),
 };
 
 const b64url = o => Buffer.from(JSON.stringify(o)).toString('base64url');
@@ -52,6 +55,12 @@ function applyFilters(rows, url) {
   await context.route('**/*', async route => {
     const req = route.request();
     const url = new URL(req.url());
+    if (url.pathname === '/api/ask/unknown') {
+      extractCalls++;
+      const open = tables.ai_chat_logs.filter(r => r.needs_human && !r.resolved_at && r.unknown_question == null);
+      open.forEach(r => { if (r.id === 5) Object.assign(r, { unknown_question: '', resolved_at: new Date().toISOString(), resolved_how: 'ai_ok' }); else r.unknown_question = r.question; });
+      return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ done: open.length, aiAnswered: open.some(r => r.id === 5) ? 1 : 0, left: 0 }) });
+    }
     if (url.protocol === 'file:') return route.continue();
     const lib = Object.entries(LIB).find(([k]) => req.url().includes(k));
     if (lib) return route.fulfill({ contentType: 'text/javascript', body: fs.readFileSync(path.join(NM, lib[1])) });
@@ -87,6 +96,8 @@ function applyFilters(rows, url) {
   });
 
   const page = await context.newPage();
+  // file:// 로 연 화면이라 /api/ 요청을 가짜 서버 주소로 돌림
+  await page.addInitScript(() => { const f = window.fetch; window.fetch = (u, o) => f(typeof u === 'string' && u.startsWith('/api/') ? 'http://site.test' + u : u, o); });
   const errs = [];
   page.on('pageerror', e => { errs.push(e.message); console.log('PAGE ERROR:', e.message); });
   page.on('dialog', d => d.accept());
@@ -106,6 +117,9 @@ function applyFilters(rows, url) {
   check('4 groups (반품 3개는 1개로, 토요일은 모음집에 있어 빠짐)', cards.length === 4, String(cards.length));
   const t0 = await cards[0].textContent();
   check('first group = 반품, 3번 물어봄', t0.includes('3번 물어봄') && t0.includes('반품'));
+  const jt = await page.locator('[data-unanswered]', { hasText: '제주도도 당일택배' }).textContent();
+  check('new-style row grouped by unknown part + original shown', jt.includes('2번 물어봄') && jt.includes('손님 원래 질문: 픽업비는 얼마고'));
+  check('extract bar shows old rows', await page.isVisible('#unanswered-extract') && (await page.textContent('#unanswered-extract-count')).trim() !== '0');
   check('photo tag', (await page.textContent('#unanswered-list')).includes('사진 질문'));
   const jeju = page.locator('[data-unanswered]', { hasText: '제주도도 당일택배' });
   await jeju.locator('summary').click();
@@ -132,6 +146,13 @@ function applyFilters(rows, url) {
   await page.selectOption('#unanswered-filter', 'skip'); await page.waitForTimeout(300);
   await page.click('text=다시 답변 기다림으로'); await page.waitForTimeout(800);
   check('reopen works', tables.ai_chat_logs.find(r => r.id === 6).resolved_at === null);
+  check('extract bar still visible before extract', await page.isVisible('#unanswered-extract'));
+  await page.selectOption('#unanswered-filter', 'open'); await page.waitForTimeout(300);
+  await page.click('#unanswered-extract button'); await page.waitForTimeout(900);
+  check('extract called + bar hidden', extractCalls === 1 && !(await page.isVisible('#unanswered-extract')));
+  check('AI-answered question removed (2 cards left)', (await page.$$('[data-unanswered]')).length === 2, String((await page.$$('[data-unanswered]')).length));
+  await page.selectOption('#unanswered-filter', 'ai_ok'); await page.waitForTimeout(300);
+  check('ai_ok filter lists it', (await page.textContent('#unanswered-list')).includes('추가 요금'));
   await page.setViewportSize({ width: 390, height: 900 });
   await page.selectOption('#unanswered-filter', 'open'); await page.waitForTimeout(300);
   await page.locator('#admin-unanswered-panel').scrollIntoViewIfNeeded();

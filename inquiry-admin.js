@@ -335,7 +335,9 @@ function renderChatLogs() {
 let unansweredRows = [];
 let unansweredFaq = {};
 let unansweredGroups = [];
-const UNANSWERED_COLS = 'id,created_at,chat_id,question,answer,source,resolved_at,resolved_how,faq_id';
+const UNANSWERED_COLS = 'id,created_at,chat_id,question,unknown_question,answer,source,resolved_at,resolved_how,faq_id';
+// 손님 질문 중 AI 가 답하지 못한 부분 (없으면 손님 질문 전체)
+const unknownOf = r => (r.unknown_question || '').trim() || r.question;
 
 // 띄어쓰기·물음표 등을 빼고 같은 질문인지 비교 (SQL 의 ai_question_key 와 같은 규칙)
 function questionKey(q) {
@@ -355,7 +357,7 @@ async function fetchUnanswered() {
         supabaseClient.from('ai_faq').select('id,question,answer,active'),
     ]);
     if (logs.error) {
-        box.innerHTML = `<div class="text-rose-600 text-xs">질문을 불러오지 못했습니다. ${escapeHtml(dbErrorMessage(logs.error))}<br>(Supabase SQL Editor 에서 supabase/ai_unanswered.sql 을 실행했는지 확인해 주세요)</div>`;
+        box.innerHTML = `<div class="text-rose-600 text-xs">질문을 불러오지 못했습니다. ${escapeHtml(dbErrorMessage(logs.error))}<br>(Supabase SQL Editor 에서 supabase/ai_unanswered.sql 을 다시 실행해 주세요)</div>`;
         return;
     }
     unansweredRows = logs.data || [];
@@ -365,17 +367,19 @@ async function fetchUnanswered() {
     (faq.data || []).filter(f => f.active).forEach(f => { faqByKey[questionKey(f.question)] = f.id; });
     const groups = new Map();
     unansweredRows.forEach(r => {
-        const key = questionKey(r.question) || `#${r.id}`;
+        const key = questionKey(unknownOf(r)) || `#${r.id}`;
         let g = groups.get(key);
-        if (!g) groups.set(key, g = { key, rows: [], question: cleanQuestion(r.question), photo: false });
+        if (!g) groups.set(key, g = { key, rows: [], question: cleanQuestion(unknownOf(r)), originals: new Set(), photo: false });
         g.rows.push(r);
+        if (cleanQuestion(r.question) !== g.question) g.originals.add(cleanQuestion(r.question));
         if (String(r.question).includes('[사진 1장]')) g.photo = true;
     });
     unansweredGroups = [...groups.values()].map(g => {
         const open = g.rows.filter(r => !r.resolved_at);
         const done = g.rows.find(r => r.resolved_at);
         const faqId = faqByKey[g.key] || (done && done.faq_id);
-        g.status = open.length ? (faqByKey[g.key] ? 'faq' : 'open') : (done.resolved_how === 'skip' ? 'skip' : 'faq');
+        g.status = open.length ? (faqByKey[g.key] ? 'faq' : 'open') : (['skip', 'ai_ok'].includes(done.resolved_how) ? done.resolved_how : 'faq');
+        g.notExtracted = open.filter(r => r.unknown_question == null).length;
         g.faqId = faqId;
         g.openIds = open.map(r => r.id);
         g.last = g.rows[0].created_at;
@@ -394,6 +398,11 @@ function renderUnanswered() {
     document.getElementById('unanswered-count').innerText = `답변 기다림 ${open.length}개`;
     const shown = unansweredGroups.filter(g => g.status === filter);
     const box = document.getElementById('unanswered-list');
+    // 예전 기록(질문 전체만 있음) → AI 로 '답하지 못한 부분'만 뽑기 버튼
+    const raw = open.reduce((n, g) => n + g.notExtracted, 0);
+    const bar = document.getElementById('unanswered-extract');
+    bar.classList.toggle('hidden', !raw);
+    document.getElementById('unanswered-extract-count').innerText = raw;
     if (!shown.length) {
         box.innerHTML = `<div class="text-xs text-slate-400 py-8 text-center">${filter === 'open' ? '🎉 AI 가 답하지 못한 질문이 없습니다.' : '해당하는 질문이 없습니다.'}</div>`;
         return;
@@ -411,6 +420,8 @@ function renderUnanswered() {
     ${g.photo ? '<span class="px-1.5 py-0.5 rounded bg-sky-100 text-sky-700">📷 사진 질문</span>' : ''}
   </div>
   <div class="text-sm font-bold text-slate-900 whitespace-pre-wrap">🙋 ${escapeHtml(g.question)}</div>
+  ${g.originals.size ? `<div class="text-[11px] text-slate-400 whitespace-pre-wrap">손님 원래 질문: ${[...g.originals].slice(0, 3).map(escapeHtml).join(' / ')}${g.originals.size > 3 ? ` 외 ${g.originals.size - 3}개` : ''}</div>` : ''}
+  ${g.notExtracted ? '<div class="text-[11px] text-amber-600">아직 정리 전인 예전 질문이라 손님 질문 전체가 보입니다. 위 [AI 로 모르는 부분만 뽑기]를 눌러 주세요.</div>' : ''}
   <details class="text-xs text-slate-600"><summary class="cursor-pointer text-slate-500">AI 가 했던 답 · 앞뒤 대화 보기</summary>
     <div class="mt-1 space-y-1 bg-slate-50 rounded p-2 whitespace-pre-wrap" data-context="${idx}">${escapeHtml(g.rows[0].answer || '')}
 <button onclick="loadUnansweredContext(${idx})" class="mt-1 text-indigo-600 font-bold">앞뒤 대화 불러오기</button></div></details>
@@ -425,7 +436,7 @@ function renderUnanswered() {
     </div>
   </div>` : g.status === 'faq' ? `
   <div class="text-xs bg-emerald-50 rounded p-2 whitespace-pre-wrap"><b class="text-emerald-700">✓ 모음집에 등록된 답:</b> ${faq ? escapeHtml(faq.answer) : '(모음집에서 지웠거나 찾을 수 없음)'}</div>` : `
-  <div class="flex justify-between items-center text-xs text-slate-400">답 필요 없음으로 숨긴 질문입니다.
+  <div class="flex justify-between items-center text-xs text-slate-400">${g.status === 'ai_ok' ? '다시 살펴보니 AI 가 이미 답했던 질문이라 목록에서 뺐습니다.' : '답 필요 없음으로 숨긴 질문입니다.'}
     <button onclick="reopenUnanswered(${idx})" class="px-2 py-1 border border-slate-200 rounded font-bold text-slate-600">다시 답변 기다림으로</button></div>`}
 </div>`;
     }).join('');
@@ -442,12 +453,12 @@ function setUnansweredBadge(n) {
 async function refreshUnansweredBadge() {
     if (!supabaseClient || currentRole !== 'admin') return;
     const [logs, faq] = await Promise.all([
-        supabaseClient.from('ai_chat_logs').select('question').eq('needs_human', true).is('resolved_at', null).limit(3000),
+        supabaseClient.from('ai_chat_logs').select('question,unknown_question').eq('needs_human', true).is('resolved_at', null).limit(3000),
         supabaseClient.from('ai_faq').select('question').eq('active', true),
     ]);
     if (logs.error) return;
     const known = new Set((faq.data || []).map(f => questionKey(f.question)));
-    setUnansweredBadge(new Set((logs.data || []).map(r => questionKey(r.question)).filter(k => !known.has(k))).size);
+    setUnansweredBadge(new Set((logs.data || []).map(r => questionKey(unknownOf(r))).filter(k => !known.has(k))).size);
 }
 
 // 그 질문을 한 대화창(chat_id)의 다른 질문·답을 함께 보여 줌 (무슨 상황에서 물었는지)
@@ -463,7 +474,7 @@ async function loadUnansweredContext(idx) {
     (data || []).forEach(r => (byChat[r.chat_id] ||= []).push(r));
     box.innerHTML = Object.values(byChat).map(items => `<div class="border-b border-slate-200 pb-1 mb-1 last:border-0">
       <div class="text-[10px] text-slate-400">${inquiryTime(items[0].created_at)} 대화</div>
-      ${items.map(r => `<div class="${questionKey(r.question) === g.key ? 'bg-orange-50 rounded px-1' : ''}"><b>손님:</b> ${escapeHtml(r.question)}</div>
+      ${items.map(r => `<div class="${g.rows.some(x => x.question === r.question) ? 'bg-orange-50 rounded px-1' : ''}"><b>손님:</b> ${escapeHtml(r.question)}</div>
       <div class="text-slate-500"><b>AI:</b> ${escapeHtml(r.answer || '')}</div>`).join('')}</div>`).join('');
 }
 
@@ -506,5 +517,31 @@ async function reopenUnanswered(idx) {
     const g = unansweredGroups[idx];
     const err = await markUnanswered(g.rows.map(r => r.id), { resolved_at: null, resolved_how: null, faq_id: null });
     if (err) alert('저장하지 못했습니다: ' + dbErrorMessage(err));
+    await fetchUnanswered();
+}
+
+// 예전 '모름' 기록을 AI 가 다시 읽고, 답하지 못한 부분만 한 문장으로 뽑음 (worker/ask.js handleUnknownExtract, 40개씩 반복)
+async function extractUnknownParts(btn) {
+    if (!confirm('지난 질문을 AI 가 다시 읽고, AI 가 답하지 못한 부분만 질문으로 정리합니다.\n사실은 AI 가 답했던 질문은 목록에서 빠집니다.\n(AI 사용료가 조금 듭니다. 40개에 약 50~100원)')) return;
+    btn.disabled = true;
+    const label = btn.textContent;
+    try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) throw new Error('로그인이 필요합니다. 다시 로그인해 주세요.');
+        let total = 0, ok = 0;
+        for (let i = 0; i < 50; i++) {
+            btn.textContent = `정리하는 중… (${total}개 완료)`;
+            const res = await fetch('/api/ask/unknown', { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` } });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || `서버 오류 (HTTP ${res.status})`);
+            total += data.done || 0; ok += data.aiAnswered || 0;
+            if (!data.left || !data.done) break;
+        }
+        alert(`${total}개를 정리했습니다.${ok ? `\n그중 ${ok}개는 AI 가 사실 답했던 질문이라 목록에서 뺐습니다.` : ''}`);
+    } catch (e) {
+        alert('정리하지 못했습니다: ' + e.message);
+    }
+    btn.disabled = false;
+    btn.textContent = label;
     await fetchUnanswered();
 }

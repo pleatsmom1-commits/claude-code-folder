@@ -1387,9 +1387,14 @@
                             <option value="open">답변 기다리는 질문</option>
                             <option value="faq">답변 등록한 질문</option>
                             <option value="skip">답 필요 없음으로 숨긴 질문</option>
+                            <option value="ai_ok">AI 가 사실 답했던 질문</option>
                         </select>
                         <button onclick="fetchUnanswered()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg">새로고침</button>
                     </div>
+                </div>
+                <div id="unanswered-extract" class="hidden flex flex-wrap items-center justify-between gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
+                    <span>예전 질문 <b id="unanswered-extract-count"></b>개는 손님 질문 전체가 보입니다. AI 가 다시 읽고 <b>답하지 못한 부분만</b> 질문으로 정리할 수 있어요. (앞으로 들어오는 질문은 자동으로 정리됩니다)</span>
+                    <button onclick="extractUnknownParts(this)" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg">AI 로 모르는 부분만 뽑기</button>
                 </div>
                 <div id="unanswered-list" class="space-y-3"></div>
             </div>
