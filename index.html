@@ -1004,6 +1004,7 @@
                             <button onclick="editSelectedAdminOrder()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-sm">선택수정</button>
                             <button onclick="markSeparateSelectedOrders()" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs rounded-lg shadow-sm" title="이 사이트 밖에서 이미 따로 처리·배송한 접수건에 표시합니다 (접수완료로 바뀜)">따로 처리됨</button>
                             <button onclick="setHiddenSelectedOrders(true)" class="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg shadow-sm" title="테스트 접수건 등을 목록에서 안 보이게 합니다 (지우지 않음)">선택 숨기기</button>
+                            <button onclick="trashSelectedOrders()" class="px-3 py-1.5 bg-white border border-rose-300 hover:bg-rose-50 text-rose-600 font-bold text-xs rounded-lg shadow-sm" title="접수건을 아예 지웁니다. 셀러 화면·엑셀·정산에서도 사라지고, [휴지통]에서 90일 안에 복원할 수 있습니다">선택 삭제</button>
                         </div>
                     </div>
 
@@ -1068,6 +1069,7 @@
                                 <input type="checkbox" id="admin-show-hidden" onchange="runAdminSearch()" class="rounded border-slate-300"> 숨긴 접수건도 보기 <span id="admin-hidden-count" class="text-slate-400 font-normal"></span>
                             </label>
                             <button type="button" id="btn-admin-unhide" onclick="setHiddenSelectedOrders(false)" class="hidden px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-bold">선택 숨김해제</button>
+                            <button type="button" id="btn-admin-trash" onclick="openOrderTrash()" class="px-3 py-1.5 bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 rounded-lg text-xs font-bold" title="삭제한 접수건을 보고 복원합니다">🗑 휴지통 <span id="admin-trash-count" class="font-normal"></span></button>
                         </div>
                     </div>
 
@@ -2069,6 +2071,33 @@
         </div>
     </div>
 
+    <!-- 관리자: 삭제한 접수건(휴지통) 보기·복원 (supabase/order_trash.sql) -->
+    <div id="trash-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50" onclick="if (event.target === this) closeOrderTrash()">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-6 space-y-4 border border-slate-100 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div>
+                    <h3 class="font-bold text-slate-900 text-base">🗑 휴지통 · 삭제한 접수건</h3>
+                    <p class="text-xs text-slate-500">복원하면 주문 번호·접수시간·상태·송장번호까지 지우기 전 그대로 돌아옵니다. 삭제하고 90일이 지나면 손님 개인정보 보호를 위해 자동으로 완전히 지워집니다.</p>
+                </div>
+                <button onclick="closeOrderTrash()" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="overflow-x-auto border border-slate-200 rounded-lg">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-slate-100 text-slate-600 font-bold">
+                        <tr><th class="p-2 w-8"><input type="checkbox" id="trash-chk-all" onchange="document.querySelectorAll('.trash-chk').forEach(c => c.checked = this.checked)" class="rounded border-slate-300"></th><th class="p-2">삭제한 때</th><th class="p-2">삭제한 사람</th><th class="p-2">NO.</th><th class="p-2">셀러</th><th class="p-2">수취인</th><th class="p-2">쇼핑몰 상품명</th><th class="p-2">상태</th></tr>
+                    </thead>
+                    <tbody id="trash-modal-list" class="divide-y divide-slate-100"></tbody>
+                </table>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button type="button" id="btn-trash-restore" onclick="restoreSelectedTrash()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm">선택 복원</button>
+                <button type="button" onclick="closeOrderTrash()" class="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg">닫기</button>
+            </div>
+        </div>
+    </div>
+
     <div id="edit-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
         <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 space-y-4 border border-slate-100 max-h-[90vh] overflow-y-auto">
             <div class="flex justify-between items-center border-b border-slate-100 pb-3">
@@ -2953,6 +2982,7 @@
             if (currentRole === 'seller') { renderSellerTable(); restoreKeepForToday(); }
             if (currentRole === 'admin') {
                 await fetchHiddenOrderIds();
+                fetchTrashCount();
                 populateAdminFilter();
                 renderAdminTable();
                 renderSellerAdminTable();
@@ -5477,6 +5507,118 @@
                 part.forEach(id => hide ? hiddenOrderIds.add(id) : hiddenOrderIds.delete(id));
             }
             renderAdminTable();
+        }
+
+        // ---------------------------------------------------------------
+        // 관리자: 접수건 삭제(휴지통) + 복원 (supabase/order_trash.sql)
+        //  - 삭제하면 주문이 휴지통으로 옮겨져 셀러 화면·엑셀·정산 등 모든 곳에서 사라집니다.
+        //  - 휴지통에서 [선택 복원]하면 주문 번호·접수시간·상태까지 그대로 돌아옵니다. (90일 보관)
+        // ---------------------------------------------------------------
+        let trashRows = [];
+        const TRASH_SQL_MSG = '삭제·휴지통 기능 DB 설정이 아직 적용되지 않았습니다.\n(Supabase SQL Editor 에서 supabase/order_trash.sql 을 실행해주세요)';
+        function trashNotReady(error) {
+            const t = `${error?.code || ''} ${error?.message || ''}`;
+            return /PGRST202|PGRST205|42883|42P01|admin_trash_orders|admin_restore_orders|admin_deleted_orders/.test(t) && !/관리자만/.test(t);
+        }
+        async function fetchTrashCount() {
+            if (!supabaseClient || currentRole !== 'admin') return;
+            const { count, error } = await supabaseClient.from('admin_deleted_orders').select('order_id', { count: 'exact', head: true });
+            const el = document.getElementById('admin-trash-count');
+            if (el) el.innerText = !error && count ? `(${count}건)` : '';
+        }
+        async function trashSelectedOrders() {
+            const ids = Array.from(document.querySelectorAll('.admin-chk-item:checked')).map(c => c.value);
+            if (ids.length === 0) {
+                alert('삭제할 접수건을 체크박스로 선택해주세요.');
+                return;
+            }
+            const rows = ids.map(id => ordersMaster.find(o => o.id === id)).filter(Boolean);
+            const shipped = rows.filter(o => o.ship_status === '출고완료').length;
+            const msg = `선택한 상품 ${ids.length}개를 삭제할까요?\n\n`
+                + '· 셀러 화면, 엑셀, 출고, 정산 등 모든 곳에서 사라집니다.\n'
+                + '· [🗑 휴지통]에 90일 동안 보관되어, 언제든 [선택 복원]으로 그대로 되돌릴 수 있습니다.\n'
+                + '· 접수완료를 접수대기로만 되돌리려면 [선택 접수취소], 목록에서만 안 보이게 하려면 [선택 숨기기]를 쓰세요.'
+                + (shipped ? `\n\n⚠️ 이 중 ${shipped}개는 이미 출고완료된 상품입니다. 재고에서 뺀 수량은 자동으로 돌아오지 않습니다.` : '');
+            if (!confirm(msg)) return;
+            let done = 0;
+            for (let i = 0; i < ids.length; i += 200) {
+                const part = ids.slice(i, i + 200);
+                const { data, error } = await supabaseClient.rpc('admin_trash_orders', { p_ids: part });
+                if (error) {
+                    alert(trashNotReady(error) ? TRASH_SQL_MSG : '삭제 중 오류가 발생했습니다.\n\n' + dbErrorMessage(error));
+                    break;
+                }
+                done += data || 0;
+                ordersMaster = ordersMaster.filter(o => !part.includes(o.id));
+                part.forEach(id => { hiddenOrderIds.delete(id); separateOrderIds.delete(id); });
+            }
+            renderAdminTable();
+            fetchTrashCount();
+            if (done) alert(`${done}개 상품을 삭제했습니다. [🗑 휴지통]에서 복원할 수 있습니다.`);
+        }
+        async function openOrderTrash() {
+            const { data, error } = await fetchAllRows(() => supabaseClient.from('admin_deleted_orders')
+                .select('order_id,data,deleted_at,deleted_by_name').order('deleted_at', { ascending: false }));
+            if (error) {
+                alert(trashNotReady(error) ? TRASH_SQL_MSG : '휴지통을 불러오지 못했습니다.\n\n' + dbErrorMessage(error));
+                return;
+            }
+            trashRows = data || [];
+            renderOrderTrash();
+            const m = document.getElementById('trash-modal');
+            m.classList.remove('hidden'); m.classList.add('flex');
+        }
+        function renderOrderTrash() {
+            const tbody = document.getElementById('trash-modal-list');
+            document.getElementById('trash-chk-all').checked = false;
+            if (!trashRows.length) {
+                tbody.innerHTML = '<tr><td colspan="8" class="p-6 text-center text-slate-400 font-bold">휴지통이 비어 있습니다.</td></tr>';
+            } else {
+                tbody.innerHTML = trashRows.map(r => {
+                    const o = r.data || {};
+                    const no = o.order_no ? `${o.order_no}${o.item_no > 1 || String(o.product || '').includes('(합)') ? '-' + o.item_no : ''}` : '-';
+                    return `<tr class="hover:bg-slate-50">
+                        <td class="p-2"><input type="checkbox" class="trash-chk rounded border-slate-300" value="${escapeHtml(r.order_id)}"></td>
+                        <td class="p-2 whitespace-nowrap">${escapeHtml(formatKstDateTime(r.deleted_at))}</td>
+                        <td class="p-2 whitespace-nowrap">${escapeHtml(r.deleted_by_name || '-')}</td>
+                        <td class="p-2 font-bold text-indigo-700">${escapeHtml(no)}</td>
+                        <td class="p-2 whitespace-nowrap">${escapeHtml(o.seller_company || '')}</td>
+                        <td class="p-2 whitespace-nowrap">${escapeHtml(o.recipient || '')}</td>
+                        <td class="p-2">${escapeHtml(o.product || '')}</td>
+                        <td class="p-2 whitespace-nowrap">${escapeHtml(o.status || '')}${o.ship_status === '출고완료' ? ' · 출고완료' : ''}</td>
+                    </tr>`;
+                }).join('');
+            }
+            const el = document.getElementById('admin-trash-count');
+            if (el) el.innerText = trashRows.length ? `(${trashRows.length}건)` : '';
+        }
+        async function restoreSelectedTrash() {
+            const ids = Array.from(document.querySelectorAll('.trash-chk:checked')).map(c => c.value);
+            if (ids.length === 0) {
+                alert('복원할 접수건을 체크박스로 선택해주세요.');
+                return;
+            }
+            if (!confirm(`선택한 상품 ${ids.length}개를 복원할까요?\n\n지우기 전 모습 그대로 주문관리 목록과 셀러 화면에 다시 나타납니다.`)) return;
+            let done = 0;
+            for (let i = 0; i < ids.length; i += 200) {
+                const part = ids.slice(i, i + 200);
+                const { data, error } = await supabaseClient.rpc('admin_restore_orders', { p_ids: part });
+                if (error) {
+                    alert(trashNotReady(error) ? TRASH_SQL_MSG : '복원 중 오류가 발생했습니다.\n\n' + dbErrorMessage(error));
+                    break;
+                }
+                done += data || 0;
+                trashRows = trashRows.filter(r => !part.includes(r.order_id));
+            }
+            renderOrderTrash();
+            if (done) {
+                await fetchOrdersFromDB();
+                alert(`${done}개 상품을 복원했습니다.`);
+            }
+        }
+        function closeOrderTrash() {
+            const m = document.getElementById('trash-modal');
+            m.classList.add('hidden'); m.classList.remove('flex');
         }
 
         async function revertAcceptSelectedOrders() {
