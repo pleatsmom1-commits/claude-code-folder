@@ -297,6 +297,21 @@
                         <a href="/my-ship" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg">📮 내 택배 주문</a>
                     </div>
                     </div>
+                    <!-- 내 택배 주문 설명 (대표님 요청 2026-11-22: 버튼만 보고는 무슨 기능인지 몰라서 밖에 크게 안내) -->
+                    <a href="/my-ship" class="block rounded-xl border-2 border-blue-300 bg-blue-50 hover:bg-blue-100 px-4 py-3 transition">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <p class="text-sm font-black text-blue-900">📮 내 택배 주문이란? <span class="ml-1 px-1.5 py-0.5 rounded bg-blue-600 text-white text-[10px] align-middle">NEW</span></p>
+                            <span class="text-xs font-bold text-blue-700">눌러서 시작하기 →</span>
+                        </div>
+                        <p class="text-xs text-blue-900 mt-1 leading-relaxed">쇼핑몰 주문서를 올리면 주문이 <b>내 택배 주문 목록</b>에 모이고, 우체국·CJ대한통운 등 <b>대표님이 쓰시는 운송장 프로그램 엑셀 양식 그대로</b> 받을 수 있어요. 운송장 프로그램에 그대로 올려 송장을 출력하세요.</p>
+                        <div class="flex flex-wrap items-center gap-1.5 mt-2 text-[11px] font-bold text-blue-800">
+                            <span class="px-2 py-1 rounded-md bg-white border border-blue-200">① 운송장 양식 한 번 등록</span><span class="text-blue-400">→</span>
+                            <span class="px-2 py-1 rounded-md bg-white border border-blue-200">② 아래에 주문서 올리기</span><span class="text-blue-400">→</span>
+                            <span class="px-2 py-1 rounded-md bg-white border border-blue-200">③ [내 택배 주문 목록에 넣기]</span><span class="text-blue-400">→</span>
+                            <span class="px-2 py-1 rounded-md bg-white border border-blue-200">④ [운송장 엑셀 받기]</span>
+                        </div>
+                        <p class="text-[11px] text-blue-700/80 mt-1.5">🔒 대표님 본인만 보여요 (밤낮딜리버리 관리자도 못 봐요). 손님 정보는 90일 뒤 저절로 지워져요.</p>
+                    </a>
                     <div class="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 leading-relaxed">
                         <b>📢 대표님 매장·사무실에서 직접 관리하는 상품관리 및 재고표와 함께 쓰는 기능입니다.</b> (밤낮딜리버리 사무실에서 관리되지 않는 재고)<br>
                         주로 <b>풀필먼트를 이용하지 않고, 픽업/택배수령을 이용하시는 대표님들</b>을 위한 기능이에요. 🔒 내 재고표는 밤낮딜리버리 관리자가 수정할 수 없어 대표님이 직접 관리해 주셔야 해요. 풀필먼트 주문은 위쪽 [고객풀필먼트 택배접수]를 이용해 주세요.
@@ -898,6 +913,10 @@
                     <button id="admin-tab-chatlog" onclick="switchAdminTab('chatlog')" class="">
                         상담 기록
                     </button>
+                    <button id="admin-tab-unanswered" onclick="switchAdminTab('unanswered')" class="">
+                        답변하지 못한 질문
+                        <span id="admin-unanswered-badge" class="hidden px-1.5 py-0.5 bg-orange-500 text-white text-[10px] rounded-full"></span>
+                    </button>
                     <button id="admin-tab-sellers" onclick="switchAdminTab('sellers')" class="">
                         셀러 관리
                         <span id="admin-pending-badge" class="hidden px-1.5 py-0.5 bg-rose-500 text-white text-[10px] rounded-full"></span>
@@ -1369,6 +1388,31 @@
                     </div>
                     <div id="chatlog-list" class="space-y-2 max-h-[750px] overflow-y-auto"></div>
                 </div>
+            </div>
+
+            <!-- AI 상담 > 답변하지 못한 질문 (스크립트: inquiry-admin.js, supabase/ai_unanswered.sql) -->
+            <div id="admin-unanswered-panel" class="hidden bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+                <div class="flex justify-between items-start flex-wrap gap-2">
+                    <div>
+                        <h3 class="font-bold text-slate-900">답변하지 못한 질문 <span id="unanswered-count" class="text-xs font-normal text-slate-400"></span></h3>
+                        <p class="text-xs text-slate-500 mt-0.5">AI 가 답을 몰랐던 질문을 손님이 연락처를 남기지 않았어도 모두 모았습니다. 같은 질문은 한 번만 보입니다.<br>
+                            답을 적고 <b>[답변 등록]</b>을 누르면 <b>AI 답변 모음집</b>에 바로 들어가, 다음에 같은 질문이 오면 AI 가 이 답으로 안내합니다. (손님에게 문자는 가지 않습니다)</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <select id="unanswered-filter" onchange="renderUnanswered()" class="border border-slate-200 rounded-lg px-2 py-1 text-xs">
+                            <option value="open">답변 기다리는 질문</option>
+                            <option value="faq">답변 등록한 질문</option>
+                            <option value="skip">답 필요 없음으로 숨긴 질문</option>
+                            <option value="ai_ok">AI 가 사실 답했던 질문</option>
+                        </select>
+                        <button onclick="fetchUnanswered()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg">새로고침</button>
+                    </div>
+                </div>
+                <div id="unanswered-extract" class="hidden flex flex-wrap items-center justify-between gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
+                    <span>예전 질문 <b id="unanswered-extract-count"></b>개는 손님 질문 전체가 보입니다. AI 가 다시 읽고 <b>답하지 못한 부분만</b> 질문으로 정리할 수 있어요. (앞으로 들어오는 질문은 자동으로 정리됩니다)</span>
+                    <button onclick="extractUnknownParts(this)" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg">AI 로 모르는 부분만 뽑기</button>
+                </div>
+                <div id="unanswered-list" class="space-y-3"></div>
             </div>
 
             <!-- 3-3. 정산서 발송 (스크립트: settle-admin.js) -->
@@ -6321,7 +6365,7 @@
             stock: ['stock', 'products', 'inventory', 'picking', 'history', 'unify'],
             settle: ['settle'],
             sellers: ['sellers'],
-            inquiry: ['inquiry', 'chatlog'],
+            inquiry: ['inquiry', 'chatlog', 'unanswered'],
             aicost: ['aicost'],
             staff: ['activity', 'staff'],   // 대표 아이디만 보임 (staff-admin.js)
         };
@@ -6379,6 +6423,8 @@
             document.getElementById('admin-inquiry-panel').classList.toggle('hidden', tab !== 'inquiry');
             document.getElementById('admin-tab-chatlog').className = tab === 'chatlog' ? on : off;
             document.getElementById('admin-chatlog-panel').classList.toggle('hidden', tab !== 'chatlog');
+            document.getElementById('admin-tab-unanswered').className = tab === 'unanswered' ? on : off;
+            document.getElementById('admin-unanswered-panel').classList.toggle('hidden', tab !== 'unanswered');
             document.getElementById('admin-tab-activity').className = tab === 'activity' ? on : off;
             document.getElementById('admin-activity-panel').classList.toggle('hidden', tab !== 'activity');
             document.getElementById('admin-tab-staff').className = tab === 'staff' ? on : off;
@@ -6390,6 +6436,7 @@
             if (tab === 'ship') onShipTabOpened();
             if (tab === 'inquiry') onInquiryTabOpened();
             if (tab === 'chatlog') onChatLogTabOpened();
+            if (tab === 'unanswered') fetchUnanswered();
             if (tab === 'staff') onStaffTabOpened();
             if (tab === 'activity') onActivityTabOpened();
             if (tab === 'products' || tab === 'inventory' || tab === 'picking' || tab === 'aicost' || tab === 'history' || tab === 'unify') {
