@@ -37,6 +37,7 @@ export default {
 
   async scheduled(event, env, ctx) {
     ctx.waitUntil(pingSupabase(env));
+    ctx.waitUntil(purgeShipOrders(env).catch(err => console.log('ship_orders_purge 실패', err)));
   },
 };
 
@@ -46,4 +47,14 @@ async function pingSupabase(env) {
   });
   console.log(`Supabase keepalive: HTTP ${res.status}`);
   if (!res.ok) throw new Error(`Supabase keepalive failed: HTTP ${res.status}`);
+}
+
+// 택배 업체 '내 택배 주문'에서 90일 지난 손님 정보 지우기 (supabase/ship_orders.sql). SQL 실행 전이면 기록만 남김
+async function purgeShipOrders(env) {
+  const res = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/ship_orders_purge`, {
+    method: 'POST',
+    headers: { apikey: env.SUPABASE_KEY, 'Content-Type': 'application/json' },
+    body: '{}',
+  });
+  console.log(`ship_orders_purge: HTTP ${res.status} ${res.ok ? await res.text() : ''}`);
 }

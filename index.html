@@ -294,6 +294,7 @@
                     <div class="flex gap-1.5 shrink-0">
                         <a href="/products" class="px-3 py-1.5 bg-white border border-sky-300 hover:bg-sky-50 text-sky-800 text-xs font-bold rounded-lg">🗂️ 상품관리</a>
                         <a href="/my-stock" class="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg">📦 내 재고표</a>
+                        <a href="/my-ship" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg">📮 내 택배 주문</a>
                     </div>
                     </div>
                     <div class="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 leading-relaxed">
@@ -2885,7 +2886,10 @@
             } else {
                 setupSellerUI();
                 resetKeepRequest(); // 오늘 이미 골랐는지는 주문을 불러온 뒤 restoreKeepForToday 가 확인
-                switchSellerMode(loadSellerMode());
+                // /?open=buy : '내 택배 주문' 화면의 [쇼핑몰 주문서 올리기] → 매장/사무실 접수의 [사입 목록 만들기] 칸으로
+                const OPEN_BUY = new URLSearchParams(location.search).get('open') === 'buy';
+                switchSellerMode(OPEN_BUY ? 'store' : loadSellerMode());
+                if (OPEN_BUY) setTimeout(() => document.getElementById('buy-ai-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
                 resetHistorySearch(false); // 기본: 오늘 접수한 모든 내역
                 loadAddressBook();
             }

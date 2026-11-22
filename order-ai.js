@@ -85,6 +85,7 @@ async function aiFileChosen(e, mode = 'order') {
     }
     aiOrder.platform = res.platform || '';
     aiOrder.ownDone = false;
+    aiOrder.shipSaved = '';
     aiOrder.rows = built;
     if (aiOrder.rows.length === 0) { aiStatus('주문서에서 주문 줄을 찾지 못했어요. 받는분·주소·상품명 칸이 있는 주문서인지 확인해 주세요.', true); return; }
     aiStatus('');
@@ -176,6 +177,7 @@ function aiBuildRows(rows, mapping) {
         let address = at(r, 'address');
         if (!recipient && !address && !product) continue;
         const detail = at(r, 'address_detail');
+        const addrBase = address;   // 운송장 양식에 기본/상세 주소 칸이 따로 있을 때 쓰려고 나눠 둠 ('buy' 화면 → 내 택배 주문)
         if (detail && !address.includes(detail)) address = `${address} ${detail}`.trim();
         const phoneRaw = at(r, 'phone') || at(r, 'phone2');
         out.push({
@@ -184,6 +186,9 @@ function aiBuildRows(rows, mapping) {
             phone: isValidPhone(phoneRaw) ? formatPhone(normalizePhone(phoneRaw)) : '',
             zipcode: at(r, 'zipcode'),
             address,
+            addrBase, addrDetail: detail && !addrBase.includes(detail) ? detail : '',
+            phone2: (() => { const p2 = at(r, 'phone2'); return p2 && isValidPhone(p2) ? formatPhone(normalizePhone(p2)) : ''; })(),
+            orderNo: at(r, 'order_no'),
             mallProduct: product,
             option: at(r, 'option'),
             qty: parseInt(String(at(r, 'qty')).replace(/[^\d]/g, ''), 10) || 1,
@@ -815,7 +820,66 @@ function aiRenderBuy() {
             <span class="text-xs text-emerald-800">적어 주신 도매처를 기억해 둘까요? 다음부터 같은 상품은 저절로 채워져요.</span>
             <button id="btn-buy-remember" onclick="aiBuyRemember()" class="px-2.5 py-1 bg-white border border-emerald-300 hover:bg-emerald-100 text-emerald-800 text-[11px] font-bold rounded">상품관리에 기억하기 (${regCount}가지)</button>
         </div>` : ''}
-        ${aiBuyBox(live)}`;
+        ${aiBuyBox(live)}
+        ${aiShipBox(live)}`;
     box.classList.remove('hidden');
     aiEl('drop').classList.add('hidden');
+}
+
+// ---------------------------------------------------------------------
+// 내 택배 주문 목록에 넣기 (2026-11-20 대표님 요청, my-ship.html · supabase/ship_orders.sql)
+//  직접 택배를 보내는 업체가 같은 주문서로 운송장 엑셀까지 만들 수 있게 받는분·주소·상품을 저장
+//  같은 주문번호(또는 주문번호가 없으면 같은 날 같은 받는분·연락처·상품)는 두 번 넣지 않음
+// ---------------------------------------------------------------------
+function aiShipBox(live) {
+    if (!live.length) return '';
+    const done = aiOrder.shipSaved;
+    return `<div id="ai-ship-box" class="border border-blue-200 bg-blue-50/60 rounded-lg p-3 flex flex-wrap items-center gap-2">
+        <div class="flex-1 min-w-[240px]">
+            <p class="text-sm font-black text-blue-800">📮 직접 택배로 보내시나요?</p>
+            <p class="text-[11px] text-slate-600 mt-0.5">이 주문서를 <b>내 택배 주문 목록</b>에 넣어 두면, 대표님이 쓰시는 <b>운송장 프로그램 엑셀 양식 그대로</b> 내려받을 수 있어요. (밤낮딜리버리 접수 아님 · 손님 정보는 90일 뒤 자동 삭제)</p>
+        </div>
+        ${done ? `<span class="text-xs font-bold text-blue-800">✅ ${done}</span>
+            <a href="/my-ship" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg">내 택배 주문 보기 →</a>`
+            : `<button id="btn-ship-save" onclick="aiShipSave()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg">📮 내 택배 주문 목록에 넣기 (${live.length}건)</button>`}
+    </div>`;
+}
+
+async function aiShipSave() {
+    const live = aiOrder.rows.filter(o => !o.removed);
+    if (!live.length || !supabaseClient) return;
+    const btn = document.getElementById('btn-ship-save');
+    if (btn) btn.disabled = true;
+    const today = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
+    // 이미 넣은 주문 (최근 90일, 내 것만 — 다른 업체 것은 DB가 돌려주지 않음)
+    const { data: old, error: oldErr } = await fetchAllRows(() => supabaseClient.from('seller_ship_orders')
+        .select('order_no,recipient,phone,product,option,ship_date').order('id'));
+    if (oldErr) {
+        alert('아직 준비 중이에요. 관리자에게 문의해 주세요. (ship_orders.sql 실행 필요)');
+        if (btn) btn.disabled = false;
+        return;
+    }
+    const key = (d, o) => [d, o.recipient, o.phone, o.product, o.option].map(aiNorm).join('|');
+    const haveNo = new Set((old || []).filter(r => r.order_no).map(r => aiNorm(r.order_no)));
+    const haveKey = new Set((old || []).map(r => key(r.ship_date, r)));
+    const rows = [];
+    let skipped = 0;
+    live.forEach(o => {
+        const r = {
+            company: currentSellerAccount.company, ship_date: today, source_file: aiOrder.fileName.slice(0, 200), platform: aiOrder.platform || '',
+            order_no: o.orderNo || '', recipient: o.recipient, phone: o.phone, phone2: o.phone2 || '', zipcode: o.zipcode || '',
+            address: o.addrBase || o.address, address_detail: o.addrDetail || '', product: o.mallProduct, option: o.option || '',
+            qty: o.qty, memo: o.memo || '',
+        };
+        if ((r.order_no && haveNo.has(aiNorm(r.order_no))) || haveKey.has(key(today, r))) { skipped++; return; }
+        if (r.order_no) haveNo.add(aiNorm(r.order_no));
+        haveKey.add(key(today, r));
+        rows.push(r);
+    });
+    if (rows.length) {
+        const { error } = await supabaseClient.from('seller_ship_orders').insert(rows);
+        if (error) { alert('저장하지 못했어요.\n' + dbErrorMessage(error)); if (btn) btn.disabled = false; return; }
+    }
+    aiOrder.shipSaved = `${rows.length}건 넣었어요` + (skipped ? ` (이미 있던 ${skipped}건은 빼고)` : '');
+    aiRender();
 }
