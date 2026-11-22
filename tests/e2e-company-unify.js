@@ -192,7 +192,9 @@ const applyCalls = [];
   await pf.selectOption('#f-company', norm('미닛걸')); await page.waitForTimeout(300);
   await shot('후_상품관리_거래처목록.png', page, { clip: { x: 0, y: 0, width: 1400, height: 620 } });
   // 재고표 탭
-  await page.click('#admin-tab-inventory'); await page.waitForTimeout(1800);
+  await page.click('#admin-tab-inventory'); await page.waitForTimeout(300);
+  // 2026-11-22: 묶음을 누르면 재고표가 먼저 열려 이미 불러와 있으므로 상품관리처럼 새로 불러옴
+  { const f0 = page.frame({ url: /inventory\.html\?embed=1/ }); await f0.goto(f0.url()); } await page.waitForTimeout(1800);
   const inf = page.frame({ url: /inventory\.html\?embed=1/ });
   const iopts = await inf.locator('#f-company option').allTextContents();
   check('inventory company list unified', iopts.some(o => o === '미닛걸 (+에스비컴퍼니)'), iopts.join('|'));

@@ -885,9 +885,6 @@
                     <button id="admin-tab-ship" onclick="switchAdminTab('ship')" class="">
                         운송장전송
                     </button>
-                    <button id="admin-tab-stock" onclick="switchAdminTab('stock')" class="">
-                        재고관리
-                    </button>
                     <button id="admin-tab-products" onclick="switchAdminTab('products')" class="" title="상호통일 적용">
                         상품관리 <i data-lucide="link" class="w-3 h-3 text-indigo-400" title="상호통일 적용"></i>
                     </button>
@@ -903,6 +900,10 @@
                     <!-- 상호통일 (company-unify.html, supabase/company_unify.sql). 🔗 표시 탭에 적용됨 -->
                     <button id="admin-tab-unify" onclick="switchAdminTab('unify')" class="">
                         <i data-lucide="link" class="w-4 h-4"></i> 상호통일
+                    </button>
+                    <!-- 셀러에게 재고 숨기기 설정 (예전 '재고관리' 탭 자리, stock-admin.js) -->
+                    <button id="admin-tab-stock" onclick="switchAdminTab('stock')" class="">
+                        <i data-lucide="eye-off" class="w-4 h-4"></i> 셀러 재고 공개
                     </button>
                     <button id="admin-tab-settle" onclick="switchAdminTab('settle')" class="">
                         정산서 발송
@@ -1832,83 +1833,13 @@
                     <div id="stock-hide-list" class="text-xs"></div>
                 </div>
 
-                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
-                    <div class="flex justify-between items-start flex-wrap gap-3">
-                        <div>
-                            <h3 class="font-bold text-slate-900">거래처 재고</h3>
-                            <p class="text-xs text-slate-500 mt-0.5">거래처 재고표(통합본) 엑셀을 올리면 <b>업체마다 탭</b>을 읽어 업체별 재고로 저장합니다. 회원가입 상호와 같은 업체는 로그인해서 자기 재고를 봅니다 (위에서 숨긴 업체는 안 보임).</p>
-                        </div>
-                        <div class="flex gap-2 flex-wrap">
-                            <label class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow flex items-center gap-1 cursor-pointer">
-                                <i data-lucide="file-up" class="w-3.5 h-3.5"></i> 재고표 엑셀 올리기
-                                <input type="file" accept=".xlsx,.xls,.xlsm" onchange="uploadStockWorkbook(event)" class="hidden">
-                            </label>
-                            <button onclick="downloadStockExcel()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm flex items-center gap-1">
-                                <i data-lucide="download" class="w-3.5 h-3.5"></i> 엑셀 다운로드
-                            </button>
-                            <button onclick="openStockEdit(null)" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow flex items-center gap-1">
-                                <i data-lucide="plus" class="w-3.5 h-3.5"></i> 재고 추가
-                            </button>
-                        </div>
+                <!-- 예전 보관 목록(stock_items, 통합본 엑셀)은 2026-11-22 없앴습니다. 재고는 [재고표](inventory.html) 하나로 관리자·셀러가 같은 숫자를 봅니다. -->
+                <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-5 flex justify-between items-center flex-wrap gap-3">
+                    <div>
+                        <h3 class="font-bold text-indigo-900 flex items-center gap-1.5"><i data-lucide="info" class="w-4 h-4"></i> 재고는 [재고표] 하나로 봅니다</h3>
+                        <p class="text-xs text-indigo-800 mt-0.5">예전 보관 목록(통합본 엑셀로 올리던 화면)은 없앴습니다. 최종재고를 올린 뒤부터 <b>관리자와 셀러 모두 [재고표]의 같은 숫자</b>를 봅니다.</p>
                     </div>
-                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-2">
-                        <span class="text-xs font-bold text-slate-600 w-12">검색</span>
-                        <select id="stock-f-company" onchange="renderStockTable()" class="px-2 py-1.5 border rounded-lg text-xs bg-white max-w-[220px]">
-                            <option value="">업체 전체</option>
-                        </select>
-                        <select id="stock-f-status" onchange="renderStockTable()" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
-                            <option value="kept">보관중</option>
-                            <option value="shipped">출고됨</option>
-                            <option value="all">전체</option>
-                        </select>
-                        <input type="text" id="stock-f-keyword" oninput="renderStockTable()" placeholder="상품명 · 도매처 · 고객명 · 위치 검색" class="px-3 py-1.5 border rounded-lg text-xs bg-white w-60">
-                        <button type="button" onclick="resetStockSearch()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-bold">초기화</button>
-                        <button type="button" onclick="fetchStockItems()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-bold flex items-center gap-1"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> 새로고침</button>
-                        <button type="button" id="stock-preview-btn" onclick="previewStockPage()" disabled class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-slate-600 rounded-lg text-xs font-bold" title="업체를 고르면 그 업체가 보는 재고 화면을 엽니다">업체 화면 미리보기</button>
-                    </div>
-                    <div class="flex justify-between items-center flex-wrap gap-2">
-                        <span id="stock-summary" class="text-xs text-slate-600"></span>
-                        <div class="flex gap-2 flex-wrap">
-                            <button onclick="shipCheckedStock()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow flex items-center gap-1">
-                                <i data-lucide="truck" class="w-3.5 h-3.5"></i> 선택 출고처리
-                            </button>
-                            <button onclick="unshipCheckedStock()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm">선택 출고취소</button>
-                            <button onclick="deleteCheckedStock()" class="px-3 py-1.5 bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 font-bold text-xs rounded-lg shadow-sm flex items-center gap-1">
-                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> 선택 삭제
-                            </button>
-                        </div>
-                    </div>
-                    <div class="overflow-auto max-h-[60vh] border border-slate-200 rounded-lg">
-                        <table class="w-full text-left text-xs">
-                            <thead class="bg-slate-800 text-slate-200 font-bold sticky top-0">
-                                <tr>
-                                    <th class="p-2 text-center"><input type="checkbox" id="stock-check-all" onchange="toggleStockCheckAll(this)"></th>
-                                    <th class="p-2">거래처명</th><th class="p-2">도매업체명</th><th class="p-2">도매상품명</th><th class="p-2">소매상품명</th>
-                                    <th class="p-2">컬러</th><th class="p-2">사이즈</th><th class="p-2 text-right">수량</th><th class="p-2">재고위치</th>
-                                    <th class="p-2">재고생성일</th><th class="p-2">상태</th><th class="p-2">반품고객명</th><th class="p-2 text-center">관리</th>
-                                </tr>
-                            </thead>
-                            <tbody id="stock-list" class="divide-y divide-slate-100 text-slate-700"></tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-3">
-                    <div class="flex justify-between items-center flex-wrap gap-2">
-                        <div>
-                            <h3 class="font-bold text-slate-900">업체별 현황</h3>
-                            <p class="text-xs text-slate-500 mt-0.5">업체를 누르면 위 목록이 그 업체로 바뀝니다. <b>미가입</b>은 같은 상호로 가입한 셀러가 없다는 뜻입니다 (재고표 이름과 가입 상호가 다르면 미가입으로 보입니다).</p>
-                        </div>
-                        <span id="stock-company-count" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full"></span>
-                    </div>
-                    <div class="overflow-auto max-h-[45vh] border border-slate-200 rounded-lg">
-                        <table class="w-full text-left text-xs">
-                            <thead class="bg-slate-800 text-slate-200 font-bold sticky top-0">
-                                <tr><th class="p-2">업체</th><th class="p-2 text-right">보관중</th><th class="p-2 text-right">출고됨</th><th class="p-2 text-center">회원</th></tr>
-                            </thead>
-                            <tbody id="stock-company-list" class="divide-y divide-slate-100 text-slate-700"></tbody>
-                        </table>
-                    </div>
+                    <button type="button" onclick="switchAdminTab('inventory')" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-lg shadow flex items-center gap-1.5"><i data-lucide="package" class="w-4 h-4"></i> 재고표 열기</button>
                 </div>
             </div>
         </div>
@@ -1920,72 +1851,6 @@
         <span>밤낮딜리버리 · 문의 카카오톡 010-5425-9060</span>
         <a href="/privacy" target="_blank" rel="noopener" class="font-bold text-slate-600 hover:underline">개인정보처리방침</a>
     </footer>
-
-    <!-- MODAL: 재고관리 > 재고 추가·수정 (stock-admin.js) -->
-    <div id="stock-edit-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
-        <form onsubmit="saveStockEdit(event)" class="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-4">
-            <div class="flex justify-between items-start">
-                <h3 id="stock-edit-title" class="text-lg font-bold text-slate-900">재고 추가</h3>
-                <button type="button" onclick="closeStockEdit()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
-            </div>
-            <datalist id="stock-company-options"></datalist>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                <label class="space-y-1"><span class="font-bold text-slate-600">거래처명 *</span><input id="stock-edit-company" list="stock-company-options" class="w-full px-3 py-2 border rounded-lg"></label>
-                <label class="space-y-1"><span class="font-bold text-slate-600">도매업체명</span><input id="stock-edit-wholesale_company" class="w-full px-3 py-2 border rounded-lg"></label>
-                <label class="space-y-1"><span class="font-bold text-slate-600">도매상품명</span><input id="stock-edit-wholesale_product" class="w-full px-3 py-2 border rounded-lg"></label>
-                <label class="space-y-1"><span class="font-bold text-slate-600">소매상품명</span><input id="stock-edit-retail_product" class="w-full px-3 py-2 border rounded-lg"></label>
-                <label class="space-y-1"><span class="font-bold text-slate-600">컬러</span><input id="stock-edit-color" class="w-full px-3 py-2 border rounded-lg"></label>
-                <label class="space-y-1"><span class="font-bold text-slate-600">사이즈</span><input id="stock-edit-size" class="w-full px-3 py-2 border rounded-lg"></label>
-                <label class="space-y-1"><span class="font-bold text-slate-600">수량</span><input id="stock-edit-quantity" type="number" step="any" class="w-full px-3 py-2 border rounded-lg"></label>
-                <label class="space-y-1"><span class="font-bold text-slate-600">재고위치</span><input id="stock-edit-location" class="w-full px-3 py-2 border rounded-lg"></label>
-                <label class="space-y-1"><span class="font-bold text-slate-600">재고생성일</span><input id="stock-edit-stocked_on" type="date" class="w-full px-3 py-2 border rounded-lg"></label>
-                <label class="space-y-1"><span class="font-bold text-slate-600">재고출고일</span><input id="stock-edit-shipped_on" type="date" class="w-full px-3 py-2 border rounded-lg"></label>
-                <label class="space-y-1 sm:col-span-2"><span class="font-bold text-slate-600">출고 메모 <span class="font-normal text-slate-400">(예: 매장반품, 당택으로 출고 · 날짜나 메모가 있으면 출고됨)</span></span><input id="stock-edit-shipped_note" class="w-full px-3 py-2 border rounded-lg"></label>
-                <label class="space-y-1"><span class="font-bold text-slate-600">기타(반품고객명)</span><input id="stock-edit-customer" class="w-full px-3 py-2 border rounded-lg"></label>
-                <label class="space-y-1"><span class="font-bold text-slate-600">라벨</span><input id="stock-edit-label" class="w-full px-3 py-2 border rounded-lg"></label>
-                <label class="space-y-1 sm:col-span-2"><span class="font-bold text-slate-600">메모 <span class="font-normal text-slate-400">(업체 재고 화면에는 안 보임)</span></span><input id="stock-edit-memo" class="w-full px-3 py-2 border rounded-lg"></label>
-            </div>
-            <div class="flex justify-between gap-2">
-                <button type="button" id="stock-edit-delete" onclick="deleteStockEdit()" class="px-4 py-2 border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-bold">삭제</button>
-                <div class="flex gap-2 ml-auto">
-                    <button type="button" onclick="closeStockEdit()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold">취소</button>
-                    <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold">저장</button>
-                </div>
-            </div>
-        </form>
-    </div>
-
-    <!-- MODAL: 재고관리 > 재고표 엑셀 올리기 미리보기 (stock-admin.js) -->
-    <div id="stock-upload-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-            <div class="p-5 border-b space-y-2">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <h3 class="text-lg font-bold text-slate-900">재고표 올리기 확인</h3>
-                        <p class="text-xs text-slate-500 mt-0.5">아래 업체의 재고를 <b>이 파일 내용으로 통째로 바꿉니다.</b> 파일에 없는 업체 재고는 그대로 둡니다.</p>
-                    </div>
-                    <button type="button" onclick="closeStockUpload()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
-                </div>
-                <div id="stock-upload-info" class="text-xs text-slate-700"></div>
-                <div id="stock-upload-sheets" class="text-[11px]"></div>
-            </div>
-            <div class="overflow-auto flex-1 p-5">
-                <table class="w-full text-left text-xs">
-                    <thead class="text-slate-500 border-b">
-                        <tr><th class="p-2">업체</th><th class="p-2 text-right">보관중</th><th class="p-2 text-right">출고됨</th><th class="p-2 text-right">지금 저장된 재고</th><th class="p-2 text-center">회원</th></tr>
-                    </thead>
-                    <tbody id="stock-upload-list" class="divide-y divide-slate-100 text-slate-700"></tbody>
-                </table>
-            </div>
-            <div class="p-5 border-t flex justify-between items-center gap-2">
-                <span id="stock-upload-status" class="text-xs text-indigo-600 font-bold"></span>
-                <div class="flex gap-2">
-                    <button type="button" onclick="closeStockUpload()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold">취소</button>
-                    <button type="button" id="stock-upload-confirm" onclick="confirmStockUpload()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-lg text-xs font-bold">저장하기</button>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- MODAL: 정산서 발송 > 바뀐 내용 비교 (settle-admin.js) -->
     <div id="settle-diff-modal" onclick="if(event.target===this)closeSettleDiff()" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
@@ -6644,7 +6509,7 @@
         // 관리자 메뉴 묶음: 큰 묶음 → 그 안의 탭
         const ADMIN_GROUPS = {
             order: ['orders', 'pickup', 'ship'],
-            stock: ['stock', 'products', 'inventory', 'picking', 'history', 'unify'],
+            stock: ['inventory', 'products', 'picking', 'history', 'unify', 'stock'],   // 묶음을 누르면 재고표부터
             settle: ['settle'],
             sellers: ['sellers'],
             inquiry: ['inquiry', 'chatlog', 'unanswered'],
