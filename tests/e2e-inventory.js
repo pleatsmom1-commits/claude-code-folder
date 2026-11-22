@@ -224,9 +224,8 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   const trows = XLSX.utils.sheet_to_json(twb.Sheets['최종재고'], { header: 1 });
   check('template header', trows[0].slice(0, 12).join() === '거래처명,상품코드,도매업체명,도매상품명,컬러,사이즈,쇼핑몰상품명,상품화수량,미상품화수량,불량수량,재고위치,메모', trows[0].join());
   const tFlower = trows.find(r => r[3] === '꽃니트') || [];
-  check('old stock merged into existing product (label o -> 상품화 2, none -> 미상품화 1, both locations)', tFlower[1] === prod('꽃니트').code && tFlower[7] === 2 && tFlower[8] === 1 && tFlower[10] === 'G-1, G-2', JSON.stringify(tFlower));
-  const tJean = trows.find(r => r[3] === '청바지') || [];
-  check('old-only item listed without code, 불량 from memo', !tJean[1] && tJean[6] === '와이드 데님' && tJean[8] === 3 && tJean[9] === 1, JSON.stringify(tJean));
+  // 2026-11-22: 예전 보관 목록(stock_items)은 없앰 → 양식은 지금 재고표·상품관리로만 채움
+  check('template no longer filled from old stock_items', tFlower[1] === prod('꽃니트').code && tFlower[7] === 0 && tFlower[8] === 0 && !trows.some(r => r[3] === '청바지'), JSON.stringify(tFlower));
   check('shipped old row not in template', !trows.some(r => r[3] === '나간상품'));
   check('product with no stock (목걸이) included with 0', trows.some(r => r[3] === '목걸이' && r[7] === 0 && r[8] === 0));
   check('작성방법 sheet', twb.SheetNames.includes('작성방법'));

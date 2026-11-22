@@ -1,4 +1,4 @@
-// 재고관리 (관리자 [재고관리] 탭 + 업체 재고 확인 화면 stock.html) + 핵심 화면 확인용 E2E
+// 관리자 [셀러 재고 공개] 탭(숨기기) + 예전 /stock → /inventory + 핵심 화면 확인용 E2E
 // 실제 Supabase 대신 메모리 속 가짜 서버를 씁니다. 사용: cd tests && npm install && node e2e-stock.js
 const { chromium } = require('/opt/node22/lib/node_modules/playwright');
 const path = require('path');
@@ -26,7 +26,7 @@ const tables = {
   orders: [{ id: 'ORD-1', seller_id: ids.seller, seller_company: '가나 샵', sender_name: '밤낮딜리버리(가나 샵)', recipient: '홍길동', phone: '010-2222-3333', address: '서울', product: '티셔츠', status: '접수대기', ship_status: '미출고', order_type: 'fulfillment', order_no: 1, item_no: 1, seller_order_no: 1, created_at: new Date().toISOString() }],
   couriers: [{ id: 'c1', name: '우체국택배', sort_order: 1 }],
   address_book: [], pickup_requests: [], settlements: [], settle_contacts: [],
-  stock_visibility: [], products: [{ id: 1, company: '재고표만샵', deleted_at: null }],
+  stock_visibility: [], products: [{ id: 1, company: '재고표만샵', deleted_at: null }, { id: 2, company: '가나샵', deleted_at: null }],
   stock_items: [{ id: 1, company: '가나샵', wholesale_company: '옛도매', wholesale_product: '지워질상품', retail_product: '', color: '', size: '', quantity: 1, location: '', stocked_on: '2026-01-01', shipped_on: null, customer: '', label: '', memo: '' }],
 };
 let nextStockId = 100;
@@ -172,89 +172,22 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.goto(PAGE); await page.waitForTimeout(800);
   check('login screen shown', await vis('#login-form'));
 
-  // ---------- 2. 관리자: 주문 목록 + 재고관리 탭 ----------
+  // ---------- 2. 관리자: 주문 목록 + [재고/상품/출고관리] ----------
+  // 2026-11-22: 예전 보관 목록(stock_items) 화면을 없앰. 재고는 [재고표] 하나, [셀러 재고 공개] 탭엔 숨기기 설정만
   await page.click('#tab-btn-admin');
   await page.fill('#login-email', 'admin@x.com'); await page.fill('#login-pw', 'adminpass1');
   await page.click('#btn-login'); await page.waitForTimeout(1500);
   check('admin dashboard + order list', (await vis('#admin-dashboard')) && (await page.textContent('#admin-order-list')).includes('홍길동'));
-  await page.click('#admin-group-stock'); await page.waitForTimeout(300);
-  await page.click('#admin-tab-stock'); await page.waitForTimeout(600);
-  check('stock tab shows existing item', (await vis('#admin-stock-panel')) && (await page.textContent('#stock-list')).includes('지워질상품'));
-  check('company summary marks 가나샵 linked to seller "가나 샵"', (await page.textContent('#stock-company-list')).includes('연결됨'));
-
-  // 엑셀 올리기 → 미리보기
-  await page.setInputFiles('#admin-stock-panel input[type=file]', xlsxFile); await page.waitForTimeout(800);
-  check('upload preview modal open', await vis('#stock-upload-modal'));
-  const sheetsText = await page.textContent('#stock-upload-sheets');
-  check('예시 / (X) tabs skipped', sheetsText.includes('예시: 건너뜀') && sheetsText.includes('종료샵(X): 건너뜀'), sheetsText);
-  const upText = (await page.textContent('#stock-upload-list')).replace(/\s+/g, ' ');
-  check('preview lists 가나샵 / 다라상회 / 마바상회, not 종료샵', ['가나샵', '다라상회', '마바상회'].every(c => upText.includes(c)) && !upText.includes('종료샵'), upText);
-  check('preview says 가나샵 will be replaced', upText.includes('1줄 → 교체'), upText);
-  await page.click('#stock-upload-confirm'); await page.waitForTimeout(1500);
-  check('upload saved alert', lastDialog().includes('4곳을 저장'), lastDialog());
-  const din = stockOf('가나샵');
-  check('가나샵 replaced: 6 rows (incl. product-less return), old row gone, blank row skipped', din.length === 6 && !din.some(r => r.wholesale_product === '지워질상품'), JSON.stringify(din.map(r => r.wholesale_product)));
-  const byName = n => tables.stock_items.find(r => r.wholesale_product === n) || {};
-  check('dates parsed (Date / 260728 / 20260901 / serial / text)',
-    byName('꽃무늬 니트').stocked_on === '2026-10-20' && byName('청바지').stocked_on === '2026-07-28'
-    && byName('출고된상품').stocked_on === '2026-09-01' && byName('출고된상품').shipped_on === '2026-09-15'
-    && byName('목걸이A').stocked_on === '2025-11-20' && byName('긴팔티B').stocked_on === '2026-09-28',
-    JSON.stringify(tables.stock_items.map(r => [r.wholesale_product, r.stocked_on, r.shipped_on])));
-  const sa = tables.stock_items.filter(r => r.company === '사아샵');
-  check('잔여재고 column read as 수량, 불량수량 -> memo', sa.length === 2 && sa.find(r => r.wholesale_product === '114').quantity === 11 && sa.find(r => r.wholesale_product === '119').memo === '불량 1개', JSON.stringify(sa));
-  check('기타업체들 rows use 거래처명 column', byName('목걸이A').company === '다라상회' && byName('긴팔티B').company === '마바상회' && byName('긴팔티B').quantity === 3);
-  check('shipped text "10/28출고" -> date + note', byName('텍스트출고').shipped_on === '2026-10-28' && byName('텍스트출고').shipped_note === '10/28출고', JSON.stringify(byName('텍스트출고')));
-  check('"…보관" text stays 보관중 with memo', !byName('보관메모').shipped_on && !byName('보관메모').shipped_note && byName('보관메모').memo.includes('보관'), JSON.stringify(byName('보관메모')));
-  const ret = tables.stock_items.find(r => r.customer === '고객다') || {};
-  check('product-less return row kept as 출고됨 note', ret.shipped_note === '재고출고' && ret.stocked_on === '2026-02-24', JSON.stringify(ret));
-  check('customer / location / label kept', byName('꽃무늬 니트').customer === '고객가' && byName('꽃무늬 니트').location === 'G-1' && byName('꽃무늬 니트').label === 'o');
-
-  // 목록 필터: 기본 보관중 → 출고된상품 안 보임
-  let listText = await page.textContent('#stock-list');
-  check('default filter 보관중 hides shipped row', listText.includes('꽃무늬 니트') && !listText.includes('출고된상품'));
-  await page.selectOption('#stock-f-status', 'shipped'); await page.waitForTimeout(200);
-  listText = await page.textContent('#stock-list');
-  check('출고됨 filter shows shipped row only', listText.includes('출고된상품') && !listText.includes('꽃무늬 니트'));
-  await page.selectOption('#stock-f-status', 'kept');
-  await page.fill('#stock-f-keyword', '청바지'); await page.waitForTimeout(200);
-  check('keyword search', (await page.locator('#stock-list tr').count()) === 1 && (await page.textContent('#stock-list')).includes('청바지'));
-  await page.fill('#stock-f-keyword', ''); await page.waitForTimeout(200);
-
-  // 선택 출고처리
-  const flowerId = byName('꽃무늬 니트').id;
-  await page.check(`#stock-list input[data-id="${flowerId}"]`);
-  promptAnswer = '2026-10-27';
-  await page.click('#admin-stock-panel button:has-text("선택 출고처리")'); await page.waitForTimeout(800);
-  check('ship checked -> shipped_on set', byName('꽃무늬 니트').shipped_on === '2026-10-27', JSON.stringify(byName('꽃무늬 니트')));
-  check('shipped row leaves 보관중 list', !(await page.textContent('#stock-list')).includes('꽃무늬 니트'));
-
-  // 재고 추가 (반품 입고)
-  await page.selectOption('#stock-f-company', norm('가나샵')); await page.waitForTimeout(200);
-  await page.click('#admin-stock-panel button:has-text("재고 추가")'); await page.waitForTimeout(300);
-  check('add modal open with company prefilled', (await vis('#stock-edit-modal')) && (await page.inputValue('#stock-edit-company')) === '가나샵');
-  await page.fill('#stock-edit-wholesale_product', '새반품'); await page.fill('#stock-edit-quantity', '2'); await page.fill('#stock-edit-customer', '고객마');
-  await page.click('#stock-edit-modal button[type=submit]'); await page.waitForTimeout(800);
-  check('added row saved', byName('새반품').quantity === 2 && byName('새반품').customer === '고객마' && byName('새반품').company === '가나샵', JSON.stringify(byName('새반품')));
-  // 수정
-  await page.locator('#stock-list tr', { hasText: '새반품' }).locator('button', { hasText: '수정' }).click(); await page.waitForTimeout(300);
-  await page.fill('#stock-edit-location', 'H-9');
-  await page.click('#stock-edit-modal button[type=submit]'); await page.waitForTimeout(800);
-  check('edit saved', byName('새반품').location === 'H-9');
-
-  // 엑셀 다운로드
-  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#admin-stock-panel button:has-text("엑셀 다운로드")')]);
-  const dlPath = path.join(__dirname, 'out', 'stock-download.xlsx'); await dl.saveAs(dlPath);
-  const dwb = XLSX.readFile(dlPath);
-  check('download: one tab per company with original headers', dwb.SheetNames.includes('가나샵') && XLSX.utils.sheet_to_json(dwb.Sheets['가나샵'], { header: 1 })[0].join() .startsWith('거래처명,도매업체명,도매상품명'), dwb.SheetNames.join());
-  await page.selectOption('#stock-f-status', 'all'); await page.waitForTimeout(200);
-  await page.screenshot({ path: path.join(__dirname, 'out', 'shot-stock-admin.png'), fullPage: true });
-
-  // 관리자 미리보기 화면
-  const p2 = await context.newPage();
-  p2.on('pageerror', e => pageErrors.push('stock.html: ' + e.message));
-  await p2.goto(STOCK_PAGE + '?company=' + encodeURIComponent('가나샵')); await p2.waitForTimeout(1200);
-  check('admin preview page shows 가나샵 stock + preview bar', (await p2.isVisible('#preview-bar')) && (await p2.textContent('#list')).includes('새반품'));
-  await p2.close();
+  await page.click('#admin-group-stock'); await page.waitForTimeout(500);
+  check('stock group opens 재고표 tab first', (await vis('#admin-inventory-panel')) && !(await vis('#admin-stock-panel')));
+  const tabOrder = await page.$$eval('#admin-subtabs button:not(.hidden)', bs => bs.map(b => b.textContent.trim()));
+  check('셀러 재고 공개 tab is last, no 재고관리 tab', tabOrder[tabOrder.length - 1] === '셀러 재고 공개' && !tabOrder.includes('재고관리'), tabOrder.join(','));
+  await page.click('#admin-tab-stock'); await page.waitForTimeout(900);
+  check('셀러 재고 공개: hide box + 재고표 안내, no old list', (await vis('#stock-hide-box')) && (await page.textContent('#admin-stock-panel')).includes('재고는 [재고표] 하나로 봅니다')
+    && !(await page.$('#stock-list')) && !(await page.$('#stock-company-list')) && !(await page.$('#stock-upload-modal')));
+  check('old stock_items table never requested', !requests.some(r => r.path === '/rest/v1/stock_items'));
+  await page.click('#admin-stock-panel button:has-text("재고표 열기")'); await page.waitForTimeout(500);
+  check('[재고표 열기] switches to 재고표 tab', await vis('#admin-inventory-panel'));
   await page.evaluate(() => logout()); await page.waitForTimeout(800);
 
   // ---------- 3. 셀러: 주문 화면 + 재고 확인 버튼 + 재고 화면 ----------
@@ -296,7 +229,6 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   check('status shows 숨긴 업체 1곳 and row shows 숨김', (await page.textContent('#stock-hide-status')).includes('숨긴 업체 1곳') && (await page.textContent('#stock-hide-list')).includes('셀러에게 숨김'));
   await page.fill('#stock-hide-q', ''); await page.waitForTimeout(200);
   check('empty search shows the exception list', (await page.textContent('#stock-hide-list')).includes('따로 숨긴 업체') && (await page.textContent('#stock-hide-list')).includes('가나샵'));
-  check('admin still sees 가나샵 stock', (await page.textContent('#stock-list')).includes('청바지'));
   await page.screenshot({ path: path.join(__dirname, 'out', 'shot-stock-hide-one.png'), clip: { x: 0, y: 0, width: 1400, height: 620 } });
 
   // 셀러로 확인 (같은 탭에서 로그아웃 → 셀러 로그인)
