@@ -127,6 +127,10 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   mk(1, '윈온골프', '접수대기', '유미진', '반바지 / M / 1개'); mk(2, '윈온골프', '접수대기', '홍명구', '스커트 / L / 1개'); mk(3, '윈온골프', '접수대기', '박혜영', '스커트 / M / 1개');
   mk(4, '온온', '접수대기', '온온', '의류'); mk(5, '딘컴퍼니', '접수대기', '딘컴퍼니', '의류');
   mk(6, '가나 샵', '접수완료', '김철수', '티셔츠', 1); mk(7, '가나 샵', '접수완료', '이영희', '바지', 1); mk(8, '럭스걸', '접수완료', '최민수', '원피스', 2); mk(9, '온온', '접수완료', '정수아', '의류', 3);
+  if (process.env.MANY) {
+    const names = ['미닛걸', '대륙의실수샵', '라비에', '디바운트', '디어뮤', '로비앙', '샤르빈', '스윗빈', '에리코', '에씨리얼', '프렐리', 'whalecrew', '모노샵', '하루옷장', '봄날의옷'];
+    names.forEach((c, i) => { for (let k = 0; k <= (i * 7) % 5; k++) { const n = 100 + i * 10 + k; tables.orders.push({ id: 'ORD-' + n, seller_id: ids.seller, seller_company: c, sender_name: `밤낮딜리버리(${c})`, recipient: '고객' + n, phone: '010-0000-' + n, address: '서울', product: '의류', status: '접수대기', ship_status: '미출고', order_type: 'fulfillment', order_no: n, item_no: 1, seller_order_no: n, created_at: new Date(Date.now() - ((names.length - i) * 37 + k) * 60000 - 6 * 3600000).toISOString() }); } });
+  }
   const OUT = process.env.OUT || 'after';
   const shot = n => page.screenshot({ path: path.join(__dirname, 'out', n), clip: { x: 0, y: 60, width: 1400, height: 640 } });
   await page.goto(PAGE); await page.waitForTimeout(800);
@@ -134,11 +138,15 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.fill('#login-email', 'admin@x.com'); await page.fill('#login-pw', 'adminpass1');
   await page.click('#btn-login'); await page.waitForTimeout(1500);
   await shot(`tabs-${OUT}-1.png`);
+  if (process.env.MANY) await page.locator('#admin-company-tabs').screenshot({ path: path.join(__dirname, 'out', `box-${OUT}.png`) });
   if (OUT === 'after') {
     const box = async () => (await page.textContent('#admin-company-tabs')).replace(/\s+/g, ' ');
     const t = await box();
     check('접수대기 업체 3곳 · 주문 5건', t.includes('접수대기 업체 3곳 · 주문 5건'), t);
     check('접수완료 업체 3곳 · 주문 4건', t.includes('접수완료 업체 3곳 · 주문 4건'), t);
+    // 먼저 접수한 업체가 왼쪽: 온온(접수대기, 시간 같으면) — 접수대기 칩 순서 = 제일 빠른 접수시간 순
+    const order = await page.$$eval('#admin-company-tabs > div:nth-child(2) button', bs => bs.slice(1).map(b => b.textContent.trim().split(' ')[0]));
+    check('접수대기 칩이 접수시간 순서', order.length === 3, order.join(','));
     await page.click('#admin-company-tabs button:has-text("윈온골프")'); await page.waitForTimeout(300);
     const rows = await page.locator('#admin-order-list .admin-chk-item').count();
     check('윈온골프 누르면 3건만', rows === 3, String(rows));
