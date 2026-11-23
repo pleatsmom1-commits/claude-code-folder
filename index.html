@@ -42,6 +42,7 @@
         .seller-pending .seller-work { display: none !important; }
         .order-scroll thead th.col-manage { z-index: 11; background-color: var(--th-bg, #f1f5f9); }
     </style>
+    <script src="/track.js" data-role="guest" defer></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
 
@@ -881,6 +882,9 @@
                     <button id="admin-group-aicost" onclick="switchAdminGroup('aicost')" class="">
                         <i data-lucide="coins" class="w-4 h-4"></i> AI 사용료
                     </button>
+                    <button id="admin-group-visits" onclick="switchAdminGroup('visits')" class="">
+                        <i data-lucide="bar-chart-3" class="w-4 h-4"></i> 방문 통계
+                    </button>
                     <button id="admin-group-staff" onclick="switchAdminGroup('staff')" class="">
                         <i data-lucide="user-cog" class="w-4 h-4"></i> 직원 관리
                     </button>
@@ -935,6 +939,10 @@
                     </button>
                     <button id="admin-tab-aicost" onclick="switchAdminTab('aicost')" class="">
                         AI 사용료
+                    </button>
+                    <!-- 방문 통계 (visits.html, supabase/site_visits.sql, 기록은 track.js) -->
+                    <button id="admin-tab-visits" onclick="switchAdminTab('visits')" class="">
+                        방문 통계
                     </button>
                     <button id="admin-tab-activity" onclick="switchAdminTab('activity')" class="">
                         작업 기록
@@ -1817,6 +1825,9 @@
             </div>
 
             <!-- 3-10. AI 사용료 (ai-cost.html 을 그대로 불러와 보여줌) -->
+            <div id="admin-visits-panel" class="hidden space-y-2">
+                <iframe id="admin-visits-frame" title="방문 통계" class="w-full bg-white rounded-xl border border-slate-200" style="height: calc(100vh - 220px); min-height: 600px;"></iframe>
+            </div>
             <div id="admin-aicost-panel" class="hidden space-y-2">
                 <iframe id="admin-aicost-frame" title="AI 사용료" class="w-full bg-white rounded-xl border border-slate-200" style="height: calc(100vh - 220px); min-height: 600px;"></iframe>
             </div>
@@ -2799,6 +2810,7 @@
             currentUserId = user.id;
             currentSellerAccount = { ...profile, email: user.email };
             currentRole = profile.role === 'admin' ? 'admin' : 'seller';
+            window.bamnatTrack?.setRole(currentRole);   // 방문 통계 (track.js)
 
             // 관리자가 [화면 보기]로 연 창이면, 고른 셀러가 로그인한 것처럼 셀러 화면을 그립니다 (보기 전용).
             if (VIEW_AS_ID && profile.role === 'admin') {
@@ -2850,6 +2862,7 @@
 
         function showLoginScreen() {
             currentRole = null;
+            window.bamnatTrack?.setRole('guest');
             currentSellerAccount = null;
             currentUserId = null;
             ordersMaster = [];
@@ -6546,6 +6559,7 @@
             sellers: ['sellers'],
             inquiry: ['inquiry', 'chatlog', 'unanswered'],
             aicost: ['aicost'],
+            visits: ['visits'],
             staff: ['activity', 'staff'],   // 대표 아이디만 보임 (staff-admin.js)
         };
         const ADMIN_GROUP_OF = Object.fromEntries(Object.entries(ADMIN_GROUPS).flatMap(([g, tabs]) => tabs.map(t => [t, g])));
@@ -6592,6 +6606,8 @@
             document.getElementById('admin-unify-panel').classList.toggle('hidden', tab !== 'unify');
             document.getElementById('admin-tab-aicost').className = tab === 'aicost' ? on : off;
             document.getElementById('admin-aicost-panel').classList.toggle('hidden', tab !== 'aicost');
+            document.getElementById('admin-tab-visits').className = tab === 'visits' ? on : off;
+            document.getElementById('admin-visits-panel').classList.toggle('hidden', tab !== 'visits');
             document.getElementById('admin-ship-panel').classList.toggle('hidden', tab !== 'ship');
             document.getElementById('admin-orders-panel').classList.toggle('hidden', tab !== 'orders');
             document.getElementById('admin-sellers-panel').classList.toggle('hidden', tab !== 'sellers');
@@ -6618,7 +6634,7 @@
             if (tab === 'unanswered') fetchUnanswered();
             if (tab === 'staff') onStaffTabOpened();
             if (tab === 'activity') onActivityTabOpened();
-            if (tab === 'products' || tab === 'inventory' || tab === 'picking' || tab === 'aicost' || tab === 'history' || tab === 'unify') {
+            if (tab === 'products' || tab === 'inventory' || tab === 'picking' || tab === 'aicost' || tab === 'history' || tab === 'unify' || tab === 'visits') {
                 const frame = document.getElementById(`admin-${tab}-frame`);
                 const page = tab === 'aicost' ? 'ai-cost' : tab === 'history' ? 'stock-history' : tab === 'unify' ? 'company-unify' : tab;
                 if (!frame.getAttribute('src')) frame.setAttribute('src', `${page}.html?embed=1`);
