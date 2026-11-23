@@ -1001,11 +1001,18 @@
                             <button onclick="revertAcceptSelectedOrders()" class="px-3 py-1.5 bg-white border border-emerald-300 hover:bg-emerald-50 text-emerald-700 font-bold text-xs rounded-lg shadow-sm" title="접수완료 → 접수대기로 되돌립니다">선택 접수취소</button>
                             <button onclick="shipSelectedOrders()" class="ship-ui px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg shadow-sm">선택 출고완료</button>
                             <button onclick="setShipStatusForSelected('미출고')" class="ship-ui px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg shadow-sm">선택 출고취소</button>
-                            <button onclick="editSelectedAdminOrder()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-sm">선택수정</button>
+                            <button id="btn-edit-selected" onclick="editSelectedAdminOrder()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-sm" title="1개 체크: 그 주문 수정 · 2개 이상 체크: 합배송 묶기 / 부분출고로 바꾸기">선택수정</button>
                             <button onclick="markSeparateSelectedOrders()" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs rounded-lg shadow-sm" title="이 사이트 밖에서 이미 따로 처리·배송한 접수건에 표시합니다 (접수완료로 바뀜)">따로 처리됨</button>
                             <button onclick="setHiddenSelectedOrders(true)" class="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg shadow-sm" title="테스트 접수건 등을 목록에서 안 보이게 합니다 (지우지 않음)">선택 숨기기</button>
                             <button onclick="trashSelectedOrders()" class="px-3 py-1.5 bg-white border border-rose-300 hover:bg-rose-50 text-rose-600 font-bold text-xs rounded-lg shadow-sm" title="접수건을 아예 지웁니다. 셀러 화면·엑셀·정산에서도 사라지고, [휴지통]에서 90일 안에 복원할 수 있습니다">선택 삭제</button>
                         </div>
+                    </div>
+
+                    <!-- [선택수정] 사용법 상시 안내 (체크 개수에 따라 하는 일이 다름) -->
+                    <div id="edit-selected-hint" class="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 rounded-lg border border-indigo-200 bg-indigo-50 text-xs text-indigo-900">
+                        <span class="font-black">✏️ [선택수정] 사용법</span>
+                        <span><b class="px-1.5 py-0.5 rounded bg-white border border-indigo-200">1개만 체크</b> → 그 주문 하나 수정 · 합배송 건이면 <b>그 상품만 부분출고</b>로 빼기</span>
+                        <span><b class="px-1.5 py-0.5 rounded bg-white border border-indigo-200">2개 이상 체크</b> → <b>합배송으로 묶기</b> / 묶인 것 <b>부분출고로 풀기</b></span>
                     </div>
 
                     <!-- 업체별 접수 현황: 접수대기/접수완료 업체 목록 + 누르면 그 업체 주문만 조회 -->
@@ -2065,6 +2072,7 @@
                     <span class="block mt-1 text-[11px] text-slate-500">(합)을 떼고 각자 번호를 받습니다. 준비된 상품부터 따로 출고할 수 있습니다.</span>
                 </button>
             </div>
+            <p class="text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">💡 주소·상품명·메모처럼 <b>내용을 고치려면</b> 창을 닫고 <b>1개만 체크</b>한 뒤 [선택수정]을 누르세요.</p>
             <div class="flex justify-end">
                 <button type="button" onclick="closeCombineModal()" class="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg">닫기</button>
             </div>
@@ -5285,8 +5293,19 @@
                 </tr>
             `;
             }).join('');
-
+            updateEditSelectedBtn();
         }
+
+        // [선택수정] 버튼 글자: 체크 개수에 따라 무엇을 하는지 보여줌
+        function updateEditSelectedBtn() {
+            const btn = document.getElementById('btn-edit-selected');
+            if (!btn) return;
+            const n = document.querySelectorAll('.admin-chk-item:checked').length;
+            btn.textContent = n === 0 ? '선택수정' : n === 1 ? '선택수정 (1개: 주문 수정)' : `선택수정 (${n}개: 합배송/부분출고)`;
+        }
+        document.addEventListener('change', e => {
+            if (e.target && (e.target.classList.contains('admin-chk-item') || e.target.id === 'chk-all-admin')) updateEditSelectedBtn();
+        });
 
         // 관리자가 입력했지만 아직 저장하지 않은 택배사/송장번호 (표를 다시 그려도 유지)
         let trackingDrafts = {};
@@ -5319,7 +5338,7 @@
         function editSelectedAdminOrder() {
             const ids = Array.from(document.querySelectorAll('.admin-chk-item:checked')).map(c => c.value);
             if (ids.length === 0) {
-                alert('수정할 주문을 체크박스로 1건 선택해주세요.');
+                alert('수정할 주문을 체크해주세요.\n\n· 1개만 체크 → 그 주문 하나 수정 (합배송 건이면 그 상품만 부분출고로 빼기)\n· 2개 이상 체크 → 합배송으로 묶기 / 부분출고로 풀기');
                 return;
             }
             if (ids.length > 1) {
