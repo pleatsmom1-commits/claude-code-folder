@@ -4076,12 +4076,22 @@
                         }
                     }
 
+                    // 제목줄에 '수화인·송화인' 대신 '수령자명'·'상품명' 처럼 적힌 양식(예: 온더포엑스)도 제목줄로 찾음 (2026-11-23)
+                    if (headerIdx === -1) {
+                        headerIdx = rows.slice(0, 10).findIndex(x => {
+                            const t = (x || []).map(c => String(c ?? '')).join(' ');
+                            return t.includes('상품명') && /수화인|수령자|수령인|수취인|받는\s*(분|사람)/.test(t);
+                        });
+                    }
                     if (headerIdx === -1) headerIdx = 1;
 
                     // 2026 신규 양식은 맨 앞(A열)에 'NO.' 열이 있습니다. 있으면 한 칸씩 밀어서 읽습니다.
                     const headerRow = rows[headerIdx] || [];
                     const off = /^\s*no\.?\s*$/i.test(String(headerRow[0] ?? '')) ? 1 : 0;
                     const colName = i => String.fromCharCode(65 + i + off);
+                    // 양식 뒤에 덧붙은 칸: '마스터상품코드'(도매처(도매상품명)숫자) · '주문선택사항'(옵션) — 있을 때만 씀 (2026-11-23)
+                    const mcCol = typeof masterCodeCol === 'function' ? masterCodeCol(headerRow) : -1;
+                    const optCol = headerRow.findIndex((h, k) => k > 10 + off && /^(주문)?(선택사항|옵션(정보|명)?)$/.test(String(h ?? '').replace(/\s/g, '')));
 
                     const batchOrders = [];
                     const batchRows = [];   // 엑셀 몇 번째 줄인지 (확인표에 보여줌)
@@ -4113,6 +4123,15 @@
                         if (!normalizePhone(r[7])) missing.push(`받는사람 연락처(${colName(7)}열)`);
                         if (missing.length > 0) missingFieldRows.push({ row: excelRowNo, fields: missing.join(', ') });
 
+                        // 도매거래처명·도매상품명이 비었으면 마스터상품코드에서 채움
+                        const mc = mcCol >= 0 && typeof parseMasterCode === 'function' ? parseMasterCode(raw[mcCol]) : null;
+                        // 옵션 칸이 따로 있으면 상품명 뒤에 " / 컬러 / 사이즈" 로 붙임 (이미 상품명에 있으면 그대로)
+                        let productText = cell(r[4]);
+                        const opt = optCol >= 0 ? cell(raw[optCol]) : '';
+                        if (opt && productText && !productText.includes(opt) && typeof aiOptionParts === 'function') {
+                            productText = [productText, ...aiOptionParts(opt)].join(' / ');
+                        }
+
                         batchRows.push(excelRowNo);
                         batchOrders.push({
                             id: generateOrderId('ORD-EXCEL'),
@@ -4121,9 +4140,9 @@
                             cs_phone: formatPhone(normalizePhone(r[1]) || currentSellerAccount.phone || ''),
                             recipient: cell(r[2]),
                             address: cell(r[3]),
-                            product: cell(r[4]),
-                            wholesale_company: cell(r[5]),
-                            wholesale_product: cell(r[6]),
+                            product: productText,
+                            wholesale_company: cell(r[5]) || (mc ? mc.company : ''),
+                            wholesale_product: cell(r[6]) || (mc ? mc.product : ''),
                             phone: formatPhone(normalizePhone(r[7])),
                             memo: cell(r[8]),
                             bamnat_memo: cell(r[9]),
