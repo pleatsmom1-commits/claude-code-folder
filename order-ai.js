@@ -161,6 +161,15 @@ function aiMask(v) {
     return s.slice(0, 15);
 }
 
+// 마스터상품코드 "독도(SSXR802)96898558" → 도매처 '독도', 도매상품명 'SSXR802' (끝 숫자는 무시)
+//  온더포엑스 주문서에 있는 칸 (2026-11-23 대표님 요청). 이 모양이 아니면 null
+function parseMasterCode(v) {
+    const m = aiCell(v).match(/^([^()]+?)\s*\(\s*([^()]+?)\s*\)\s*[\d\-]*$/);
+    return m ? { company: m[1].trim(), product: m[2].trim() } : null;
+}
+// 제목줄에서 마스터상품코드 칸 위치 (없으면 -1)
+const masterCodeCol = head => (head || []).findIndex(h => /마스터\s*상품\s*코드/.test(aiCell(h)));
+
 function aiBuildRows(rows, mapping) {
     const c = mapping.columns, at = (r, k) => (c[k] >= 0 ? aiCell(r[c[k]]) : '');
     // 주문서에 도매처 칸이 있으면 그대로 읽음 (우리 요청서의 '도매거래처명'·'도매상품명' 등, 2026-11-17)
@@ -169,6 +178,7 @@ function aiBuildRows(rows, mapping) {
     const findCol = re => head.findIndex(h => re.test(h));
     const wpCol = findCol(/^도매(상품|제품)(명|이름)?$/);
     const wcCol = findCol(/^도매(거래처|처|업체|매장|상가)(명|이름)?$/);
+    const mcCol = masterCodeCol(rows[mapping.header_row]);
     const cell = (r, i) => (i >= 0 ? aiCell(r[i]) : '');
     const out = [];
     for (let i = mapping.header_row + 1; i < rows.length; i++) {
@@ -193,8 +203,8 @@ function aiBuildRows(rows, mapping) {
             option: at(r, 'option'),
             qty: parseInt(String(at(r, 'qty')).replace(/[^\d]/g, ''), 10) || 1,
             memo: at(r, 'memo'),
-            fileWholesaleCompany: cell(r, wcCol),
-            fileWholesaleProduct: cell(r, wpCol),
+            fileWholesaleCompany: cell(r, wcCol) || (parseMasterCode(cell(r, mcCol)) || {}).company || '',
+            fileWholesaleProduct: cell(r, wpCol) || (parseMasterCode(cell(r, mcCol)) || {}).product || '',
             removed: false,
         });
     }
