@@ -137,6 +137,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   if (process.env.ONLY_SHOT) { // 전후 그림만: 오전 9시 모습
     await page.evaluate(() => switchSellerMode('fulfillment'));
     await page.evaluate(() => setSimulatedTime(9 * 60)); await page.waitForTimeout(400);
+    await page.evaluate(() => window.scrollTo(0, 0)); await page.waitForTimeout(200);
     await shot(process.env.ONLY_SHOT);
     const foot = page.locator('#btn-submit-order').locator('xpath=..');
     await foot.scrollIntoViewIfNeeded(); await foot.screenshot({ path: path.join(OUT, 'btn_' + process.env.ONLY_SHOT) });
