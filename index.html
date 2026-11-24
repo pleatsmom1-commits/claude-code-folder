@@ -227,7 +227,8 @@
             <div id="ship-closed-notice" class="hidden bg-rose-50 border-2 border-rose-400 rounded-xl px-4 py-3 sm:px-5 sm:py-4">
                 <p class="text-base sm:text-lg font-black text-rose-700">🚚 지금은 택배출고 작업 시간이라 배송접수가 잠시 멈춰요 <span class="whitespace-nowrap">(오전 7시 ~ 오후 3시)</span></p>
                 <p class="mt-1.5 text-sm font-bold text-slate-800 leading-6">택배출고작업 시간인 오전 7시부터 오후3시까지는 접수가 불가합니다.<br>부득이하게 사무실 재고가 있는 물건 중 추가 출고해야할 상품은 <span class="text-rose-700 underline underline-offset-2">오후 1시전까지 카톡으로</span> 접수해주시길 바랍니다.</p>
-                <p class="mt-1 text-xs font-bold text-slate-500">오후 3시가 되면 접수 버튼이 다시 열려요. 사무실 보관요청·사입팀 픽업요청은 지금도 접수할 수 있어요.</p>
+                <p class="mt-1.5 text-sm font-black text-indigo-700">⏰ 오후3시부터 다시 접수가 가능하며, 3시 이후접수건은 다음날 출고가 됩니다.</p>
+                <p class="mt-1 text-xs font-bold text-slate-500">사무실 보관요청·사입팀 픽업요청은 지금도 접수할 수 있어요.</p>
             </div>
 
             <!-- 택배접수 종류 선택: 매장/사무실(사입대행) · 고객풀필먼트(고객배송대행) + 오른쪽 사무실 보관요청(모든 접수 필수) -->
@@ -2628,7 +2629,7 @@
         // 택배출고 작업 시간(한국시간 07:00 ~ 15:00)에는 셀러 주문 접수를 막습니다 (관리자는 접수 가능). 2026-11-24 대표님 요청
         const SHIP_CLOSE_START = 7 * 60;
         const SHIP_CLOSE_END = 15 * 60;   // 15:00 부터 다시 접수 가능
-        const SHIP_CLOSED_MESSAGE = '택배출고작업 시간인 오전 7시부터 오후3시까지는 접수가 불가합니다.\n부득이하게 사무실 재고가 있는 물건 중 추가 출고해야할 상품은 오후 1시전까지 카톡으로 접수해주시길 바랍니다.';
+        const SHIP_CLOSED_MESSAGE = '택배출고작업 시간인 오전 7시부터 오후3시까지는 접수가 불가합니다.\n부득이하게 사무실 재고가 있는 물건 중 추가 출고해야할 상품은 오후 1시전까지 카톡으로 접수해주시길 바랍니다.\n\n오후3시부터 다시 접수가 가능하며, 3시 이후접수건은 다음날 출고가 됩니다.';
         const KAKAO_NOTICE_MESSAGE = '📢 [당일 출고 요청 안내]\n\n오전 7시30분 ~ 오후 2시 사이에 접수된 주문 중 급하게 당일 출고가 필요한 주문건은\n\n접수누락을 방지하기위해 반드시 카카오톡 단톡방으로 접수 안내 메세지를 보내주셔야합니다.';
         let currentRole = null;
         let currentSellerAccount = null; // 로그인한 계정의 프로필 (company, name, phone, role)
@@ -2687,7 +2688,7 @@
         // 막힌 시간이면 안내창을 띄우고 true (접수 함수 맨 앞에서 확인 — 화면을 7시 전에 열어 둔 경우도 막힘)
         function blockIfShipClosed() {
             if (!isShipClosed()) return false;
-            alert('🚚 지금은 택배출고 작업 시간이에요.\n\n' + SHIP_CLOSED_MESSAGE + '\n\n오후 3시부터 다시 접수할 수 있어요.');
+            alert('🚚 지금은 택배출고 작업 시간이에요.\n\n' + SHIP_CLOSED_MESSAGE);
             return true;
         }
         const canAddOrders = () => currentRole !== 'seller' || isSellerApproved();
@@ -3034,7 +3035,7 @@
 
             if (phase === 'closed') {
                 banner.className = "bg-rose-600 text-white px-4 sm:px-6 py-2.5 text-sm font-medium flex flex-col sm:flex-row gap-1.5 sm:gap-4 sm:justify-between sm:items-center shadow-inner";
-                text.innerText = "🚚 지금은 택배출고 작업 시간(오전 7시~오후 3시)이라 배송접수가 불가합니다 · 오후 3시부터 다시 접수 가능";
+                text.innerText = "🚚 택배출고 작업 시간(오전 7시~오후 3시) 배송접수 불가 · 오후 3시부터 다시 접수 (3시 이후 접수건은 다음날 출고)";
                 subtext.innerText = "사무실 재고 중 추가 출고할 상품은 오후 1시 전까지 카톡으로 접수해주세요.";
             } else {
                 banner.className = "bg-emerald-500 text-white px-4 sm:px-6 py-2.5 text-sm font-medium flex flex-col sm:flex-row gap-1.5 sm:gap-4 sm:justify-between sm:items-center shadow-inner";
@@ -3055,7 +3056,7 @@
             if (!canAddOrders()) {
                 reason = '관리자 승인 후 주문을 등록할 수 있습니다.';
             } else if (closed) {
-                reason = '🚚 오전 7시~오후 3시 택배출고 작업 시간에는 접수할 수 없어요. 오후 3시부터 다시 가능해요.';
+                reason = '🚚 오전 7시~오후 3시 택배출고 작업 시간에는 접수할 수 없어요. 오후 3시부터 다시 가능하며, 3시 이후 접수건은 다음날 출고돼요.';
             }
             const box = document.getElementById('ship-closed-notice');
             if (box) box.classList.toggle('hidden', !closed);
