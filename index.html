@@ -951,6 +951,9 @@
             <!-- 3-1. 주문 관리 -->
             <div id="admin-orders-panel" class="space-y-4">
                 <div class="flex gap-2 flex-wrap justify-end">
+                    <button id="btn-admin-add-order" onclick="openAdminAddOrder()" title="전화·카톡으로 받은 주문을 관리자가 직접 접수합니다. 출고인이 우리 거래처면 그 업체 접수목록에 합쳐집니다" class="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs rounded-lg shadow transition flex items-center gap-1.5">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i> 관리자 주문 추가 접수
+                    </button>
                     <button onclick="fetchOrdersFromDB()" class="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm transition flex items-center gap-1.5">
                         <i data-lucide="refresh-cw" class="w-4 h-4"></i> 새로고침
                     </button>
@@ -2202,6 +2205,95 @@
                     <button type="submit" class="flex-1 py-2.5 bg-indigo-600 text-white font-bold rounded-lg text-xs hover:bg-indigo-700">
                         수정 저장하기
                     </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: 관리자 주문 추가 접수 (출고인이 거래처면 그 업체 주문으로 저장 → 업체별 접수 현황 숫자에 합쳐짐) -->
+    <div id="admin-add-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 space-y-4 border border-slate-100 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div>
+                    <h3 class="font-bold text-slate-900 text-base">관리자 주문 추가 접수</h3>
+                    <p class="text-xs text-slate-400">전화·카톡으로 받은 주문을 대신 접수합니다. 목록에 <b class="text-orange-600">관리자 추가</b> 표시가 붙어요.</p>
+                </div>
+                <button type="button" onclick="closeAdminAddOrder()" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <form onsubmit="handleAdminAddOrder(event)" class="space-y-4">
+                <div class="bg-orange-50/70 border border-orange-200 rounded-xl p-3 space-y-2">
+                    <label class="block text-xs font-bold text-slate-700">출고인(송화인) 업체 * <span class="font-normal text-slate-500">— 거래처 이름을 입력하거나 목록에서 고르세요</span></label>
+                    <input type="text" id="aa-company" list="aa-company-list" required autocomplete="off" oninput="onAdminAddCompanyInput()" placeholder="예: 프렐리" class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-orange-500">
+                    <datalist id="aa-company-list"></datalist>
+                    <div id="aa-company-match" class="text-xs"></div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">송화인명 (보내는사람) *</label>
+                        <input type="text" id="aa-sender-name" required class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">C/S 연락처 (보내는 연락처) *</label>
+                        <input type="text" id="aa-cs-phone" required inputmode="tel" onblur="formatPhoneInput(this)" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">수화인명 (받는사람) *</label>
+                        <input type="text" id="aa-recipient" required class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">받는사람 연락처 *</label>
+                        <input type="text" id="aa-phone" required inputmode="tel" onblur="formatPhoneInput(this)" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">쇼핑몰 상품명 * <span class="text-[10px] text-indigo-600 font-normal">※ 합배송은 (합), 킵건은 (킵) 기재</span></label>
+                    <input type="text" id="aa-product" required class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">도매거래처명</label>
+                        <input type="text" id="aa-wholesale-company" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">도매 상품명</label>
+                        <input type="text" id="aa-wholesale-product" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                </div>
+
+                <div class="space-y-2 border-t border-slate-100 pt-3">
+                    <label class="block text-xs font-bold text-slate-700">배송지 주소 (받는사람) *</label>
+                    <div class="flex gap-2 max-w-md">
+                        <input type="text" id="aa-zipcode" placeholder="우편번호" readonly class="w-28 px-3 py-2 bg-slate-50 border rounded-lg text-sm text-slate-600">
+                        <button type="button" onclick="execDaumPostcodeFor('aa')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg transition flex items-center gap-1.5">
+                            <i data-lucide="search" class="w-3.5 h-3.5"></i> 주소 검색
+                        </button>
+                    </div>
+                    <input type="text" id="aa-address" placeholder="기본주소 ([주소 검색]으로 입력)" class="w-full px-3 py-2 bg-slate-50 border rounded-lg text-sm text-slate-600">
+                    <input type="text" id="aa-detail-address" placeholder="상세주소 입력" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">배송메세지</label>
+                        <input type="text" id="aa-memo" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">밤낮딜리버리 전달메세지</label>
+                        <input type="text" id="aa-bamnat-memo" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                </div>
+
+                <div class="pt-3 flex gap-2">
+                    <button type="button" onclick="closeAdminAddOrder()" class="flex-1 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-lg text-xs hover:bg-slate-200">취소</button>
+                    <button type="submit" id="aa-submit" class="flex-1 py-2.5 bg-orange-500 text-white font-bold rounded-lg text-xs hover:bg-orange-600">주문 추가 접수하기</button>
                 </div>
             </form>
         </div>
@@ -4490,6 +4582,128 @@
         const orderTypeOf = o => o.order_type || 'fulfillment';
         const isKeepOrder = o => orderTypeOf(o) === 'keep';
         const isStoreOrder = o => orderTypeOf(o) === 'store_post' || orderTypeOf(o) === 'store_sameday';
+        // ---------------- 관리자 주문 추가 접수 ----------------
+        // 전화·카톡으로 받은 주문을 관리자가 대신 등록합니다. (SQL 필요 없음)
+        //  - 출고인 업체가 우리 거래처(가입 셀러 또는 예전에 접수한 업체)와 같으면 그 셀러 주문으로 저장
+        //    → 업체별 접수 현황 칩 숫자에 합쳐지고, 그 셀러 화면의 접수 목록에도 보입니다.
+        //  - 같은 업체가 없으면 입력한 이름 그대로 새 업체로 저장합니다.
+        //  - 접수번호가 ORD-ADM- 으로 시작하면 '관리자 추가' 표시
+        const ADMIN_ADD_PREFIX = 'ORD-ADM';
+        const isAdminAddedOrder = o => String(o && o.id || '').startsWith(ADMIN_ADD_PREFIX + '-');
+        const normCompanyName = v => String(v || '').replace(/^밤낮딜리버리\s*\((.*)\)$/, '$1').replace(/\s+/g, '').toLowerCase();
+
+        // 거래처 목록: 가입한 셀러(관리자 제외) + 주문에 나온 업체
+        function adminAddCompanies() {
+            const map = new Map();
+            (sellerProfiles || []).filter(p => p.role !== 'admin' && p.company).forEach(p => {
+                const k = normCompanyName(p.company);
+                if (!map.has(k)) map.set(k, { company: p.company, seller_id: p.id, phone: p.phone || '', profile: true });
+            });
+            [...ordersMaster].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))).forEach(o => {
+                if (!o.seller_company) return;
+                const k = normCompanyName(o.seller_company);
+                if (!map.has(k)) map.set(k, { company: o.seller_company, seller_id: o.seller_id || null, phone: o.cs_phone || '', profile: false });
+            });
+            return map;
+        }
+        let adminAddMatch = null;
+        function onAdminAddCompanyInput() {
+            const typed = document.getElementById('aa-company').value.trim();
+            const box = document.getElementById('aa-company-match');
+            const m = typed ? adminAddCompanies().get(normCompanyName(typed)) || null : null;
+            const prev = adminAddMatch;
+            adminAddMatch = m;
+            const company = m ? m.company : typed;
+            // 송화인명·연락처는 업체에 맞춰 자동으로 채움 (직접 고친 값은 업체가 바뀔 때만 다시 채움)
+            const sn = document.getElementById('aa-sender-name'), cs = document.getElementById('aa-cs-phone');
+            if (!sn.dataset.touched || (prev && prev.company) !== (m && m.company)) { sn.value = company ? `밤낮딜리버리(${company})` : ''; delete sn.dataset.touched; }
+            if (m && m.phone && (!cs.value || (prev && prev.phone === cs.value))) cs.value = formatPhone(m.phone);
+            if (!typed) { box.innerHTML = ''; return; }
+            if (m) {
+                const waiting = new Set(ordersMaster.filter(o => normCompanyName(o.seller_company) === normCompanyName(m.company) && o.status === '접수대기').map(o => o.order_no ?? o.id)).size;
+                box.innerHTML = `<span class="inline-flex flex-wrap items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold">✅ 우리 거래처 <span class="px-1.5 py-0.5 rounded bg-slate-900 text-white">${escapeHtml(m.company)}</span> 와 같은 업체예요 → 이 업체 접수 목록에 합쳐집니다 (지금 접수대기 ${waiting}건 → ${waiting + 1}건)</span>`;
+            } else {
+                box.innerHTML = '<span class="inline-flex px-2 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 font-bold">⚠ 같은 이름의 거래처가 없어요 → 입력한 이름으로 새 업체 칸이 생깁니다. 거래처라면 목록에서 골라주세요.</span>';
+            }
+        }
+        function openAdminAddOrder() {
+            if (currentRole !== 'admin') return;
+            const form = document.querySelector('#admin-add-modal form');
+            form.reset();
+            delete document.getElementById('aa-sender-name').dataset.touched;
+            adminAddMatch = null;
+            document.getElementById('aa-company-list').innerHTML = [...adminAddCompanies().values()]
+                .sort((a, b) => a.company.localeCompare(b.company, 'ko'))
+                .map(c => `<option value="${escapeHtml(c.company)}"></option>`).join('');
+            // 지금 보고 있는 거래처가 있으면 미리 채움
+            const sel = document.getElementById('admin-seller-filter').value;
+            document.getElementById('aa-company').value = sel && sel !== 'ALL' ? sel : '';
+            onAdminAddCompanyInput();
+            document.getElementById('aa-sender-name').oninput = e => { e.target.dataset.touched = '1'; };
+            const modal = document.getElementById('admin-add-modal');
+            modal.classList.remove('hidden'); modal.classList.add('flex');
+            lucide.createIcons();
+            document.getElementById(document.getElementById('aa-company').value ? 'aa-recipient' : 'aa-company').focus();
+        }
+        function closeAdminAddOrder() {
+            const modal = document.getElementById('admin-add-modal');
+            modal.classList.add('hidden'); modal.classList.remove('flex');
+        }
+        async function handleAdminAddOrder(e) {
+            e.preventDefault();
+            if (currentRole !== 'admin') return;
+            onAdminAddCompanyInput();
+            const v = id => document.getElementById(id).value.trim();
+            const m = adminAddMatch;
+            const company = m ? m.company : v('aa-company');
+            if (!company) { alert('출고인(송화인) 업체를 입력해주세요.'); return; }
+            if (/[()]/.test(company)) { alert('업체 이름에는 괄호를 넣을 수 없습니다.'); return; }
+            const senderName = v('aa-sender-name');
+            if (!/^밤낮딜리버리\([^\(\)]+\)$/.test(senderName)) { alert("송화인명은 '밤낮딜리버리(업체상호)' 형식이어야 합니다."); return; }
+            if (!isValidPhone(v('aa-phone'))) { alert('받는사람 연락처를 확인해주세요.\n예) 010-1234-5678 또는 01012345678'); return; }
+            if (!v('aa-address')) { alert('배송지 주소를 [주소 검색] 버튼으로 입력해주세요.'); return; }
+            if (!m && !confirm(`'${company}' 은(는) 우리 거래처 목록에 없는 이름이에요.\n새 업체로 따로 접수할까요?\n\n(거래처라면 [취소]를 누르고 목록에서 골라주세요)`)) return;
+            const newOrder = {
+                id: generateOrderId(ADMIN_ADD_PREFIX),
+                order_type: 'fulfillment',
+                seller_company: company,
+                sender_name: senderName,
+                cs_phone: formatPhone(v('aa-cs-phone')),
+                recipient: v('aa-recipient'),
+                phone: formatPhone(v('aa-phone')),
+                zipcode: v('aa-zipcode'),
+                address: v('aa-address'),
+                detail_address: v('aa-detail-address'),
+                product: v('aa-product'),
+                wholesale_company: v('aa-wholesale-company'),
+                wholesale_product: v('aa-wholesale-product'),
+                memo: v('aa-memo'),
+                bamnat_memo: v('aa-bamnat-memo'),
+                qty: 1,
+                status: '접수대기'
+            };
+            // 거래처와 같은 업체면 그 셀러의 주문으로 저장 (셀러 번호·셀러 화면 목록도 그 업체 기준)
+            if (m && m.seller_id) newOrder.seller_id = m.seller_id;
+            const btn = document.getElementById('aa-submit');
+            btn.disabled = true;
+            try {
+                let saved = { ...newOrder, seller_id: newOrder.seller_id || currentUserId, created_at: new Date().toISOString(), ship_status: '미출고' };
+                if (supabaseClient) {
+                    const { data, error } = await supabaseClient.from('orders').insert([newOrder]).select();
+                    if (error) { alert('주문 저장 중 오류가 발생했습니다.\n\n' + dbErrorMessage(error)); return; }
+                    if (data && data[0]) saved = data[0];
+                }
+                ordersMaster.unshift(saved);
+                sortOrdersMaster();
+                closeAdminAddOrder();
+                populateAdminFilter();
+                renderAdminTable();
+                alert(`${company} 주문으로 추가 접수되었습니다. (NO. ${saved.order_no ?? '-'})\n업체별 접수 현황의 [${company}] 접수대기 숫자에 함께 셉니다.`);
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
         function orderTypeBadgeHtml(o) {
             const t = orderTypeOf(o);
             return `<span class="inline-block mt-1 px-1.5 py-0.5 rounded border text-[10px] font-bold whitespace-nowrap ${ORDER_TYPE_CLASS[t] || ''}">${escapeHtml(ORDER_TYPE_LABEL[t] || t)}</span>`;
@@ -5296,7 +5510,7 @@
                     <td class="p-3 font-mono font-black text-indigo-700 whitespace-nowrap">
                         ${escapeHtml(orderNoLabel(o, groups))}${isHidden ? ' <span class="px-1.5 py-0.5 rounded bg-slate-500 text-white text-[10px] font-bold align-middle">숨김</span>' : ''}${(groups[o.order_no] || {}).total > 1 ? ' <span class="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-bold align-middle" title="같은 주문 번호로 묶여 한 번에 출고되는 상품">합배송</span>' : ''}
                         ${o.seller_order_no != null ? `<span class="block text-[10px] font-normal text-slate-400" title="셀러 화면에 보이는 번호">셀러 #${escapeHtml(sellerNoLabel(o, groups))}</span>` : ''}
-                        ${orderTypeBadgeHtml(o)}
+                        ${orderTypeBadgeHtml(o)}${isAdminAddedOrder(o) ? ' <span class="inline-block mt-1 px-1.5 py-0.5 rounded border border-orange-300 bg-orange-50 text-orange-700 text-[10px] font-bold whitespace-nowrap" title="관리자가 주문 추가 접수로 대신 등록한 주문">관리자 추가</span>' : ''}
                     </td>
                     <td class="p-3 whitespace-nowrap"><span class="px-2 py-1 rounded-lg bg-slate-900 text-white text-[11px] font-black">${escapeHtml(o.seller_company || '-')}</span></td>
                     <td class="p-3 font-bold text-slate-900 whitespace-nowrap">${escapeHtml(o.sender_name || `밤낮딜리버리(${o.seller_company})`)}</td>
@@ -5316,7 +5530,7 @@
                         ${escapeHtml(o.bamnat_memo || '-')}
                         ${o.keep_request === '있음' && o.keep_memo && !isKeepOrder(o) ? `<span class="block mt-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 text-[10px] font-black">📦 보관요청: ${escapeHtml(o.keep_memo || '')}</span>` : ''}
                     </td>
-                    <td class="p-3 text-slate-400 whitespace-nowrap">${adminTimesHtml(o.origin_created_at, o.created_at, o.status === '접수완료' ? o.accepted_at : null, '관리자 접수', formatKstDateTime)}</td>
+                    <td class="p-3 text-slate-400 whitespace-nowrap">${adminTimesHtml(o.origin_created_at, o.created_at, o.status === '접수완료' ? o.accepted_at : null, '관리자 접수', formatKstDateTime, isAdminAddedOrder(o) ? '관리자 추가' : '셀러 접수')}</td>
                     <td class="p-3">
                         <div class="flex items-center gap-1 whitespace-nowrap">
                             ${statusBadgeHtml(o.status)}${separateOrderIds.has(o.id) ? '<span class="ml-1 px-2 py-1 rounded text-[10px] font-bold whitespace-nowrap bg-violet-100 text-violet-700" title="이 사이트 밖에서 따로 처리·배송한 접수건">따로 처리됨</span>' : ''}
@@ -6026,9 +6240,9 @@
         // 관리자 목록의 시간 칸: 셀러(손님)가 처음 접수한 시각 + 관리자가 접수/처리한 시각
         //  origin: 비회원 간단 접수에서 넘어온 건의 손님 접수 시각 (있으면 이것이 '셀러 접수')
         //  done  : 관리자 접수/처리 시각 (supabase/order_times.sql 실행 후부터 기록, 없으면 '-')
-        function adminTimesHtml(origin, created, done, doneLabel, fmt) {
-            const line = (label, v, cls) => `<div class="${cls}"><span class="text-[10px] text-slate-400 mr-1">${label}</span>${escapeHtml(v ? fmt(v) : '-')}</div>`;
-            return line('셀러 접수', origin || created, 'text-slate-700')
+        function adminTimesHtml(origin, created, done, doneLabel, fmt, firstLabel = '셀러 접수') {
+            const line = (label, v, cls) => `<div class="${cls}"><span class="text-[10px] ${label === '관리자 추가' ? 'text-orange-600 font-bold' : 'text-slate-400'} mr-1">${label}</span>${escapeHtml(v ? fmt(v) : '-')}</div>`;
+            return line(firstLabel, origin || created, 'text-slate-700')
                 + line(doneLabel, done, done ? 'text-emerald-700' : 'text-slate-300')
                 + (origin ? `<div class="text-[10px] text-slate-400" title="비회원 간단 접수를 주문관리로 넘긴 시각">간단접수에서 넘김 ${escapeHtml(fmt(created))}</div>` : '');
         }
