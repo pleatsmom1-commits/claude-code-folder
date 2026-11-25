@@ -4,7 +4,7 @@
 //   /api/pickup/notify 는 새 픽업요청 사입팀 알림, /api/pickup/notify-test 는 관리자 [테스트 보내기](worker/pickup_notify.js),
 //   /api/ship/send 는 업체별 운송장 전송 알림(worker/shipping.js), /api/order-ai 는 쇼핑몰 주문서 AI 분석(worker/order_ai.js),
 //   /api/ask 는 문의 AI 답변(worker/ask.js, /api/ask/site 는 AI 가 읽은 홈페이지 내용 보기), /api/inquiry · /api/inquiry/answer 는 AI 가 모르는 문의 접수와 대표님 답변 전달(worker/inquiry.js),
-//   /api/quick-order 는 비회원 간단 주문접수(worker/quick_order.js).
+//   /api/quick-order 는 비회원 간단 주문접수(worker/quick_order.js), /api/track 은 방문 통계 기록(worker/track.js).
 // - scheduled: 정해진 시간마다 Supabase 에 한 번 접속해, 무료 요금제의 '7일 미사용 일시정지'를 막습니다.
 import { handleSettleSend, handleSettleMessage } from './alimtalk.js';
 import { handleSignupNotify, handleSellerApproved } from './notify.js';
@@ -14,6 +14,7 @@ import { handleOrderAi } from './order_ai.js';
 import { handleAsk, handleSiteText, handleUnknownExtract } from './ask.js';
 import { handleInquiry, handleInquiryAnswer } from './inquiry.js';
 import { handleQuickOrder } from './quick_order.js';
+import { handleTrack } from './track.js';
 
 export default {
   async fetch(request, env) {
@@ -32,6 +33,7 @@ export default {
     if (path === '/api/inquiry') return handleInquiry(request, env);
     if (path === '/api/inquiry/answer') return handleInquiryAnswer(request, env);
     if (path === '/api/quick-order') return handleQuickOrder(request, env);
+    if (path === '/api/track') return handleTrack(request, env);
     return env.ASSETS.fetch(request);
   },
 

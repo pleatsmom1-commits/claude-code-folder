@@ -154,7 +154,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   fs.writeFileSync(path.join(__dirname, 'out', 'accepted.json'), JSON.stringify(aoa));
   const ci = head.indexOf('관리자 접수시간');
   console.log(head.slice(14).join(' | '));
-  check('관리자 접수시간 칸이 처리상태 바로 뒤', ci > 0 && head[ci - 1] === '처리상태' && head[ci + 1] === '사무실 보관요청', head.slice(14).join(','));
+  check('관리자 접수시간 칸이 처리상태 바로 뒤', ci > 0 && head[ci - 1] === '처리상태' && head[ci + 1] === '밤낮딜리버리 창고로 보관요청', head.slice(14).join(','));
   const byName = n => aoa.find(r => r[3] === n) || [];
   check('접수완료 건: 관리자 누른 시간(한국시간)', byName('홍길동')[ci] === '2026-11-17 03:05', byName('홍길동')[ci]);
   check('접수완료인데 예전 주문(시간 없음): 빈칸', byName('세번째')[ci] === '', byName('세번째')[ci]);

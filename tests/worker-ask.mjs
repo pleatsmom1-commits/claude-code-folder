@@ -78,7 +78,7 @@ ok(r.status === 200, 'log failure does not break answer');
   };
   const d2 = await (await handleAsk(req({ messages: [{ role: 'user', content: '픽업비랑 제주도 당일 돼요?' }] }, undefined, '11.0.0.1'), env)).json();
   ok(d2.needsHuman && !d2.answer.includes('모르는질문') && !d2.answer.includes('['), 'unknown marker stripped from answer');
-  ok(calls[0].p_unknown_question === '제주도도 당일택배가 되나요?' && calls.length === 2 && !('p_unknown_question' in calls[1]), 'unknown part logged, falls back to old function');
+  ok(calls[0].p_unknown_question === '제주도도 당일택배가 되나요?' && calls.length === 2 && !('p_unknown_question' in calls[1]), 'unknown part logged, falls back to old function'); }
 { const { handleUnknownExtract } = await import(W + '/worker/ask.js');
   const patches = [];
   globalThis.fetch = async (url, init = {}) => {
@@ -94,3 +94,10 @@ ok(r.status === 200, 'log failure does not break answer');
   const d3 = await (await handleUnknownExtract(mk(true), env)).json();
   ok(d3.done === 2 && d3.aiAnswered === 1 && d3.left === 0, 'extract result', JSON.stringify(d3));
   ok(patches.find(p => p[0].includes('id=eq.4'))[1].unknown_question === '제주도도 당일택배가 되나요?' && patches.find(p => p[0].includes('id=eq.5'))[1].resolved_how === 'ai_ok', 'extract patches rows'); }
+
+// 쉬운 기본 질문은 모름으로 넘기지 않기 (2026-11-25): 우편번호가 안내자료에 있고, 애매한 질문은 흔한 뜻으로 먼저 답하는 규칙
+{ const { handleAsk: h2 } = await import(W + '/worker/ask.js'); let sys = '';
+  globalThis.fetch = async (url, init) => { if (String(url).includes('/ai_faq')) return new Response('[]'); if (String(url).includes('/rpc/')) return new Response('{}'); if (/bamnatdelivery\.com|dothome/.test(String(url))) return new Response('<p>x</p>'); sys = JSON.parse(init.body).system[0].text; return new Response(JSON.stringify({ stop_reason: 'end_turn', content: [{ type: 'text', text: '사무실 우편번호는 04572예요.' }] })); };
+  const d4 = await (await h2(req({ messages: [{ role: 'user', content: '우편번호가 어떻게되나요?' }] }, undefined, '12.0.0.1'), env)).json();
+  ok(sys.includes('우편번호: 04572') && sys.includes('세 자료') && sys.includes('지어내지 않습니다') && sys.includes('흔히 묻는 뜻'), 'postal code + find-before-handoff rules in prompt');
+  ok(d4.needsHuman === false, 'basic question answered without handoff'); }
