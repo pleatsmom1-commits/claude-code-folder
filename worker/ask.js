@@ -16,6 +16,8 @@ const MAX_TURNS = 10;       // 이전 대화는 최근 10개만 함께 보냄
 const LIMIT_PER_MIN = 8;    // 같은 접속자 1분당 질문 수 (사용료 과다 방지)
 const MAX_IMAGE_B64 = 3_000_000; // 사진 1장 최대 크기(글자 수, 약 2.2MB). 상담창이 미리 1568px JPG 로 줄여 보냄
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const DAILY_PER_VISITOR = 20; // 한 사람(접속 주소) 하루 질문 수 (대표님 결정 2026-11-25)
+const DAILY_MAX_USD = 7.14;   // 상담 AI 사용료 하루 합계 한도 = 1만 원 (1달러 1,400원 기준, 대표님 결정 2026-11-25)
 const WEB_SEARCH_MAX = 2;   // 질문 1개당 인터넷 검색 최대 횟수 (검색 1번 약 15원 + 읽은 글 분량만큼 사용료)
 
 const SYSTEM = `당신은 "밤낮딜리버리"(동대문 사입대행·풀필먼트·당일택배 업체)의 고객 문의 안내 AI입니다.
@@ -137,6 +139,16 @@ async function answer(request, env) {
     logQuestion = `${last.content}\n[사진 1장]`;
   }
 
+  // 하루 한도: 넘으면 AI 를 부르지 않고(사용료 없음) 카카오톡 상담으로 안내
+  const visitor = await visitorKey(request, env);
+  const quota = await dailyQuota(env, visitor);
+  if (quota !== 'ok') {
+    const answer = quota === 'mine'
+      ? `오늘 AI 질문 횟수(하루 ${DAILY_PER_VISITOR}번)를 모두 쓰셨어요. 내일 다시 물어보시거나, 아래 노란 '관리자와 상담하기' 버튼을 눌러 카카오톡으로 문의해 주세요.`
+      : `지금은 AI 상담을 잠시 쉬고 있어요. 아래 노란 '관리자와 상담하기' 버튼을 눌러 카카오톡으로 문의해 주시면 관리자가 답해 드려요.`;
+    return json({ answer, needsHuman: true, limited: quota });
+  }
+
   const model = env.AI_MODEL || 'claude-opus-5-5';
   const system = [
     { type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } },
@@ -191,7 +203,7 @@ async function answer(request, env) {
   const unknownQuestion = needsHuman ? (text.match(/\[모르는질문:\s*([^\]]+)\]/) || [])[1]?.trim().slice(0, 300) || '' : '';
   text = text.replace(/\[모르는질문:[^\]]*\]/g, '').replaceAll('[담당자확인]', '').trim();
   const reply = text || '이 질문은 관리자가 직접 확인해 드려야 해요. 아래 "관리자와 상담하기"(카카오톡 채널)로 상담하시거나 연락처를 남겨 주세요.';
-  await saveLog(env, body, logQuestion, reply, needsHuman, usageCost(data, model), unknownQuestion);
+  await saveLog(env, body, logQuestion, reply, needsHuman, usageCost(data, model), unknownQuestion, visitor);
   return json({ answer: reply, needsHuman });
 }
 
@@ -200,6 +212,30 @@ function lastSearchEnd(content) {
   let at = 0;
   content.forEach((b, i) => { if (b.type === 'server_tool_use' || b.type === 'web_search_tool_result') at = i + 1; });
   return content.slice(at).some(b => b.type === 'text') ? at : 0;
+}
+
+// 한 사람을 알아볼 수 없게: 접속 주소 + 한국 날짜 + 비밀 글자를 섞은 값 (매일 바뀜)
+async function visitorKey(request, env) {
+  const ip = request.headers.get('CF-Connecting-IP') || '';
+  if (!ip) return '';
+  const day = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${ip}|${day}|${env.ANTHROPIC_API_KEY || ''}`));
+  return [...new Uint8Array(buf)].slice(0, 16).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// 오늘 더 물어봐도 되는지 (supabase/ai_chat_limit.sql). SQL 실행 전이거나 확인 실패면 막지 않음
+async function dailyQuota(env, visitor) {
+  if (!env.SUPABASE_URL || !env.SUPABASE_KEY) return 'ok';
+  try {
+    const res = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/ai_chat_allowed`, {
+      method: 'POST',
+      headers: { apikey: env.SUPABASE_KEY, Authorization: `Bearer ${env.SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_visitor: visitor, p_max_mine: DAILY_PER_VISITOR, p_max_usd: DAILY_MAX_USD }),
+    });
+    if (!res.ok) return 'ok';
+    const v = await res.json();
+    return v === 'mine' || v === 'total' ? v : 'ok';
+  } catch { return 'ok'; }
 }
 
 // 관리자 > AI 상담 > 상담 기록 에서 보도록 질문·답변을 남깁니다 (supabase/ai_chat_logs.sql).
@@ -216,7 +252,7 @@ export function usageCost(data, model) {
   return { model: m, input: plain + write + read, output: out, cost: Math.round(cost * 1e5) / 1e5 };
 }
 
-async function saveLog(env, body, question, answer, needsHuman, use, unknownQuestion = '') {
+async function saveLog(env, body, question, answer, needsHuman, use, unknownQuestion = '', visitor = '') {
   if (!env.SUPABASE_URL || !env.SUPABASE_KEY) return;
   const args = {
     p_chat_id: String(body.chatId || '').slice(0, 40), p_question: question, p_answer: answer,
@@ -229,9 +265,10 @@ async function saveLog(env, body, question, answer, needsHuman, use, unknownQues
     body: JSON.stringify(a),
   });
   try {
-    // '모르는 부분' 칸이 있는 새 함수(supabase/ai_unanswered.sql) → 아직 SQL 실행 전이면 예전 함수로 다시
-    let res = needsHuman ? await call({ ...args, p_unknown_question: unknownQuestion }) : null;
-    if (!res || !res.ok) res = await call(args);
+    // 하루 한도용 visitor 칸 함수(supabase/ai_chat_limit.sql) → '모르는 부분' 함수(ai_unanswered.sql) → 예전 함수 순서로, SQL 실행 전이어도 기록되게
+    let res = await call({ ...args, p_unknown_question: unknownQuestion, p_visitor: visitor });
+    if (!res.ok && needsHuman) res = await call({ ...args, p_unknown_question: unknownQuestion });
+    if (!res.ok) res = await call(args);
     if (!res.ok) console.log('ask: log failed', res.status);
   } catch (e) { console.log('ask: log failed', e.message); }
 }

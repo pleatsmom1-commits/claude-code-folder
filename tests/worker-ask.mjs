@@ -73,12 +73,12 @@ ok(r.status === 200, 'log failure does not break answer');
   globalThis.fetch = async (url, init) => {
     if (String(url).includes('/ai_faq')) return new Response('[]');
     if (/bamnatdelivery\.com|dothome/.test(String(url))) return new Response('<p>x</p>');
-    if (String(url).includes('/rpc/log_ai_chat')) { const b = JSON.parse(init.body); calls.push(b); return new Response('{}', { status: 'p_unknown_question' in b ? 404 : 200 }); }
+    if (String(url).includes('/rpc/ai_chat_allowed')) return new Response('"ok"'); if (String(url).includes('/rpc/log_ai_chat')) { const b = JSON.parse(init.body); calls.push(b); return new Response('{}', { status: 'p_unknown_question' in b ? 404 : 200 }); }
     return new Response(JSON.stringify({ stop_reason: 'end_turn', content: [{ type: 'text', text: '픽업비는 1,800원이에요. 제주도는 관리자가 확인해 드려야 해요. [담당자확인] [모르는질문: 제주도도 당일택배가 되나요?]' }] }));
   };
   const d2 = await (await handleAsk(req({ messages: [{ role: 'user', content: '픽업비랑 제주도 당일 돼요?' }] }, undefined, '11.0.0.1'), env)).json();
   ok(d2.needsHuman && !d2.answer.includes('모르는질문') && !d2.answer.includes('['), 'unknown marker stripped from answer');
-  ok(calls[0].p_unknown_question === '제주도도 당일택배가 되나요?' && calls.length === 2 && !('p_unknown_question' in calls[1]), 'unknown part logged, falls back to old function'); }
+  ok(calls[0].p_unknown_question === '제주도도 당일택배가 되나요?' && 'p_visitor' in calls[0] && calls.length === 3 && !('p_visitor' in calls[1]) && calls[1].p_unknown_question && !('p_unknown_question' in calls[2]), 'unknown part logged, falls back to older functions'); }
 { const { handleUnknownExtract } = await import(W + '/worker/ask.js');
   const patches = [];
   globalThis.fetch = async (url, init = {}) => {
@@ -107,6 +107,7 @@ ok(r.status === 200, 'log failure does not break answer');
   globalThis.fetch = async (url, init) => {
     const u = String(url);
     if (u.includes('/ai_faq')) return new Response('[]');
+    if (u.includes('/rpc/ai_chat_allowed')) return new Response('"ok"');
     if (u.includes('/rpc/log_ai_chat')) { logs3.push(JSON.parse(init.body)); return new Response('{}'); }
     if (/bamnatdelivery\.com|dothome/.test(u)) return new Response('<p>x</p>');
     bodies.push(JSON.parse(init.body)); n++;
@@ -132,3 +133,18 @@ ok(r.status === 200, 'log failure does not break answer');
     return new Response(JSON.stringify({ stop_reason: 'end_turn', content: [{ type: 'text', text: '픽업비는 1,800원이에요.' }] })); };
   const r6 = await h4(req({ messages: [{ role: 'user', content: '픽업비?' }] }, undefined, '14.0.0.1'), env); const d6 = await r6.json();
   ok(r6.status === 200 && bodies.length === 2 && !bodies[1].tools && d6.answer.includes('1,800'), 'web search refused -> retried without search'); }
+
+// 하루 한도 (2026-11-25): 20번·1만 원 넘으면 AI 를 부르지 않고 카톡 안내, 확인 실패면 막지 않음
+{ const { handleAsk: h5 } = await import(W + '/worker/ask.js'); let quota = '"mine"', claude = 0, sent = null; const logged = [];
+  globalThis.fetch = async (url, init) => { const u = String(url);
+    if (u.includes('/rpc/ai_chat_allowed')) { sent = JSON.parse(init.body); return quota === null ? new Response('{}', { status: 404 }) : new Response(quota); }
+    if (u.includes('/rpc/log_ai_chat')) { logged.push(JSON.parse(init.body)); return new Response('{}'); }
+    if (u.includes('/ai_faq')) return new Response('[]'); if (/bamnatdelivery\.com|dothome/.test(u)) return new Response('<p>x</p>');
+    claude++; return new Response(JSON.stringify({ stop_reason: 'end_turn', content: [{ type: 'text', text: '네 가능해요.' }] })); };
+  let d = await (await h5(req({ messages: [{ role: 'user', content: 'q' }] }, undefined, '15.0.0.1'), env)).json();
+  ok(claude === 0 && d.needsHuman && d.limited === 'mine' && d.answer.includes('20번') && sent.p_max_mine === 20 && sent.p_max_usd === 7.14 && /^[0-9a-f]{32}$/.test(sent.p_visitor) && !sent.p_visitor.includes('15.0'), 'over 20/day -> no AI call, kakao guide, hashed visitor');
+  quota = '"total"'; d = await (await h5(req({ messages: [{ role: 'user', content: 'q' }] }, undefined, '15.0.0.2'), env)).json();
+  ok(claude === 0 && d.limited === 'total' && d.answer.includes('관리자와 상담하기'), 'over 10,000 won/day -> AI paused');
+  quota = null; d = await (await h5(req({ messages: [{ role: 'user', content: 'q' }] }, undefined, '15.0.0.3'), env)).json();
+  ok(claude === 1 && !d.limited && d.answer.includes('가능'), 'quota check missing (SQL not run) -> still answers');
+  ok(logged.at(-1).p_visitor === sent.p_visitor, 'visitor saved in log'); }
