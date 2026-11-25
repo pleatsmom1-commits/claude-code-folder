@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>밤낮딜리버리 방문 통계</title>
+<link rel="stylesheet" href="tailwind.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+    .bar-col:hover .bar-fill { background: #3730a3; }
+    .bar-col:hover .bar-tip { display: block; }
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+<div id="page-header" class="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex justify-between items-center gap-2">
+    <div class="flex items-center gap-3">
+        <div class="bg-indigo-600 text-white p-2 rounded-lg font-black tracking-wider text-sm">밤낮</div>
+        <div>
+            <h1 class="font-bold text-lg leading-tight text-slate-900">방문 통계</h1>
+            <p class="text-xs text-slate-500">주문접수 사이트 · 홈페이지 조회수</p>
+        </div>
+    </div>
+    <a href="/" class="shrink-0 whitespace-nowrap inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-black rounded-lg shadow">← 관리자 화면으로</a>
+</div>
+
+<main class="max-w-6xl mx-auto p-4 sm:p-6 space-y-4">
+    <div id="state" class="bg-white rounded-xl border border-slate-200 p-10 text-center text-slate-500">불러오는 중입니다...</div>
+
+    <div id="app" class="hidden space-y-4">
+        <!-- 기간·사이트 고르기 -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+            <div>
+                <h2 class="font-bold text-slate-900">방문 통계</h2>
+                <p class="text-xs text-slate-500 mt-0.5">몇 번 열어 봤는지(조회수), 몇 번 들어왔는지(방문 수), 얼마나 머물렀는지, 어떤 버튼을 많이 눌렀는지 보여 줘요. 날짜는 한국 시간 기준이에요.</p>
+            </div>
+            <div class="flex flex-wrap items-end gap-2">
+                <div id="range-btns" class="flex flex-wrap gap-1"></div>
+                <label class="text-xs space-y-1"><span class="font-bold text-slate-600 block">시작</span><input type="date" id="f-from" onchange="load()" class="px-2 py-1.5 border rounded-lg"></label>
+                <label class="text-xs space-y-1"><span class="font-bold text-slate-600 block">끝</span><input type="date" id="f-to" onchange="load()" class="px-2 py-1.5 border rounded-lg"></label>
+                <label class="text-xs space-y-1"><span class="font-bold text-slate-600 block">어느 곳</span>
+                    <select id="f-site" onchange="load()" class="px-2 py-1.5 border rounded-lg">
+                        <option value="">전체</option>
+                        <option value="app">주문접수 사이트</option>
+                        <option value="cafe24">카페24 홈페이지</option>
+                        <option value="dothome">새 홈페이지</option>
+                        <option value="test">테스트 사이트</option>
+                    </select>
+                </label>
+                <button onclick="load()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg">새로고침</button>
+            </div>
+        </div>
+
+        <!-- 곳별 요약 -->
+        <div id="site-cards" class="grid grid-cols-1 sm:grid-cols-3 gap-3"></div>
+
+        <!-- 날짜별 -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+            <div class="flex flex-wrap items-baseline justify-between gap-2">
+                <h3 class="font-bold text-slate-900">날짜별 방문자 수</h3>
+                <span id="daily-scope" class="text-xs text-slate-500"></span>
+            </div>
+            <div id="daily-chart" class="h-44 flex items-end gap-0.5 border-b border-slate-200 pt-6"></div>
+            <div id="daily-axis" class="flex justify-between text-[11px] text-slate-400"></div>
+            <details class="text-xs">
+                <summary class="cursor-pointer font-bold text-indigo-600">표로 보기</summary>
+                <div class="max-h-[320px] overflow-y-auto mt-2">
+                    <table class="w-full text-xs"><thead class="bg-slate-50 text-slate-500 sticky top-0"><tr><th class="px-2 py-2 text-left">날짜</th><th class="px-2 py-2 text-right">주문접수 사이트</th><th class="px-2 py-2 text-right">카페24 홈페이지</th><th class="px-2 py-2 text-right">새 홈페이지</th><th class="px-2 py-2 text-right">합계 <span class="font-normal">(방문자 / 방문 / 조회)</span></th></tr></thead>
+                    <tbody id="daily-table"></tbody></table>
+                </div>
+            </details>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+                <div>
+                    <h3 class="font-bold text-slate-900">많이 누른 버튼 (많이 쓰는 기능)</h3>
+                    <p class="text-[11px] text-slate-400 mt-0.5">셀러·손님이 누른 버튼 이름이에요. 관리자가 누른 것과 주문 목록 안 클릭은 세지 않아요.</p>
+                </div>
+                <div id="clicks" class="space-y-1.5"></div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+                <div>
+                    <h3 class="font-bold text-slate-900">많이 본 화면</h3>
+                    <p class="text-[11px] text-slate-400 mt-0.5">화면마다 조회수와 한 번 열었을 때 평균 머문 시간이에요.</p>
+                </div>
+                <div id="pages" class="space-y-1.5"></div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+                <h3 class="font-bold text-slate-900">어디서 들어왔나요</h3>
+                <div id="referrers" class="space-y-1.5"></div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+                <h3 class="font-bold text-slate-900">휴대폰 / 컴퓨터</h3>
+                <div id="devices" class="space-y-1.5"></div>
+                <h3 class="font-bold text-slate-900 pt-2">주문접수 사이트 이용자</h3>
+                <div id="roles" class="space-y-1.5"></div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+                <h3 class="font-bold text-slate-900">시간대별 조회수</h3>
+                <div id="hours" class="h-32 flex items-end gap-px border-b border-slate-200 pt-6"></div>
+                <div class="flex justify-between text-[11px] text-slate-400"><span>0시</span><span>6시</span><span>12시</span><span>18시</span><span>23시</span></div>
+            </div>
+        </div>
+
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-900 leading-relaxed">
+            🔒 <b>개인정보는 저장하지 않아요.</b> 이름·아이디·연락처·IP 주소는 적지 않고, 무작위 번호로만 묶어서 셉니다.
+            하루 방문자 번호는 날짜가 바뀌면 새 번호가 되어서, 어제 온 사람과 오늘 온 사람이 같은지도 알 수 없어요. 기록은 2년 뒤 자동으로 지워져요.<br>
+            · <b>방문자 수</b> = 같은 휴대폰·컴퓨터(브라우저)는 하루에 1명으로 셈 (휴대폰과 컴퓨터로 따로 들어오면 2명) · <b>방문 수</b> = 창을 열고 닫을 때까지 한 번 · <b>조회수</b> = 화면을 연 횟수(새로고침 포함) · <b>머문 시간</b> = 화면을 실제로 보고 움직인 시간만 (1분 넘게 손대지 않으면 멈춤)<br>
+            · 홈페이지는 기록 코드를 붙여넣은 날부터 숫자가 쌓여요. 검색 로봇은 빼고 셉니다.
+        </div>
+    </div>
+</main>
+
+<script>
+    // 관리자 전용. supabase/site_visits.sql 의 site_visit_stats() 로 모은 숫자를 보여 줌. 기록은 track.js → worker/track.js
+    let client = null;
+    const embed = new URLSearchParams(location.search).has('embed');
+    const esc = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const num = n => Number(n || 0).toLocaleString('ko-KR');
+    const SITES = {
+        app: { name: '주문접수 사이트', desc: 'bamnat-delivery.bamnat.workers.dev' },
+        cafe24: { name: '카페24 홈페이지', desc: 'www.bamnatdelivery.com' },
+        dothome: { name: '새 홈페이지', desc: 'bamnat1.dothome.co.kr' },
+        test: { name: '테스트 사이트', desc: '확인용 주소 (실제 손님 아님)' },
+    };
+    const RANGES = [['today', '오늘'], ['yesterday', '어제'], ['7', '최근 7일'], ['30', '최근 30일'], ['month', '이번 달']];
+    let currentRange = '7';
+
+    function showState(html) {
+        document.getElementById('state').innerHTML = html;
+        document.getElementById('state').classList.remove('hidden');
+        document.getElementById('app').classList.add('hidden');
+    }
+    function errorMessage(error) {
+        if (['PGRST202', 'PGRST205', '42P01', '42883'].includes(error.code)) return 'DB 설정이 아직 안 되어 있어요.\n(Supabase SQL Editor 에서 supabase/site_visits.sql 을 실행해 주세요)';
+        return error.message || String(error);
+    }
+    // 한국 시간 기준 날짜 (YYYY-MM-DD)
+    function kstDate(offsetDays = 0) {
+        const d = new Date(Date.now() + 9 * 3600 * 1000 + offsetDays * 86400000);
+        return d.toISOString().slice(0, 10);
+    }
+    function fmtSec(sec) {
+        sec = Math.round(sec || 0);
+        if (sec < 60) return sec + '초';
+        const m = Math.floor(sec / 60), s = sec % 60;
+        if (m < 60) return m + '분' + (s ? ' ' + s + '초' : '');
+        return Math.floor(m / 60) + '시간 ' + (m % 60) + '분';
+    }
+    const dayLabel = k => `${Number(k.slice(5, 7))}/${Number(k.slice(8, 10))} (${'일월화수목금토'[new Date(k + 'T00:00:00').getDay()]})`;
+
+    function setRange(r) {
+        currentRange = r;
+        const today = kstDate();
+        let from = today, to = today;
+        if (r === 'yesterday') from = to = kstDate(-1);
+        else if (r === '7') from = kstDate(-6);
+        else if (r === '30') from = kstDate(-29);
+        else if (r === 'month') from = today.slice(0, 8) + '01';
+        document.getElementById('f-from').value = from;
+        document.getElementById('f-to').value = to;
+        renderRangeButtons();
+        load();
+    }
+    function renderRangeButtons() {
+        document.getElementById('range-btns').innerHTML = RANGES.map(([k, label]) =>
+            `<button onclick="setRange('${k}')" class="px-3 py-1.5 rounded-lg text-xs font-bold border ${k === currentRange ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}">${label}</button>`).join('');
+    }
+
+    async function init() {
+        if (embed) document.getElementById('page-header').classList.add('hidden');
+        if (!window.supabase) { showState('화면을 불러오지 못했습니다. 새로고침해주세요.'); return; }
+        client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const { data: { session } } = await client.auth.getSession();
+        if (!session) { showState('로그인 후 이용할 수 있습니다.<br><br><a class="text-indigo-600 font-bold" href="/">로그인하러 가기</a>'); return; }
+        const { data: profile } = await client.from('profiles').select('role').eq('id', session.user.id).single();
+        if (!profile || profile.role !== 'admin') { showState('관리자만 쓸 수 있는 화면입니다.'); return; }
+        document.getElementById('f-from').addEventListener('change', () => { currentRange = ''; renderRangeButtons(); });
+        document.getElementById('f-to').addEventListener('change', () => { currentRange = ''; renderRangeButtons(); });
+        setRange('7');
+    }
+
+    let loadSeq = 0;
+    async function load() {
+        const from = document.getElementById('f-from').value, to = document.getElementById('f-to').value;
+        if (!from || !to) return;
+        const site = document.getElementById('f-site').value;
+        const seq = ++loadSeq;
+        const { data, error } = await client.rpc('site_visit_stats', { p_from: from <= to ? from : to, p_to: from <= to ? to : from, p_site: site || null });
+        if (seq !== loadSeq) return;
+        if (error) { showState('불러오지 못했습니다.<br><span class="text-xs whitespace-pre-line">' + esc(errorMessage(error)) + '</span>'); return; }
+        render(data || {}, site, from, to);
+        document.getElementById('state').classList.add('hidden');
+        document.getElementById('app').classList.remove('hidden');
+    }
+
+    // 가로 막대 한 줄
+    function rowBar(name, sub, value, max, right) {
+        const pct = max ? Math.max(2, Math.round(value / max * 100)) : 0;
+        return `<div class="text-xs" title="${esc(name)}: ${esc(right)}">
+            <div class="flex justify-between gap-2"><span class="font-bold text-slate-700 truncate">${esc(name)}${sub ? ` <span class="font-normal text-slate-400">${esc(sub)}</span>` : ''}</span><span class="text-slate-600 whitespace-nowrap">${right}</span></div>
+            <div class="h-2 bg-slate-100 rounded mt-0.5"><div class="h-2 bg-indigo-500 rounded" style="width:${pct}%"></div></div></div>`;
+    }
+    const empty = msg => `<p class="text-xs text-slate-400 py-4 text-center">${msg}</p>`;
+
+    function refName(host) {
+        const h = String(host || '');
+        if (/naver/.test(h)) return '네이버' + (/search/.test(h) ? ' 검색' : '');
+        if (/google/.test(h)) return '구글' + (/google\./.test(h) ? ' 검색' : '');
+        if (/daum|kakao/.test(h)) return /kakao/.test(h) ? '카카오(카톡)' : '다음';
+        if (/instagram/.test(h)) return '인스타그램';
+        if (/facebook/.test(h)) return '페이스북';
+        if (/youtube/.test(h)) return '유튜브';
+        if (/bamnatdelivery|cafe24/.test(h)) return '카페24 홈페이지';
+        if (/dothome/.test(h)) return '새 홈페이지';
+        if (/workers\.dev/.test(h)) return '주문접수 사이트';
+        if (/sosolution/.test(h)) return 'SO솔루션';
+        return h;
+    }
+    const pageName = (site, path, title) => {
+        if (site === 'app' || site === 'test') {
+            const known = { '/': '택배접수(첫 화면)', '/index.html': '택배접수(첫 화면)', '/inventory': '재고표', '/report': '출고 리포트', '/my-stock': '내 재고표', '/my-ship': '내 택배 주문', '/notice/': '공지사항', '/news/': '새 기능 안내', '/guide/': '이용 설명서', '/settle': '정산서', '/quick': '비회원 간단접수', '/privacy': '개인정보처리방침', '/products': '상품관리', '/usage': '이용 내역' };
+            const key = path.replace(/\.html$/, '');
+            return known[path] || known[key] || title || path;
+        }
+        return title || path;
+    };
+
+    function render(d, site, from, to) {
+        // 1) 곳별 요약 카드: 전체면 세 곳 모두(테스트는 기록 있을 때만), 하나 고르면 그 곳만
+        const bySite = Object.fromEntries((d.sites || []).map(s => [s.site, s]));
+        const keys = site ? [site] : ['app', 'cafe24', 'dothome', ...(bySite.test ? ['test'] : [])];
+        document.getElementById('site-cards').className = `grid grid-cols-1 ${keys.length > 1 ? 'sm:grid-cols-3' : ''} gap-3`;
+        document.getElementById('site-cards').innerHTML = keys.map(k => {
+            const s = bySite[k], info = SITES[k];
+            if (!s) return `<div class="bg-white rounded-xl border border-slate-200 p-4"><p class="font-bold text-slate-900">${info.name}</p><p class="text-[11px] text-slate-400">${info.desc}</p>
+                <p class="text-xs text-slate-400 mt-3">${k === 'cafe24' || k === 'dothome' ? '아직 기록이 없어요. 홈페이지에 기록 코드를 붙여넣으면 여기에 쌓여요.' : '이 기간에는 기록이 없어요.'}</p></div>`;
+            const avg = s.sessions ? s.total_sec / s.sessions : 0;
+            return `<div class="bg-white rounded-xl border ${k === 'test' ? 'border-amber-200' : 'border-slate-200'} p-4">
+                <p class="font-bold text-slate-900">${info.name}</p><p class="text-[11px] text-slate-400">${info.desc}</p>
+                <div class="flex items-end justify-between gap-2 mt-3">
+                    <div><p class="text-[11px] text-slate-500">방문자 수 <span class="text-slate-400">(1명 하루 1번)</span></p><p class="text-3xl font-black text-indigo-700">${num(s.visitors ?? s.sessions)}<span class="text-sm font-bold ml-0.5">명</span></p></div>
+                    <div class="text-right"><p class="text-[11px] text-slate-500">평균 머문 시간</p><p class="text-lg font-black text-slate-900">${fmtSec(avg)}</p></div>
+                </div>
+                <div class="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-100 text-xs text-slate-500">
+                    <div>방문 수 <b class="text-slate-800">${num(s.sessions)}</b>번</div>
+                    <div>조회수 <b class="text-slate-800">${num(s.views)}</b>회</div>
+                </div></div>`;
+        }).join('');
+
+        // 2) 날짜별: 기간 안의 모든 날을 0 포함해서
+        const days = [];
+        for (let t = new Date(from + 'T00:00:00Z'); t <= new Date(to + 'T00:00:00Z') && days.length < 400; t = new Date(t.getTime() + 86400000)) days.push(t.toISOString().slice(0, 10));
+        const daily = {};
+        (d.daily || []).forEach(r => { (daily[r.day] = daily[r.day] || {})[r.site] = r; });
+        const realSites = site ? [site] : ['app', 'cafe24', 'dothome'];
+        const who = r => Number(r?.visitors ?? r?.sessions ?? 0);   // 방문자 (옛 기록은 방문 수)
+        const dayTotal = k => realSites.reduce((a, s) => a + who(daily[k]?.[s]), 0);
+        const max = Math.max(1, ...days.map(dayTotal));
+        document.getElementById('daily-scope').textContent = site ? SITES[site].name : '주문접수 사이트 + 홈페이지 2곳 합계 (테스트 사이트 제외)';
+        document.getElementById('daily-chart').innerHTML = days.map(k => {
+            const v = dayTotal(k), h = v ? Math.max(3, Math.round(v / max * 100)) : 0;
+            const parts = realSites.map(s => `${SITES[s].name} ${num(who(daily[k]?.[s]))}명`).join('<br>');
+            return `<div class="bar-col relative flex-1 h-full flex items-end justify-center">
+                <div class="bar-fill w-full max-w-[28px] bg-indigo-500 rounded-t" style="height:${h}%"></div>
+                <div class="bar-tip hidden absolute bottom-full mb-1 z-10 whitespace-nowrap bg-slate-900 text-white text-[11px] rounded px-2 py-1 shadow"><b>${dayLabel(k)}</b> 방문자 ${num(v)}명<br>${parts}</div>
+                ${days.length <= 14 && v ? `<span class="absolute text-[10px] text-slate-500" style="bottom:calc(${h}% + 2px)">${v}</span>` : ''}</div>`;
+        }).join('');
+        const axis = days.length <= 8 ? days : [days[0], days[Math.floor(days.length / 2)], days[days.length - 1]];
+        document.getElementById('daily-axis').innerHTML = axis.map(k => `<span>${dayLabel(k)}</span>`).join('');
+        const cell = r => r ? `<b>${num(who(r))}</b> <span class="text-slate-400">/ ${num(r.sessions)} / ${num(r.views)}</span>` : '<span class="text-slate-300">-</span>';
+        document.getElementById('daily-table').innerHTML = [...days].reverse().map(k => {
+            const tv = realSites.reduce((a, s) => a + Number(daily[k]?.[s]?.views || 0), 0);
+            const ts = realSites.reduce((a, s) => a + Number(daily[k]?.[s]?.sessions || 0), 0);
+            return `<tr class="border-b border-slate-100"><td class="px-2 py-1.5 font-bold whitespace-nowrap">${dayLabel(k)}</td><td class="px-2 py-1.5 text-right">${cell(daily[k]?.app)}</td><td class="px-2 py-1.5 text-right">${cell(daily[k]?.cafe24)}</td><td class="px-2 py-1.5 text-right">${cell(daily[k]?.dothome)}</td><td class="px-2 py-1.5 text-right font-bold">${num(dayTotal(k))} <span class="text-slate-400 font-normal">/ ${num(ts)} / ${num(tv)}</span></td></tr>`;
+        }).join('');
+
+        // 3) 많이 누른 버튼
+        const showSite = !site;
+        const clicks = (d.clicks || []).filter(c => site || c.site !== 'test').slice(0, 15);
+        const cMax = Math.max(0, ...clicks.map(c => c.clicks));
+        document.getElementById('clicks').innerHTML = clicks.map(c => rowBar(c.label, showSite ? SITES[c.site]?.name : '', c.clicks, cMax, `${num(c.clicks)}번 <span class="text-slate-400">(${num(c.sessions)}명)</span>`)).join('') || empty('아직 누른 버튼 기록이 없어요.');
+
+        // 4) 많이 본 화면
+        const pages = (d.pages || []).filter(p => site || p.site !== 'test').slice(0, 15);
+        const pMax = Math.max(0, ...pages.map(p => p.views));
+        document.getElementById('pages').innerHTML = pages.map(p => rowBar(pageName(p.site, p.path, p.title), showSite ? SITES[p.site]?.name : '', p.views, pMax, `${num(p.views)}회 · 평균 ${fmtSec(p.views ? p.total_sec / p.views : 0)}`)).join('') || empty('아직 기록이 없어요.');
+
+        // 5) 들어온 곳 (같은 이름끼리 합침)
+        const refs = {};
+        (d.referrers || []).filter(r => site || r.site !== 'test').forEach(r => { const n = refName(r.referrer); refs[n] = (refs[n] || 0) + Number(r.sessions); });
+        const refList = Object.entries(refs).sort((a, b) => b[1] - a[1]).slice(0, 10);
+        const rMax = Math.max(0, ...refList.map(r => r[1]));
+        document.getElementById('referrers').innerHTML = refList.map(([n, v]) => rowBar(n, '', v, rMax, `${num(v)}명`)).join('')
+            || empty('주소를 바로 치거나 즐겨찾기로 들어온 방문만 있어요.');
+
+        // 6) 휴대폰/PC, 이용자
+        const dev = Object.fromEntries((d.devices || []).map(x => [x.device, Number(x.sessions)]));
+        const devSum = (dev.mobile || 0) + (dev.pc || 0);
+        document.getElementById('devices').innerHTML = devSum ? [['mobile', '📱 휴대폰'], ['pc', '💻 컴퓨터']].map(([k, n]) =>
+            rowBar(n, '', dev[k] || 0, devSum, `${num(dev[k] || 0)}명 · ${Math.round((dev[k] || 0) / devSum * 100)}%`)).join('') : empty('기록 없음');
+        const roles = Object.fromEntries((d.roles || []).map(x => [x.role, Number(x.sessions)]));
+        const roleMax = Math.max(0, ...Object.values(roles));
+        document.getElementById('roles').innerHTML = roleMax ? [['seller', '셀러(거래처) 로그인'], ['guest', '로그인 전 / 가입 화면'], ['admin', '관리자']].filter(([k]) => roles[k]).map(([k, n]) =>
+            rowBar(n, '', roles[k], roleMax, `${num(roles[k])}번`)).join('') : empty('기록 없음');
+
+        // 7) 시간대
+        const hours = Object.fromEntries((d.hours || []).map(x => [x.hour, Number(x.views)]));
+        const hMax = Math.max(1, ...Object.values(hours));
+        document.getElementById('hours').innerHTML = Array.from({ length: 24 }, (_, h) => {
+            const v = hours[h] || 0, ht = v ? Math.max(3, Math.round(v / hMax * 100)) : 0;
+            return `<div class="bar-col relative flex-1 h-full flex items-end"><div class="bar-fill w-full bg-indigo-400 rounded-t" style="height:${ht}%"></div>
+                <div class="bar-tip hidden absolute bottom-full mb-1 left-1/2 -translate-x-1/2 z-10 whitespace-nowrap bg-slate-900 text-white text-[11px] rounded px-2 py-1">${h}시 · 조회 ${num(v)}</div></div>`;
+        }).join('');
+    }
+
+    init();
+</script>
+</body>
+</html>

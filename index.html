@@ -42,6 +42,7 @@
         .seller-pending .seller-work { display: none !important; }
         .order-scroll thead th.col-manage { z-index: 11; background-color: var(--th-bg, #f1f5f9); }
     </style>
+    <script src="/track.js" data-role="guest" defer></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
 
@@ -65,9 +66,10 @@
             <span class="text-slate-400">시간 변경:</span>
             <button onclick="setSimulatedTime(null)" class="px-2 py-1 bg-amber-500 hover:bg-amber-400 rounded text-slate-900 font-bold">실제 시간</button>
             <button onclick="setSimulatedTime(5 * 60)" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200">05:00</button>
-            <button onclick="setSimulatedTime(7 * 60 + 30)" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200">07:30 (카톡 안내 시작)</button>
-            <button onclick="setSimulatedTime(14 * 60)" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200">14:00 (카톡 안내 마지막)</button>
-            <button onclick="setSimulatedTime(14 * 60 + 1)" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200">14:01</button>
+            <button onclick="setSimulatedTime(6 * 60 + 59)" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200">06:59</button>
+            <button onclick="setSimulatedTime(7 * 60)" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200">07:00 (접수 막힘 시작)</button>
+            <button onclick="setSimulatedTime(14 * 60 + 59)" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200">14:59</button>
+            <button onclick="setSimulatedTime(15 * 60)" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200">15:00 (다시 접수)</button>
         </div>
     </header>
 
@@ -222,8 +224,14 @@
         <div id="seller-dashboard" class="hidden space-y-6">
             <!-- 승인 대기 / 정지 계정 안내 -->
             <div id="seller-status-notice" class="hidden px-4 py-3 rounded-xl border text-sm font-medium flex items-start gap-2"></div>
+            <!-- 택배출고 작업 시간(07:00~15:00) 안내: 이 시간에는 배송접수 버튼이 잠깁니다 -->
+            <div id="ship-closed-notice" class="hidden bg-rose-50 border-2 border-rose-400 rounded-xl px-4 py-3 sm:px-5 sm:py-4">
+                <p class="text-base sm:text-lg font-black text-rose-700">🚚 지금은 택배출고 작업 시간이라 배송접수가 잠시 멈춰요 <span class="whitespace-nowrap">(오전 7시 ~ 오후 3시)</span></p>
+                <p class="mt-1.5 text-sm font-bold text-slate-800 leading-6">택배출고작업 시간인 오전 7시부터 오후3시까지는 접수가 불가합니다.<br>부득이하게 사무실 재고가 있는 물건 중 추가 출고해야할 상품은 <span class="text-rose-700 underline underline-offset-2">오후 1시전까지 카톡으로</span> 접수해주시길 바랍니다.</p>
+                <p class="mt-1.5 text-sm font-black text-indigo-700">⏰ 오후3시부터 다시 접수가 가능하며, 3시 이후접수건은 다음날 출고가 됩니다.</p>
+            </div>
 
-            <!-- 택배접수 종류 선택: 매장/사무실(사입대행) · 고객풀필먼트(고객배송대행) + 오른쪽 사무실 보관요청(모든 접수 필수) -->
+            <!-- 택배접수 종류 선택: 매장/사무실(사입대행) · 고객풀필먼트(고객배송대행) + 오른쪽 밤낮딜리버리 창고로 보관요청(모든 접수 필수) -->
             <div class="seller-work grid grid-cols-2 lg:grid-cols-[1fr_1fr_1.5fr] gap-2 sm:gap-3 items-stretch">
                 <button type="button" id="mode-card-store" onclick="switchSellerMode('store')" class="mode-card text-left px-3 py-2.5 sm:px-4 sm:py-3 rounded-xl border-2 transition">
                     <div class="text-sm sm:text-base font-black text-slate-900">🏬 매장/사무실 택배접수</div>
@@ -234,10 +242,10 @@
                     <div class="hidden sm:block text-[11px] font-bold text-slate-500">고객배송대행 · 단건 / 엑셀 일괄 접수</div>
                 </button>
 
-                <!-- 픽업건 중 사무실 보관요청 (모든 택배접수 시 필수 선택) -->
+                <!-- 픽업건 중 밤낮딜리버리 창고로 보관요청 (모든 택배접수 시 필수 선택) -->
                 <div id="keep-request-box" class="col-span-2 lg:col-span-1 bg-amber-50 border-2 border-amber-300 rounded-xl px-4 py-2.5 space-y-1.5">
                     <div class="flex items-center gap-2 flex-wrap">
-                        <span class="text-sm font-black text-amber-900">📥 픽업건 중 사무실 보관요청</span>
+                        <span class="text-sm font-black text-amber-900">📥 픽업건 중 밤낮딜리버리 창고로 보관요청</span>
                         <span id="keep-required-tag" class="text-[11px] font-bold text-rose-600">* 하루 한 번 필수 체크</span>
                     </div>
                     <!-- 오늘 이미 확인했으면 한 줄로 줄여서 보여줍니다 -->
@@ -611,6 +619,12 @@
                         <button onclick="fetchOrdersFromDB()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold rounded-lg transition flex items-center gap-1 shadow-sm">
                             <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> 새로고침
                         </button>
+                        <button type="button" id="btn-redo-open" onclick="openRedoModal()" class="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-black rounded-lg transition flex items-center gap-1 shadow-sm" title="접수완료됐지만 아직 출고되지 않은 주문(최근 7일)을 골라 그대로 다시 접수합니다">
+                            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> 미출고 주문 다시 접수
+                        </button>
+                        <button type="button" id="btn-seller-edit-selected" onclick="editSelectedSellerOrder()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition flex items-center gap-1 shadow-sm" title="1개 체크: 그 주문 수정 · 2개 이상 체크: 합배송 묶기 / 부분출고로 바꾸기">
+                            <i data-lucide="pencil" class="w-3.5 h-3.5"></i> <span id="btn-seller-edit-label">선택수정</span>
+                        </button>
                         <button onclick="deleteSelectedOrders()" class="px-3 py-1.5 bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-100 text-xs font-bold rounded-lg transition flex items-center gap-1 shadow-sm">
                             <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> 선택 항목 일괄 삭제
                         </button>
@@ -618,6 +632,13 @@
                             <i data-lucide="file-x" class="w-3.5 h-3.5"></i> 엑셀 등록건 전체 삭제
                         </button>
                     </div>
+                </div>
+                <!-- [선택수정] 사용법 상시 안내 (셀러도 접수대기 주문은 합배송 묶기/부분출고 가능, supabase/seller_combine.sql) -->
+                <div id="seller-edit-hint" class="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 rounded-lg border border-indigo-200 bg-indigo-50 text-xs text-indigo-900">
+                    <span class="font-black">✏️ [선택수정] 사용법</span>
+                    <span><b class="px-1.5 py-0.5 rounded bg-white border border-indigo-200">1개만 체크</b> → 그 주문 하나 수정 · 합배송 건이면 <b>그 상품만 부분출고</b>로 빼기</span>
+                    <span><b class="px-1.5 py-0.5 rounded bg-white border border-indigo-200">2개 이상 체크</b> → 같은 분께 가는 주문 <b>합배송으로 묶기</b> / 묶인 것 <b>부분출고로 풀기</b></span>
+                    <span class="text-indigo-700/80">※ 관리자가 접수완료한 주문은 바꿀 수 없어요</span>
                 </div>
                 <!-- 대표님 요청 (2026-11-19): 사이트 밖(카톡 등)으로 따로 보낸 단건 주문은 이 목록·송장번호 엑셀·출고 리포트에 없을 수 있음 -->
                 <div id="offsite-order-note" class="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-900 rounded-lg px-3 py-2 text-xs leading-relaxed">
@@ -660,7 +681,7 @@
                             <option value="store">매장/사무실 (전체)</option>
                             <option value="store_post">매장 · 우체국택배</option>
                             <option value="store_sameday">매장 · 당일택배</option>
-                            <option value="keep">사무실 보관요청</option>
+                            <option value="keep">밤낮딜리버리 창고로 보관요청</option>
                         </select>
                         <select id="history-status" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
                             <option value="all">접수상태 전체</option>
@@ -870,6 +891,9 @@
                     <button id="admin-group-aicost" onclick="switchAdminGroup('aicost')" class="">
                         <i data-lucide="coins" class="w-4 h-4"></i> AI 사용료
                     </button>
+                    <button id="admin-group-visits" onclick="switchAdminGroup('visits')" class="">
+                        <i data-lucide="bar-chart-3" class="w-4 h-4"></i> 방문 통계
+                    </button>
                     <button id="admin-group-staff" onclick="switchAdminGroup('staff')" class="">
                         <i data-lucide="user-cog" class="w-4 h-4"></i> 직원 관리
                     </button>
@@ -884,9 +908,6 @@
                     </button>
                     <button id="admin-tab-ship" onclick="switchAdminTab('ship')" class="">
                         운송장전송
-                    </button>
-                    <button id="admin-tab-stock" onclick="switchAdminTab('stock')" class="">
-                        재고관리
                     </button>
                     <button id="admin-tab-products" onclick="switchAdminTab('products')" class="" title="상호통일 적용">
                         상품관리 <i data-lucide="link" class="w-3 h-3 text-indigo-400" title="상호통일 적용"></i>
@@ -903,6 +924,10 @@
                     <!-- 상호통일 (company-unify.html, supabase/company_unify.sql). 🔗 표시 탭에 적용됨 -->
                     <button id="admin-tab-unify" onclick="switchAdminTab('unify')" class="">
                         <i data-lucide="link" class="w-4 h-4"></i> 상호통일
+                    </button>
+                    <!-- 셀러에게 재고 숨기기 설정 (예전 '재고관리' 탭 자리, stock-admin.js) -->
+                    <button id="admin-tab-stock" onclick="switchAdminTab('stock')" class="">
+                        <i data-lucide="eye-off" class="w-4 h-4"></i> 셀러 재고 공개
                     </button>
                     <button id="admin-tab-settle" onclick="switchAdminTab('settle')" class="">
                         정산서 발송
@@ -924,6 +949,10 @@
                     <button id="admin-tab-aicost" onclick="switchAdminTab('aicost')" class="">
                         AI 사용료
                     </button>
+                    <!-- 방문 통계 (visits.html, supabase/site_visits.sql, 기록은 track.js) -->
+                    <button id="admin-tab-visits" onclick="switchAdminTab('visits')" class="">
+                        방문 통계
+                    </button>
                     <button id="admin-tab-activity" onclick="switchAdminTab('activity')" class="">
                         작업 기록
                     </button>
@@ -936,6 +965,9 @@
             <!-- 3-1. 주문 관리 -->
             <div id="admin-orders-panel" class="space-y-4">
                 <div class="flex gap-2 flex-wrap justify-end">
+                    <button id="btn-admin-add-order" onclick="openAdminAddOrder()" title="전화·카톡으로 받은 주문을 관리자가 직접 접수합니다. 출고인이 우리 거래처면 그 업체 접수목록에 합쳐집니다" class="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs rounded-lg shadow transition flex items-center gap-1.5">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i> 관리자 주문 추가 접수
+                    </button>
                     <button onclick="fetchOrdersFromDB()" class="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm transition flex items-center gap-1.5">
                         <i data-lucide="refresh-cw" class="w-4 h-4"></i> 새로고침
                     </button>
@@ -976,7 +1008,7 @@
                                 <option value="store">매장/사무실 (전체)</option>
                                 <option value="store_post">매장 · 우체국택배</option>
                                 <option value="store_sameday">매장 · 당일택배</option>
-                                <option value="keep">사무실 보관요청</option>
+                                <option value="keep">밤낮딜리버리 창고로 보관요청</option>
                             </select>
                             <span class="ship-ui text-xs font-bold text-slate-600 ml-2">출고:</span>
                             <select id="admin-ship-filter" class="ship-ui px-3 py-1.5 border rounded-lg text-xs font-medium focus:outline-none">
@@ -1001,11 +1033,18 @@
                             <button onclick="revertAcceptSelectedOrders()" class="px-3 py-1.5 bg-white border border-emerald-300 hover:bg-emerald-50 text-emerald-700 font-bold text-xs rounded-lg shadow-sm" title="접수완료 → 접수대기로 되돌립니다">선택 접수취소</button>
                             <button onclick="shipSelectedOrders()" class="ship-ui px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg shadow-sm">선택 출고완료</button>
                             <button onclick="setShipStatusForSelected('미출고')" class="ship-ui px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg shadow-sm">선택 출고취소</button>
-                            <button onclick="editSelectedAdminOrder()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-sm">선택수정</button>
+                            <button id="btn-edit-selected" onclick="editSelectedAdminOrder()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-sm" title="1개 체크: 그 주문 수정 · 2개 이상 체크: 합배송 묶기 / 부분출고로 바꾸기">선택수정</button>
                             <button onclick="markSeparateSelectedOrders()" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs rounded-lg shadow-sm" title="이 사이트 밖에서 이미 따로 처리·배송한 접수건에 표시합니다 (접수완료로 바뀜)">따로 처리됨</button>
                             <button onclick="setHiddenSelectedOrders(true)" class="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg shadow-sm" title="테스트 접수건 등을 목록에서 안 보이게 합니다 (지우지 않음)">선택 숨기기</button>
                             <button onclick="trashSelectedOrders()" class="px-3 py-1.5 bg-white border border-rose-300 hover:bg-rose-50 text-rose-600 font-bold text-xs rounded-lg shadow-sm" title="접수건을 아예 지웁니다. 셀러 화면·엑셀·정산에서도 사라지고, [휴지통]에서 90일 안에 복원할 수 있습니다">선택 삭제</button>
                         </div>
+                    </div>
+
+                    <!-- [선택수정] 사용법 상시 안내 (체크 개수에 따라 하는 일이 다름) -->
+                    <div id="edit-selected-hint" class="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 rounded-lg border border-indigo-200 bg-indigo-50 text-xs text-indigo-900">
+                        <span class="font-black">✏️ [선택수정] 사용법</span>
+                        <span><b class="px-1.5 py-0.5 rounded bg-white border border-indigo-200">1개만 체크</b> → 그 주문 하나 수정 · 합배송 건이면 <b>그 상품만 부분출고</b>로 빼기</span>
+                        <span><b class="px-1.5 py-0.5 rounded bg-white border border-indigo-200">2개 이상 체크</b> → <b>합배송으로 묶기</b> / 묶인 것 <b>부분출고로 풀기</b></span>
                     </div>
 
                     <!-- 업체별 접수 현황: 접수대기/접수완료 업체 목록 + 누르면 그 업체 주문만 조회 -->
@@ -1805,6 +1844,9 @@
             </div>
 
             <!-- 3-10. AI 사용료 (ai-cost.html 을 그대로 불러와 보여줌) -->
+            <div id="admin-visits-panel" class="hidden space-y-2">
+                <iframe id="admin-visits-frame" title="방문 통계" class="w-full bg-white rounded-xl border border-slate-200" style="height: calc(100vh - 220px); min-height: 600px;"></iframe>
+            </div>
             <div id="admin-aicost-panel" class="hidden space-y-2">
                 <iframe id="admin-aicost-frame" title="AI 사용료" class="w-full bg-white rounded-xl border border-slate-200" style="height: calc(100vh - 220px); min-height: 600px;"></iframe>
             </div>
@@ -1832,83 +1874,13 @@
                     <div id="stock-hide-list" class="text-xs"></div>
                 </div>
 
-                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
-                    <div class="flex justify-between items-start flex-wrap gap-3">
-                        <div>
-                            <h3 class="font-bold text-slate-900">거래처 재고</h3>
-                            <p class="text-xs text-slate-500 mt-0.5">거래처 재고표(통합본) 엑셀을 올리면 <b>업체마다 탭</b>을 읽어 업체별 재고로 저장합니다. 회원가입 상호와 같은 업체는 로그인해서 자기 재고를 봅니다 (위에서 숨긴 업체는 안 보임).</p>
-                        </div>
-                        <div class="flex gap-2 flex-wrap">
-                            <label class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow flex items-center gap-1 cursor-pointer">
-                                <i data-lucide="file-up" class="w-3.5 h-3.5"></i> 재고표 엑셀 올리기
-                                <input type="file" accept=".xlsx,.xls,.xlsm" onchange="uploadStockWorkbook(event)" class="hidden">
-                            </label>
-                            <button onclick="downloadStockExcel()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm flex items-center gap-1">
-                                <i data-lucide="download" class="w-3.5 h-3.5"></i> 엑셀 다운로드
-                            </button>
-                            <button onclick="openStockEdit(null)" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow flex items-center gap-1">
-                                <i data-lucide="plus" class="w-3.5 h-3.5"></i> 재고 추가
-                            </button>
-                        </div>
+                <!-- 예전 보관 목록(stock_items, 통합본 엑셀)은 2026-11-22 없앴습니다. 재고는 [재고표](inventory.html) 하나로 관리자·셀러가 같은 숫자를 봅니다. -->
+                <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-5 flex justify-between items-center flex-wrap gap-3">
+                    <div>
+                        <h3 class="font-bold text-indigo-900 flex items-center gap-1.5"><i data-lucide="info" class="w-4 h-4"></i> 재고는 [재고표] 하나로 봅니다</h3>
+                        <p class="text-xs text-indigo-800 mt-0.5">예전 보관 목록(통합본 엑셀로 올리던 화면)은 없앴습니다. 최종재고를 올린 뒤부터 <b>관리자와 셀러 모두 [재고표]의 같은 숫자</b>를 봅니다.</p>
                     </div>
-                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-2">
-                        <span class="text-xs font-bold text-slate-600 w-12">검색</span>
-                        <select id="stock-f-company" onchange="renderStockTable()" class="px-2 py-1.5 border rounded-lg text-xs bg-white max-w-[220px]">
-                            <option value="">업체 전체</option>
-                        </select>
-                        <select id="stock-f-status" onchange="renderStockTable()" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
-                            <option value="kept">보관중</option>
-                            <option value="shipped">출고됨</option>
-                            <option value="all">전체</option>
-                        </select>
-                        <input type="text" id="stock-f-keyword" oninput="renderStockTable()" placeholder="상품명 · 도매처 · 고객명 · 위치 검색" class="px-3 py-1.5 border rounded-lg text-xs bg-white w-60">
-                        <button type="button" onclick="resetStockSearch()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-bold">초기화</button>
-                        <button type="button" onclick="fetchStockItems()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-bold flex items-center gap-1"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> 새로고침</button>
-                        <button type="button" id="stock-preview-btn" onclick="previewStockPage()" disabled class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-slate-600 rounded-lg text-xs font-bold" title="업체를 고르면 그 업체가 보는 재고 화면을 엽니다">업체 화면 미리보기</button>
-                    </div>
-                    <div class="flex justify-between items-center flex-wrap gap-2">
-                        <span id="stock-summary" class="text-xs text-slate-600"></span>
-                        <div class="flex gap-2 flex-wrap">
-                            <button onclick="shipCheckedStock()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow flex items-center gap-1">
-                                <i data-lucide="truck" class="w-3.5 h-3.5"></i> 선택 출고처리
-                            </button>
-                            <button onclick="unshipCheckedStock()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm">선택 출고취소</button>
-                            <button onclick="deleteCheckedStock()" class="px-3 py-1.5 bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 font-bold text-xs rounded-lg shadow-sm flex items-center gap-1">
-                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> 선택 삭제
-                            </button>
-                        </div>
-                    </div>
-                    <div class="overflow-auto max-h-[60vh] border border-slate-200 rounded-lg">
-                        <table class="w-full text-left text-xs">
-                            <thead class="bg-slate-800 text-slate-200 font-bold sticky top-0">
-                                <tr>
-                                    <th class="p-2 text-center"><input type="checkbox" id="stock-check-all" onchange="toggleStockCheckAll(this)"></th>
-                                    <th class="p-2">거래처명</th><th class="p-2">도매업체명</th><th class="p-2">도매상품명</th><th class="p-2">소매상품명</th>
-                                    <th class="p-2">컬러</th><th class="p-2">사이즈</th><th class="p-2 text-right">수량</th><th class="p-2">재고위치</th>
-                                    <th class="p-2">재고생성일</th><th class="p-2">상태</th><th class="p-2">반품고객명</th><th class="p-2 text-center">관리</th>
-                                </tr>
-                            </thead>
-                            <tbody id="stock-list" class="divide-y divide-slate-100 text-slate-700"></tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-3">
-                    <div class="flex justify-between items-center flex-wrap gap-2">
-                        <div>
-                            <h3 class="font-bold text-slate-900">업체별 현황</h3>
-                            <p class="text-xs text-slate-500 mt-0.5">업체를 누르면 위 목록이 그 업체로 바뀝니다. <b>미가입</b>은 같은 상호로 가입한 셀러가 없다는 뜻입니다 (재고표 이름과 가입 상호가 다르면 미가입으로 보입니다).</p>
-                        </div>
-                        <span id="stock-company-count" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full"></span>
-                    </div>
-                    <div class="overflow-auto max-h-[45vh] border border-slate-200 rounded-lg">
-                        <table class="w-full text-left text-xs">
-                            <thead class="bg-slate-800 text-slate-200 font-bold sticky top-0">
-                                <tr><th class="p-2">업체</th><th class="p-2 text-right">보관중</th><th class="p-2 text-right">출고됨</th><th class="p-2 text-center">회원</th></tr>
-                            </thead>
-                            <tbody id="stock-company-list" class="divide-y divide-slate-100 text-slate-700"></tbody>
-                        </table>
-                    </div>
+                    <button type="button" onclick="switchAdminTab('inventory')" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-lg shadow flex items-center gap-1.5"><i data-lucide="package" class="w-4 h-4"></i> 재고표 열기</button>
                 </div>
             </div>
         </div>
@@ -1920,72 +1892,6 @@
         <span>밤낮딜리버리 · 문의 카카오톡 010-5425-9060</span>
         <a href="/privacy" target="_blank" rel="noopener" class="font-bold text-slate-600 hover:underline">개인정보처리방침</a>
     </footer>
-
-    <!-- MODAL: 재고관리 > 재고 추가·수정 (stock-admin.js) -->
-    <div id="stock-edit-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
-        <form onsubmit="saveStockEdit(event)" class="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-4">
-            <div class="flex justify-between items-start">
-                <h3 id="stock-edit-title" class="text-lg font-bold text-slate-900">재고 추가</h3>
-                <button type="button" onclick="closeStockEdit()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
-            </div>
-            <datalist id="stock-company-options"></datalist>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                <label class="space-y-1"><span class="font-bold text-slate-600">거래처명 *</span><input id="stock-edit-company" list="stock-company-options" class="w-full px-3 py-2 border rounded-lg"></label>
-                <label class="space-y-1"><span class="font-bold text-slate-600">도매업체명</span><input id="stock-edit-wholesale_company" class="w-full px-3 py-2 border rounded-lg"></label>
-                <label class="space-y-1"><span class="font-bold text-slate-600">도매상품명</span><input id="stock-edit-wholesale_product" class="w-full px-3 py-2 border rounded-lg"></label>
-                <label class="space-y-1"><span class="font-bold text-slate-600">소매상품명</span><input id="stock-edit-retail_product" class="w-full px-3 py-2 border rounded-lg"></label>
-                <label class="space-y-1"><span class="font-bold text-slate-600">컬러</span><input id="stock-edit-color" class="w-full px-3 py-2 border rounded-lg"></label>
-                <label class="space-y-1"><span class="font-bold text-slate-600">사이즈</span><input id="stock-edit-size" class="w-full px-3 py-2 border rounded-lg"></label>
-                <label class="space-y-1"><span class="font-bold text-slate-600">수량</span><input id="stock-edit-quantity" type="number" step="any" class="w-full px-3 py-2 border rounded-lg"></label>
-                <label class="space-y-1"><span class="font-bold text-slate-600">재고위치</span><input id="stock-edit-location" class="w-full px-3 py-2 border rounded-lg"></label>
-                <label class="space-y-1"><span class="font-bold text-slate-600">재고생성일</span><input id="stock-edit-stocked_on" type="date" class="w-full px-3 py-2 border rounded-lg"></label>
-                <label class="space-y-1"><span class="font-bold text-slate-600">재고출고일</span><input id="stock-edit-shipped_on" type="date" class="w-full px-3 py-2 border rounded-lg"></label>
-                <label class="space-y-1 sm:col-span-2"><span class="font-bold text-slate-600">출고 메모 <span class="font-normal text-slate-400">(예: 매장반품, 당택으로 출고 · 날짜나 메모가 있으면 출고됨)</span></span><input id="stock-edit-shipped_note" class="w-full px-3 py-2 border rounded-lg"></label>
-                <label class="space-y-1"><span class="font-bold text-slate-600">기타(반품고객명)</span><input id="stock-edit-customer" class="w-full px-3 py-2 border rounded-lg"></label>
-                <label class="space-y-1"><span class="font-bold text-slate-600">라벨</span><input id="stock-edit-label" class="w-full px-3 py-2 border rounded-lg"></label>
-                <label class="space-y-1 sm:col-span-2"><span class="font-bold text-slate-600">메모 <span class="font-normal text-slate-400">(업체 재고 화면에는 안 보임)</span></span><input id="stock-edit-memo" class="w-full px-3 py-2 border rounded-lg"></label>
-            </div>
-            <div class="flex justify-between gap-2">
-                <button type="button" id="stock-edit-delete" onclick="deleteStockEdit()" class="px-4 py-2 border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-bold">삭제</button>
-                <div class="flex gap-2 ml-auto">
-                    <button type="button" onclick="closeStockEdit()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold">취소</button>
-                    <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold">저장</button>
-                </div>
-            </div>
-        </form>
-    </div>
-
-    <!-- MODAL: 재고관리 > 재고표 엑셀 올리기 미리보기 (stock-admin.js) -->
-    <div id="stock-upload-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-            <div class="p-5 border-b space-y-2">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <h3 class="text-lg font-bold text-slate-900">재고표 올리기 확인</h3>
-                        <p class="text-xs text-slate-500 mt-0.5">아래 업체의 재고를 <b>이 파일 내용으로 통째로 바꿉니다.</b> 파일에 없는 업체 재고는 그대로 둡니다.</p>
-                    </div>
-                    <button type="button" onclick="closeStockUpload()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
-                </div>
-                <div id="stock-upload-info" class="text-xs text-slate-700"></div>
-                <div id="stock-upload-sheets" class="text-[11px]"></div>
-            </div>
-            <div class="overflow-auto flex-1 p-5">
-                <table class="w-full text-left text-xs">
-                    <thead class="text-slate-500 border-b">
-                        <tr><th class="p-2">업체</th><th class="p-2 text-right">보관중</th><th class="p-2 text-right">출고됨</th><th class="p-2 text-right">지금 저장된 재고</th><th class="p-2 text-center">회원</th></tr>
-                    </thead>
-                    <tbody id="stock-upload-list" class="divide-y divide-slate-100 text-slate-700"></tbody>
-                </table>
-            </div>
-            <div class="p-5 border-t flex justify-between items-center gap-2">
-                <span id="stock-upload-status" class="text-xs text-indigo-600 font-bold"></span>
-                <div class="flex gap-2">
-                    <button type="button" onclick="closeStockUpload()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold">취소</button>
-                    <button type="button" id="stock-upload-confirm" onclick="confirmStockUpload()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-lg text-xs font-bold">저장하기</button>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- MODAL: 정산서 발송 > 바뀐 내용 비교 (settle-admin.js) -->
     <div id="settle-diff-modal" onclick="if(event.target===this)closeSettleDiff()" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
@@ -2067,6 +1973,7 @@
                     <span class="block mt-1 text-[11px] text-slate-500">(합)을 떼고 각자 번호를 받습니다. 준비된 상품부터 따로 출고할 수 있습니다.</span>
                 </button>
             </div>
+            <p class="text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">💡 주소·상품명·메모처럼 <b>내용을 고치려면</b> 창을 닫고 <b>1개만 체크</b>한 뒤 [선택수정]을 누르세요.</p>
             <div class="flex justify-end">
                 <button type="button" onclick="closeCombineModal()" class="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg">닫기</button>
             </div>
@@ -2218,6 +2125,95 @@
         </div>
     </div>
 
+    <!-- MODAL: 관리자 주문 추가 접수 (출고인이 거래처면 그 업체 주문으로 저장 → 업체별 접수 현황 숫자에 합쳐짐) -->
+    <div id="admin-add-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 space-y-4 border border-slate-100 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div>
+                    <h3 class="font-bold text-slate-900 text-base">관리자 주문 추가 접수</h3>
+                    <p class="text-xs text-slate-400">전화·카톡으로 받은 주문을 대신 접수합니다. 목록에 <b class="text-orange-600">관리자 추가</b> 표시가 붙어요.</p>
+                </div>
+                <button type="button" onclick="closeAdminAddOrder()" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <form onsubmit="handleAdminAddOrder(event)" class="space-y-4">
+                <div class="bg-orange-50/70 border border-orange-200 rounded-xl p-3 space-y-2">
+                    <label class="block text-xs font-bold text-slate-700">출고인(송화인) 업체 * <span class="font-normal text-slate-500">— 거래처 이름을 입력하거나 목록에서 고르세요</span></label>
+                    <input type="text" id="aa-company" list="aa-company-list" required autocomplete="off" oninput="onAdminAddCompanyInput()" placeholder="예: 프렐리" class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-orange-500">
+                    <datalist id="aa-company-list"></datalist>
+                    <div id="aa-company-match" class="text-xs"></div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">송화인명 (보내는사람) *</label>
+                        <input type="text" id="aa-sender-name" required class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">C/S 연락처 (보내는 연락처) *</label>
+                        <input type="text" id="aa-cs-phone" required inputmode="tel" onblur="formatPhoneInput(this)" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">수화인명 (받는사람) *</label>
+                        <input type="text" id="aa-recipient" required class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">받는사람 연락처 *</label>
+                        <input type="text" id="aa-phone" required inputmode="tel" onblur="formatPhoneInput(this)" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">쇼핑몰 상품명 * <span class="text-[10px] text-indigo-600 font-normal">※ 합배송은 (합), 킵건은 (킵) 기재</span></label>
+                    <input type="text" id="aa-product" required class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">도매거래처명</label>
+                        <input type="text" id="aa-wholesale-company" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">도매 상품명</label>
+                        <input type="text" id="aa-wholesale-product" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                </div>
+
+                <div class="space-y-2 border-t border-slate-100 pt-3">
+                    <label class="block text-xs font-bold text-slate-700">배송지 주소 (받는사람) *</label>
+                    <div class="flex gap-2 max-w-md">
+                        <input type="text" id="aa-zipcode" placeholder="우편번호" readonly class="w-28 px-3 py-2 bg-slate-50 border rounded-lg text-sm text-slate-600">
+                        <button type="button" onclick="execDaumPostcodeFor('aa')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg transition flex items-center gap-1.5">
+                            <i data-lucide="search" class="w-3.5 h-3.5"></i> 주소 검색
+                        </button>
+                    </div>
+                    <input type="text" id="aa-address" placeholder="기본주소 ([주소 검색]으로 입력)" class="w-full px-3 py-2 bg-slate-50 border rounded-lg text-sm text-slate-600">
+                    <input type="text" id="aa-detail-address" placeholder="상세주소 입력" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">배송메세지</label>
+                        <input type="text" id="aa-memo" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">밤낮딜리버리 전달메세지</label>
+                        <input type="text" id="aa-bamnat-memo" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-indigo-500">
+                    </div>
+                </div>
+
+                <div class="pt-3 flex gap-2">
+                    <button type="button" onclick="closeAdminAddOrder()" class="flex-1 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-lg text-xs hover:bg-slate-200">취소</button>
+                    <button type="submit" id="aa-submit" class="flex-1 py-2.5 bg-orange-500 text-white font-bold rounded-lg text-xs hover:bg-orange-600">주문 추가 접수하기</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- MODAL: SIGNUP -->
     <div id="signup-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
         <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-slate-100 max-h-[92vh] overflow-y-auto">
@@ -2339,6 +2335,39 @@
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- MODAL: 셀러 [미출고 주문 다시 접수] (대표님 요청 2026-11-25) -->
+    <div id="redo-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col border border-slate-100">
+            <div class="p-5 border-b border-slate-100 flex justify-between items-start gap-3">
+                <div>
+                    <h3 class="text-lg font-black text-slate-900">🔁 미출고 주문 다시 접수</h3>
+                    <p class="text-xs text-slate-500 mt-1 leading-relaxed">접수완료됐지만 <b class="text-orange-600">아직 출고되지 않은(송장번호 없는) 고객풀필먼트 주문</b>이에요. (최근 7일)<br>
+                        다시 보낼 주문을 체크하고 아래 버튼을 누르면 <b>같은 내용으로 새로 접수</b>됩니다. 새 주문은 <b>접수대기</b>로 들어가고 밤낮 전달메세지 앞에 <b>[재접수]</b>가 붙어요.</p>
+                </div>
+                <button type="button" onclick="closeRedoModal()" class="shrink-0 text-slate-400 hover:text-slate-600 text-xl font-bold leading-none">✕</button>
+            </div>
+            <div class="px-5 pt-3 flex items-center gap-2 text-xs">
+                <label class="flex items-center gap-1 font-bold text-slate-600"><input type="checkbox" id="redo-chk-all" onchange="toggleAllRedo(this)" class="rounded border-slate-300 text-orange-500"> 전체 선택</label>
+                <span id="redo-count" class="ml-auto text-slate-500"></span>
+            </div>
+            <div class="p-5 pt-2 overflow-y-auto flex-1">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-slate-100 text-slate-600 font-bold">
+                        <tr><th class="p-2 w-8"></th><th class="p-2 whitespace-nowrap">NO.</th><th class="p-2 whitespace-nowrap">접수일시</th><th class="p-2 whitespace-nowrap">받는분</th><th class="p-2">쇼핑몰 상품명</th><th class="p-2 whitespace-nowrap">도매처 / 도매상품</th></tr>
+                    </thead>
+                    <tbody id="redo-list" class="divide-y divide-slate-100 text-slate-700"></tbody>
+                </table>
+            </div>
+            <div class="p-5 border-t border-slate-100 space-y-2">
+                <p class="text-[11px] text-slate-500">· 이미 출고된 주문은 다시 접수하지 마세요. 송장번호가 늦게 들어올 수 있으니 출고 여부가 헷갈리면 카톡으로 먼저 확인해 주세요.<br>· 택배출고 작업 시간(오전 7시~오후 3시)에는 다시 접수도 할 수 없어요.</p>
+                <div class="flex gap-2">
+                    <button type="button" onclick="closeRedoModal()" class="flex-1 py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-sm">닫기</button>
+                    <button type="button" id="btn-redo-submit" onclick="submitRedoOrders()" class="flex-[2] py-2.5 rounded-lg bg-orange-500 hover:bg-orange-600 disabled:bg-slate-300 text-white font-black text-sm">선택한 주문 다시 접수</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -2647,6 +2676,10 @@
         // 오전 7시 30분 ~ 오후 2시 접수건은 당일 출고 누락 방지를 위해 카카오톡 단톡방 안내가 필요합니다.
         const KAKAO_NOTICE_START = 7 * 60 + 30;
         const KAKAO_NOTICE_END = 14 * 60;
+        // 택배출고 작업 시간(한국시간 07:00 ~ 15:00)에는 셀러 주문 접수를 막습니다 (관리자는 접수 가능). 2026-11-24 대표님 요청
+        const SHIP_CLOSE_START = 7 * 60;
+        const SHIP_CLOSE_END = 15 * 60;   // 15:00 부터 다시 접수 가능
+        const SHIP_CLOSED_MESSAGE = '택배출고작업 시간인 오전 7시부터 오후3시까지는 접수가 불가합니다.\n부득이하게 사무실 재고가 있는 물건 중 추가 출고해야할 상품은 오후 1시전까지 카톡으로 접수해주시길 바랍니다.\n\n오후3시부터 다시 접수가 가능하며, 3시 이후접수건은 다음날 출고가 됩니다.';
         const KAKAO_NOTICE_MESSAGE = '📢 [당일 출고 요청 안내]\n\n오전 7시30분 ~ 오후 2시 사이에 접수된 주문 중 급하게 당일 출고가 필요한 주문건은\n\n접수누락을 방지하기위해 반드시 카카오톡 단톡방으로 접수 안내 메세지를 보내주셔야합니다.';
         let currentRole = null;
         let currentSellerAccount = null; // 로그인한 계정의 프로필 (company, name, phone, role)
@@ -2693,12 +2726,21 @@
         }
         const formatMinutes = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
-        // 접수는 24시간 가능합니다. 'kakao': 07:30~14:00 (카톡 안내 필요), 'normal': 그 외
+        // 'closed': 07:00~15:00 택배출고 작업 시간 (셀러 주문 접수 불가), 'normal': 그 외
         function getTimePhase() {
             const m = getCurrentMinutes();
-            return (m >= KAKAO_NOTICE_START && m <= KAKAO_NOTICE_END) ? 'kakao' : 'normal';
+            return (m >= SHIP_CLOSE_START && m < SHIP_CLOSE_END) ? 'closed' : 'normal';
         }
-        const isKakaoNoticeTime = () => getTimePhase() === 'kakao';
+        // 예전 07:30~14:00 '단톡방으로 알려주세요' 안내는 이 시간에 셀러 접수가 막혀 더 띄우지 않습니다.
+        const isKakaoNoticeTime = () => false;
+        // 지금 셀러 주문 접수가 막힌 시간인지 (관리자는 막지 않음)
+        const isShipClosed = () => currentRole === 'seller' && getTimePhase() === 'closed';
+        // 막힌 시간이면 안내창을 띄우고 true (접수 함수 맨 앞에서 확인 — 화면을 7시 전에 열어 둔 경우도 막힘)
+        function blockIfShipClosed() {
+            if (!isShipClosed()) return false;
+            alert('🚚 지금은 택배출고 작업 시간이에요.\n\n' + SHIP_CLOSED_MESSAGE);
+            return true;
+        }
         const canAddOrders = () => currentRole !== 'seller' || isSellerApproved();
         const canModifyOrders = () => currentRole !== 'seller' || isSellerApproved();
         // 셀러가 이 주문(상품)을 고치거나 지울 수 있는지: 관리자 마감 전 + 출고 전
@@ -2923,6 +2965,7 @@
             currentUserId = user.id;
             currentSellerAccount = { ...profile, email: user.email };
             currentRole = profile.role === 'admin' ? 'admin' : 'seller';
+            window.bamnatTrack?.setRole(currentRole);   // 방문 통계 (track.js)
 
             // 관리자가 [화면 보기]로 연 창이면, 고른 셀러가 로그인한 것처럼 셀러 화면을 그립니다 (보기 전용).
             if (VIEW_AS_ID && profile.role === 'admin') {
@@ -2974,6 +3017,7 @@
 
         function showLoginScreen() {
             currentRole = null;
+            window.bamnatTrack?.setRole('guest');
             currentSellerAccount = null;
             currentUserId = null;
             ordersMaster = [];
@@ -3041,13 +3085,13 @@
             const text = document.getElementById('status-text');
             const subtext = document.getElementById('status-subtext');
 
-            if (phase === 'kakao') {
-                banner.className = "bg-amber-500 text-white px-4 sm:px-6 py-2.5 text-sm font-medium flex flex-col sm:flex-row gap-1.5 sm:gap-4 sm:justify-between sm:items-center shadow-inner";
-                text.innerText = "배송접수 24시간 가능 · 지금(07:30~14:00) 당일 출고 긴급건은 카카오톡 단톡방으로 꼭 알려주세요";
-                subtext.innerText = "접수누락 방지를 위해 당일 출고건은 단톡방 안내 메세지가 필수입니다.";
+            if (phase === 'closed') {
+                banner.className = "bg-rose-600 text-white px-4 sm:px-6 py-2.5 text-sm font-medium flex flex-col sm:flex-row gap-1.5 sm:gap-4 sm:justify-between sm:items-center shadow-inner";
+                text.innerText = "🚚 택배출고 작업 시간(오전 7시~오후 3시) 배송접수 불가 · 오후 3시부터 다시 접수 (3시 이후 접수건은 다음날 출고)";
+                subtext.innerText = "사무실 재고 중 추가 출고할 상품은 오후 1시 전까지 카톡으로 접수해주세요.";
             } else {
                 banner.className = "bg-emerald-500 text-white px-4 sm:px-6 py-2.5 text-sm font-medium flex flex-col sm:flex-row gap-1.5 sm:gap-4 sm:justify-between sm:items-center shadow-inner";
-                text.innerText = "배송접수는 24시간 가능 · 사입 픽업요청은 가능한 23시 전까지 접수해주세요 (최대 새벽 1시)";
+                text.innerText = "배송접수 가능 시간: 오후 3시 ~ 다음날 오전 7시 · 사입 픽업요청은 가능한 23시 전까지 접수해주세요 (최대 새벽 1시)";
                 subtext.innerText = "관리자 마감(접수완료) 전·출고 전 주문은 수정/삭제할 수 있습니다.";
             }
 
@@ -3058,11 +3102,16 @@
 
         // 주문 등록 버튼을 잠글 때는 회색으로 바꾸고, 왜 안 되는지 옆에 적어줍니다.
         function updateOrderAvailability() {
-            const allowed = canAddOrders();
+            const closed = isShipClosed();
+            const allowed = canAddOrders() && !closed;
             let reason = '';
-            if (!allowed) {
+            if (!canAddOrders()) {
                 reason = '관리자 승인 후 주문을 등록할 수 있습니다.';
+            } else if (closed) {
+                reason = '🚚 오전 7시~오후 3시 택배출고 작업 시간에는 접수할 수 없어요. 오후 3시부터 다시 가능하며, 3시 이후 접수건은 다음날 출고돼요.';
             }
+            const box = document.getElementById('ship-closed-notice');
+            if (box) box.classList.toggle('hidden', !closed);
             ['btn-submit-order', 'btn-excel-upload', 'btn-store-submit', 'btn-ai-upload'].forEach(id => {
                 const btn = document.getElementById(id);
                 if (btn) btn.disabled = !allowed;
@@ -3596,6 +3645,7 @@
                 alert('관리자 승인 전이거나 이용이 정지된 계정은 주문을 등록할 수 없습니다.');
                 return;
             }
+            if (blockIfShipClosed()) return;
             const keep = readKeepRequest();
             if (!keep) return;
             if (!isValidPhone(document.getElementById('st-phone').value)) {
@@ -3642,7 +3692,7 @@
             renderSellerTable();
         }
 
-        // ---------------- 픽업건 중 사무실 보관요청 (모든 택배접수 전에 [접수] 필수) ----------------
+        // ---------------- 픽업건 중 밤낮딜리버리 창고로 보관요청 (모든 택배접수 전에 [접수] 필수) ----------------
         // 옵션을 고르고 [접수] 버튼까지 눌러야 접수됩니다.
         //  1. 보관건 있습니다 → 메모와 함께 '보관요청' 건(order_type = keep)으로 접수 목록에 올라갑니다.
         //  2. 없습니다 → 확인만 하고 목록에는 올라가지 않습니다. (예전 '3. 이미 접수했습니다'는 2026-11-19 대표님 요청으로 뺌)
@@ -3728,7 +3778,7 @@
             }
             const checked = document.querySelector('input[name="keep-request"]:checked');
             if (!checked) {
-                alert('사무실 보관요청 버튼을 체크해주세요.');
+                alert('밤낮딜리버리 창고로 보관요청 버튼을 체크해주세요.');
                 return;
             }
             const choice = checked.value;
@@ -3755,7 +3805,7 @@
                 cs_phone: formatPhone(currentSellerAccount.phone || ''),
                 recipient: company,
                 phone: formatPhone(currentSellerAccount.phone || '') || '-',
-                address: '사무실 보관요청',
+                address: '밤낮딜리버리 창고로 보관요청',
                 product: memo,
                 keep_request: '있음',
                 keep_memo: memo,
@@ -3777,7 +3827,7 @@
             saveKeepCheck('있음');
             document.getElementById('keep-memo').value = '';
             setKeepStatus(`✅ ${p.hh}:${p.mm} 보관요청 접수 완료 (NO. ${sellerNoLabel(saved)})`, true);
-            alert(`사무실 보관요청이 접수되었습니다. (NO. ${sellerNoLabel(saved)})\n아래 [내 접수 주문목록]에서 접수된 내용을 한 번 확인해 주세요.`);
+            alert(`밤낮딜리버리 창고로 보관요청이 접수되었습니다. (NO. ${sellerNoLabel(saved)})\n아래 [내 접수 주문목록]에서 접수된 내용을 한 번 확인해 주세요.`);
             renderSellerTable();
         }
 
@@ -3787,8 +3837,8 @@
             if (keepConfirmed) return { keep_request: keepConfirmed, keep_memo: null };
             const checked = document.querySelector('input[name="keep-request"]:checked');
             alert(checked
-                ? '[픽업건 중 사무실 보관요청]의 [접수] 버튼을 먼저 눌러주세요.'
-                : '사무실 보관요청 버튼을 체크하고 [접수] 버튼을 눌러주세요.');
+                ? '[픽업건 중 밤낮딜리버리 창고로 보관요청]의 [접수] 버튼을 먼저 눌러주세요.'
+                : '밤낮딜리버리 창고로 보관요청 버튼을 체크하고 [접수] 버튼을 눌러주세요.');
             document.getElementById('keep-request-box').scrollIntoView({ behavior: 'smooth', block: 'center' });
             return null;
         }
@@ -3971,6 +4021,7 @@
                 alert('관리자 승인 전이거나 이용이 정지된 계정은 주문을 등록할 수 없습니다.');
                 return;
             }
+            if (blockIfShipClosed()) return;
 
             const keep = readKeepRequest();
             if (!keep) return;
@@ -4069,6 +4120,7 @@
                 e.target.value = '';
                 return;
             }
+            if (blockIfShipClosed()) { e.target.value = ''; return; }
 
             const file = e.target.files[0];
             if (!file) return;
@@ -4105,12 +4157,22 @@
                         }
                     }
 
+                    // 제목줄에 '수화인·송화인' 대신 '수령자명'·'상품명' 처럼 적힌 양식(예: 온더포엑스)도 제목줄로 찾음 (2026-11-23)
+                    if (headerIdx === -1) {
+                        headerIdx = rows.slice(0, 10).findIndex(x => {
+                            const t = (x || []).map(c => String(c ?? '')).join(' ');
+                            return t.includes('상품명') && /수화인|수령자|수령인|수취인|받는\s*(분|사람)/.test(t);
+                        });
+                    }
                     if (headerIdx === -1) headerIdx = 1;
 
                     // 2026 신규 양식은 맨 앞(A열)에 'NO.' 열이 있습니다. 있으면 한 칸씩 밀어서 읽습니다.
                     const headerRow = rows[headerIdx] || [];
                     const off = /^\s*no\.?\s*$/i.test(String(headerRow[0] ?? '')) ? 1 : 0;
                     const colName = i => String.fromCharCode(65 + i + off);
+                    // 양식 뒤에 덧붙은 칸: '마스터상품코드'(도매처(도매상품명)숫자) · '주문선택사항'(옵션) — 있을 때만 씀 (2026-11-23)
+                    const mcCol = typeof masterCodeCol === 'function' ? masterCodeCol(headerRow) : -1;
+                    const optCol = headerRow.findIndex((h, k) => k > 10 + off && /^(주문)?(선택사항|옵션(정보|명)?)$/.test(String(h ?? '').replace(/\s/g, '')));
 
                     const batchOrders = [];
                     const batchRows = [];   // 엑셀 몇 번째 줄인지 (확인표에 보여줌)
@@ -4142,6 +4204,15 @@
                         if (!normalizePhone(r[7])) missing.push(`받는사람 연락처(${colName(7)}열)`);
                         if (missing.length > 0) missingFieldRows.push({ row: excelRowNo, fields: missing.join(', ') });
 
+                        // 도매거래처명·도매상품명이 비었으면 마스터상품코드에서 채움
+                        const mc = mcCol >= 0 && typeof parseMasterCode === 'function' ? parseMasterCode(raw[mcCol]) : null;
+                        // 옵션 칸이 따로 있으면 상품명 뒤에 " / 컬러 / 사이즈" 로 붙임 (이미 상품명에 있으면 그대로)
+                        let productText = cell(r[4]);
+                        const opt = optCol >= 0 ? cell(raw[optCol]) : '';
+                        if (opt && productText && !productText.includes(opt) && typeof aiOptionParts === 'function') {
+                            productText = [productText, ...aiOptionParts(opt)].join(' / ');
+                        }
+
                         batchRows.push(excelRowNo);
                         batchOrders.push({
                             id: generateOrderId('ORD-EXCEL'),
@@ -4150,9 +4221,9 @@
                             cs_phone: formatPhone(normalizePhone(r[1]) || currentSellerAccount.phone || ''),
                             recipient: cell(r[2]),
                             address: cell(r[3]),
-                            product: cell(r[4]),
-                            wholesale_company: cell(r[5]),
-                            wholesale_product: cell(r[6]),
+                            product: productText,
+                            wholesale_company: cell(r[5]) || (mc ? mc.company : ''),
+                            wholesale_product: cell(r[6]) || (mc ? mc.product : ''),
                             phone: formatPhone(normalizePhone(r[7])),
                             memo: cell(r[8]),
                             bamnat_memo: cell(r[9]),
@@ -4206,6 +4277,7 @@
                         return;
                     }
 
+                    if (blockIfShipClosed()) { e.target.value = ''; return; } // 확인표를 보는 사이 7시가 된 경우
                     let savedOrders = batchOrders.map(o => ({ ...o, created_at: new Date().toISOString() }));
                     if (supabaseClient) {
                         // 한 번에 저장되므로 오류 시 일부만 들어가는 일 없이 전체가 취소됩니다.
@@ -4287,7 +4359,7 @@
 
             // 관리자: 합배송 상태 보기 + 부분출고로 빼기
             const cbox = document.getElementById('eo-combine-box');
-            const showCombine = currentRole === 'admin' && !isKeepOrder(order);
+            const showCombine = (currentRole === 'admin' || currentRole === 'seller') && !isKeepOrder(order);
             cbox.classList.toggle('hidden', !showCombine);
             if (showCombine) {
                 const groups = getOrderGroups();
@@ -4296,7 +4368,7 @@
                 const shipped = order.ship_status === '출고완료';
                 cbox.className = `flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg border text-xs ${combined ? 'bg-indigo-50 border-indigo-200 text-indigo-800' : 'bg-slate-50 border-slate-200 text-slate-600'}`;
                 cbox.innerHTML = combined
-                    ? `<span><b>📦 합배송</b> · ${escapeHtml(String(order.order_no))}번 주문 ${g ? g.total : 1}개 묶음 (모아서 한 번에 출고)</span>`
+                    ? `<span><b>📦 합배송</b> · ${escapeHtml(currentRole === 'seller' ? sellerNoLabel(order, groups).replace(/-\d+$/, '') : String(order.order_no))}번 주문 ${g ? g.total : 1}개 묶음 (모아서 한 번에 출고)</span>`
                       + (shipped ? '' : `<button type="button" onclick="applyCombine('split', [document.getElementById('edit-order-id').value])" class="px-2.5 py-1 bg-white border border-orange-300 hover:bg-orange-50 text-orange-700 font-bold rounded">✂️ 이 상품만 부분출고로 바꾸기</button>`)
                     : '<span><b>배송 방식:</b> 단독 주문 · 합배송으로 묶으려면 목록에서 같이 보낼 주문을 2개 이상 체크하고 [선택수정]을 누르세요.</span>';
             }
@@ -4458,6 +4530,128 @@
         const orderTypeOf = o => o.order_type || 'fulfillment';
         const isKeepOrder = o => orderTypeOf(o) === 'keep';
         const isStoreOrder = o => orderTypeOf(o) === 'store_post' || orderTypeOf(o) === 'store_sameday';
+        // ---------------- 관리자 주문 추가 접수 ----------------
+        // 전화·카톡으로 받은 주문을 관리자가 대신 등록합니다. (SQL 필요 없음)
+        //  - 출고인 업체가 우리 거래처(가입 셀러 또는 예전에 접수한 업체)와 같으면 그 셀러 주문으로 저장
+        //    → 업체별 접수 현황 칩 숫자에 합쳐지고, 그 셀러 화면의 접수 목록에도 보입니다.
+        //  - 같은 업체가 없으면 입력한 이름 그대로 새 업체로 저장합니다.
+        //  - 접수번호가 ORD-ADM- 으로 시작하면 '관리자 추가' 표시
+        const ADMIN_ADD_PREFIX = 'ORD-ADM';
+        const isAdminAddedOrder = o => String(o && o.id || '').startsWith(ADMIN_ADD_PREFIX + '-');
+        const normCompanyName = v => String(v || '').replace(/^밤낮딜리버리\s*\((.*)\)$/, '$1').replace(/\s+/g, '').toLowerCase();
+
+        // 거래처 목록: 가입한 셀러(관리자 제외) + 주문에 나온 업체
+        function adminAddCompanies() {
+            const map = new Map();
+            (sellerProfiles || []).filter(p => p.role !== 'admin' && p.company).forEach(p => {
+                const k = normCompanyName(p.company);
+                if (!map.has(k)) map.set(k, { company: p.company, seller_id: p.id, phone: p.phone || '', profile: true });
+            });
+            [...ordersMaster].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))).forEach(o => {
+                if (!o.seller_company) return;
+                const k = normCompanyName(o.seller_company);
+                if (!map.has(k)) map.set(k, { company: o.seller_company, seller_id: o.seller_id || null, phone: o.cs_phone || '', profile: false });
+            });
+            return map;
+        }
+        let adminAddMatch = null;
+        function onAdminAddCompanyInput() {
+            const typed = document.getElementById('aa-company').value.trim();
+            const box = document.getElementById('aa-company-match');
+            const m = typed ? adminAddCompanies().get(normCompanyName(typed)) || null : null;
+            const prev = adminAddMatch;
+            adminAddMatch = m;
+            const company = m ? m.company : typed;
+            // 송화인명·연락처는 업체에 맞춰 자동으로 채움 (직접 고친 값은 업체가 바뀔 때만 다시 채움)
+            const sn = document.getElementById('aa-sender-name'), cs = document.getElementById('aa-cs-phone');
+            if (!sn.dataset.touched || (prev && prev.company) !== (m && m.company)) { sn.value = company ? `밤낮딜리버리(${company})` : ''; delete sn.dataset.touched; }
+            if (m && m.phone && (!cs.value || (prev && prev.phone === cs.value))) cs.value = formatPhone(m.phone);
+            if (!typed) { box.innerHTML = ''; return; }
+            if (m) {
+                const waiting = new Set(ordersMaster.filter(o => normCompanyName(o.seller_company) === normCompanyName(m.company) && o.status === '접수대기').map(o => o.order_no ?? o.id)).size;
+                box.innerHTML = `<span class="inline-flex flex-wrap items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold">✅ 우리 거래처 <span class="px-1.5 py-0.5 rounded bg-slate-900 text-white">${escapeHtml(m.company)}</span> 와 같은 업체예요 → 이 업체 접수 목록에 합쳐집니다 (지금 접수대기 ${waiting}건 → ${waiting + 1}건)</span>`;
+            } else {
+                box.innerHTML = '<span class="inline-flex px-2 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 font-bold">⚠ 같은 이름의 거래처가 없어요 → 입력한 이름으로 새 업체 칸이 생깁니다. 거래처라면 목록에서 골라주세요.</span>';
+            }
+        }
+        function openAdminAddOrder() {
+            if (currentRole !== 'admin') return;
+            const form = document.querySelector('#admin-add-modal form');
+            form.reset();
+            delete document.getElementById('aa-sender-name').dataset.touched;
+            adminAddMatch = null;
+            document.getElementById('aa-company-list').innerHTML = [...adminAddCompanies().values()]
+                .sort((a, b) => a.company.localeCompare(b.company, 'ko'))
+                .map(c => `<option value="${escapeHtml(c.company)}"></option>`).join('');
+            // 지금 보고 있는 거래처가 있으면 미리 채움
+            const sel = document.getElementById('admin-seller-filter').value;
+            document.getElementById('aa-company').value = sel && sel !== 'ALL' ? sel : '';
+            onAdminAddCompanyInput();
+            document.getElementById('aa-sender-name').oninput = e => { e.target.dataset.touched = '1'; };
+            const modal = document.getElementById('admin-add-modal');
+            modal.classList.remove('hidden'); modal.classList.add('flex');
+            lucide.createIcons();
+            document.getElementById(document.getElementById('aa-company').value ? 'aa-recipient' : 'aa-company').focus();
+        }
+        function closeAdminAddOrder() {
+            const modal = document.getElementById('admin-add-modal');
+            modal.classList.add('hidden'); modal.classList.remove('flex');
+        }
+        async function handleAdminAddOrder(e) {
+            e.preventDefault();
+            if (currentRole !== 'admin') return;
+            onAdminAddCompanyInput();
+            const v = id => document.getElementById(id).value.trim();
+            const m = adminAddMatch;
+            const company = m ? m.company : v('aa-company');
+            if (!company) { alert('출고인(송화인) 업체를 입력해주세요.'); return; }
+            if (/[()]/.test(company)) { alert('업체 이름에는 괄호를 넣을 수 없습니다.'); return; }
+            const senderName = v('aa-sender-name');
+            if (!/^밤낮딜리버리\([^\(\)]+\)$/.test(senderName)) { alert("송화인명은 '밤낮딜리버리(업체상호)' 형식이어야 합니다."); return; }
+            if (!isValidPhone(v('aa-phone'))) { alert('받는사람 연락처를 확인해주세요.\n예) 010-1234-5678 또는 01012345678'); return; }
+            if (!v('aa-address')) { alert('배송지 주소를 [주소 검색] 버튼으로 입력해주세요.'); return; }
+            if (!m && !confirm(`'${company}' 은(는) 우리 거래처 목록에 없는 이름이에요.\n새 업체로 따로 접수할까요?\n\n(거래처라면 [취소]를 누르고 목록에서 골라주세요)`)) return;
+            const newOrder = {
+                id: generateOrderId(ADMIN_ADD_PREFIX),
+                order_type: 'fulfillment',
+                seller_company: company,
+                sender_name: senderName,
+                cs_phone: formatPhone(v('aa-cs-phone')),
+                recipient: v('aa-recipient'),
+                phone: formatPhone(v('aa-phone')),
+                zipcode: v('aa-zipcode'),
+                address: v('aa-address'),
+                detail_address: v('aa-detail-address'),
+                product: v('aa-product'),
+                wholesale_company: v('aa-wholesale-company'),
+                wholesale_product: v('aa-wholesale-product'),
+                memo: v('aa-memo'),
+                bamnat_memo: v('aa-bamnat-memo'),
+                qty: 1,
+                status: '접수대기'
+            };
+            // 거래처와 같은 업체면 그 셀러의 주문으로 저장 (셀러 번호·셀러 화면 목록도 그 업체 기준)
+            if (m && m.seller_id) newOrder.seller_id = m.seller_id;
+            const btn = document.getElementById('aa-submit');
+            btn.disabled = true;
+            try {
+                let saved = { ...newOrder, seller_id: newOrder.seller_id || currentUserId, created_at: new Date().toISOString(), ship_status: '미출고' };
+                if (supabaseClient) {
+                    const { data, error } = await supabaseClient.from('orders').insert([newOrder]).select();
+                    if (error) { alert('주문 저장 중 오류가 발생했습니다.\n\n' + dbErrorMessage(error)); return; }
+                    if (data && data[0]) saved = data[0];
+                }
+                ordersMaster.unshift(saved);
+                sortOrdersMaster();
+                closeAdminAddOrder();
+                populateAdminFilter();
+                renderAdminTable();
+                alert(`${company} 주문으로 추가 접수되었습니다. (NO. ${saved.order_no ?? '-'})\n업체별 접수 현황의 [${company}] 접수대기 숫자에 함께 셉니다.`);
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
         function orderTypeBadgeHtml(o) {
             const t = orderTypeOf(o);
             return `<span class="inline-block mt-1 px-1.5 py-0.5 rounded border text-[10px] font-bold whitespace-nowrap ${ORDER_TYPE_CLASS[t] || ''}">${escapeHtml(ORDER_TYPE_LABEL[t] || t)}</span>`;
@@ -4525,6 +4719,7 @@
 
             if (myOrders.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="15" class="text-center py-6 text-slate-400">${allMine.length ? '조회 조건에 맞는 주문이 없습니다.' : '접수된 주문이 없습니다.'}</td></tr>`;
+                if (typeof updateEditSelectedBtn === 'function') updateEditSelectedBtn();
                 return;
             }
 
@@ -4572,6 +4767,10 @@
                                         삭제
                                     </button>
                                 </div>
+                            ` : canRedoOrder(o) ? `
+                                <button data-id="${id}" onclick="openRedoModal(this.dataset.id)" class="px-2 py-1 bg-orange-50 border border-orange-200 text-orange-600 hover:bg-orange-100 font-bold rounded text-[11px] whitespace-nowrap" title="아직 출고되지 않은 주문을 그대로 다시 접수합니다">
+                                    다시 접수
+                                </button>
                             ` : `
                                 <span class="text-[10px] text-slate-400 italic whitespace-nowrap">수정불가</span>
                             `}
@@ -4579,6 +4778,135 @@
                     </tr>
                 `;
             }).join('');
+            if (typeof updateEditSelectedBtn === 'function') updateEditSelectedBtn();
+        }
+
+        // =====================================================================
+        // 셀러: [미출고 주문 다시 접수] (대표님 요청 2026-11-25)
+        //  접수완료됐지만 아직 출고 안 된(송장번호 없음) 최근 7일 고객풀필먼트 주문을
+        //  같은 내용으로 새로 접수합니다. 원래 주문은 그대로 두고, 새 주문은 접수대기 + 전달메세지 앞 [재접수].
+        //  택배출고 작업 시간(07~15시) 막기·승인 전 계정 막기는 다른 접수와 똑같이 따릅니다.
+        // =====================================================================
+        const REDO_DAYS = 7;
+        const REDO_TAG = '[재접수]';
+        function canRedoOrder(o) {
+            if (currentRole !== 'seller' || !o || o.seller_id !== currentUserId) return false;
+            if (o.status !== '접수완료' || orderTypeOf(o) !== 'fulfillment') return false;
+            if (o.tracking_no || o.ship_status === '출고완료') return false;
+            const t = new Date(o.created_at).getTime();
+            return !isNaN(t) && Date.now() - t <= REDO_DAYS * 24 * 3600 * 1000;
+        }
+        // 이미 다시 접수한(같은 받는분·연락처·상품으로 나중에 들어온 접수대기) 주문이 있으면 그 주문
+        function findRedoCopy(o) {
+            const n = v => String(v || '').replace(/\s/g, '').toLowerCase();
+            const d = v => String(v || '').replace(/\D/g, '');
+            return ordersMaster.find(x => x.id !== o.id && x.seller_id === o.seller_id && x.status === '접수대기'
+                && n(x.recipient) === n(o.recipient) && d(x.phone) === d(o.phone) && n(x.product) === n(o.product)
+                && String(x.created_at || '') > String(o.created_at || ''));
+        }
+        function redoCandidates() {
+            return ordersMaster.filter(canRedoOrder)
+                .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+        }
+        function openRedoModal(preId) {
+            if (!canAddOrders()) { alert('관리자 승인 전이거나 이용이 정지된 계정은 주문을 등록할 수 없습니다.'); return; }
+            const list = redoCandidates();
+            if (!list.length) {
+                alert(`다시 접수할 수 있는 주문이 없어요.\n\n접수완료됐지만 송장번호가 아직 없는 최근 ${REDO_DAYS}일 고객풀필먼트 주문만 다시 접수할 수 있어요.`);
+                return;
+            }
+            const groups = getOrderGroups();
+            document.getElementById('redo-list').innerHTML = list.map(o => {
+                const copy = findRedoCopy(o);
+                const id = escapeHtml(o.id);
+                return `<tr class="${copy ? 'bg-slate-50 text-slate-400' : 'hover:bg-orange-50/50'}">
+                    <td class="p-2 text-center"><input type="checkbox" value="${id}" ${copy ? 'disabled' : (o.id === preId ? 'checked' : '')} onchange="updateRedoCount()" class="redo-chk rounded border-slate-300 text-orange-500 disabled:opacity-40"></td>
+                    <td class="p-2 font-mono font-black ${copy ? '' : 'text-indigo-700'} whitespace-nowrap">${escapeHtml(sellerNoLabel(o, groups))}</td>
+                    <td class="p-2 whitespace-nowrap">${escapeHtml(formatKstDateTime(o.created_at))}</td>
+                    <td class="p-2 font-semibold whitespace-nowrap">${escapeHtml(o.recipient)}</td>
+                    <td class="p-2">${escapeHtml(o.product)}${copy ? `<span class="block text-[10px] font-bold text-emerald-600">✔ 이미 다시 접수함 (NO. ${escapeHtml(sellerNoLabel(copy, groups))})</span>` : ''}</td>
+                    <td class="p-2 whitespace-nowrap">${escapeHtml(o.wholesale_company || '-')} / ${escapeHtml(o.wholesale_product || '-')}</td>
+                </tr>`;
+            }).join('');
+            document.getElementById('redo-chk-all').checked = false;
+            updateRedoCount();
+            const modal = document.getElementById('redo-modal');
+            modal.classList.remove('hidden'); modal.classList.add('flex');
+        }
+        function closeRedoModal() {
+            const modal = document.getElementById('redo-modal');
+            modal.classList.add('hidden'); modal.classList.remove('flex');
+        }
+        function toggleAllRedo(box) {
+            document.querySelectorAll('.redo-chk:not(:disabled)').forEach(c => { c.checked = box.checked; });
+            updateRedoCount();
+        }
+        function updateRedoCount() {
+            const all = document.querySelectorAll('.redo-chk').length;
+            const n = document.querySelectorAll('.redo-chk:checked').length;
+            document.getElementById('redo-count').innerText = `미출고 ${all}건 중 ${n}건 선택`;
+            const btn = document.getElementById('btn-redo-submit');
+            btn.disabled = n === 0;
+            btn.innerText = n ? `선택한 ${n}건 다시 접수` : '다시 접수할 주문을 체크해 주세요';
+        }
+        async function submitRedoOrders() {
+            if (!canAddOrders()) { alert('관리자 승인 전이거나 이용이 정지된 계정은 주문을 등록할 수 없습니다.'); return; }
+            if (blockIfShipClosed()) return;
+            const ids = Array.from(document.querySelectorAll('.redo-chk:checked')).map(c => c.value);
+            const picked = ordersMaster.filter(o => ids.includes(o.id) && canRedoOrder(o) && !findRedoCopy(o))
+                .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')) || (Number(a.item_no) || 0) - (Number(b.item_no) || 0));
+            if (!picked.length) { alert('다시 접수할 주문을 체크해 주세요.'); return; }
+            if (!confirm(`선택한 ${picked.length}건을 같은 내용으로 다시 접수할까요?\n\n· 새 주문은 [접수대기]로 들어갑니다.\n· 이미 출고된 주문이 섞여 있지 않은지 확인해 주세요.`)) return;
+            const rows = picked.map(o => {
+                const memo = String(o.bamnat_memo || '').trim();
+                return {
+                    id: generateOrderId('ORD-RE'),
+                    order_type: 'fulfillment',
+                    seller_company: o.seller_company || (currentSellerAccount && currentSellerAccount.company),
+                    sender_name: o.sender_name,
+                    cs_phone: o.cs_phone,
+                    recipient: o.recipient,
+                    phone: o.phone,
+                    zipcode: o.zipcode,
+                    address: o.address,
+                    detail_address: o.detail_address,
+                    product: o.product,
+                    wholesale_company: o.wholesale_company,
+                    wholesale_product: o.wholesale_product,
+                    memo: o.memo,
+                    bamnat_memo: memo.startsWith(REDO_TAG) ? memo : `${REDO_TAG} ${memo}`.trim(),
+                    qty: o.qty || 1,
+                    status: '접수대기'
+                };
+            });
+            // 같은 1초에 여러 건이면 접수번호가 겹칠 수 있어 뒤에 순번을 붙입니다.
+            rows.forEach((r, i) => { r.id = `${r.id}${i}`; });
+            const btn = document.getElementById('btn-redo-submit');
+            btn.disabled = true;
+            try {
+                let saved = rows.map(r => ({ ...r, seller_id: currentUserId, created_at: new Date().toISOString(), ship_status: '미출고' }));
+                if (supabaseClient) {
+                    // 하나씩 저장해야 합배송((합)) 상품이 같은 번호로 묶입니다.
+                    saved = [];
+                    for (const r of rows) {
+                        const { data, error } = await supabaseClient.from('orders').insert([r]).select();
+                        if (error) {
+                            alert(`${saved.length ? `${saved.length}건은 다시 접수됐지만 ` : ''}저장 중 오류가 발생했습니다.\n\n` + dbErrorMessage(error));
+                            break;
+                        }
+                        saved.push((data && data[0]) || { ...r, seller_id: currentUserId, created_at: new Date().toISOString() });
+                    }
+                }
+                if (!saved.length) return;
+                ordersMaster.unshift(...saved);
+                sortOrdersMaster();
+                closeRedoModal();
+                renderSellerTable();
+                const nos = saved.map(o => sellerNoLabel(o)).join(', ');
+                alert(`${saved.length}건을 다시 접수했어요. (새 NO. ${nos})\n아래 [내 접수 주문목록]에서 접수대기로 보입니다.`);
+            } finally {
+                updateRedoCount();
+            }
         }
 
         // =====================================================================
@@ -5129,10 +5457,16 @@
                 if (!orderInDateRange(o, adminFrom, adminTo)) return;
                 if (!orderInAdminBasis(o)) return;
                 const c = o.seller_company || '-';
-                (byCompany[c] = byCompany[c] || new Set()).add(o.order_no ?? o.id);
+                const g = byCompany[c] = byCompany[c] || { set: new Set(), first: null };
+                g.set.add(o.order_no ?? o.id);
+                // 순서 기준: 접수대기 = 셀러가 처음 접수한 시간, 접수완료 = 관리자 접수시간
+                const t = status === '접수완료' ? (o.accepted_at || o.created_at) : (o.origin_created_at || o.created_at);
+                const ms = t ? new Date(t).getTime() : NaN;
+                if (!isNaN(ms) && (g.first === null || ms < g.first)) g.first = ms;
             });
-            return Object.entries(byCompany).map(([company, set]) => ({ company, count: set.size }))
-                .sort((a, b) => b.count - a.count || a.company.localeCompare(b.company, 'ko'));
+            // 먼저 접수한 업체가 왼쪽 (시간이 없는 업체는 맨 뒤)
+            return Object.entries(byCompany).map(([company, g]) => ({ company, count: g.set.size, first: g.first }))
+                .sort((a, b) => (a.first ?? Infinity) - (b.first ?? Infinity) || a.company.localeCompare(b.company, 'ko'));
         }
         function renderAdminCompanyTabs() {
             const box = document.getElementById('admin-company-tabs');
@@ -5155,7 +5489,7 @@
                 const chips = list.map(x => {
                     const active = adminQuery.status === status && adminQuery.seller === x.company;
                     const enc = escapeHtml(JSON.stringify(x.company));
-                    return chip(active, `pickAdminCompanyTab(${enc}, '${status}')`, `${escapeHtml(x.company)} <span class="font-black">${x.count}</span>`, `${escapeHtml(x.company)} ${label} 주문만 보기`);
+                    return chip(active, `pickAdminCompanyTab(${enc}, '${status}')`, `${escapeHtml(x.company)} <span class="font-black">${x.count}</span>${x.first !== null ? ` <span class="font-normal opacity-70">${formatPickupTime(x.first)}</span>` : ''}`, `${escapeHtml(x.company)} ${label} 주문만 보기${x.first !== null ? ` (제일 빠른 ${status === '접수완료' ? '관리자 접수' : '접수'} ${formatPickupTime(x.first)})` : ''}`);
                 }).join('');
                 return `<div class="flex flex-wrap items-center gap-1.5">
                     <span class="text-xs font-black ${color.title} whitespace-nowrap mr-1">${label} 업체 <span class="text-base">${list.length}</span>곳 · 주문 ${total}건</span>
@@ -5165,7 +5499,7 @@
             const filtered = adminQuery.status !== 'ALL' || adminQuery.seller !== 'ALL';
             box.innerHTML = `
                 <div class="flex items-center justify-between gap-2 flex-wrap">
-                    <span class="text-xs font-bold text-slate-600">업체별 접수 현황 <span class="font-normal text-slate-400">(${periodLabel} 기준 · 업체 이름을 누르면 그 업체 주문만 보입니다)</span></span>
+                    <span class="text-xs font-bold text-slate-600">업체별 접수 현황 <span class="font-normal text-slate-400">(${periodLabel} 기준 · 먼저 접수한 업체가 왼쪽 · 업체 이름을 누르면 그 업체 주문만 보입니다)</span></span>
                     ${filtered ? `<button type="button" onclick="pickAdminCompanyTab('ALL', 'ALL')" class="px-2.5 py-1 rounded-lg text-[11px] font-bold border border-slate-300 bg-white hover:bg-slate-50 text-slate-600">모든 업체·상태 보기</button>` : ''}
                 </div>
                 ${row('접수대기', '접수대기', { title: 'text-orange-700', on: 'bg-orange-500 border-orange-500 text-white', off: 'bg-orange-50 border-orange-200 text-orange-800 hover:bg-orange-100' })}
@@ -5258,11 +5592,11 @@
                     <td class="p-3 font-mono font-black text-indigo-700 whitespace-nowrap">
                         ${escapeHtml(orderNoLabel(o, groups))}${isHidden ? ' <span class="px-1.5 py-0.5 rounded bg-slate-500 text-white text-[10px] font-bold align-middle">숨김</span>' : ''}${(groups[o.order_no] || {}).total > 1 ? ' <span class="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-bold align-middle" title="같은 주문 번호로 묶여 한 번에 출고되는 상품">합배송</span>' : ''}
                         ${o.seller_order_no != null ? `<span class="block text-[10px] font-normal text-slate-400" title="셀러 화면에 보이는 번호">셀러 #${escapeHtml(sellerNoLabel(o, groups))}</span>` : ''}
-                        ${orderTypeBadgeHtml(o)}
+                        ${orderTypeBadgeHtml(o)}${isAdminAddedOrder(o) ? ' <span class="inline-block mt-1 px-1.5 py-0.5 rounded border border-orange-300 bg-orange-50 text-orange-700 text-[10px] font-bold whitespace-nowrap" title="관리자가 주문 추가 접수로 대신 등록한 주문">관리자 추가</span>' : ''}
                     </td>
                     <td class="p-3 whitespace-nowrap"><span class="px-2 py-1 rounded-lg bg-slate-900 text-white text-[11px] font-black">${escapeHtml(o.seller_company || '-')}</span></td>
                     <td class="p-3 font-bold text-slate-900 whitespace-nowrap">${escapeHtml(o.sender_name || `밤낮딜리버리(${o.seller_company})`)}</td>
-                    <td class="ship-ui p-3 min-w-[170px]">${isKeepOrder(o) ? '<span class="text-[11px] font-bold text-amber-700">사무실 보관요청</span>' : `
+                    <td class="ship-ui p-3 min-w-[170px]">${isKeepOrder(o) ? '<span class="text-[11px] font-bold text-amber-700">밤낮딜리버리 창고로 보관요청</span>' : `
                         <select data-id="${id}" onchange="setTrackingDraft(this.dataset.id, 'courier', this.value)" class="admin-courier courier-select w-full px-2 py-1 border rounded text-[11px] bg-white">${courierOptionsHtml(draftT.courier ?? o.courier)}</select>
                         <input type="text" data-id="${id}" value="${escapeHtml(trackingValue)}" placeholder="송장번호 입력" title="송장번호 입력 후 Enter 를 누르면 바로 출고완료됩니다"
                             oninput="setTrackingDraft(this.dataset.id, 'tracking', this.value)"
@@ -5278,7 +5612,7 @@
                         ${escapeHtml(o.bamnat_memo || '-')}
                         ${o.keep_request === '있음' && o.keep_memo && !isKeepOrder(o) ? `<span class="block mt-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 text-[10px] font-black">📦 보관요청: ${escapeHtml(o.keep_memo || '')}</span>` : ''}
                     </td>
-                    <td class="p-3 text-slate-400 whitespace-nowrap">${adminTimesHtml(o.origin_created_at, o.created_at, o.status === '접수완료' ? o.accepted_at : null, '관리자 접수', formatKstDateTime)}</td>
+                    <td class="p-3 text-slate-400 whitespace-nowrap">${adminTimesHtml(o.origin_created_at, o.created_at, o.status === '접수완료' ? o.accepted_at : null, '관리자 접수', formatKstDateTime, isAdminAddedOrder(o) ? '관리자 추가' : '셀러 접수')}</td>
                     <td class="p-3">
                         <div class="flex items-center gap-1 whitespace-nowrap">
                             ${statusBadgeHtml(o.status)}${separateOrderIds.has(o.id) ? '<span class="ml-1 px-2 py-1 rounded text-[10px] font-bold whitespace-nowrap bg-violet-100 text-violet-700" title="이 사이트 밖에서 따로 처리·배송한 접수건">따로 처리됨</span>' : ''}
@@ -5289,8 +5623,25 @@
                 </tr>
             `;
             }).join('');
-
+            updateEditSelectedBtn();
         }
+
+        // [선택수정] 버튼 글자: 체크 개수에 따라 무엇을 하는지 보여줌
+        function updateEditSelectedBtn() {
+            const sl = document.getElementById('btn-seller-edit-label');
+            if (sl) {
+                const m = document.querySelectorAll('.seller-chk-item:checked').length;
+                sl.textContent = m === 0 ? '선택수정' : m === 1 ? '선택수정 (1개: 주문 수정)' : `선택수정 (${m}개: 합배송/부분출고)`;
+            }
+            const btn = document.getElementById('btn-edit-selected');
+            if (!btn) return;
+            const n = document.querySelectorAll('.admin-chk-item:checked').length;
+            btn.textContent = n === 0 ? '선택수정' : n === 1 ? '선택수정 (1개: 주문 수정)' : `선택수정 (${n}개: 합배송/부분출고)`;
+        }
+        document.addEventListener('change', e => {
+            if (e.target && (e.target.classList.contains('admin-chk-item') || e.target.id === 'chk-all-admin'
+                || e.target.classList.contains('seller-chk-item') || e.target.id === 'chk-all-seller')) updateEditSelectedBtn();
+        });
 
         // 관리자가 입력했지만 아직 저장하지 않은 택배사/송장번호 (표를 다시 그려도 유지)
         let trackingDrafts = {};
@@ -5320,10 +5671,22 @@
         }
 
         // 관리자: 체크한 주문 1건 수정
+        // 셀러: [선택수정] 1개 → 그 주문 수정, 2개 이상 → 합배송 묶기 / 부분출고 (supabase/seller_combine.sql)
+        function editSelectedSellerOrder() {
+            if (!canModifyOrders()) { alert('관리자 승인 후 이용할 수 있습니다.'); return; }
+            const ids = Array.from(document.querySelectorAll('.seller-chk-item:checked')).map(c => c.value);
+            if (ids.length === 0) {
+                alert('수정할 주문을 체크해주세요.\n\n· 1개만 체크 → 그 주문 하나 수정 (합배송 건이면 그 상품만 부분출고로 빼기)\n· 2개 이상 체크 → 같은 분께 가는 주문 합배송으로 묶기 / 부분출고로 풀기\n\n※ 관리자가 접수완료한 주문은 바꿀 수 없습니다.');
+                return;
+            }
+            if (ids.length > 1) { openCombineModal(ids); return; }
+            openEditModal(ids[0]);
+        }
+
         function editSelectedAdminOrder() {
             const ids = Array.from(document.querySelectorAll('.admin-chk-item:checked')).map(c => c.value);
             if (ids.length === 0) {
-                alert('수정할 주문을 체크박스로 1건 선택해주세요.');
+                alert('수정할 주문을 체크해주세요.\n\n· 1개만 체크 → 그 주문 하나 수정 (합배송 건이면 그 상품만 부분출고로 빼기)\n· 2개 이상 체크 → 합배송으로 묶기 / 부분출고로 풀기');
                 return;
             }
             if (ids.length > 1) {
@@ -5350,11 +5713,12 @@
             const norm = v => String(v || '').replace(/\s/g, '');
             const sellers = new Set(list.map(o => o.seller_id));
             const people = new Set(list.map(o => norm(o.recipient) + '|' + norm(o.phone).replace(/\D/g, '') + '|' + norm(`${o.address || ''}${o.detail_address || ''}`)));
-            const blocked = list.filter(o => isKeepOrder(o) || o.ship_status === '출고완료');
+            const asSeller = currentRole === 'seller';
+            const blocked = list.filter(o => isKeepOrder(o) || o.ship_status === '출고완료' || (asSeller && !canEditOrder(o)));
             document.getElementById('combine-modal-sub').innerText = `선택 ${list.length}개 상품`;
             document.getElementById('combine-modal-list').innerHTML = list.map(o => `
                 <tr>
-                    <td class="p-2 font-mono font-black text-indigo-700 whitespace-nowrap">${escapeHtml(orderNoLabel(o, groups))}${isCombinedOrder(o, groups) ? ' <span class="px-1 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-bold">합배송</span>' : ''}</td>
+                    <td class="p-2 font-mono font-black text-indigo-700 whitespace-nowrap">${escapeHtml(asSeller ? sellerNoLabel(o, groups) : orderNoLabel(o, groups))}${isCombinedOrder(o, groups) ? ' <span class="px-1 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-bold">합배송</span>' : ''}</td>
                     <td class="p-2 whitespace-nowrap">${escapeHtml(o.seller_company || '-')}</td>
                     <td class="p-2 font-semibold whitespace-nowrap">${escapeHtml(o.recipient || '')}</td>
                     <td class="p-2">${escapeHtml(`${o.address || ''} ${o.detail_address || ''}`.trim())}</td>
@@ -5362,12 +5726,16 @@
                 </tr>`).join('');
             const warn = [];
             if (sellers.size > 1) warn.push('다른 업체(셀러)의 주문이 섞여 있어 합배송으로 묶을 수 없습니다.');
-            else if (people.size > 1) warn.push('받는분 이름·연락처·주소가 서로 다른 주문이 있습니다. 같은 분에게 가는지 꼭 확인해 주세요.');
-            if (blocked.length) warn.push('출고완료 또는 사무실 보관요청 건이 있어 바꿀 수 없습니다. 체크를 빼고 다시 해주세요.');
+            else if (people.size > 1) warn.push(asSeller
+                ? '받는분 이름·연락처·주소가 서로 다른 주문이 있어 합배송으로 묶을 수 없습니다. (같은 분께 가는 주문끼리만 묶을 수 있어요)'
+                : '받는분 이름·연락처·주소가 서로 다른 주문이 있습니다. 같은 분에게 가는지 꼭 확인해 주세요.');
+            if (blocked.length) warn.push(asSeller
+                ? '관리자가 접수완료했거나 출고된 주문, 밤낮딜리버리 창고로 보관요청 건이 있어 바꿀 수 없습니다. 체크를 빼고 다시 해주세요.'
+                : '출고완료 또는 밤낮딜리버리 창고로 보관요청 건이 있어 바꿀 수 없습니다. 체크를 빼고 다시 해주세요.');
             const w = document.getElementById('combine-modal-warn');
             w.innerText = warn.join('\n');
             w.classList.toggle('hidden', !warn.length);
-            document.getElementById('btn-combine').disabled = sellers.size > 1 || blocked.length > 0 || list.length < 2;
+            document.getElementById('btn-combine').disabled = sellers.size > 1 || blocked.length > 0 || list.length < 2 || (asSeller && people.size > 1);
             document.getElementById('btn-split').disabled = blocked.length > 0;
             ['btn-combine', 'btn-split'].forEach(id => document.getElementById(id).classList.toggle('opacity-40', document.getElementById(id).disabled));
             document.getElementById('combine-modal').classList.remove('hidden');
@@ -5382,21 +5750,24 @@
             if (!ids.length) return;
             const label = mode === 'combine' ? '합배송으로 묶기' : '부분출고로 바꾸기';
             const detail = mode === 'combine'
-                ? '같은 주문 번호로 묶고 상품명 앞에 (합)을 붙입니다.\n셀러 화면 번호도 같은 번호로 바뀝니다.'
-                : '(합)을 떼고 각자 새 번호를 받습니다.\n셀러 화면 번호도 함께 바뀝니다.';
+                ? `같은 주문 번호로 묶고 상품명 앞에 (합)을 붙입니다.\n${currentRole === 'seller' ? '주문 번호도' : '셀러 화면 번호도'} 같은 번호로 바뀝니다.`
+                : `(합)을 떼고 각자 새 번호를 받습니다.\n${currentRole === 'seller' ? '주문 번호도' : '셀러 화면 번호도'} 함께 바뀝니다.`;
+            const rpcName = currentRole === 'seller' ? 'seller_set_combined' : 'admin_set_combined';
             if (!confirm(`선택한 상품 ${ids.length}개를 [${label}] 할까요?\n\n${detail}`)) return;
-            const { data, error } = await supabaseClient.rpc('admin_set_combined', { p_ids: ids, p_mode: mode });
+            const { data, error } = await supabaseClient.rpc(rpcName, { p_ids: ids, p_mode: mode });
             if (error) {
-                const notReady = error.code === 'PGRST202' || /admin_set_combined|schema cache/i.test(error.message || '');
+                const notReady = error.code === 'PGRST202' || /_set_combined|schema cache/i.test(error.message || '');
                 alert(notReady
-                    ? '합배송/부분출고 기능 DB 설정이 아직 적용되지 않았습니다.\n(Supabase SQL Editor 에서 supabase/order_combine.sql 을 실행해주세요)'
+                    ? (currentRole === 'seller'
+                        ? '이 기능은 아직 준비 중입니다. 밤낮딜리버리에 문의해 주세요.'
+                        : '합배송/부분출고 기능 DB 설정이 아직 적용되지 않았습니다.\n(Supabase SQL Editor 에서 supabase/order_combine.sql 을 실행해주세요)')
                     : '저장 중 오류가 발생했습니다.\n\n' + dbErrorMessage(error));
                 return;
             }
             replaceOrders(data || []);
             closeCombineModal();
             closeEditModal();
-            renderAdminTable();
+            if (currentRole === 'admin') renderAdminTable();
             if (typeof renderSellerTable === 'function' && document.getElementById('seller-order-list')) renderSellerTable();
             alert(`${ids.length}개 상품을 [${label}] 했습니다.`);
         }
@@ -5988,9 +6359,9 @@
         // 관리자 목록의 시간 칸: 셀러(손님)가 처음 접수한 시각 + 관리자가 접수/처리한 시각
         //  origin: 비회원 간단 접수에서 넘어온 건의 손님 접수 시각 (있으면 이것이 '셀러 접수')
         //  done  : 관리자 접수/처리 시각 (supabase/order_times.sql 실행 후부터 기록, 없으면 '-')
-        function adminTimesHtml(origin, created, done, doneLabel, fmt) {
-            const line = (label, v, cls) => `<div class="${cls}"><span class="text-[10px] text-slate-400 mr-1">${label}</span>${escapeHtml(v ? fmt(v) : '-')}</div>`;
-            return line('셀러 접수', origin || created, 'text-slate-700')
+        function adminTimesHtml(origin, created, done, doneLabel, fmt, firstLabel = '셀러 접수') {
+            const line = (label, v, cls) => `<div class="${cls}"><span class="text-[10px] ${label === '관리자 추가' ? 'text-orange-600 font-bold' : 'text-slate-400'} mr-1">${label}</span>${escapeHtml(v ? fmt(v) : '-')}</div>`;
+            return line(firstLabel, origin || created, 'text-slate-700')
                 + line(doneLabel, done, done ? 'text-emerald-700' : 'text-slate-300')
                 + (origin ? `<div class="text-[10px] text-slate-400" title="비회원 간단 접수를 주문관리로 넘긴 시각">간단접수에서 넘김 ${escapeHtml(fmt(created))}</div>` : '');
         }
@@ -6638,11 +7009,12 @@
         // 관리자 메뉴 묶음: 큰 묶음 → 그 안의 탭
         const ADMIN_GROUPS = {
             order: ['orders', 'pickup', 'ship'],
-            stock: ['stock', 'products', 'inventory', 'picking', 'history', 'unify'],
+            stock: ['inventory', 'products', 'picking', 'history', 'unify', 'stock'],   // 묶음을 누르면 재고표부터
             settle: ['settle'],
             sellers: ['sellers'],
             inquiry: ['inquiry', 'chatlog', 'unanswered'],
             aicost: ['aicost'],
+            visits: ['visits'],
             staff: ['activity', 'staff'],   // 대표 아이디만 보임 (staff-admin.js)
         };
         const ADMIN_GROUP_OF = Object.fromEntries(Object.entries(ADMIN_GROUPS).flatMap(([g, tabs]) => tabs.map(t => [t, g])));
@@ -6689,6 +7061,8 @@
             document.getElementById('admin-unify-panel').classList.toggle('hidden', tab !== 'unify');
             document.getElementById('admin-tab-aicost').className = tab === 'aicost' ? on : off;
             document.getElementById('admin-aicost-panel').classList.toggle('hidden', tab !== 'aicost');
+            document.getElementById('admin-tab-visits').className = tab === 'visits' ? on : off;
+            document.getElementById('admin-visits-panel').classList.toggle('hidden', tab !== 'visits');
             document.getElementById('admin-ship-panel').classList.toggle('hidden', tab !== 'ship');
             document.getElementById('admin-orders-panel').classList.toggle('hidden', tab !== 'orders');
             document.getElementById('admin-sellers-panel').classList.toggle('hidden', tab !== 'sellers');
@@ -6715,7 +7089,7 @@
             if (tab === 'unanswered') fetchUnanswered();
             if (tab === 'staff') onStaffTabOpened();
             if (tab === 'activity') onActivityTabOpened();
-            if (tab === 'products' || tab === 'inventory' || tab === 'picking' || tab === 'aicost' || tab === 'history' || tab === 'unify') {
+            if (tab === 'products' || tab === 'inventory' || tab === 'picking' || tab === 'aicost' || tab === 'history' || tab === 'unify' || tab === 'visits') {
                 const frame = document.getElementById(`admin-${tab}-frame`);
                 const page = tab === 'aicost' ? 'ai-cost' : tab === 'history' ? 'stock-history' : tab === 'unify' ? 'company-unify' : tab;
                 if (!frame.getAttribute('src')) frame.setAttribute('src', `${page}.html?embed=1`);
@@ -7195,7 +7569,7 @@
 
         // 관리자: 현재 필터 기준 접수건 엑셀 (8개 시트)
         //  1 풀필먼트 접수건(풀필) / 2 일반택배 접수건(일반) / 3 당일택배 접수건(당택)  ← 원본 양식 그대로
-        //  4 사무실 보관요청건(킵) / 5 셀러별 접수유형 / 6 풀필도소매명 / 7 킵출고리스트 / 8 밤낮전달메세지리스트
+        //  4 밤낮딜리버리 창고로 보관요청건(킵) / 5 셀러별 접수유형 / 6 풀필도소매명 / 7 킵출고리스트 / 8 밤낮전달메세지리스트
         function buildAdminWorkbookSheets(list, baseFormXml) {
             const groups = getOrderGroups();
             const fulfill = list.filter(o => orderTypeOf(o) === 'fulfillment');
@@ -7203,7 +7577,7 @@
             const sameday = list.filter(o => orderTypeOf(o) === 'store_sameday');
 
             const shipHeaders = SHOW_SHIPPING_UI ? ['상품 출고상태', '주문 출고상태', '택배사', '송장번호'] : [];
-            const extraHeaders = [...shipHeaders, '셀러 가입상호', '접수일시', '처리상태', '관리자 접수시간', '사무실 보관요청', '보관요청 메모', '화면 주문번호'];
+            const extraHeaders = [...shipHeaders, '셀러 가입상호', '접수일시', '처리상태', '관리자 접수시간', '밤낮딜리버리 창고로 보관요청', '보관요청 메모', '화면 주문번호'];
             const extraWidths = [...(SHOW_SHIPPING_UI ? [14, 18, 16, 18] : []), 16, 18, 12, 18, 14, 36, 14];
             // 엑셀 NO 는 합배송 15-1, 15-2 대신 1, 2, 3 숫자로 (시트마다 작은 주문번호부터 1번).
             //   화면에 보이는 주문번호(15-1 등)는 맨 끝 '화면 주문번호' 칸에 남깁니다.
@@ -7243,7 +7617,7 @@
               });
             };
 
-            // 4. 사무실 보관요청건: 같은 셀러 · 같은 날 · 같은 메모는 한 줄로
+            // 4. 밤낮딜리버리 창고로 보관요청건: 같은 셀러 · 같은 날 · 같은 메모는 한 줄로
             const keepMap = new Map();
             list.filter(o => o.keep_request === '있음' && o.keep_memo).forEach(o => {
                 const day = o.created_at ? kstDateString(new Date(o.created_at)) : '';
@@ -7296,7 +7670,7 @@
                 { name: '풀필먼트 접수건 (풀필)', xml: buildFormSheetXml(baseFormXml, formRows(fulfill), extraHeaders, extraWidths, true) },
                 { name: '일반택배 접수건 (일반)', xml: buildFormSheetXml(baseFormXml, formRows(post), extraHeaders, extraWidths, false) },
                 { name: '당일택배 접수건 (당택)', xml: buildFormSheetXml(baseFormXml, formRows(sameday), extraHeaders, extraWidths, false) },
-                { name: '사무실 보관 요청건 (킵)', xml: buildTableSheetXml(['셀러 가입상호', '보내는사람 상호명', '보관요청 메모', '접수일', '접수시간', '일반택배', '당일택배', '풀필먼트'], keepRows, [16, 18, 50, 12, 10, 10, 10, 10]) },
+                { name: '밤낮딜리버리 창고로 보관 요청건 (킵)', xml: buildTableSheetXml(['셀러 가입상호', '보내는사람 상호명', '보관요청 메모', '접수일', '접수시간', '일반택배', '당일택배', '풀필먼트'], keepRows, [16, 18, 50, 12, 10, 10, 10, 10]) },
                 { name: '셀러별 접수유형', xml: buildTableSheetXml(['셀러 가입상호', '접수유형', '풀필 상품수', '일반 상품수', '당택 상품수', '킵 요청수'], typeRows, [16, 30, 12, 12, 12, 10]) },
                 { name: '풀필도소매명', xml: buildTableSheetXml(retailHeaders, fulfill.map(retailRow), retailWidths) },
                 { name: '풀필도소매명(업체별)', xml: buildGroupedRetailSheetXml(fulfill) },
