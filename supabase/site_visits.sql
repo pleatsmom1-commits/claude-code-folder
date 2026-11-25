@@ -22,6 +22,8 @@ create table if not exists public.site_visits (
     device      text,                 -- pc / mobile
     referrer    text                  -- 어디서 왔는지 (주소의 앞부분만, 예: search.naver.com)
 );
+-- 2026-11-25 추가: 하루 방문자 번호 (같은 브라우저를 하루 1명으로 셈. 날짜가 바뀌면 새 번호라 사람을 알 수 없음)
+alter table public.site_visits add column if not exists visitor text;
 create index if not exists site_visits_created_idx on public.site_visits (created_at desc);
 create index if not exists site_visits_site_idx on public.site_visits (site, created_at desc);
 alter table public.site_visits enable row level security;
@@ -46,7 +48,7 @@ begin
     if jsonb_typeof(p_events) <> 'array' then return 0; end if;
     for e in select * from jsonb_array_elements(p_events) limit 50 loop
         if coalesce(e->>'kind', '') not in ('view', 'click', 'time') then continue; end if;
-        insert into public.site_visits (site, kind, path, title, label, sec, session, role, device, referrer)
+        insert into public.site_visits (site, kind, path, title, label, sec, session, visitor, role, device, referrer)
         values (
             p_site,
             e->>'kind',
@@ -55,6 +57,7 @@ begin
             nullif(left(btrim(regexp_replace(regexp_replace(coalesce(e->>'label', ''), '[0-9]', '', 'g'), '[\s\-.,:()/]+$', '')), 40), ''),
             case when (e->>'sec') ~ '^[0-9]{1,6}$' then least((e->>'sec')::int, 1800) end,
             nullif(left(regexp_replace(coalesce(e->>'session', ''), '[^A-Za-z0-9]', '', 'g'), 24), ''),
+            nullif(left(regexp_replace(coalesce(e->>'visitor', ''), '[^A-Za-z0-9]', '', 'g'), 24), ''),
             case when e->>'role' in ('guest', 'seller', 'admin') then e->>'role' end,
             case when e->>'device' in ('pc', 'mobile') then e->>'device' end,
             nullif(left(lower(regexp_replace(coalesce(e->>'referrer', ''), '[^A-Za-z0-9.\-]', '', 'g')), 80), '')
@@ -94,16 +97,21 @@ begin
           and (coalesce(p_site, '') = '' or site = p_site)
     )
     select jsonb_build_object(
+        -- visitors(방문자) = 날마다 따로 센 사람 수의 합 (하루 1명). 번호가 없는 옛 기록은 방문 묶음으로 셈
         'sites', (select coalesce(jsonb_agg(x order by x.views desc), '[]') from (
-            select site,
+            select site, sum(views) as views, sum(sessions) as sessions, sum(visitors) as visitors, sum(total_sec) as total_sec
+            from (select site, kst::date as day,
                    count(*) filter (where kind = 'view') as views,
                    count(distinct session) filter (where kind = 'view') as sessions,
+                   count(distinct coalesce(visitor, session)) filter (where kind = 'view') as visitors,
                    coalesce(sum(sec) filter (where kind = 'time'), 0) as total_sec
-            from v group by site) x),
+                  from v group by 1, 2) d
+            group by site) x),
         'daily', (select coalesce(jsonb_agg(x order by x.day, x.site), '[]') from (
             select kst::date as day, site,
                    count(*) filter (where kind = 'view') as views,
                    count(distinct session) filter (where kind = 'view') as sessions,
+                   count(distinct coalesce(visitor, session)) filter (where kind = 'view') as visitors,
                    coalesce(sum(sec) filter (where kind = 'time'), 0) as total_sec
             from v group by 1, 2) x),
         'pages', (select coalesce(jsonb_agg(x order by x.views desc), '[]') from (

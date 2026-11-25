@@ -231,7 +231,7 @@
                 <p class="mt-1.5 text-sm font-black text-indigo-700">⏰ 오후3시부터 다시 접수가 가능하며, 3시 이후접수건은 다음날 출고가 됩니다.</p>
             </div>
 
-            <!-- 택배접수 종류 선택: 매장/사무실(사입대행) · 고객풀필먼트(고객배송대행) + 오른쪽 사무실 보관요청(모든 접수 필수) -->
+            <!-- 택배접수 종류 선택: 매장/사무실(사입대행) · 고객풀필먼트(고객배송대행) + 오른쪽 밤낮딜리버리 창고로 보관요청(모든 접수 필수) -->
             <div class="seller-work grid grid-cols-2 lg:grid-cols-[1fr_1fr_1.5fr] gap-2 sm:gap-3 items-stretch">
                 <button type="button" id="mode-card-store" onclick="switchSellerMode('store')" class="mode-card text-left px-3 py-2.5 sm:px-4 sm:py-3 rounded-xl border-2 transition">
                     <div class="text-sm sm:text-base font-black text-slate-900">🏬 매장/사무실 택배접수</div>
@@ -242,10 +242,10 @@
                     <div class="hidden sm:block text-[11px] font-bold text-slate-500">고객배송대행 · 단건 / 엑셀 일괄 접수</div>
                 </button>
 
-                <!-- 픽업건 중 사무실 보관요청 (모든 택배접수 시 필수 선택) -->
+                <!-- 픽업건 중 밤낮딜리버리 창고로 보관요청 (모든 택배접수 시 필수 선택) -->
                 <div id="keep-request-box" class="col-span-2 lg:col-span-1 bg-amber-50 border-2 border-amber-300 rounded-xl px-4 py-2.5 space-y-1.5">
                     <div class="flex items-center gap-2 flex-wrap">
-                        <span class="text-sm font-black text-amber-900">📥 픽업건 중 사무실 보관요청</span>
+                        <span class="text-sm font-black text-amber-900">📥 픽업건 중 밤낮딜리버리 창고로 보관요청</span>
                         <span id="keep-required-tag" class="text-[11px] font-bold text-rose-600">* 하루 한 번 필수 체크</span>
                     </div>
                     <!-- 오늘 이미 확인했으면 한 줄로 줄여서 보여줍니다 -->
@@ -681,7 +681,7 @@
                             <option value="store">매장/사무실 (전체)</option>
                             <option value="store_post">매장 · 우체국택배</option>
                             <option value="store_sameday">매장 · 당일택배</option>
-                            <option value="keep">사무실 보관요청</option>
+                            <option value="keep">밤낮딜리버리 창고로 보관요청</option>
                         </select>
                         <select id="history-status" class="px-2 py-1.5 border rounded-lg text-xs bg-white">
                             <option value="all">접수상태 전체</option>
@@ -1007,7 +1007,7 @@
                                 <option value="store">매장/사무실 (전체)</option>
                                 <option value="store_post">매장 · 우체국택배</option>
                                 <option value="store_sameday">매장 · 당일택배</option>
-                                <option value="keep">사무실 보관요청</option>
+                                <option value="keep">밤낮딜리버리 창고로 보관요청</option>
                             </select>
                             <span class="ship-ui text-xs font-bold text-slate-600 ml-2">출고:</span>
                             <select id="admin-ship-filter" class="ship-ui px-3 py-1.5 border rounded-lg text-xs font-medium focus:outline-none">
@@ -3798,7 +3798,7 @@
             renderSellerTable();
         }
 
-        // ---------------- 픽업건 중 사무실 보관요청 (모든 택배접수 전에 [접수] 필수) ----------------
+        // ---------------- 픽업건 중 밤낮딜리버리 창고로 보관요청 (모든 택배접수 전에 [접수] 필수) ----------------
         // 옵션을 고르고 [접수] 버튼까지 눌러야 접수됩니다.
         //  1. 보관건 있습니다 → 메모와 함께 '보관요청' 건(order_type = keep)으로 접수 목록에 올라갑니다.
         //  2. 없습니다 → 확인만 하고 목록에는 올라가지 않습니다. (예전 '3. 이미 접수했습니다'는 2026-11-19 대표님 요청으로 뺌)
@@ -3884,7 +3884,7 @@
             }
             const checked = document.querySelector('input[name="keep-request"]:checked');
             if (!checked) {
-                alert('사무실 보관요청 버튼을 체크해주세요.');
+                alert('밤낮딜리버리 창고로 보관요청 버튼을 체크해주세요.');
                 return;
             }
             const choice = checked.value;
@@ -3911,7 +3911,7 @@
                 cs_phone: formatPhone(currentSellerAccount.phone || ''),
                 recipient: company,
                 phone: formatPhone(currentSellerAccount.phone || '') || '-',
-                address: '사무실 보관요청',
+                address: '밤낮딜리버리 창고로 보관요청',
                 product: memo,
                 keep_request: '있음',
                 keep_memo: memo,
@@ -3933,7 +3933,7 @@
             saveKeepCheck('있음');
             document.getElementById('keep-memo').value = '';
             setKeepStatus(`✅ ${p.hh}:${p.mm} 보관요청 접수 완료 (NO. ${sellerNoLabel(saved)})`, true);
-            alert(`사무실 보관요청이 접수되었습니다. (NO. ${sellerNoLabel(saved)})\n아래 [내 접수 주문목록]에서 접수된 내용을 한 번 확인해 주세요.`);
+            alert(`밤낮딜리버리 창고로 보관요청이 접수되었습니다. (NO. ${sellerNoLabel(saved)})\n아래 [내 접수 주문목록]에서 접수된 내용을 한 번 확인해 주세요.`);
             renderSellerTable();
         }
 
@@ -3943,8 +3943,8 @@
             if (keepConfirmed) return { keep_request: keepConfirmed, keep_memo: null };
             const checked = document.querySelector('input[name="keep-request"]:checked');
             alert(checked
-                ? '[픽업건 중 사무실 보관요청]의 [접수] 버튼을 먼저 눌러주세요.'
-                : '사무실 보관요청 버튼을 체크하고 [접수] 버튼을 눌러주세요.');
+                ? '[픽업건 중 밤낮딜리버리 창고로 보관요청]의 [접수] 버튼을 먼저 눌러주세요.'
+                : '밤낮딜리버리 창고로 보관요청 버튼을 체크하고 [접수] 버튼을 눌러주세요.');
             document.getElementById('keep-request-box').scrollIntoView({ behavior: 'smooth', block: 'center' });
             return null;
         }
@@ -5702,7 +5702,7 @@
                     </td>
                     <td class="p-3 whitespace-nowrap"><span class="px-2 py-1 rounded-lg bg-slate-900 text-white text-[11px] font-black">${escapeHtml(o.seller_company || '-')}</span></td>
                     <td class="p-3 font-bold text-slate-900 whitespace-nowrap">${escapeHtml(o.sender_name || `밤낮딜리버리(${o.seller_company})`)}</td>
-                    <td class="ship-ui p-3 min-w-[170px]">${isKeepOrder(o) ? '<span class="text-[11px] font-bold text-amber-700">사무실 보관요청</span>' : `
+                    <td class="ship-ui p-3 min-w-[170px]">${isKeepOrder(o) ? '<span class="text-[11px] font-bold text-amber-700">밤낮딜리버리 창고로 보관요청</span>' : `
                         <select data-id="${id}" onchange="setTrackingDraft(this.dataset.id, 'courier', this.value)" class="admin-courier courier-select w-full px-2 py-1 border rounded text-[11px] bg-white">${courierOptionsHtml(draftT.courier ?? o.courier)}</select>
                         <input type="text" data-id="${id}" value="${escapeHtml(trackingValue)}" placeholder="송장번호 입력" title="송장번호 입력 후 Enter 를 누르면 바로 출고완료됩니다"
                             oninput="setTrackingDraft(this.dataset.id, 'tracking', this.value)"
@@ -5836,8 +5836,8 @@
                 ? '받는분 이름·연락처·주소가 서로 다른 주문이 있어 합배송으로 묶을 수 없습니다. (같은 분께 가는 주문끼리만 묶을 수 있어요)'
                 : '받는분 이름·연락처·주소가 서로 다른 주문이 있습니다. 같은 분에게 가는지 꼭 확인해 주세요.');
             if (blocked.length) warn.push(asSeller
-                ? '관리자가 접수완료했거나 출고된 주문, 사무실 보관요청 건이 있어 바꿀 수 없습니다. 체크를 빼고 다시 해주세요.'
-                : '출고완료 또는 사무실 보관요청 건이 있어 바꿀 수 없습니다. 체크를 빼고 다시 해주세요.');
+                ? '관리자가 접수완료했거나 출고된 주문, 밤낮딜리버리 창고로 보관요청 건이 있어 바꿀 수 없습니다. 체크를 빼고 다시 해주세요.'
+                : '출고완료 또는 밤낮딜리버리 창고로 보관요청 건이 있어 바꿀 수 없습니다. 체크를 빼고 다시 해주세요.');
             const w = document.getElementById('combine-modal-warn');
             w.innerText = warn.join('\n');
             w.classList.toggle('hidden', !warn.length);
@@ -7570,7 +7570,7 @@
 
         // 관리자: 현재 필터 기준 접수건 엑셀 (8개 시트)
         //  1 풀필먼트 접수건(풀필) / 2 일반택배 접수건(일반) / 3 당일택배 접수건(당택)  ← 원본 양식 그대로
-        //  4 사무실 보관요청건(킵) / 5 셀러별 접수유형 / 6 풀필도소매명 / 7 킵출고리스트 / 8 밤낮전달메세지리스트
+        //  4 밤낮딜리버리 창고로 보관요청건(킵) / 5 셀러별 접수유형 / 6 풀필도소매명 / 7 킵출고리스트 / 8 밤낮전달메세지리스트
         function buildAdminWorkbookSheets(list, baseFormXml) {
             const groups = getOrderGroups();
             const fulfill = list.filter(o => orderTypeOf(o) === 'fulfillment');
@@ -7578,7 +7578,7 @@
             const sameday = list.filter(o => orderTypeOf(o) === 'store_sameday');
 
             const shipHeaders = SHOW_SHIPPING_UI ? ['상품 출고상태', '주문 출고상태', '택배사', '송장번호'] : [];
-            const extraHeaders = [...shipHeaders, '셀러 가입상호', '접수일시', '처리상태', '관리자 접수시간', '사무실 보관요청', '보관요청 메모', '화면 주문번호'];
+            const extraHeaders = [...shipHeaders, '셀러 가입상호', '접수일시', '처리상태', '관리자 접수시간', '밤낮딜리버리 창고로 보관요청', '보관요청 메모', '화면 주문번호'];
             const extraWidths = [...(SHOW_SHIPPING_UI ? [14, 18, 16, 18] : []), 16, 18, 12, 18, 14, 36, 14];
             // 엑셀 NO 는 합배송 15-1, 15-2 대신 1, 2, 3 숫자로 (시트마다 작은 주문번호부터 1번).
             //   화면에 보이는 주문번호(15-1 등)는 맨 끝 '화면 주문번호' 칸에 남깁니다.
@@ -7618,7 +7618,7 @@
               });
             };
 
-            // 4. 사무실 보관요청건: 같은 셀러 · 같은 날 · 같은 메모는 한 줄로
+            // 4. 밤낮딜리버리 창고로 보관요청건: 같은 셀러 · 같은 날 · 같은 메모는 한 줄로
             const keepMap = new Map();
             list.filter(o => o.keep_request === '있음' && o.keep_memo).forEach(o => {
                 const day = o.created_at ? kstDateString(new Date(o.created_at)) : '';
@@ -7671,7 +7671,7 @@
                 { name: '풀필먼트 접수건 (풀필)', xml: buildFormSheetXml(baseFormXml, formRows(fulfill), extraHeaders, extraWidths, true) },
                 { name: '일반택배 접수건 (일반)', xml: buildFormSheetXml(baseFormXml, formRows(post), extraHeaders, extraWidths, false) },
                 { name: '당일택배 접수건 (당택)', xml: buildFormSheetXml(baseFormXml, formRows(sameday), extraHeaders, extraWidths, false) },
-                { name: '사무실 보관 요청건 (킵)', xml: buildTableSheetXml(['셀러 가입상호', '보내는사람 상호명', '보관요청 메모', '접수일', '접수시간', '일반택배', '당일택배', '풀필먼트'], keepRows, [16, 18, 50, 12, 10, 10, 10, 10]) },
+                { name: '밤낮딜리버리 창고로 보관 요청건 (킵)', xml: buildTableSheetXml(['셀러 가입상호', '보내는사람 상호명', '보관요청 메모', '접수일', '접수시간', '일반택배', '당일택배', '풀필먼트'], keepRows, [16, 18, 50, 12, 10, 10, 10, 10]) },
                 { name: '셀러별 접수유형', xml: buildTableSheetXml(['셀러 가입상호', '접수유형', '풀필 상품수', '일반 상품수', '당택 상품수', '킵 요청수'], typeRows, [16, 30, 12, 12, 12, 10]) },
                 { name: '풀필도소매명', xml: buildTableSheetXml(retailHeaders, fulfill.map(retailRow), retailWidths) },
                 { name: '풀필도소매명(업체별)', xml: buildGroupedRetailSheetXml(fulfill) },
