@@ -45,6 +45,7 @@ async function aiFileChosen(e, mode = 'order') {
     e.target.value = '';
     if (!file) return;
     if (!canAddOrders()) { alert(mode === 'buy' ? '관리자 승인 전이거나 이용이 정지된 계정은 사용할 수 없습니다.' : '관리자 승인 전이거나 이용이 정지된 계정은 주문을 등록할 수 없습니다.'); return; }
+    if (mode !== 'buy' && blockIfShipClosed()) return;
     if (!/\.(xlsx|xls|csv)$/i.test(file.name)) { alert('엑셀 파일(.xlsx, .xls, .csv)만 올릴 수 있습니다.'); return; }
     aiStatus('📄 주문서를 읽는 중…');
     let rows;
@@ -673,6 +674,7 @@ async function aiSaveNewProducts(np) {
 
 async function aiSubmit() {
     if (!canAddOrders()) { alert('관리자 승인 전이거나 이용이 정지된 계정은 주문을 등록할 수 없습니다.'); return; }
+    if (aiOrder.mode !== 'buy' && blockIfShipClosed()) return;
     const live = aiOrder.rows.filter(o => !o.removed);
     if (live.some(o => aiProblem(o).length)) { alert('받는분·연락처·주소·쇼핑몰상품명·도매처명·도매상품명 중 빈 칸이 있는 주문은 접수할 수 없어요.'); return; }
     if (!live.length) return;
