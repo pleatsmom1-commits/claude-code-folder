@@ -3,6 +3,8 @@
 //  - 기록하는 것: 화면 열기(조회수), 누른 버튼 이름, 실제로 보고 있던 시간, 휴대폰/PC, 어디서 왔는지(주소 앞부분만)
 //  - 기록하지 않는 것: 이름·아이디·연락처·IP·입력한 글자. 표 안(주문·상품 목록)의 클릭과 관리자 클릭도 적지 않습니다.
 //  - 방문 묶음 번호는 창을 닫으면 사라지는 무작위 글자(sessionStorage)라 사람을 알아볼 수 없습니다.
+//  - 하루 방문자 번호: 같은 브라우저를 하루(한국 시간) 동안 1명으로 세는 무작위 글자. 날짜가 바뀌면 새 번호로 바뀌어
+//    어제와 오늘이 같은 사람인지도 알 수 없습니다 (localStorage, 날짜와 번호만 저장).
 //  - 홈페이지에 붙일 때:  <script src="https://bamnat-delivery.bamnat.workers.dev/track.js" defer></script>
 //  - 화면에 data-track="이름" 을 붙이면 그 이름으로 기록, data-no-track 을 붙이면 그 안의 클릭은 기록 안 함.
 // =====================================================================
@@ -22,13 +24,20 @@
         } catch (e) {}
         return value;
     }
-    var session = store('bamnat.visit');
-    if (!session) {
-        session = '';
-        var abc = 'abcdefghijklmnopqrstuvwxyz0123456789';
-        for (var i = 0; i < 12; i++) session += abc[Math.floor(Math.random() * abc.length)];
-        store('bamnat.visit', session);
+    function randomId() {
+        var id = '', abc = 'abcdefghijklmnopqrstuvwxyz0123456789';
+        for (var i = 0; i < 12; i++) id += abc[Math.floor(Math.random() * abc.length)];
+        return id;
     }
+    var session = store('bamnat.visit');
+    if (!session) session = store('bamnat.visit', randomId());
+    // 하루 방문자 번호 (한국 시간 날짜가 바뀌면 새로 만듦)
+    var today = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10), visitor = null;
+    try {
+        var saved = JSON.parse(localStorage.getItem('bamnat.visitor') || 'null');
+        visitor = saved && saved.day === today && saved.id ? saved.id : randomId();
+        localStorage.setItem('bamnat.visitor', JSON.stringify({ day: today, id: visitor }));
+    } catch (e) { visitor = null; }
     var role = store('bamnat.visitRole') || script.getAttribute('data-role') || null;
     var device = (window.matchMedia && matchMedia('(pointer: coarse)').matches) || window.innerWidth < 768 ? 'mobile' : 'pc';
     var referrer = null;
@@ -41,7 +50,7 @@
 
     var queue = [], timer = null;
     function base(kind) {
-        return { kind: kind, path: location.pathname, session: session, role: role, device: device };
+        return { kind: kind, path: location.pathname, session: session, visitor: visitor, role: role, device: device };
     }
     function send(useBeacon) {
         clearTimeout(timer); timer = null;

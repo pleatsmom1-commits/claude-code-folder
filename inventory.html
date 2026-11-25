@@ -709,7 +709,7 @@
     }
 
     // -----------------------------------------------------------------
-    // 최종재고 엑셀: 양식 받기(지금 재고 + 예전 재고표로 채움) · 올리기
+    // 최종재고 엑셀: 양식 받기(지금 재고로 채움) · 올리기
     // -----------------------------------------------------------------
     const FINAL_COLS = [
         { key: 'company', label: '거래처명' }, { key: 'code', label: '상품코드' },
@@ -729,30 +729,6 @@
             rows.push({ company: p.company, code: p.code, wholesale_company: p.wholesale_company, wholesale_product: p.wholesale_product,
                 color: p.color, size: p.size, name: (p.mall_names[0] || {}).name || '', a: q.a, b: q.b, defect: q.defect, location: q.location, memo: q.memo, from: inv.has(p.id) ? '' : '상품관리' });
         });
-        // 아직 재고가 없으면 예전 재고표(보관중)로 채워 드립니다. 라벨 칸에 표시가 있으면 상품화, 없으면 미상품화로 넣습니다.
-        let oldCount = 0;
-        if (!inv.size) {
-            const { data: old, error } = await fetchAll(() => client.from('stock_items').select('company,wholesale_company,wholesale_product,retail_product,color,size,quantity,location,label,memo,shipped_on,shipped_note').order('company').order('id'));
-            if (!error) {
-                const merged = new Map();
-                old.filter(r => !r.shipped_on && !r.shipped_note && (r.wholesale_product || r.retail_product))
-                    .filter(r => !companyKey || norm(r.company) === companyKey)
-                    .forEach(r => {
-                        const item = { company: r.company, wholesale_company: r.wholesale_company, wholesale_product: r.wholesale_product || r.retail_product, color: r.color, size: r.size };
-                        const k = itemKey(item);
-                        const existing = rows.find(x => !x.code ? false : itemKey(x) === k);
-                        const qty = Math.max(0, Math.round(Number(r.quantity) || 0));
-                        const defect = num((String(r.memo || '').match(/불량\s*(\d+)/) || [])[1]);
-                        const target = existing || merged.get(k) || { ...item, code: '', name: r.retail_product || '', a: 0, b: 0, defect: 0, location: '', memo: '', from: '예전 재고표' };
-                        if (String(r.label || '').trim()) target.a += qty; else target.b += qty;
-                        target.defect += defect;
-                        if (r.location && !String(target.location).split(', ').includes(r.location)) target.location = [target.location, r.location].filter(Boolean).join(', ');
-                        if (existing) existing.from = '예전 재고표'; else merged.set(k, target);
-                        oldCount++;
-                    });
-                rows.push(...merged.values());
-            }
-        }
         rows.sort((x, y) => x.company.localeCompare(y.company, 'ko') || String(x.wholesale_company).localeCompare(String(y.wholesale_company), 'ko'));
         const header = [...FINAL_COLS.map(c => c.label), '참고(올릴 때 안 읽음)'];
         const ws = XLSX.utils.aoa_to_sheet([header, ...rows.map(r => [...FINAL_COLS.map(c => r[c.key] ?? ''), r.from || ''])]);
@@ -771,7 +747,6 @@
             ['· 수량이 모두 0인 줄은 상품만 등록되고 재고는 만들지 않습니다.'],
             ['· 올리면 파일에 있는 거래처의 재고가 파일 수량으로 맞춰집니다. (그 거래처 재고 중 파일에 없는 상품은 0)'],
             ['· "참고" 칸은 어디서 가져온 줄인지 알려주는 칸이고, 올릴 때는 읽지 않습니다.'],
-            ...(oldCount ? [['· 이 파일은 예전 재고표의 보관중 재고 ' + oldCount + '줄로 채웠습니다. 라벨 칸에 표시가 있던 줄은 상품화, 없던 줄은 미상품화로 넣었습니다. 실제로 세어 고쳐주세요.']] : []),
         ];
         const ws2 = XLSX.utils.aoa_to_sheet(guide);
         ws2['!cols'] = [{ wch: 120 }];

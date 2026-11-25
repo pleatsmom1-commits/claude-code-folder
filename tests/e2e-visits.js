@@ -48,12 +48,12 @@ function sampleStats(b) {
   days.forEach((d, i) => {
     const wk = new Date(d).getUTCDay();
     const f = wk === 0 ? 0.3 : wk === 6 ? 0.6 : 1;
-    daily.push({ day: d, site: 'app', views: Math.round((140 + i * 7) * f), sessions: Math.round((48 + i * 2) * f), total_sec: Math.round((48 + i * 2) * f * 410) });
-    daily.push({ day: d, site: 'cafe24', views: Math.round((95 + (i % 3) * 12) * f), sessions: Math.round((61 + (i % 3) * 8) * f), total_sec: Math.round((61 + (i % 3) * 8) * f * 95) });
+    daily.push({ day: d, site: 'app', views: Math.round((140 + i * 7) * f), sessions: Math.round((48 + i * 2) * f), visitors: Math.round((31 + i) * f), total_sec: Math.round((48 + i * 2) * f * 410) });
+    daily.push({ day: d, site: 'cafe24', views: Math.round((95 + (i % 3) * 12) * f), sessions: Math.round((61 + (i % 3) * 8) * f), visitors: Math.round((52 + (i % 3) * 6) * f), total_sec: Math.round((61 + (i % 3) * 8) * f * 95) });
   });
   const pick = s => b.p_site ? b.p_site === s : true;
   const sum = (s, k) => daily.filter(r => r.site === s).reduce((a, r) => a + r[k], 0);
-  const sites = ['app', 'cafe24'].filter(pick).map(s => ({ site: s, views: sum(s, 'views'), sessions: sum(s, 'sessions'), total_sec: sum(s, 'total_sec') }));
+  const sites = ['app', 'cafe24'].filter(pick).map(s => ({ site: s, views: sum(s, 'views'), sessions: sum(s, 'sessions'), visitors: sum(s, 'visitors'), total_sec: sum(s, 'total_sec') }));
   return {
     sites, daily: daily.filter(r => pick(r.site)),
     pages: [{ site: 'app', path: '/', title: '밤낮딜리버리', views: 910, sessions: 330, total_sec: 910 * 380 }, { site: 'cafe24', path: '/', title: '밤낮딜리버리 홈', views: 520, sessions: 410, total_sec: 520 * 70 },
@@ -210,11 +210,14 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   check('stats rpc called (7 days)', statsCalls.length === 1 && statsCalls[0].p_site === null, JSON.stringify(statsCalls));
   check('site cards', txt.includes('주문접수 사이트') && txt.includes('카페24 홈페이지') && txt.includes('새 홈페이지') && txt.includes('아직 기록이 없어요'));
   check('clicks + pages + referrer names', txt.includes('풀필먼트 접수') && txt.includes('택배접수(첫 화면)') && txt.includes('네이버 검색') && txt.includes('구글 검색'), txt.slice(0, 400));
+  check('visitors shown (하루 1명)', txt.includes('방문자 수') && txt.includes('1명 하루 1번') && txt.includes('날짜별 방문자 수'));
   check('header hidden in embed', !(await frame.isVisible('#page-header')));
   await page.screenshot({ path: path.join(OUT, 'visits-1-tab.png'), fullPage: true });
   await page.setViewportSize({ width: 1400, height: 2000 });
   await page.waitForTimeout(500);
   await page.screenshot({ path: path.join(OUT, 'visits-1-tab-long.png'), fullPage: true });
+  await page.screenshot({ path: path.join(OUT, 'visits-2-top.png'), clip: { x: 0, y: 380, width: 1400, height: 640 } });
+  if (process.env.SHOTS_ONLY) { await browser.close(); return; }
   await frame.selectOption('#f-site', 'cafe24'); await page.waitForTimeout(800);
   check('site filter sent', statsCalls[statsCalls.length - 1].p_site === 'cafe24');
   await frame.click('#range-btns button:has-text("최근 30일")'); await page.waitForTimeout(800);

@@ -35,7 +35,7 @@ const tables = {
   stock_items: [
     { id: 1, company: '가나 샵', wholesale_company: '모노', wholesale_product: '볼캡', retail_product: '볼캡', color: '블랙', size: 'Free', quantity: 3, location: 'A1', stocked_on: '2026-11-01', status: '보관' },
     { id: 2, company: '다른 샵', wholesale_company: '엘리', wholesale_product: '코트', retail_product: '코트', color: '그레이', size: 'L', quantity: 5, location: 'B1', stocked_on: '2026-11-01', status: '보관' }],
-  inventory: [{ product_id: 1, qty_a: 3, qty_b: 0, qty_defect: 0 }, { product_id: 3, qty_a: 5, qty_b: 0, qty_defect: 0 }],
+  inventory: [{ product_id: 1, company: '가나 샵', qty_a: 3, qty_b: 0, qty_defect: 0 }, { product_id: 3, company: '다른 샵', qty_a: 5, qty_b: 0, qty_defect: 0 }],
   inventory_moves: [
     { id: 1, product_id: 1, company: '가나 샵', code: 'P-0001', kind: '조정', d_a: -1, d_b: 0, d_defect: 0, a_after: 3, b_after: 0, defect_after: 0, reason: '관리자메모-비밀', actor_name: '관리자김', at: new Date().toISOString() },
     { id: 2, product_id: 3, company: '다른 샵', code: 'P-0003', kind: '입고', d_a: 5, d_b: 0, d_defect: 0, a_after: 5, b_after: 0, defect_after: 0, reason: '', actor_name: '관리자김', at: new Date().toISOString() }],
@@ -255,8 +255,9 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
     check(name + ': 관리자 화면으로 가는 링크 없음', !(await sp.$$eval('a', as => as.some(a => a.getAttribute('href') === '/'))));
     return { sp, text };
   };
-  { const { sp, text } = await openSub('stock.html', '재고 확인');
-    check('재고 확인: 이 업체 재고만', text.includes('볼캡') && !text.includes('코트'), text.slice(0, 200)); await sp.close(); }
+  // 2026-11-22: 예전 /stock 은 없애고 /inventory 로 보냄 → 재고 확인 = 새 재고표
+  { const { sp, text } = await openSub('inventory.html', '재고 확인');
+    check('재고 확인: 이 업체 재고만', text.includes('볼캡') && !text.includes('코트'), text.slice(200, 900)); await sp.close(); }
   { const bp = await context.newPage(); await bp.goto('file://' + path.join(ROOT, 'stock-history.html') + '?company=' + encodeURIComponent('가나 샵')); await bp.waitForTimeout(1800);
     await bp.screenshot({ path: path.join(OUT, 'viewas-sub-stock-history-before.png'), clip: { x: 0, y: 0, width: 1400, height: 520 } }); await bp.close(); }
   { const { sp, text } = await openSub('stock-history.html', '재고 증감');
