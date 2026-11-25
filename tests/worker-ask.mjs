@@ -101,3 +101,34 @@ ok(r.status === 200, 'log failure does not break answer');
   const d4 = await (await h2(req({ messages: [{ role: 'user', content: '우편번호가 어떻게되나요?' }] }, undefined, '12.0.0.1'), env)).json();
   ok(sys.includes('우편번호: 04572') && sys.includes('세 자료') && sys.includes('지어내지 않습니다') && sys.includes('흔히 묻는 뜻'), 'postal code + find-before-handoff rules in prompt');
   ok(d4.needsHuman === false, 'basic question answered without handoff'); }
+
+// 인터넷 검색 (2026-11-25): 공개 정보만 검색, pause_turn 이어 받기, 검색 전 글 빼기, 검색 비용 포함, 끄기 변수
+{ const { handleAsk: h3, usageCost } = await import(W + '/worker/ask.js'); const bodies = []; const logs3 = []; let n = 0;
+  globalThis.fetch = async (url, init) => {
+    const u = String(url);
+    if (u.includes('/ai_faq')) return new Response('[]');
+    if (u.includes('/rpc/log_ai_chat')) { logs3.push(JSON.parse(init.body)); return new Response('{}'); }
+    if (/bamnatdelivery\.com|dothome/.test(u)) return new Response('<p>x</p>');
+    bodies.push(JSON.parse(init.body)); n++;
+    if (n === 1) return new Response(JSON.stringify({ stop_reason: 'pause_turn', usage: { input_tokens: 100, output_tokens: 10, server_tool_use: { web_search_requests: 1 } },
+      content: [{ type: 'text', text: '찾아볼게요.' }, { type: 'server_tool_use', id: 's1', name: 'web_search', input: { query: '디오트 영업시간' } }] }));
+    return new Response(JSON.stringify({ stop_reason: 'end_turn', usage: { input_tokens: 200, output_tokens: 20, server_tool_use: { web_search_requests: 1 } },
+      content: [{ type: 'web_search_tool_result', tool_use_id: 's1', content: [] }, { type: 'text', text: '디오트는 저녁 8시에 열어요. (디오트 누리집 기준, 바뀔 수 있어요)' }] }));
+  };
+  const d5 = await (await h3(req({ messages: [{ role: 'user', content: '디오트 몇 시에 열어요?' }] }, undefined, '13.0.0.1'), env)).json();
+  const t = bodies[0].tools?.[0];
+  ok(t && t.type === 'web_search_20260209' && t.max_uses === 2 && t.user_location.country === 'KR', 'web search tool sent (KR, max 2)');
+  ok(bodies[0].system[0].text.includes('인터넷 검색') && bodies[0].system[0].text.includes('절대 인터넷 검색 결과로 답하지 않습니다'), 'web search rules in prompt');
+  ok(n === 2 && bodies[1].messages.at(-1).role === 'assistant' && bodies[1].messages.at(-1).content[1].type === 'server_tool_use', 'pause_turn resumed with assistant content');
+  ok(d5.answer.startsWith('디오트는') && !d5.answer.includes('찾아볼게요') && d5.needsHuman === false, 'pre-search text dropped');
+  ok(logs3.at(-1).p_input_tokens === 300 && Math.abs(logs3.at(-1).p_cost_usd - (300 * 4 + 30 * 20) / 1e6 - 0.02) < 1e-4, 'usage summed + search cost logged', JSON.stringify(logs3.at(-1)));
+  ok(usageCost({ usage: { server_tool_use: { web_search_requests: 3 } } }, 'claude-opus-5-5').cost === 0.03, 'search cost $0.01 each');
+  n = 1; bodies.length = 0;
+  await h3(req({ messages: [{ role: 'user', content: 'q' }] }, undefined, '13.0.0.2'), { ...env, AI_WEB_SEARCH: 'off' });
+  ok(!('tools' in bodies[0]), 'AI_WEB_SEARCH=off -> no tools'); }
+{ const { handleAsk: h4 } = await import(W + '/worker/ask.js'); const bodies = [];
+  globalThis.fetch = async (url, init) => { const u = String(url); if (u.includes('/ai_faq')) return new Response('[]'); if (u.includes('/rpc/')) return new Response('{}'); if (/bamnatdelivery\.com|dothome/.test(u)) return new Response('<p>x</p>');
+    const b = JSON.parse(init.body); bodies.push(b); if (b.tools) return new Response(JSON.stringify({ type: 'error', error: { message: 'web search is not enabled' } }), { status: 400 });
+    return new Response(JSON.stringify({ stop_reason: 'end_turn', content: [{ type: 'text', text: '픽업비는 1,800원이에요.' }] })); };
+  const r6 = await h4(req({ messages: [{ role: 'user', content: '픽업비?' }] }, undefined, '14.0.0.1'), env); const d6 = await r6.json();
+  ok(r6.status === 200 && bodies.length === 2 && !bodies[1].tools && d6.answer.includes('1,800'), 'web search refused -> retried without search'); }
