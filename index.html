@@ -622,6 +622,9 @@
                         <button type="button" id="btn-redo-open" onclick="openRedoModal()" class="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-black rounded-lg transition flex items-center gap-1 shadow-sm" title="접수완료됐지만 아직 출고되지 않은 주문(최근 7일)을 골라 그대로 다시 접수합니다">
                             <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> 미출고 주문 다시 접수
                         </button>
+                        <button type="button" id="btn-seller-edit-selected" onclick="editSelectedSellerOrder()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition flex items-center gap-1 shadow-sm" title="1개 체크: 그 주문 수정 · 2개 이상 체크: 합배송 묶기 / 부분출고로 바꾸기">
+                            <i data-lucide="pencil" class="w-3.5 h-3.5"></i> <span id="btn-seller-edit-label">선택수정</span>
+                        </button>
                         <button onclick="deleteSelectedOrders()" class="px-3 py-1.5 bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-100 text-xs font-bold rounded-lg transition flex items-center gap-1 shadow-sm">
                             <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> 선택 항목 일괄 삭제
                         </button>
@@ -629,6 +632,13 @@
                             <i data-lucide="file-x" class="w-3.5 h-3.5"></i> 엑셀 등록건 전체 삭제
                         </button>
                     </div>
+                </div>
+                <!-- [선택수정] 사용법 상시 안내 (셀러도 접수대기 주문은 합배송 묶기/부분출고 가능, supabase/seller_combine.sql) -->
+                <div id="seller-edit-hint" class="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 rounded-lg border border-indigo-200 bg-indigo-50 text-xs text-indigo-900">
+                    <span class="font-black">✏️ [선택수정] 사용법</span>
+                    <span><b class="px-1.5 py-0.5 rounded bg-white border border-indigo-200">1개만 체크</b> → 그 주문 하나 수정 · 합배송 건이면 <b>그 상품만 부분출고</b>로 빼기</span>
+                    <span><b class="px-1.5 py-0.5 rounded bg-white border border-indigo-200">2개 이상 체크</b> → 같은 분께 가는 주문 <b>합배송으로 묶기</b> / 묶인 것 <b>부분출고로 풀기</b></span>
+                    <span class="text-indigo-700/80">※ 관리자가 접수완료한 주문은 바꿀 수 없어요</span>
                 </div>
                 <!-- 대표님 요청 (2026-11-19): 사이트 밖(카톡 등)으로 따로 보낸 단건 주문은 이 목록·송장번호 엑셀·출고 리포트에 없을 수 있음 -->
                 <div id="offsite-order-note" class="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-900 rounded-lg px-3 py-2 text-xs leading-relaxed">
@@ -1023,11 +1033,18 @@
                             <button onclick="revertAcceptSelectedOrders()" class="px-3 py-1.5 bg-white border border-emerald-300 hover:bg-emerald-50 text-emerald-700 font-bold text-xs rounded-lg shadow-sm" title="접수완료 → 접수대기로 되돌립니다">선택 접수취소</button>
                             <button onclick="shipSelectedOrders()" class="ship-ui px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg shadow-sm">선택 출고완료</button>
                             <button onclick="setShipStatusForSelected('미출고')" class="ship-ui px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg shadow-sm">선택 출고취소</button>
-                            <button onclick="editSelectedAdminOrder()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-sm">선택수정</button>
+                            <button id="btn-edit-selected" onclick="editSelectedAdminOrder()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-sm" title="1개 체크: 그 주문 수정 · 2개 이상 체크: 합배송 묶기 / 부분출고로 바꾸기">선택수정</button>
                             <button onclick="markSeparateSelectedOrders()" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs rounded-lg shadow-sm" title="이 사이트 밖에서 이미 따로 처리·배송한 접수건에 표시합니다 (접수완료로 바뀜)">따로 처리됨</button>
                             <button onclick="setHiddenSelectedOrders(true)" class="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg shadow-sm" title="테스트 접수건 등을 목록에서 안 보이게 합니다 (지우지 않음)">선택 숨기기</button>
                             <button onclick="trashSelectedOrders()" class="px-3 py-1.5 bg-white border border-rose-300 hover:bg-rose-50 text-rose-600 font-bold text-xs rounded-lg shadow-sm" title="접수건을 아예 지웁니다. 셀러 화면·엑셀·정산에서도 사라지고, [휴지통]에서 90일 안에 복원할 수 있습니다">선택 삭제</button>
                         </div>
+                    </div>
+
+                    <!-- [선택수정] 사용법 상시 안내 (체크 개수에 따라 하는 일이 다름) -->
+                    <div id="edit-selected-hint" class="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 rounded-lg border border-indigo-200 bg-indigo-50 text-xs text-indigo-900">
+                        <span class="font-black">✏️ [선택수정] 사용법</span>
+                        <span><b class="px-1.5 py-0.5 rounded bg-white border border-indigo-200">1개만 체크</b> → 그 주문 하나 수정 · 합배송 건이면 <b>그 상품만 부분출고</b>로 빼기</span>
+                        <span><b class="px-1.5 py-0.5 rounded bg-white border border-indigo-200">2개 이상 체크</b> → <b>합배송으로 묶기</b> / 묶인 것 <b>부분출고로 풀기</b></span>
                     </div>
 
                     <!-- 업체별 접수 현황: 접수대기/접수완료 업체 목록 + 누르면 그 업체 주문만 조회 -->
@@ -1954,6 +1971,7 @@
                     <span class="block mt-1 text-[11px] text-slate-500">(합)을 떼고 각자 번호를 받습니다. 준비된 상품부터 따로 출고할 수 있습니다.</span>
                 </button>
             </div>
+            <p class="text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">💡 주소·상품명·메모처럼 <b>내용을 고치려면</b> 창을 닫고 <b>1개만 체크</b>한 뒤 [선택수정]을 누르세요.</p>
             <div class="flex justify-end">
                 <button type="button" onclick="closeCombineModal()" class="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg">닫기</button>
             </div>
@@ -4312,7 +4330,7 @@
 
             // 관리자: 합배송 상태 보기 + 부분출고로 빼기
             const cbox = document.getElementById('eo-combine-box');
-            const showCombine = currentRole === 'admin' && !isKeepOrder(order);
+            const showCombine = (currentRole === 'admin' || currentRole === 'seller') && !isKeepOrder(order);
             cbox.classList.toggle('hidden', !showCombine);
             if (showCombine) {
                 const groups = getOrderGroups();
@@ -4321,7 +4339,7 @@
                 const shipped = order.ship_status === '출고완료';
                 cbox.className = `flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg border text-xs ${combined ? 'bg-indigo-50 border-indigo-200 text-indigo-800' : 'bg-slate-50 border-slate-200 text-slate-600'}`;
                 cbox.innerHTML = combined
-                    ? `<span><b>📦 합배송</b> · ${escapeHtml(String(order.order_no))}번 주문 ${g ? g.total : 1}개 묶음 (모아서 한 번에 출고)</span>`
+                    ? `<span><b>📦 합배송</b> · ${escapeHtml(currentRole === 'seller' ? sellerNoLabel(order, groups).replace(/-\d+$/, '') : String(order.order_no))}번 주문 ${g ? g.total : 1}개 묶음 (모아서 한 번에 출고)</span>`
                       + (shipped ? '' : `<button type="button" onclick="applyCombine('split', [document.getElementById('edit-order-id').value])" class="px-2.5 py-1 bg-white border border-orange-300 hover:bg-orange-50 text-orange-700 font-bold rounded">✂️ 이 상품만 부분출고로 바꾸기</button>`)
                     : '<span><b>배송 방식:</b> 단독 주문 · 합배송으로 묶으려면 목록에서 같이 보낼 주문을 2개 이상 체크하고 [선택수정]을 누르세요.</span>';
             }
@@ -4672,6 +4690,7 @@
 
             if (myOrders.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="15" class="text-center py-6 text-slate-400">${allMine.length ? '조회 조건에 맞는 주문이 없습니다.' : '접수된 주문이 없습니다.'}</td></tr>`;
+                if (typeof updateEditSelectedBtn === 'function') updateEditSelectedBtn();
                 return;
             }
 
@@ -4730,6 +4749,7 @@
                     </tr>
                 `;
             }).join('');
+            if (typeof updateEditSelectedBtn === 'function') updateEditSelectedBtn();
         }
 
         // =====================================================================
@@ -5574,8 +5594,25 @@
                 </tr>
             `;
             }).join('');
-
+            updateEditSelectedBtn();
         }
+
+        // [선택수정] 버튼 글자: 체크 개수에 따라 무엇을 하는지 보여줌
+        function updateEditSelectedBtn() {
+            const sl = document.getElementById('btn-seller-edit-label');
+            if (sl) {
+                const m = document.querySelectorAll('.seller-chk-item:checked').length;
+                sl.textContent = m === 0 ? '선택수정' : m === 1 ? '선택수정 (1개: 주문 수정)' : `선택수정 (${m}개: 합배송/부분출고)`;
+            }
+            const btn = document.getElementById('btn-edit-selected');
+            if (!btn) return;
+            const n = document.querySelectorAll('.admin-chk-item:checked').length;
+            btn.textContent = n === 0 ? '선택수정' : n === 1 ? '선택수정 (1개: 주문 수정)' : `선택수정 (${n}개: 합배송/부분출고)`;
+        }
+        document.addEventListener('change', e => {
+            if (e.target && (e.target.classList.contains('admin-chk-item') || e.target.id === 'chk-all-admin'
+                || e.target.classList.contains('seller-chk-item') || e.target.id === 'chk-all-seller')) updateEditSelectedBtn();
+        });
 
         // 관리자가 입력했지만 아직 저장하지 않은 택배사/송장번호 (표를 다시 그려도 유지)
         let trackingDrafts = {};
@@ -5605,10 +5642,22 @@
         }
 
         // 관리자: 체크한 주문 1건 수정
+        // 셀러: [선택수정] 1개 → 그 주문 수정, 2개 이상 → 합배송 묶기 / 부분출고 (supabase/seller_combine.sql)
+        function editSelectedSellerOrder() {
+            if (!canModifyOrders()) { alert('관리자 승인 후 이용할 수 있습니다.'); return; }
+            const ids = Array.from(document.querySelectorAll('.seller-chk-item:checked')).map(c => c.value);
+            if (ids.length === 0) {
+                alert('수정할 주문을 체크해주세요.\n\n· 1개만 체크 → 그 주문 하나 수정 (합배송 건이면 그 상품만 부분출고로 빼기)\n· 2개 이상 체크 → 같은 분께 가는 주문 합배송으로 묶기 / 부분출고로 풀기\n\n※ 관리자가 접수완료한 주문은 바꿀 수 없습니다.');
+                return;
+            }
+            if (ids.length > 1) { openCombineModal(ids); return; }
+            openEditModal(ids[0]);
+        }
+
         function editSelectedAdminOrder() {
             const ids = Array.from(document.querySelectorAll('.admin-chk-item:checked')).map(c => c.value);
             if (ids.length === 0) {
-                alert('수정할 주문을 체크박스로 1건 선택해주세요.');
+                alert('수정할 주문을 체크해주세요.\n\n· 1개만 체크 → 그 주문 하나 수정 (합배송 건이면 그 상품만 부분출고로 빼기)\n· 2개 이상 체크 → 합배송으로 묶기 / 부분출고로 풀기');
                 return;
             }
             if (ids.length > 1) {
@@ -5635,11 +5684,12 @@
             const norm = v => String(v || '').replace(/\s/g, '');
             const sellers = new Set(list.map(o => o.seller_id));
             const people = new Set(list.map(o => norm(o.recipient) + '|' + norm(o.phone).replace(/\D/g, '') + '|' + norm(`${o.address || ''}${o.detail_address || ''}`)));
-            const blocked = list.filter(o => isKeepOrder(o) || o.ship_status === '출고완료');
+            const asSeller = currentRole === 'seller';
+            const blocked = list.filter(o => isKeepOrder(o) || o.ship_status === '출고완료' || (asSeller && !canEditOrder(o)));
             document.getElementById('combine-modal-sub').innerText = `선택 ${list.length}개 상품`;
             document.getElementById('combine-modal-list').innerHTML = list.map(o => `
                 <tr>
-                    <td class="p-2 font-mono font-black text-indigo-700 whitespace-nowrap">${escapeHtml(orderNoLabel(o, groups))}${isCombinedOrder(o, groups) ? ' <span class="px-1 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-bold">합배송</span>' : ''}</td>
+                    <td class="p-2 font-mono font-black text-indigo-700 whitespace-nowrap">${escapeHtml(asSeller ? sellerNoLabel(o, groups) : orderNoLabel(o, groups))}${isCombinedOrder(o, groups) ? ' <span class="px-1 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-bold">합배송</span>' : ''}</td>
                     <td class="p-2 whitespace-nowrap">${escapeHtml(o.seller_company || '-')}</td>
                     <td class="p-2 font-semibold whitespace-nowrap">${escapeHtml(o.recipient || '')}</td>
                     <td class="p-2">${escapeHtml(`${o.address || ''} ${o.detail_address || ''}`.trim())}</td>
@@ -5647,12 +5697,16 @@
                 </tr>`).join('');
             const warn = [];
             if (sellers.size > 1) warn.push('다른 업체(셀러)의 주문이 섞여 있어 합배송으로 묶을 수 없습니다.');
-            else if (people.size > 1) warn.push('받는분 이름·연락처·주소가 서로 다른 주문이 있습니다. 같은 분에게 가는지 꼭 확인해 주세요.');
-            if (blocked.length) warn.push('출고완료 또는 밤낮딜리버리 창고로 보관요청 건이 있어 바꿀 수 없습니다. 체크를 빼고 다시 해주세요.');
+            else if (people.size > 1) warn.push(asSeller
+                ? '받는분 이름·연락처·주소가 서로 다른 주문이 있어 합배송으로 묶을 수 없습니다. (같은 분께 가는 주문끼리만 묶을 수 있어요)'
+                : '받는분 이름·연락처·주소가 서로 다른 주문이 있습니다. 같은 분에게 가는지 꼭 확인해 주세요.');
+            if (blocked.length) warn.push(asSeller
+                ? '관리자가 접수완료했거나 출고된 주문, 밤낮딜리버리 창고로 보관요청 건이 있어 바꿀 수 없습니다. 체크를 빼고 다시 해주세요.'
+                : '출고완료 또는 밤낮딜리버리 창고로 보관요청 건이 있어 바꿀 수 없습니다. 체크를 빼고 다시 해주세요.');
             const w = document.getElementById('combine-modal-warn');
             w.innerText = warn.join('\n');
             w.classList.toggle('hidden', !warn.length);
-            document.getElementById('btn-combine').disabled = sellers.size > 1 || blocked.length > 0 || list.length < 2;
+            document.getElementById('btn-combine').disabled = sellers.size > 1 || blocked.length > 0 || list.length < 2 || (asSeller && people.size > 1);
             document.getElementById('btn-split').disabled = blocked.length > 0;
             ['btn-combine', 'btn-split'].forEach(id => document.getElementById(id).classList.toggle('opacity-40', document.getElementById(id).disabled));
             document.getElementById('combine-modal').classList.remove('hidden');
@@ -5667,21 +5721,24 @@
             if (!ids.length) return;
             const label = mode === 'combine' ? '합배송으로 묶기' : '부분출고로 바꾸기';
             const detail = mode === 'combine'
-                ? '같은 주문 번호로 묶고 상품명 앞에 (합)을 붙입니다.\n셀러 화면 번호도 같은 번호로 바뀝니다.'
-                : '(합)을 떼고 각자 새 번호를 받습니다.\n셀러 화면 번호도 함께 바뀝니다.';
+                ? `같은 주문 번호로 묶고 상품명 앞에 (합)을 붙입니다.\n${currentRole === 'seller' ? '주문 번호도' : '셀러 화면 번호도'} 같은 번호로 바뀝니다.`
+                : `(합)을 떼고 각자 새 번호를 받습니다.\n${currentRole === 'seller' ? '주문 번호도' : '셀러 화면 번호도'} 함께 바뀝니다.`;
+            const rpcName = currentRole === 'seller' ? 'seller_set_combined' : 'admin_set_combined';
             if (!confirm(`선택한 상품 ${ids.length}개를 [${label}] 할까요?\n\n${detail}`)) return;
-            const { data, error } = await supabaseClient.rpc('admin_set_combined', { p_ids: ids, p_mode: mode });
+            const { data, error } = await supabaseClient.rpc(rpcName, { p_ids: ids, p_mode: mode });
             if (error) {
-                const notReady = error.code === 'PGRST202' || /admin_set_combined|schema cache/i.test(error.message || '');
+                const notReady = error.code === 'PGRST202' || /_set_combined|schema cache/i.test(error.message || '');
                 alert(notReady
-                    ? '합배송/부분출고 기능 DB 설정이 아직 적용되지 않았습니다.\n(Supabase SQL Editor 에서 supabase/order_combine.sql 을 실행해주세요)'
+                    ? (currentRole === 'seller'
+                        ? '이 기능은 아직 준비 중입니다. 밤낮딜리버리에 문의해 주세요.'
+                        : '합배송/부분출고 기능 DB 설정이 아직 적용되지 않았습니다.\n(Supabase SQL Editor 에서 supabase/order_combine.sql 을 실행해주세요)')
                     : '저장 중 오류가 발생했습니다.\n\n' + dbErrorMessage(error));
                 return;
             }
             replaceOrders(data || []);
             closeCombineModal();
             closeEditModal();
-            renderAdminTable();
+            if (currentRole === 'admin') renderAdminTable();
             if (typeof renderSellerTable === 'function' && document.getElementById('seller-order-list')) renderSellerTable();
             alert(`${ids.length}개 상품을 [${label}] 했습니다.`);
         }

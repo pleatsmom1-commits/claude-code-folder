@@ -32,6 +32,15 @@ const HOME = `<!doctype html><html><head><title>밤낮딜리버리 홈</title><s
   await page.evaluate(() => { Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true }); document.dispatchEvent(new Event('visibilitychange')); }); await page.waitForTimeout(800);
   const t = all().find(e => e.kind === 'time');
   ok(t && t.sec >= 5, 'time sent on leave', JSON.stringify(t));
+  // 새 창으로 다시 와도 같은 날이면 방문자 번호는 같고, 방문 묶음(창)은 다름
+  const p2 = await ctx.newPage(); await p2.goto('https://www.bamnatdelivery.com/'); await p2.waitForTimeout(6000);
+  const v2 = all().filter(e => e.kind === 'view')[1];
+  ok(v2 && v2.visitor === view.visitor && v2.session !== view.session, 'same visitor same day, new session', JSON.stringify(v2));
+  await p2.evaluate(() => localStorage.setItem('bamnat.visitor', JSON.stringify({ day: '2000-01-01', id: 'oldid' })));
+  await p2.reload(); await p2.waitForTimeout(6000);
+  const v3 = all().filter(e => e.kind === 'view')[2];
+  ok(v3 && v3.visitor !== 'oldid' && v3.visitor !== view.visitor, 'new day → new visitor id', JSON.stringify(v3));
+  await p2.close();
   // 관리자 화면 속 작은 창(iframe)은 세지 않음
   const before = all().length;
   await page.setContent(`<iframe src="https://www.bamnatdelivery.com/"></iframe>`); await page.waitForTimeout(6000);
