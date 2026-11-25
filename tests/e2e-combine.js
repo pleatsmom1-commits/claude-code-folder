@@ -135,7 +135,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await shot('1_before_list.png', await tableBox());
 
   // 2개 체크 → 선택수정 → 합배송 창
-  await page.click('button:has-text("선택수정")'); await page.waitForTimeout(300);
+  await page.click('#btn-edit-selected'); await page.waitForTimeout(300);
   check('2개 선택수정 → 합배송/부분출고 창', await page.isVisible('#combine-modal'));
   check('같은 받는분이라 경고 없음', await page.isHidden('#combine-modal-warn'));
   await shot('2_combine_modal.png');
@@ -151,7 +151,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
 
   // 1개 선택수정 → 수정창에 합배송 표시 + 부분출고 버튼
   await tick(['ORD-159']);
-  await page.click('button:has-text("선택수정")'); await page.waitForTimeout(300);
+  await page.click('#btn-edit-selected'); await page.waitForTimeout(300);
   const box = await page.textContent('#eo-combine-box');
   check('1개 선택수정: 수정창에 합배송 안내', await page.isVisible('#eo-combine-box') && box.includes('합배송') && box.includes('2개 묶음'), box);
   await shot('4_edit_modal_combined.png');
@@ -162,23 +162,23 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
 
   // 다른 받는분과 묶으려 하면 경고
   await tick(['ORD-160', 'ORD-158']);
-  await page.click('button:has-text("선택수정")'); await page.waitForTimeout(300);
+  await page.click('#btn-edit-selected'); await page.waitForTimeout(300);
   check('받는분 다르면 경고', (await page.textContent('#combine-modal-warn')).includes('받는분'));
   await page.click('#combine-modal button:has-text("닫기")');
 
   // 다시 묶었다가 2개 모두 부분출고로
   await tick(['ORD-158', 'ORD-159']);
-  await page.click('button:has-text("선택수정")'); await page.waitForTimeout(300);
+  await page.click('#btn-edit-selected'); await page.waitForTimeout(300);
   await page.click('#btn-combine'); await page.waitForTimeout(800);
   await tick(['ORD-158', 'ORD-159']);
-  await page.click('button:has-text("선택수정")'); await page.waitForTimeout(300);
+  await page.click('#btn-edit-selected'); await page.waitForTimeout(300);
   await page.click('#btn-split'); await page.waitForTimeout(800);
   const a3 = row('ORD-158'), b3 = row('ORD-159');
   check('둘 다 부분출고: 158은 원래 번호, 159는 새 번호, (합) 없음', a3.order_no === 158 && b3.order_no !== 158 && !a3.product.includes('(합)') && !b3.product.includes('(합)'), JSON.stringify([a3.order_no, b3.order_no]));
 
   // 단독 주문 1개 선택수정 → 기존 수정창 그대로
   await tick(['ORD-157']);
-  await page.click('button:has-text("선택수정")'); await page.waitForTimeout(300);
+  await page.click('#btn-edit-selected'); await page.waitForTimeout(300);
   check('단독 주문: 기존 수정창 + 단독 안내', await page.isVisible('#edit-modal') && (await page.textContent('#eo-combine-box')).includes('단독'));
   await page.click('#edit-modal button:has(i[data-lucide="x"]), #edit-modal button:has(svg)').catch(() => {});
   check('no page errors', pageErrors.length === 0, pageErrors.join(' | '));
