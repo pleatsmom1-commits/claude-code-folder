@@ -19,6 +19,7 @@ export const KNOWLEDGE = `
 - 전화(카톡 친구추가 가능): 010-5425-9060
 - 이메일: pleatsmom@naver.com
 - 주소: 서울특별시 중구 청계천로 400 (황학동, 롯데캐슬베네치아) 메가몰동 2층 2072호 (디오트 5분 거리, 방문 미팅은 미리 예약)
+- 우편번호: 04572 (위 사무실 주소의 우편번호. 지번 주소: 서울 중구 황학동 2545)
 - 상호: 밤낮딜리버리 / 대표: 이현재 / 사업자등록번호: 401-59-00837
 - 홈페이지: https://www.bamnatdelivery.com
 - 주문접수 사이트: https://bamnat-delivery.bamnat.workers.dev/
