@@ -58,7 +58,7 @@ const ok = (c, m, x = '') => { console.log(c ? 'PASS ' : 'FAIL ', m, x ? ' -- ' 
   await page.screenshot({ path: path.join(__dirname, 'out', 'chat.png') });
   const box = await page.locator('#bn-chat').boundingBox();
   ok(box.x >= 0 && box.x + box.width <= 390, 'fits phone width');
-  await page.click('#bn-chat header button');
+  await page.click('#bn-chat header .bn-close');
   ok(!(await page.isVisible('#bn-chat')), 'chat closes');
   // 홈페이지에 한 줄로 붙였을 때: 질문이 상담창 파일을 올린 사이트(/api/ask)로 가는지
   await page.goto('http://www.bamnatdelivery.com/');
@@ -85,7 +85,7 @@ const ok = (c, m, x = '') => { console.log(c ? 'PASS ' : 'FAIL ', m, x ? ' -- ' 
   await page.waitForSelector('#bn-chat .bn-ai >> text=문의가 접수됐어요');
   ok(leads.length === 1 && leads[0].phone === '01012345678' && leads[0].consent === true && leads[0].chatLog.length === 4 && leads[0].source.includes('bamnatdelivery'), 'lead sent with chat log', JSON.stringify(leads[0]).slice(0, 200));
   // 홈페이지 버튼(class="bn-chat-open")으로 열기
-  await page.click('#bn-chat header button');
+  await page.click('#bn-chat header .bn-close');
   await page.click('#newbiz');
   ok(await page.isVisible('#bn-chat'), 'bn-chat-open button opens chat');
   ok(errors.length === 0, 'no page script errors', errors.join(' | '));

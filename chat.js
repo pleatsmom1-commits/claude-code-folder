@@ -13,7 +13,10 @@
 //  - 상담창 안의 노란 "관리자와 상담하기" 버튼을 누르면 카카오톡 채널(밤낮딜리버리) 채팅방이 열립니다.
 //    AI 가 답할 수 없는 질문(사고·파손·분실·정산 다툼 등)에는 이 버튼을 크게 한 번 더 보여 줍니다.
 //  - 질문과 AI 답변은 관리자 화면 > AI 상담 > 상담 기록에 남습니다 (연락처·IP 는 저장 안 함, 1년 후 삭제).
-//    손님 화면의 대화는 창을 새로 고치면 사라집니다.
+//  - 지난 대화 이어 보기 (2026-11-26): 손님 화면의 대화는 손님 기기(브라우저)에만 30일 보관해서,
+//    창을 닫거나 다른 화면에 갔다 와도 이어서 보입니다. 서버에는 따로 더 저장하지 않습니다.
+//    사이트마다(주문접수 사이트·카페24 홈페이지·닷홈) 따로 보관되고, 사진은 보관하지 않습니다("📷 사진" 표시만).
+//    상담창 위 [대화 지우기] 를 누르면 그 기기의 지난 대화가 바로 지워집니다.
 //  - 사진 질문 (2026-11-17): [📷 사진] (휴대폰 캡쳐·앨범), 붙여넣기(Ctrl+V, PC 는 Win+Shift+S 로 캡쳐).
 //    [🖥️ 화면 캡쳐] 버튼은 만들어 두었지만 꺼 둠 (SCREEN_CAPTURE).
 //    [🖥️ 화면 캡쳐]는 캡쳐 도구처럼 찍힌 화면 위에서 끌어 구간을 고르고, 보내기 전에 자르기·모자이크(개인정보)를 할 수 있고, 긴 쪽 1568px 이하 JPG 로 줄여 질문 1번에 1장만 보냅니다.
@@ -39,8 +42,30 @@
         return '🌙 지금 남기시면 아침 8시 이후 차례로 답변드려요 (오전 8시~오후 4시에는 평균 1시간 안에 답변)';
     }
     const history = [];
-    // 상담창 한 번(새로 고치기 전까지)의 대화 묶음 표시. 사람을 알아볼 수 없는 무작위 글자입니다.
-    const CHAT_ID = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+    // ---- 지난 대화 보관 (손님 기기에만, 30일, 최근 60개) ----
+    const SAVE_KEY = 'bnChatSaved.v1';
+    const KEEP_DAYS = 30, KEEP_MSGS = 60;
+    const saved = (() => {
+        try {
+            const d = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+            if (!d || !Array.isArray(d.msgs) || Date.now() - (d.at || 0) > KEEP_DAYS * 86400000) { localStorage.removeItem(SAVE_KEY); return null; }
+            d.msgs = d.msgs.filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string');
+            return d.msgs.length ? d : null;
+        } catch { return null; }
+    })();
+    // 대화 묶음 표시(상담 기록용). 사람을 알아볼 수 없는 무작위 글자이며, 지난 대화를 이어 가면 같은 표시를 씁니다.
+    let CHAT_ID = (saved && saved.id) || Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+    const shown = saved ? saved.msgs.slice() : []; // 화면에 보이는 대화(시간·사진 표시 포함)
+    function save() {
+        try {
+            if (!shown.length) { localStorage.removeItem(SAVE_KEY); return; }
+            localStorage.setItem(SAVE_KEY, JSON.stringify({ id: CHAT_ID, at: Date.now(), msgs: shown.slice(-KEEP_MSGS) }));
+        } catch { /* 저장 못 하는 브라우저(사생활 보호 창 등)는 예전처럼 새로 고치면 사라짐 */ }
+    }
+    function remember(role, content, photo) {
+        shown.push({ role, content, at: Date.now(), ...(photo ? { photo: true } : {}) });
+        save();
+    }
 
     const css = document.createElement('style');
     css.textContent = `
@@ -51,6 +76,13 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
 #bn-chat header{background:#1e3a8a;color:#fff;padding:12px 14px;display:flex;justify-content:space-between;align-items:center}
 #bn-chat header b{font-size:15px}
 #bn-chat header button{background:none;border:0;color:#fff;font-size:20px;cursor:pointer}
+#bn-chat header .bn-head-r{display:flex;align-items:center;gap:6px}
+#bn-chat header button.bn-clear{font:12px/1.2 sans-serif;border:1px solid rgba(255,255,255,.55);border-radius:999px;padding:4px 9px}
+#bn-chat header button.bn-clear[hidden]{display:none}
+#bn-chat .bn-day{text-align:center;font-size:11px;color:#6b7280;margin:10px 0 4px}
+#bn-chat .bn-day span{background:#e5e7eb;border-radius:999px;padding:2px 10px}
+#bn-chat .bn-past{opacity:.85}
+#bn-chat .bn-photo-tag{display:block;font-size:12px;opacity:.8;margin-bottom:2px}
 #bn-chat .bn-log{flex:1;overflow-y:auto;padding:12px;background:#f3f4f6}
 #bn-chat .bn-msg{max-width:85%;margin:6px 0;padding:9px 12px;border-radius:12px;white-space:pre-wrap;word-break:break-word}
 #bn-chat .bn-user{margin-left:auto;background:#1e3a8a;color:#fff;border-bottom-right-radius:4px}
@@ -118,9 +150,9 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
     const box = document.createElement('div');
     box.id = 'bn-chat';
     box.innerHTML = `
-<header><b>밤낮딜리버리 궁금한 점 물어보기</b><button type="button" aria-label="닫기">×</button></header>
+<header><b>밤낮딜리버리 궁금한 점 물어보기</b><span class="bn-head-r"><button type="button" class="bn-clear" title="이 기기에 보관된 지난 대화를 지웁니다" hidden>대화 지우기</button><button type="button" class="bn-close" aria-label="닫기">×</button></span></header>
 <div class="bn-log"></div>
-<div class="bn-note">AI 안내는 참고용이며, 정확한 견적·일정은 상담으로 확정됩니다. 상담 품질을 위해 질문·답변이 저장되며 1년 후 삭제됩니다. 개인정보(주민번호·카드번호 등)는 적지 마세요.
+<div class="bn-note">AI 안내는 참고용이며, 정확한 견적·일정은 상담으로 확정됩니다. 상담 품질을 위해 질문·답변이 저장되며 1년 후 삭제됩니다. 지난 대화는 이 기기에만 30일 보관돼 다시 열어도 이어 볼 수 있어요(함께 쓰는 PC라면 [대화 지우기]). 개인정보(주민번호·카드번호 등)는 적지 마세요.
  <a href="#" class="bn-lead-link">관리자에게 문의하기</a> · 전화 010-5425-9060</div>
 <div class="bn-human-bar"><a class="bn-kakao" href="${KAKAO}" target="_blank" rel="noopener">💬 관리자와 상담하기 <small>(카카오톡 채널)</small></a><span class="bn-hint"></span></div>
 <div class="bn-tools"><button type="button" class="bn-photo">📷 사진</button><button type="button" class="bn-screen">🖥️ 화면 캡쳐</button><small class="bn-tool-hint"></small></div>
@@ -143,7 +175,31 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
         return el;
     }
 
-    add('안녕하세요, 밤낮딜리버리입니다 🙂\n요금, 접수 마감시간, 당일택배, 풀필먼트 등 이용 방법을 물어보세요.', 'ai');
+    const clearBtn = box.querySelector('.bn-clear');
+    const ymd = t => new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'short' }).format(new Date(t));
+    function dayLine(text) {
+        const d = document.createElement('div');
+        d.className = 'bn-day';
+        const sp = document.createElement('span'); sp.textContent = text; d.appendChild(sp);
+        log.appendChild(d);
+    }
+    // 지난 대화 다시 보여 주기
+    if (saved) {
+        let lastDay = '';
+        saved.msgs.forEach(m => {
+            const day = ymd(m.at || saved.at);
+            if (day !== lastDay) { dayLine('지난 상담 · ' + day); lastDay = day; }
+            const el = add(m.content, m.role === 'user' ? 'user' : 'ai');
+            el.classList.add('bn-past');
+            if (m.photo) { const t = document.createElement('span'); t.className = 'bn-photo-tag'; t.textContent = '📷 사진을 같이 보냈어요'; el.prepend(t); }
+            history.push({ role: m.role, content: m.content });
+        });
+        while (history.length && history[0].role !== 'user') history.shift();
+        if (history.length && history[history.length - 1].role === 'user') history.pop(); // 답을 못 받은 질문은 다시 보내지 않음
+        dayLine('여기부터 이어서 물어보세요');
+        clearBtn.hidden = false;
+    }
+    add(saved ? '다시 오셨네요 🙂 지난 상담에 이어서 편하게 물어보세요.' : '안녕하세요, 밤낮딜리버리입니다 🙂\n요금, 접수 마감시간, 당일택배, 풀필먼트 등 이용 방법을 물어보세요.', 'ai');
     const quick = document.createElement('div');
     quick.className = 'bn-quick';
     ['픽업비와 택배비가 얼마예요?', '주문 마감이 몇 시예요?', '풀필먼트는 어떻게 이용해요?', '한집만 사입이 뭐예요?'].forEach(q => {
@@ -159,7 +215,17 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
     human.textContent = '✍️ 관리자에게 문의하기';
     human.onclick = () => showLeadForm('');
     quick.appendChild(human);
-    log.appendChild(quick);
+    if (!saved) log.appendChild(quick);
+    clearBtn.onclick = () => {
+        if (!confirm('이 기기에 보관된 지난 상담 대화를 지울까요?\n(지운 대화는 다시 볼 수 없어요)')) return;
+        shown.length = 0; history.length = 0; save();
+        CHAT_ID = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+        log.innerHTML = '';
+        if (leadBox) { leadBox.remove(); leadBox = null; }
+        add('지난 대화를 지웠어요. 새로 궁금한 점을 물어보세요 🙂', 'ai');
+        log.appendChild(quick);
+        clearBtn.hidden = true;
+    };
 
     // AI 가 답할 수 없을 때: 카카오톡 채널로 바로 관리자와 상담하도록 크게 안내
     function showHumanCard() {
@@ -233,11 +299,14 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
         quick.remove();
         add(q, 'user', img);
         history.push({ role: 'user', content: q });
+        remember('user', q, !!img);
+        clearBtn.hidden = false;
         input.value = '';
         setAttach(null);
         send.disabled = true;
         const wait = add(img ? '사진을 보고 답변을 준비하고 있어요…' : '답변을 준비하고 있어요…', 'ai');
         let answer, needsHuman = false;
+        const forget = () => { history.pop(); shown.pop(); save(); }; // 답을 못 받은 질문은 보관하지 않음
         try {
             const res = await fetch(API, {
                 method: 'POST',
@@ -248,10 +317,10 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
             const data = await res.json().catch(() => ({}));
             answer = data.answer || data.error;
             needsHuman = !!data.needsHuman;
-            if (data.answer) history.push({ role: 'assistant', content: data.answer });
-            else history.pop();
+            if (data.answer) { history.push({ role: 'assistant', content: data.answer }); remember('assistant', data.answer); }
+            else forget();
         } catch {
-            history.pop();
+            forget();
         }
         wait.textContent = answer || '연결이 원활하지 않아요. 아래 "관리자와 상담하기"(카카오톡 채널) 또는 010-5425-9060으로 문의해 주세요.';
         if (needsHuman) { showHumanCard(); showLeadForm(q); }
@@ -442,7 +511,7 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
     window.BamnatChatShot = { openEditor }; // 점검용
 
     const barHint = box.querySelector('.bn-human-bar .bn-hint');
-    const open = () => { barHint.textContent = kakaoHint(); box.classList.add('open'); input.focus(); };
+    const open = () => { barHint.textContent = kakaoHint(); box.classList.add('open'); log.scrollTop = log.scrollHeight; input.focus(); };
     btn.onclick = () => { if (box.classList.contains('open')) box.classList.remove('open'); else open(); };
     // 홈페이지의 "신규업체 상담전용" 같은 버튼: class="bn-chat-open" 을 붙이면 누를 때 열림
     document.addEventListener('click', e => {
@@ -451,7 +520,7 @@ ${PC_ONLY ? '@media(max-width:767px){#bn-chat-btn{display:none}}' : ''}
     });
     box.querySelector('.bn-lead-link').onclick = e => { e.preventDefault(); showLeadForm(input.value.trim()); };
     window.BamnatChat = { open };
-    box.querySelector('header button').onclick = () => box.classList.remove('open');
+    box.querySelector('header .bn-close').onclick = () => box.classList.remove('open');
     form.onsubmit = e => { e.preventDefault(); ask(input.value); };
     input.addEventListener('keydown', e => {
         if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); ask(input.value); }
