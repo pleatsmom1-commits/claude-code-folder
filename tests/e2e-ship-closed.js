@@ -134,6 +134,16 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   check('셀러 화면', await vis('#seller-dashboard'));
   await page.evaluate(() => { document.getElementById('time-simulator-bar').style.display = 'none'; });
   const shot = async n => { if (process.env.SHOT_DIR) await page.screenshot({ path: path.join(OUT, n), fullPage: false }); };
+  if (process.env.KEEP_SHOT) { // 전후 그림: 오전 9시 보관요청 칸 + 수정 누를 때 안내창
+    await page.evaluate(() => switchSellerMode('fulfillment'));
+    await page.evaluate(() => setSimulatedTime(9 * 60)); await page.waitForTimeout(400);
+    const box = page.locator('#btn-keep-submit').locator('xpath=ancestor::div[contains(@class,"bg-amber")][1]');
+    await box.scrollIntoViewIfNeeded(); await box.screenshot({ path: path.join(OUT, 'keep_' + process.env.KEEP_SHOT) });
+    dialogs.length = 0;
+    await page.evaluate(() => openEditModal('ORD-1')); await page.waitForTimeout(400);
+    fs.writeFileSync(path.join(OUT, 'edit_' + process.env.KEEP_SHOT + '.txt'), dialogs.join('\n---\n') + '\nEDIT_MODAL_VISIBLE=' + await vis('#edit-modal'));
+    await browser.close(); return;
+  }
   if (process.env.ONLY_SHOT) { // 전후 그림만: 오전 9시 모습
     await page.evaluate(() => switchSellerMode('fulfillment'));
     await page.evaluate(() => setSimulatedTime(9 * 60)); await page.waitForTimeout(400);
@@ -159,7 +169,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   check('07:00 안내 상자 보임', await vis('#ship-closed-notice'));
   check('07:00 버튼 4개 잠김', (await Promise.all(['btn-submit-order', 'btn-excel-upload', 'btn-store-submit', 'btn-ai-upload'].map(dis))).every(Boolean));
   check('07:00 빨간 띠', (await page.getAttribute('#status-banner', 'class')).includes('bg-rose-600'));
-  check('보관요청 버튼은 열림', !(await dis('btn-keep-submit')));
+  check('보관요청 버튼도 잠김', await dis('btn-keep-submit'));
   await shot('closed.png');
   // 버튼이 잠겨도 억지로 접수 함수를 부르면(7시 전에 열어 둔 화면) 막히는지
   const before = insertCount();
@@ -167,10 +177,41 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.evaluate(() => handleStoreOrderSubmit({ preventDefault() {} }));
   await page.waitForTimeout(300);
   check('막힌 시간 접수 함수 → 저장 안 됨 + 안내창', insertCount() === before && dialogs.some(d => d.includes('오후 1시전까지 카톡')));
+  // 보관요청 · 주문 고치기 · 지우기 · 합배송 묶기도 막힘 (2026-11-26)
+  const writes = () => requests.filter(r => ['POST', 'PATCH', 'DELETE'].includes(r.method) && (r.path === '/rest/v1/orders' || r.path.includes('set_combined'))).length;
+  const w0 = writes(); dialogs.length = 0;
+  await page.evaluate(() => { document.querySelector('input[name="keep-request"][value="있음"]') && (document.querySelector('input[name="keep-request"]').checked = true); submitKeepRequest(); });
+  await page.waitForTimeout(200);
+  check('보관요청 접수 → 막힘', dialogs.some(d => d.includes('택배출고 작업 시간')) && writes() === w0);
+  dialogs.length = 0;
+  await page.evaluate(() => openEditModal('ORD-1')); await page.waitForTimeout(200);
+  check('주문 수정 창 → 안 열리고 안내', dialogs.some(d => d.includes('고치거나 지울 수 없고')) && !(await vis('#edit-modal')));
+  dialogs.length = 0;
+  await page.evaluate(() => handleEditOrderSubmit({ preventDefault() {} })); await page.waitForTimeout(200);
+  check('수정 저장 함수 → 저장 안 됨', dialogs.some(d => d.includes('고치거나 지울 수 없고')) && writes() === w0);
+  dialogs.length = 0;
+  await page.evaluate(() => deleteOrder('ORD-1')); await page.waitForTimeout(300);
+  check('주문 삭제 → 확인창 없이 막힘', dialogs.length === 1 && dialogs[0].includes('고치거나 지울 수 없고') && tables.orders.some(o => o.id === 'ORD-1'));
+  dialogs.length = 0;
+  await page.evaluate(() => { document.querySelectorAll('.seller-chk-item').forEach(c => { c.checked = true; }); deleteSelectedOrders(); }); await page.waitForTimeout(300);
+  check('선택 삭제 → 막힘', dialogs.length === 1 && tables.orders.length === 2);
+  dialogs.length = 0;
+  await page.evaluate(() => editSelectedSellerOrder()); await page.waitForTimeout(200);
+  check('[선택수정] → 막힘 (합배송 창 안 열림)', dialogs.some(d => d.includes('합배송 묶기')) && !(await vis('#combine-modal')));
+  dialogs.length = 0;
+  await page.evaluate(() => applyCombine('combine', ['ORD-1', 'ORD-2'])); await page.waitForTimeout(200);
+  check('합배송 묶기 함수 → 저장 안 됨', dialogs.length === 1 && writes() === w0);
+  await page.evaluate(() => document.querySelectorAll('.seller-chk-item').forEach(c => { c.checked = false; }));
+  await shot('closed_keep.png');
   await page.evaluate(() => setSimulatedTime(14 * 60 + 59)); await page.waitForTimeout(200);
   check('14:59 아직 막힘', await dis('btn-submit-order'));
   await page.evaluate(() => setSimulatedTime(15 * 60)); await page.waitForTimeout(200);
   check('15:00 다시 열림', !(await dis('btn-submit-order')) && !(await vis('#ship-closed-notice')));
+  check('15:00 보관요청 버튼 다시 열림', !(await dis('btn-keep-submit')));
+  dialogs.length = 0;
+  await page.evaluate(() => openEditModal('ORD-1')); await page.waitForTimeout(300);
+  check('15:00 주문 수정 창 열림', await vis('#edit-modal') && !dialogs.some(d => d.includes('고치거나')));
+  await page.evaluate(() => { const m = document.getElementById('edit-modal'); m.classList.add('hidden'); m.classList.remove('flex'); });
 
   // 관리자는 막지 않음
   await page.evaluate(() => logout()); await page.waitForTimeout(800);
