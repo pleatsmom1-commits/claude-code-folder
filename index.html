@@ -279,8 +279,9 @@
                             onkeydown="if (event.key === 'Enter') submitKeepRequest()"
                             placeholder="예시) 풀필외 남은재고 킵해주세요, 오늘 사입건 모두 킵해주세요 또는 일부만 킵해주세요"
                             class="flex-1 min-w-0 px-2.5 py-1.5 border rounded-lg text-xs bg-white disabled:bg-slate-100 disabled:text-slate-400 placeholder:text-slate-400 focus:outline-amber-500">
-                        <button type="button" id="btn-keep-submit" onclick="submitKeepRequest()" class="shrink-0 px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs rounded-lg shadow">접수</button>
+                        <button type="button" id="btn-keep-submit" onclick="submitKeepRequest()" class="shrink-0 px-4 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-black text-xs rounded-lg shadow">접수</button>
                     </div>
+                    <p class="order-block-reason hidden text-[11px] font-bold text-rose-600"></p>
                     <p id="keep-status" class="hidden text-[11px] font-bold"></p>
                     </div>
                 </div>
@@ -2752,6 +2753,12 @@
             alert('🚚 지금은 택배출고 작업 시간이에요.\n\n' + SHIP_CLOSED_MESSAGE);
             return true;
         }
+        // 접수한 주문 고치기·지우기·합배송 묶기/부분출고도 출고 작업 시간에는 막습니다 (작업 중인 주문이 바뀌지 않게)
+        function blockEditIfShipClosed() {
+            if (!isShipClosed()) return false;
+            alert('🚚 지금은 택배출고 작업 시간이에요.\n\n오전 7시부터 오후 3시까지는 접수한 주문을 고치거나 지울 수 없고,\n합배송 묶기 / 부분출고로 바꾸기도 할 수 없습니다.\n\n급하게 바꿔야 할 주문은 카톡으로 말씀해 주세요.\n오후 3시부터 다시 할 수 있어요.');
+            return true;
+        }
         const canAddOrders = () => currentRole !== 'seller' || isSellerApproved();
         const canModifyOrders = () => currentRole !== 'seller' || isSellerApproved();
         // 셀러가 이 주문(상품)을 고치거나 지울 수 있는지: 관리자 마감 전 + 출고 전
@@ -3123,7 +3130,7 @@
             }
             const box = document.getElementById('ship-closed-notice');
             if (box) box.classList.toggle('hidden', !closed);
-            ['btn-submit-order', 'btn-excel-upload', 'btn-store-submit', 'btn-ai-upload'].forEach(id => {
+            ['btn-submit-order', 'btn-excel-upload', 'btn-store-submit', 'btn-ai-upload', 'btn-keep-submit'].forEach(id => {
                 const btn = document.getElementById(id);
                 if (btn) btn.disabled = !allowed;
             });
@@ -3787,6 +3794,7 @@
                 alert('관리자 승인 전이거나 이용이 정지된 계정은 접수할 수 없습니다.');
                 return;
             }
+            if (blockIfShipClosed()) return;
             const checked = document.querySelector('input[name="keep-request"]:checked');
             if (!checked) {
                 alert('밤낮딜리버리 창고로 보관요청 버튼을 체크해주세요.');
@@ -4319,6 +4327,7 @@
 
         // 보관요청 건: 보관 내용(메모)만 고칩니다.
         async function editKeepOrder(order) {
+            if (blockEditIfShipClosed()) return;
             if (currentRole === 'seller' && !canEditOrder(order)) {
                 alert('관리자 마감(접수완료)된 보관요청은 수정할 수 없습니다. 카카오톡으로 말씀해주세요.');
                 return;
@@ -4342,6 +4351,7 @@
             const order = ordersMaster.find(o => o.id === orderId);
             if (!order) return;
             if (isKeepOrder(order)) { editKeepOrder(order); return; }
+            if (blockEditIfShipClosed()) return;
 
             if (currentRole === 'seller' && !canEditOrder(order)) {
                 alert('관리자 마감(접수완료) 또는 출고된 주문은 수정할 수 없습니다.');
@@ -4430,6 +4440,7 @@
 
         async function handleEditOrderSubmit(e) {
             e.preventDefault();
+            if (blockEditIfShipClosed()) return;   // 수정 창을 7시 전에 열어 둔 경우
 
             const orderId = document.getElementById('edit-order-id').value;
             const orderIndex = ordersMaster.findIndex(o => o.id === orderId);
@@ -5331,6 +5342,7 @@
 
         // DB에서 먼저 삭제하고, 성공했을 때만 화면 목록에서 지웁니다.
         async function deleteOrdersByIds(ids) {
+            if (blockEditIfShipClosed()) return false;
             // 주소(URL) 길이 제한을 피하려고 200건씩 나눠서 삭제합니다.
             // 권한/시간 조건에 막힌 건은 오류 없이 건너뛰므로, 실제로 삭제된 건만 셉니다.
             const deleted = [];
@@ -5361,6 +5373,7 @@
                 alert('관리자 승인 전이거나 이용이 정지된 계정은 주문을 삭제할 수 없습니다.');
                 return;
             }
+            if (blockEditIfShipClosed()) return;
 
             if (confirm('해당 주문을 삭제하시겠습니까?')) {
                 if (await deleteOrdersByIds([id])) renderSellerTable();
@@ -5372,6 +5385,7 @@
                 alert('관리자 승인 전이거나 이용이 정지된 계정은 주문을 삭제할 수 없습니다.');
                 return;
             }
+            if (blockEditIfShipClosed()) return;
 
             const checkedBoxes = document.querySelectorAll('.seller-chk-item:checked');
             if (checkedBoxes.length === 0) {
@@ -5393,6 +5407,7 @@
                 alert('관리자 승인 전이거나 이용이 정지된 계정은 주문을 삭제할 수 없습니다.');
                 return;
             }
+            if (blockEditIfShipClosed()) return;
 
             const excelOrders = ordersMaster.filter(o =>
                 o.seller_id === currentUserId &&
@@ -5687,6 +5702,7 @@
         // 셀러: [선택수정] 1개 → 그 주문 수정, 2개 이상 → 합배송 묶기 / 부분출고 (supabase/seller_combine.sql)
         function editSelectedSellerOrder() {
             if (!canModifyOrders()) { alert('관리자 승인 후 이용할 수 있습니다.'); return; }
+            if (blockEditIfShipClosed()) return;
             const ids = Array.from(document.querySelectorAll('.seller-chk-item:checked')).map(c => c.value);
             if (ids.length === 0) {
                 alert('수정할 주문을 체크해주세요.\n\n· 1개만 체크 → 그 주문 하나 수정 (합배송 건이면 그 상품만 부분출고로 빼기)\n· 2개 이상 체크 → 같은 분께 가는 주문 합배송으로 묶기 / 부분출고로 풀기\n\n※ 관리자가 접수완료한 주문은 바꿀 수 없습니다.');
@@ -5761,6 +5777,7 @@
         }
         async function applyCombine(mode, ids = combineIds) {
             if (!ids.length) return;
+            if (blockEditIfShipClosed()) return;   // 창을 7시 전에 열어 둔 경우
             const label = mode === 'combine' ? '합배송으로 묶기' : '부분출고로 바꾸기';
             const detail = mode === 'combine'
                 ? `같은 주문 번호로 묶고 상품명 앞에 (합)을 붙입니다.\n${currentRole === 'seller' ? '주문 번호도' : '셀러 화면 번호도'} 같은 번호로 바뀝니다.`
